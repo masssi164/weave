@@ -4,6 +4,15 @@ on:
   push:
     branches: [dev]
   workflow_dispatch:
+    inputs:
+      components:
+        description: Component set to build or reuse
+        type: choice
+        required: true
+        default: runtime-linux-amd64,ios-simulator,ios-device
+        options:
+          - runtime-linux-amd64,ios-simulator,ios-device
+          - macos-desktop
   workflow_call:
     inputs:
       candidate:

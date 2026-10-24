@@ -17,6 +17,7 @@ from unittest.mock import patch
 import zipfile
 
 import build_artifacts as artifacts
+import build_artifacts_hosted as hosted
 
 
 class Repository(unittest.TestCase):
@@ -116,6 +117,17 @@ class Repository(unittest.TestCase):
         self.write("rust/matrix-client/src/lib.rs", "pub fn changed() {}\n")
         self.commit()
         self.assertTrue(all(before[name] != self.inputs()[name] for name in before))
+
+    def test_cocoapods_toolchain_change_invalidates_only_affected_component(self):
+        before = self.inputs()
+        config = artifacts.configuration(self.root)
+        config["components"]["ios-device"]["toolchain"]["cocoapods"] = "different"
+        self.write(artifacts.CONFIG, json.dumps(config))
+        self.commit()
+        after = self.inputs()
+        self.assertNotEqual(before["ios-device"], after["ios-device"])
+        self.assertEqual(before["ios-simulator"], after["ios-simulator"])
+        self.assertEqual(before["runtime-linux-amd64"], after["runtime-linux-amd64"])
 
     def test_mode_rename_and_deletion_change_input_identity(self):
         values = [artifacts.input_digest(self.root, "ios-device")]
@@ -228,6 +240,143 @@ class Repository(unittest.TestCase):
                                     "GITHUB_REF": "refs/pull/2/merge", "GITHUB_EVENT_NAME": "pull_request"}, clear=True), \
                 self.assertRaisesRegex(artifacts.ArtifactError, "protected-producer-context-required"):
             artifacts.publish_manifest(self.root, "ios-simulator", self.root, self.root / "unused")
+
+    def test_source_guard_reports_escaped_paths_without_source_contents(self):
+        filename = "client/lib/generated\n::error::unsafe.dart"
+        self.write(filename, "original source\n")
+        self.commit()
+        self.write(filename, "sensitive build output must not be logged\n")
+        self.command("add", filename)
+        with self.assertRaises(artifacts.ArtifactError) as caught:
+            artifacts.require_clean_source(self.root, "apple-ios-configuration")
+        message = str(caught.exception)
+        self.assertNotIn("\n", message)
+        self.assertNotIn("sensitive build output", message)
+        details = json.loads(message.removeprefix("producer-tracked-source-modified "))
+        self.assertEqual(details, {"stage": "apple-ios-configuration", "paths": [filename], "totalChangedPaths": 1})
+
+    def test_dirty_apple_configuration_stops_before_native_compilation(self):
+        project = "client/ios/Runner.xcodeproj/project.pbxproj"
+        self.write(project, "tracked project\n")
+        self.commit()
+        pins = artifacts.component_configuration(self.root, "ios-device")["toolchain"]
+        commands = []
+
+        def run(root, arguments, **kwargs):
+            commands.append(arguments)
+            if arguments == ["xcodebuild", "-version"]:
+                return "Xcode " + pins["xcode"] + "\nBuild version " + pins["xcodeBuild"]
+            if arguments[:2] == ["xcrun", "--sdk"]:
+                return pins["sdk"]
+            if arguments == ["pod", "--version"]:
+                return pins["cocoapods"]
+            if arguments[:2] == ["flutter", "--version"]:
+                return json.dumps({"frameworkVersion": pins["flutter"], "channel": "stable"})
+            if "--config-only" in arguments:
+                self.write(project, "automatically migrated project\n")
+            return ""
+
+        with patch.object(hosted.platform, "system", return_value="Darwin"), \
+                patch.object(hosted.platform, "machine", return_value="arm64"), \
+                patch.object(hosted, "run", side_effect=run), \
+                patch.dict(os.environ, {"GITHUB_RUN_NUMBER": "12"}), \
+                self.assertRaisesRegex(artifacts.ArtifactError, "apple-ios-configuration"):
+            hosted.apple(self.root, "ios-device", self.root / "payload", self.command("rev-parse", "HEAD"))
+        builds = [command for command in commands if command[:3] == ["flutter", "build", "ios"]]
+        self.assertEqual(len(builds), 1)
+        self.assertIn("--config-only", builds[0])
+        self.assertIn("--profile", builds[0])
+        self.assertIn("--no-codesign", builds[0])
+        self.assertFalse(any("build-for-testing" in command for command in commands))
+
+    def test_publication_still_rejects_changed_tracked_source(self):
+        source = self.command("rev-parse", "HEAD")
+        self.write("client/lib/main.dart", "changed after native compilation\n")
+        output = self.root / "unused"
+        environment = {"GITHUB_ACTIONS": "true", "RUNNER_ENVIRONMENT": "github-hosted",
+                       "GITHUB_REF": "refs/heads/dev", "GITHUB_EVENT_NAME": "push",
+                       "GITHUB_REPOSITORY": "masssi164/weave", "GITHUB_SHA": source,
+                       "GITHUB_WORKFLOW_REF": "masssi164/weave/.github/workflows/build-artifacts.yml@refs/heads/dev"}
+        with patch.dict(os.environ, environment, clear=True), \
+                self.assertRaisesRegex(artifacts.ArtifactError, "producer-tracked-source-modified.*publication"):
+            artifacts.publish_manifest(self.root, "ios-device", self.root, output)
+        self.assertFalse(output.exists())
+
+    def test_configuration_only_cannot_compile_pack_or_publish(self):
+        source = self.command("rev-parse", "HEAD")
+        pins = artifacts.component_configuration(self.root, "ios-device")["toolchain"]
+        commands = []
+
+        def run(root, arguments, **kwargs):
+            commands.append(arguments)
+            if arguments == ["xcodebuild", "-version"]:
+                return "Xcode " + pins["xcode"] + "\nBuild version " + pins["xcodeBuild"]
+            if arguments[:2] == ["xcrun", "--sdk"]:
+                return pins["sdk"]
+            if arguments == ["pod", "--version"]:
+                return pins["cocoapods"]
+            if arguments[:2] == ["flutter", "--version"]:
+                return json.dumps({"frameworkVersion": pins["flutter"], "channel": "stable"})
+            return ""
+
+        environment = {"GITHUB_ACTIONS": "true", "RUNNER_ENVIRONMENT": "github-hosted",
+                       "GITHUB_SHA": source, "GITHUB_RUN_NUMBER": "12",
+                       "GITHUB_REF": "refs/pull/42/merge", "GITHUB_EVENT_NAME": "pull_request"}
+        output = self.root / "no-artifacts"
+        arguments = ["build_artifacts_hosted.py", "--root", str(self.root), "--component", "ios-device",
+                     "--output", str(output), "--configuration-only"]
+        with patch("sys.argv", arguments), patch.dict(os.environ, environment, clear=True), \
+                patch.object(hosted.platform, "system", return_value="Darwin"), \
+                patch.object(hosted.platform, "machine", return_value="arm64"), \
+                patch.object(hosted, "run", side_effect=run), \
+                patch.object(hosted, "publish_manifest") as publish, \
+                patch.object(artifacts, "package_payload") as package, \
+                patch("sys.stdout", new_callable=io.StringIO) as stdout:
+            self.assertEqual(hosted.main(), 0)
+        builds = [command for command in commands if command[:3] == ["flutter", "build", "ios"]]
+        self.assertEqual(len(builds), 1)
+        self.assertIn("--config-only", builds[0])
+        self.assertFalse(any("build-for-testing" in command for command in commands))
+        publish.assert_not_called()
+        package.assert_not_called()
+        self.assertFalse(output.exists())
+        self.assertIn("WEAVE_HOSTED_CONFIGURATION_RESULT component=ios-device status=passed", stdout.getvalue())
+        self.assertNotIn("WEAVE_HOSTED_BUILD_RESULT", stdout.getvalue())
+
+    def test_configuration_only_rejects_runtime_component(self):
+        arguments = ["build_artifacts_hosted.py", "--root", str(self.root), "--component", "runtime-linux-amd64",
+                     "--output", str(self.root / "unused"), "--configuration-only"]
+        with patch("sys.argv", arguments), \
+                patch.dict(os.environ, {"GITHUB_ACTIONS": "true", "RUNNER_ENVIRONMENT": "github-hosted"}, clear=True), \
+                patch.object(hosted, "runtime") as runtime, \
+                self.assertRaisesRegex(artifacts.ArtifactError, "configuration-only-apple-component-required"):
+            hosted.main()
+        runtime.assert_not_called()
+
+    def test_unpinned_cocoapods_is_rejected_before_dependency_preparation(self):
+        for component in ("ios-device", "ios-simulator", "macos-desktop"):
+            with self.subTest(component=component):
+                pins = artifacts.component_configuration(self.root, component)["toolchain"]
+                commands = []
+
+                def run(root, arguments, **kwargs):
+                    commands.append(arguments)
+                    if arguments == ["xcodebuild", "-version"]:
+                        return "Xcode " + pins["xcode"] + "\nBuild version " + pins["xcodeBuild"]
+                    if arguments[:2] == ["xcrun", "--sdk"]:
+                        return pins["sdk"]
+                    if arguments == ["pod", "--version"]:
+                        return "1.16.2"
+                    self.fail("Unexpected preparation command before CocoaPods validation")
+
+                with patch.object(hosted.platform, "system", return_value="Darwin"), \
+                        patch.object(hosted.platform, "machine", return_value="arm64"), \
+                        patch.object(hosted, "run", side_effect=run), \
+                        self.assertRaisesRegex(artifacts.ArtifactError, "pinned-cocoapods-unavailable"):
+                    hosted.apple(self.root, component, self.root / "unused", self.command("rev-parse", "HEAD"),
+                                 configuration_only=True)
+                self.assertEqual(commands[-1], ["pod", "--version"])
+                self.assertFalse(any(command[0] == "flutter" for command in commands))
 
     def downloaded_fixture(self):
         manifest, archive = self.bundle()

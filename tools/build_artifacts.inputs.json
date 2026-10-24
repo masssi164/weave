@@ -91,7 +91,8 @@
         "rust": "1.95.0",
         "xcode": "26.5",
         "xcodeBuild": "17F42",
-        "sdk": "26.5"
+        "sdk": "26.5",
+        "cocoapods": "1.17.0"
       },
       "inputs": [
         "client/lib/**",
@@ -125,7 +126,8 @@
         "rust": "1.95.0",
         "xcode": "26.5",
         "xcodeBuild": "17F42",
-        "sdk": "26.5"
+        "sdk": "26.5",
+        "cocoapods": "1.17.0"
       },
       "inputs": [
         "client/lib/**",
@@ -157,7 +159,8 @@
         "rust": "1.95.0",
         "xcode": "26.5",
         "xcodeBuild": "17F42",
-        "sdk": "26.5"
+        "sdk": "26.5",
+        "cocoapods": "1.17.0"
       },
       "inputs": [
         "client/lib/**",
