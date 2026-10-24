@@ -21,6 +21,7 @@ class OidcAuthSessionRepository implements AuthSessionRepository {
   final SecureStore _secureStore;
   final OidcClient _oidcClient;
   static final _storeWrites = Expando<Future<void>>();
+  static final _storeRefreshes = Expando<_PendingSessionRefresh>();
 
   @override
   Future<AuthState> restoreSession(AuthConfiguration configuration) async {
@@ -43,7 +44,7 @@ class OidcAuthSessionRepository implements AuthSessionRepository {
       return const AuthState.signedOut();
     }
 
-    return refreshSession(configuration);
+    return _refreshSession(configuration, onlyIfRequired: true);
   }
 
   @override
@@ -55,18 +56,69 @@ class OidcAuthSessionRepository implements AuthSessionRepository {
   }
 
   @override
-  Future<AuthState> refreshSession(AuthConfiguration configuration) async {
-    final currentSession = await _readSession();
-    if (currentSession == null || !currentSession.matches(configuration)) {
-      return const AuthState.signedOut();
-    }
+  Future<AuthState> refreshSession(AuthConfiguration configuration) =>
+      _refreshSession(configuration, onlyIfRequired: false);
 
-    final refreshToken = currentSession.refreshToken;
-    if (refreshToken == null || refreshToken.isEmpty) {
-      await _clearIfCurrent(currentSession);
-      return const AuthState.signedOut();
-    }
+  Future<AuthState> _refreshSession(
+    AuthConfiguration configuration, {
+    required bool onlyIfRequired,
+  }) async {
+    // Read and admit under the session-write queue so a delayed store read
+    // cannot start another refresh after its saved snapshot was replaced.
+    final operation = await _withSessionWrite(() async {
+      final currentSession = await _readSession();
+      if (currentSession == null || !currentSession.matches(configuration)) {
+        return (result: Future<AuthState>.value(const AuthState.signedOut()));
+      }
 
+      // Another restore may have renewed the session since the first read.
+      // Explicit refresh requests still exchange the token as requested.
+      if (onlyIfRequired && !currentSession.requiresRefresh) {
+        return (
+          result: Future<AuthState>.value(
+            AuthState.authenticated(currentSession),
+          ),
+        );
+      }
+
+      final refreshToken = currentSession.refreshToken;
+      if (refreshToken == null || refreshToken.isEmpty) {
+        await _secureStore.delete(authSessionStorageKey);
+        return (result: Future<AuthState>.value(const AuthState.signedOut()));
+      }
+
+      // Features share the same refresh, including across repositories using
+      // this store. A newer login never joins an older session's work.
+      final pending = _storeRefreshes[_secureStore];
+      if (pending != null && _sameSession(pending.session, currentSession)) {
+        return (result: pending.result);
+      }
+      final refresh = Future<AuthState>(
+        () => _refreshSavedSession(configuration, currentSession, refreshToken),
+      );
+      _storeRefreshes[_secureStore] = _PendingSessionRefresh(
+        currentSession,
+        refresh,
+      );
+      // Schedule and wrap the future so the queue releases before the network
+      // starts or its compare-and-write step needs the same queue.
+      return (result: refresh);
+    });
+    final refresh = operation.result;
+    try {
+      return await refresh;
+    } finally {
+      if (identical(_storeRefreshes[_secureStore]?.result, refresh)) {
+        _storeRefreshes[_secureStore] = null;
+      }
+    }
+  }
+
+  Future<AuthState> _refreshSavedSession(
+    AuthConfiguration configuration,
+    AuthSession currentSession,
+    String refreshToken,
+  ) async {
     try {
       final tokens = await _oidcClient.refresh(
         configuration,
@@ -131,10 +183,12 @@ class OidcAuthSessionRepository implements AuthSessionRepository {
 
   Future<bool> _isCurrent(AuthSession expected) async {
     final current = await _readSession();
-    return current != null &&
-        AuthSessionDto.fromSession(current).encode() ==
-            AuthSessionDto.fromSession(expected).encode();
+    return current != null && _sameSession(current, expected);
   }
+
+  bool _sameSession(AuthSession left, AuthSession right) =>
+      AuthSessionDto.fromSession(left).encode() ==
+      AuthSessionDto.fromSession(right).encode();
 
   Future<void> _clearIfCurrent(AuthSession expected) =>
       _withSessionWrite(() async {
@@ -144,8 +198,8 @@ class OidcAuthSessionRepository implements AuthSessionRepository {
       });
 
   Future<T> _withSessionWrite<T>(Future<T> Function() operation) async {
-    // Serialize storage mutations, including refresh compare-and-write, across
-    // repository instances sharing this store. Network calls stay outside it.
+    // Serialize session writes and refresh admission across repositories using
+    // this store. No lock is held while waiting for a network response.
     final previous = _storeWrites[_secureStore] ?? Future<void>.value();
     final completed = Completer<void>();
     _storeWrites[_secureStore] = completed.future;
@@ -207,4 +261,11 @@ class OidcAuthSessionRepository implements AuthSessionRepository {
       throw AuthFailure.storage('Unable to save the session.', cause: error);
     }
   }
+}
+
+class _PendingSessionRefresh {
+  const _PendingSessionRefresh(this.session, this.result);
+
+  final AuthSession session;
+  final Future<AuthState> result;
 }

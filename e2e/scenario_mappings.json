@@ -418,6 +418,11 @@
           "fragments": [
             "a new repository instance restores the persisted session",
             "refresh-after-process-close",
+            "concurrent feature restores share one refresh",
+            "staggered restores refresh once despite a delayed session read",
+            "failed shared refresh allows a later ordinary retry",
+            "a new account never joins the previous account refresh",
+            "late shared refresh cannot restore a signed-out session",
             "temporary refresh failure preserves the device-bound session",
             "rejected refresh grant clears the unusable local session"
           ]
@@ -437,6 +442,18 @@
             "Trust-preserving app-state reset, open same current handoff, manual login succeeds and records fresh handoff evidence without deleting the Developer App trust anchor.",
             "Dogfood Mailpit check: test/reset emails are captured locally, visible to operator, and not sent externally.",
             "Repeated developer-team/profile trust prompts are a dogfood blocker"
+          ]
+        },
+        {
+          "path": "client/test/integrations/weave_api/presentation/providers/workspace_home_session_test.dart",
+          "fragments": [
+            "missing current session cannot advertise ready workspace and retry recovers"
+          ]
+        },
+        {
+          "path": "client/test/features/app/presentation/providers/workspace_connection_provider_test.dart",
+          "fragments": [
+            "preserves denied and configured backend capabilities after Space admission"
           ]
         }
       ]

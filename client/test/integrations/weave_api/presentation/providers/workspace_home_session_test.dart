@@ -13,6 +13,7 @@ import 'package:weave/features/app/domain/entities/workspace_capability_snapshot
 import 'package:weave/features/app/domain/entities/workspace_home_snapshot.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
+import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/entities/auth_state.dart';
 import 'package:weave/features/auth/domain/repositories/auth_session_repository.dart';
@@ -193,6 +194,66 @@ void main() {
           'Restore before request and confirm the same session before publishing.',
     );
   });
+
+  test(
+    'missing current session cannot advertise ready workspace and retry recovers',
+    () async {
+      auth.state = const AuthState.signedOut();
+      final requests = <String>[];
+      final state = capabilityContainer(
+        MockClient((request) async {
+          requests.add(request.url.path);
+          expect(request.headers['authorization'], 'Bearer current-token');
+          if (request.url.path.endsWith('/capabilities')) {
+            return _capabilities();
+          }
+          return http.Response(
+            jsonEncode(
+              request.url.path.endsWith('/workspace-default')
+                  ? {
+                      'spaceRef': 'workspace-default',
+                      'displayName': 'Organization workspace',
+                    }
+                  : {
+                      'spaces': [
+                        {
+                          'spaceRef': 'workspace-default',
+                          'displayName': 'Organization workspace',
+                        },
+                      ],
+                      'nextAfterSpaceRef': null,
+                    },
+            ),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+      await state.read(weaveApiWorkspaceCapabilitySnapshotProvider.future);
+
+      expect(requests, isEmpty);
+      expect(state.read(workspaceConnectionStateProvider).hasError, isTrue);
+      expect(state.read(workspaceCapabilitySnapshotProvider).hasError, isTrue);
+
+      auth.state = AuthState.authenticated(
+        buildTestAuthSession(accessToken: 'current-token'),
+      );
+      state.invalidate(weaveApiWorkspaceCapabilitySnapshotProvider);
+      await state.read(weaveApiWorkspaceCapabilitySnapshotProvider.future);
+      await state.read(weaveApiMemberSpacesProvider.future);
+      final workspace = state
+          .read(workspaceCapabilitySnapshotProvider)
+          .requireValue;
+      expect(workspace.chat.isReady, isTrue);
+      expect(workspace.files.isReady, isTrue);
+      expect(workspace.calendar.isReady, isTrue);
+      expect(requests, [
+        '/api/workspace/capabilities',
+        '/api/spaces',
+        '/api/spaces/workspace-default',
+      ]);
+    },
+  );
 
   test(
     'capabilities confirm the ordinary member session before display',
