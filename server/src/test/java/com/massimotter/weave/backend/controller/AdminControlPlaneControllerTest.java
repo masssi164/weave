@@ -561,6 +561,29 @@ class AdminControlPlaneControllerTest {
     }
 
     @Test
+    void readOnlyWhitelistRejectsValidEditsWithoutChangingPolicyOrAudit() throws Exception {
+        String policyBefore = mockMvc.perform(get("/api/admin/policies/capability-whitelist").with(adminJwt()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String auditBefore = mockMvc.perform(get("/api/admin/audit/events").with(adminJwt()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+
+        mockMvc.perform(patch("/api/admin/policies/capability-whitelist")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"profileKey\":\"workspace-admin\",\"capabilityKeys\":[\"admin.policy.edit\"],\"reason\":\"private proposed reason\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("capability-whitelist-read-only"))
+                .andExpect(jsonPath("$.details.readOnly").value(true))
+                .andExpect(jsonPath("$.supportRef").isNotEmpty())
+                .andExpect(content().string(not(containsString("private proposed reason"))));
+
+        mockMvc.perform(get("/api/admin/policies/capability-whitelist").with(adminJwt()))
+                .andExpect(status().isOk()).andExpect(content().json(policyBefore));
+        mockMvc.perform(get("/api/admin/audit/events").with(adminJwt()))
+                .andExpect(status().isOk()).andExpect(content().json(auditBefore));
+    }
+
+    @Test
     void lastAdminGuardRejectsWorkspaceAdminPolicyThatRemovesPolicyEdit() throws Exception {
         mockMvc.perform(patch("/api/admin/policies/capability-whitelist")
                         .with(adminJwt())
@@ -649,8 +672,8 @@ class AdminControlPlaneControllerTest {
                         .with(adminJwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"profileKey\":\"workspace-admin\",\"capabilityKeys\":[\"admin.policy.edit\",\"chat.read\",\"calendar.manage_events\"],\"reason\":\"grant through Admin Console\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.denyByDefault").value(true));
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("capability-whitelist-read-only"));
 
         mockMvc.perform(get("/api/admin/audit/events").with(adminJwt()))
                 .andExpect(status().isOk())
@@ -658,7 +681,8 @@ class AdminControlPlaneControllerTest {
                 .andExpect(jsonPath("$[*].payload.providerConfigSource", hasItems("admin-control-plane-selected-provider-mappings")))
                 .andExpect(jsonPath("$[*].payload.token", hasItems("[redacted]")))
                 .andExpect(jsonPath("$[*].payload.apiSecret", hasItems("[redacted]")))
-                .andExpect(jsonPath("$[*].payload.rawProviderError", hasItems("[redacted:provider-error]")))
+                .andExpect(jsonPath("$[*].payload.rawProviderError").isEmpty())
+                .andExpect(content().string(not(containsString("admin-policy-"))))
                 .andExpect(content().string(not(containsString("server-test-secret-that-must-never-appear"))))
                 .andExpect(content().string(not(containsString("Bearer secret"))));
     }

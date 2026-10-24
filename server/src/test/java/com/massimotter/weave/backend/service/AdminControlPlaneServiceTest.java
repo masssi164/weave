@@ -93,7 +93,7 @@ class AdminControlPlaneServiceTest {
     }
 
     @Test
-    void providerAndPolicyMutationsRequireEffectiveOwnerOrAdminPolicyServerSide() {
+    void whitelistEditsRemainAuthorizedButReadOnlyWithoutAuditMutation() {
         InMemoryAuditEventPublisher auditPublisher = new InMemoryAuditEventPublisher();
         AdminControlPlaneService service = new AdminControlPlaneService(
                 mock(ProviderRegistry.class),
@@ -122,15 +122,18 @@ class AdminControlPlaneServiceTest {
                     assertThat(exception.code()).isEqualTo("capability-policy-blocked");
                 });
 
-        var response = service.updateWhitelist(request, jwt("admin"));
-
-        assertThat(response.denyByDefault()).isTrue();
-        assertThat(auditPublisher.events())
-                .extracting(event -> event.action())
-                .containsExactly(AuditAction.ADMIN_POLICY_UPDATED);
-        assertThat(auditPublisher.events().get(0).payload())
-                .containsEntry("profileKey", "workspace-admin")
-                .containsEntry("denyByDefault", true);
+        var before = service.whitelist(jwt("admin"));
+        for (String role : List.of("owner", "admin")) {
+            assertThatThrownBy(() -> service.updateWhitelist(request, jwt(role)))
+                    .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                        assertThat(exception.status().value()).isEqualTo(409);
+                        assertThat(exception.code()).isEqualTo("capability-whitelist-read-only");
+                        assertThat(exception.details()).containsEntry("readOnly", true)
+                                .containsEntry("supportSafe", true);
+                    });
+        }
+        assertThat(service.whitelist(jwt("admin"))).isEqualTo(before);
+        assertThat(auditPublisher.events()).isEmpty();
     }
 
     @Test
@@ -143,21 +146,21 @@ class AdminControlPlaneServiceTest {
                 new JpaAuditEventPublisher(
                         repository, tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build());
         AdminControlPlaneService service = adminControlPlaneService(auditPublisher);
-        CapabilityWhitelistUpdateRequest request = new CapabilityWhitelistUpdateRequest(
-                "workspace-admin",
-                List.of("admin.policy.edit", "admin.provider.configure"),
+        EffectivePolicySimulationRequest request = new EffectivePolicySimulationRequest(
+                "issuer+subject:https://auth.example.invalid/realms/weave#member-123",
+                "weave-dogfood", List.of("member"), List.of(), List.of("chat.read"),
                 "prove jpa audit readback");
 
-        service.updateWhitelist(request, jwt("admin"));
+        service.simulateEffectivePolicy(request, jwt("admin"));
 
         assertThat(service.auditEvents(jwt("admin")))
                 .singleElement()
                 .satisfies(event -> {
-                    assertThat(event.action()).isEqualTo("admin.policy.updated");
-                    assertThat(event.idempotencyKey()).startsWith("admin-policy-");
+                    assertThat(event.action()).isEqualTo("effective_policy.simulated");
+                    assertThat(event.idempotencyKey()).startsWith("effective-policy-simulation-");
                     assertThat(event.payload())
-                            .containsEntry("profileKey", "workspace-admin")
-                            .containsEntry("denyByDefault", true);
+                            .containsEntry("requestedCapabilityCount", 1)
+                            .containsEntry("supportSafe", true);
                 });
     }
 

@@ -228,9 +228,6 @@ function LiveConsole({
       ? "recommended_self_hosted_default"
       : (initialControlPlane.providerCategories[0]?.choiceModel ?? "recommended_self_hosted_default"),
   );
-  const [policyDraft, setPolicyDraft] = useState(
-    initialControlPlane.whitelistPolicy.allowedCapabilities.join("\n"),
-  );
   const [dryRunReport, setDryRunReport] =
     useState<ProviderReplacementDryRunReport | null>(null);
   const [providerSelectionDryRun, setProviderSelectionDryRun] =
@@ -314,19 +311,6 @@ function LiveConsole({
     );
     setDryRunReport(null);
     resetApplyEvidence();
-  }
-
-  async function savePolicy() {
-    if (!canConfigure) return;
-    const allowedCapabilities = policyDraft
-      .split("\n")
-      .map((capability) => capability.trim())
-      .filter(Boolean);
-    const response = await api.updateWhitelistPolicy(allowedCapabilities);
-    setControlPlane((current) => ({ ...current, whitelistPolicy: response }));
-    setStatusMessage(
-      `Whitelist policy saved with ${allowedCapabilities.length} requested capabilities.`,
-    );
   }
 
   async function selectProvider(dryRun: boolean) {
@@ -1731,29 +1715,19 @@ function LiveConsole({
                     <Alert severity="info" sx={{ mb: 2 }}>
                       {copy.policyWhitelistDescription}
                     </Alert>
-                    <TextField
-                      label={copy.allowedCapabilitiesLabel}
-                      value={policyDraft}
-                      onChange={(event) => setPolicyDraft(event.target.value)}
-                      fullWidth
-                      multiline
-                      minRows={5}
-                      helperText={copy.allowedCapabilitiesHelper}
-                    />
-                    <Button
-                      sx={{ mt: 2 }}
-                      variant="contained"
-                      onClick={() => void savePolicy()}
-                    >
-                      {copy.saveWhitelistPolicyButton}
-                    </Button>
-                    <Divider sx={{ my: 2 }} />
-                    <Typography>
-                      {copy.blockedExamplesLabel}:{" "}
-                      {controlPlane.whitelistPolicy.blockedCapabilities.join(
-                        ", ",
-                      )}
-                    </Typography>
+                    {!controlPlane.whitelistPolicy.available ? (
+                      <Alert severity="warning">{copy.roleCapabilitiesUnavailable}</Alert>
+                    ) : controlPlane.whitelistPolicy.roleCapabilities.length === 0 ? (
+                      <Typography>{copy.roleCapabilitiesEmpty}</Typography>
+                    ) : (
+                      <List aria-label={copy.roleCapabilitiesLabel}>
+                        {controlPlane.whitelistPolicy.roleCapabilities.map((capability) => (
+                          <ListItem key={capability}>
+                            <ListItemText primary={capability} />
+                          </ListItem>
+                        ))}
+                      </List>
+                    )}
                   </CardContent>
                 </Card>
               ) : null}

@@ -23,10 +23,6 @@ function mockApi(
   return {
     configuration: adminConsoleConfig,
     getCurrentActor: actorRead,
-    updateWhitelistPolicy: vi.fn().mockResolvedValue({
-      ...sampleControlPlane.whitelistPolicy,
-      allowedCapabilities: ["files.read"],
-    }),
     selectProvider: vi.fn(
       async (category, providerKey, choiceModel, dryRun) => ({
         category,
@@ -297,7 +293,7 @@ describe("Admin Console MVP", () => {
       screen.getByRole("heading", { name: /mcp workload boundary/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: /policy and whitelist/i }),
+      screen.getByRole("heading", { name: /role capabilities for your admin session/i }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: /secretref inventory/i }),
@@ -352,9 +348,7 @@ describe("Admin Console MVP", () => {
     expect(screen.getByText(/Stable states:/i)).toHaveTextContent(
       /admin action required/i,
     );
-    expect(
-      screen.getAllByText(/policy is deny-by-default/i).length,
-    ).toBeGreaterThan(0);
+    expect(screen.getByText(adminConsoleMessages.en.policyWhitelistDescription)).toBeInTheDocument();
   });
 
   it("renders identity readiness as backend-owned support-safe Workspace Health cards", async () => {
@@ -471,27 +465,48 @@ describe("Admin Console MVP", () => {
     expect(screen.getByText(/empty catalog/i)).toBeInTheDocument();
   });
 
-  it("saves whitelist policy through the backend API and announces the result", async () => {
-    const api = mockApi();
+  it.each(["en", "de"] as const)("shows read-only current role capabilities without saving in %s while readiness remains usable", async (locale) => {
+    const legacySave = vi.fn();
+    const api = Object.assign(mockApi(), { updateWhitelistPolicy: legacySave });
     const user = userEvent.setup();
-    render(<App api={api} />);
+    const copy = adminConsoleMessages[locale];
+    render(<App api={api} locale={locale} />);
 
-    const policyField = await screen.findByRole("textbox", {
-      name: /allowed capabilities/i,
+    const policy = await screen.findByRole("region", {
+      name: copy.policyWhitelistHeading,
     });
-    await user.clear(policyField);
-    await user.type(policyField, "files.read");
-    await user.click(
-      screen.getByRole("button", { name: /save whitelist policy/i }),
-    );
+    expect(within(policy).getByText(copy.policyWhitelistDescription)).toBeInTheDocument();
+    const capabilities = within(policy).getByRole("list", { name: copy.roleCapabilitiesLabel });
+    expect(within(capabilities).getAllByRole("listitem").map((item) => item.textContent))
+      .toEqual(["chat.read", "files.read"]);
+    expect(within(policy).queryByRole("textbox")).not.toBeInTheDocument();
+    expect(within(policy).queryByRole("button")).not.toBeInTheDocument();
 
-    await waitFor(() =>
-      expect(api.updateWhitelistPolicy).toHaveBeenCalledWith(["files.read"]),
-    );
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      /whitelist policy saved/i,
-    );
-  }, 15_000);
+    await user.click(screen.getByRole("button", { name: copy.testReadinessButton }));
+    await waitFor(() => expect(api.testProviderReadiness).toHaveBeenCalledWith("synapse-homeserver"));
+    expect(legacySave).not.toHaveBeenCalled();
+    expect(screen.getByRole("status")).not.toHaveTextContent(/whitelist.*saved|richtlinie.*gespeichert/i);
+  });
+
+  it.each([false, true])("distinguishes unavailable role projection from explicit empty grants (available=%s)", async (available) => {
+    render(<App api={mockApi({
+      getControlPlane: vi.fn().mockResolvedValue({
+        ...sampleControlPlane,
+        whitelistPolicy: { available, roleCapabilities: [] },
+      }),
+    })} />);
+    const policy = await screen.findByRole("region", {
+      name: adminConsoleMessages.en.policyWhitelistHeading,
+    });
+    expect(within(policy).getByText(available
+      ? adminConsoleMessages.en.roleCapabilitiesEmpty
+      : adminConsoleMessages.en.roleCapabilitiesUnavailable)).toBeInTheDocument();
+    expect(within(policy).queryByText(available
+      ? adminConsoleMessages.en.roleCapabilitiesUnavailable
+      : adminConsoleMessages.en.roleCapabilitiesEmpty)).not.toBeInTheDocument();
+    expect(within(policy).queryByRole("list")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: adminConsoleMessages.en.testReadinessButton })).toBeEnabled();
+  });
 
   it("does not activate a provider from selection metadata even when a fixture claims fresh evidence", async () => {
     const api = mockApi();

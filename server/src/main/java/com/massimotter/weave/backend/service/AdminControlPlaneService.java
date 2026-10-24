@@ -990,7 +990,7 @@ public class AdminControlPlaneService {
                 "backend-control-plane");
     }
 
-    public CapabilityWhitelistResponse updateWhitelist(CapabilityWhitelistUpdateRequest request, Jwt jwt) {
+    public void updateWhitelist(CapabilityWhitelistUpdateRequest request, Jwt jwt) {
         workspaceCapabilityService.requireCapability(jwt, "admin.policy.edit", "admin-control-plane", "update-capability-whitelist");
         if (request == null || request.profileKey() == null || request.profileKey().isBlank()) {
             throw new ApiErrorException(
@@ -999,25 +999,12 @@ public class AdminControlPlaneService {
                     "Capability whitelist update requires a profile key.",
                     Map.of("reason", "profileKey is required"));
         }
-        String profileKey = request.profileKey().trim().toLowerCase(Locale.ROOT);
         enforceLastAdminGuard(request);
-        auditEventPublisher.publish(new AuditEvent(
-                organizationId(jwt),
-                "admin-control-plane",
-                actorRef(jwt),
-                "organization-admin-console",
-                AuditAction.ADMIN_POLICY_UPDATED,
-                Instant.now(clock),
-                "admin-policy-" + Instant.now(clock).toEpochMilli(),
-                AuditRedactionLevel.SECRET_REDACTED,
-                Map.of(
-                        "profileKey", profileKey,
-                        "capabilityKeys", safeCapabilities(request.capabilityKeys()),
-                        "reason", safeText(request.reason()),
-                        "denyByDefault", true,
-                        "rawProviderError", "redacted before audit",
-                        "token", "not-stored")));
-        return whitelist(jwt);
+        throw new ApiErrorException(
+                HttpStatus.CONFLICT,
+                "capability-whitelist-read-only",
+                "Capability profiles cannot be changed through this endpoint. No policy was changed.",
+                Map.of("readOnly", true, "supportSafe", true));
     }
 
     public OrganizationBootstrapResponse bootstrapOrganization(OrganizationBootstrapRequest request, Jwt jwt) {

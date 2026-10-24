@@ -1,6 +1,6 @@
 # Implementation brief: effective organization policy readback
 
-Status: diagnosed conformance gap; writable-policy implementation is not delivered by this planning draft.
+Status: partial implementation removes false policy-save success and exposes current role grants read-only; durable policy editing remains open in #1716.
 Issue: [#1716](https://github.com/masssi164/weave/issues/1716).
 
 ## Source and purpose
@@ -10,12 +10,25 @@ Corpus pin: `7129075b7bf3f9f3763ec71a907395b007604c6f`.
 Target lane: `dev`.
 
 The ordinary organization setup must produce an effective state that the member client can use.
-The current Admin whitelist PATCH publishes an audit event and returns a fixed map; it does not
-change the policy read by ordinary User operations. The UI nevertheless announces a successful
-save and flattens different profiles into one write payload.
+At the inspected baseline, the Admin whitelist PATCH published an audit event and returned a fixed
+map without changing the policy read by ordinary User operations. The UI nevertheless announced
+a successful save and flattened different profiles into one write payload.
 
 This brief records implementation evidence and proposed work. It does not redefine product
 policy or claim that organization/domain setup is complete.
+
+## Implemented immediate correction
+
+The draft preserves Admin authorization, request validation and last-admin protection, then rejects
+a valid whitelist edit with `409 capability-whitelist-read-only`. It records no policy-update event
+and clearly states that no policy changed. The generated Admin contract documents that rejection.
+The Admin UI displays only the current actor's role/entitlement grants, distinguishes unavailable
+from empty readback, and explains that domain availability and Space/resource rights are separate.
+It provides no unsupported policy editor or Save action. Other administration workflows remain
+available under their existing authority.
+
+This is an honesty and conformance repair, not durable organization policy editing. Issue #1716
+remains open for the accepted writable setting, persistence, concurrency and enforcement work below.
 
 ## Governing boundary
 
@@ -35,17 +48,17 @@ silently enroll all members, expose private resources, replace roles or change p
   `whitelist`, `updateWhitelist` and `enforceLastAdminGuard`.
 - `server/src/main/java/com/massimotter/weave/backend/service/WorkspaceCapabilityService.java`:
   effective policy, member projection and operation admission.
-- `admin-console/src/api.ts`: `normalizeWhitelist` and `updateWhitelistPolicy`.
-- `admin-console/src/App.tsx`: `savePolicy` and the editable whitelist field.
+- `admin-console/src/api.ts`: `normalizeWhitelist` and the read-only role-capability projection.
+- `admin-console/src/App.tsx`: the accessible read-only capability list.
 - Existing generated Admin transport models and the current identity/persistence boundaries.
 
-## Bounded implementation order
+## Remaining durable-editing implementation order
 
 1. Identify the exact writable setting and authority: organization domain availability and a
    named role/profile are not interchangeable. Record the accepted mapping explicitly; if that
    requires new product meaning, open a focused corpus change before implementing it.
-2. Remove false success. Unsupported writes must return an explicit error or be represented as
-   read-only; an audit record or request echo cannot establish a policy change.
+2. Preserve the implemented truthful rejection until supported mutation is real. An audit record
+   or request echo cannot establish a policy change.
 3. Save the supported named, organization-scoped setting durably using the existing architecture,
    with explicit concurrency and last-admin recovery semantics.
 4. Feed the same committed setting into both member capability readback and operation
@@ -56,7 +69,10 @@ Do not add a general policy engine, implicit grants, nested Spaces or another en
 
 ## Acceptance and proof
 
-Use issue #1716's checklist. Required behavioral proof is Admin write -> authoritative readback
+Immediate regression evidence covers unchanged readback/no mutation audit, authorized and denied
+requests, exact error-only OpenAPI responses, actor-only role grants and localized read-only UI.
+
+Use issue #1716's remaining checklist for durable editing. Required proof is Admin write -> authoritative readback
 -> ordinary member allow/deny, plus restart, wrong-organization, stale-write, unknown-capability
 and recovery boundaries. Assert that the previous fixed-map/no-op implementation fails the
 regression. Reuse current server, Admin UI and generated-client test runners.
@@ -73,3 +89,4 @@ configured domain-enabled flags at User operation admission. It does not impleme
 persistence. [#1714](https://github.com/masssi164/weave/issues/1714) carries explicit Chat Space
 selection. #1666 retains actual default-Space/member preparation. Keep these boundaries visible
 instead of treating one green check as proof of the whole setup.
+
