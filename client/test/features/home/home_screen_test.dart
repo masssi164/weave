@@ -1,9 +1,13 @@
 import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
+import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
+import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/app/domain/entities/workspace_home_snapshot.dart';
+import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_workspace_context.dart';
 import 'package:weave/features/calendar/domain/repositories/calendar_repository.dart';
@@ -18,6 +22,76 @@ import 'package:weave/integrations/weave_api/presentation/providers/weave_api_pr
 import '../../helpers/in_memory_stores.dart';
 import '../../helpers/server_config_test_data.dart';
 import '../../helpers/test_app.dart';
+
+WorkspaceCapabilityState _ready(WorkspaceCapability capability) =>
+    WorkspaceCapabilityState(
+      capability: capability,
+      readiness: WorkspaceCapabilityReadiness.ready,
+    );
+
+final _readyCapabilities = WorkspaceCapabilitySnapshot(
+  shellAccess: _ready(WorkspaceCapability.shellAccess),
+  chat: _ready(WorkspaceCapability.chat),
+  files: _ready(WorkspaceCapability.files),
+  calendar: _ready(WorkspaceCapability.calendar),
+  boards: _ready(WorkspaceCapability.boards),
+);
+
+final _calendarDeniedCapabilities = WorkspaceCapabilitySnapshot(
+  shellAccess: _readyCapabilities.shellAccess,
+  chat: _readyCapabilities.chat,
+  files: _readyCapabilities.files,
+  calendar: const WorkspaceCapabilityState(
+    capability: WorkspaceCapability.calendar,
+    readiness: WorkspaceCapabilityReadiness.blocked,
+    policyState: WorkspaceCapabilityPolicyState.policyBlocked,
+    memberSpaceAccessUnavailable: true,
+  ),
+  boards: _readyCapabilities.boards,
+);
+
+const _connection = WorkspaceConnectionState(
+  appAuth: IntegrationConnectionState(
+    integration: WorkspaceIntegration.appAuth,
+    status: IntegrationConnectionStatus.connected,
+  ),
+  chat: IntegrationConnectionState(
+    integration: WorkspaceIntegration.chat,
+    status: IntegrationConnectionStatus.connected,
+  ),
+  files: IntegrationConnectionState(
+    integration: WorkspaceIntegration.files,
+    status: IntegrationConnectionStatus.connected,
+  ),
+);
+
+Widget _homeTestApp(Widget child, {List<dynamic> overrides = const []}) =>
+    createTestApp(
+      child,
+      overrides: [
+        workspaceCapabilitySnapshotProvider.overrideWithValue(
+          AsyncData(_readyCapabilities),
+        ),
+        workspaceConnectionStateProvider.overrideWithValue(
+          const AsyncData(_connection),
+        ),
+        ...overrides,
+      ],
+    );
+
+class _HomeAdmissionController
+    extends Notifier<AsyncValue<WorkspaceCapabilitySnapshot>> {
+  _HomeAdmissionController(this.initial);
+
+  final AsyncValue<WorkspaceCapabilitySnapshot> initial;
+
+  @override
+  AsyncValue<WorkspaceCapabilitySnapshot> build() => initial;
+
+  void show(AsyncValue<WorkspaceCapabilitySnapshot> admission) {
+    state = admission;
+  }
+}
 
 class _FakeServerConfigurationRepository
     implements ServerConfigurationRepository {
@@ -40,9 +114,10 @@ class _FakeServerConfigurationRepository
 }
 
 class _FakeCalendarRepository implements CalendarRepository {
-  const _FakeCalendarRepository({required this.events});
+  _FakeCalendarRepository({required this.events});
 
-  final List<CalendarEvent> events;
+  List<CalendarEvent> events;
+  int eventReads = 0;
 
   @override
   Future<CalendarScopeList> loadScopes() async => const CalendarScopeList();
@@ -53,6 +128,7 @@ class _FakeCalendarRepository implements CalendarRepository {
     DateTime? from,
     DateTime? to,
   }) async {
+    eventReads++;
     return CalendarEventList(
       scope: scope ?? CalendarScope.workspace,
       events: events,
@@ -86,6 +162,122 @@ class _FakeCalendarRepository implements CalendarRepository {
 
 void main() {
   group('HomeScreen', () {
+    final deniedStates = <String, AsyncValue<WorkspaceCapabilitySnapshot>>{
+      'denied': AsyncData(_calendarDeniedCapabilities),
+      'loading': const AsyncLoading<WorkspaceCapabilitySnapshot>(),
+      'failed': AsyncError<WorkspaceCapabilitySnapshot>(
+        StateError('private capability diagnostics'),
+        StackTrace.empty,
+      ),
+    };
+
+    for (final entry in deniedStates.entries) {
+      testWidgets(
+        'Home does not fetch Calendar before current admission: ${entry.key}',
+        (tester) async {
+          tester.view.physicalSize = const Size(1000, 1800);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          var contextReads = 0;
+          final repository = _FakeCalendarRepository(
+            events: [_upcomingEvent('Protected planning')],
+          );
+          await tester.pumpWidget(
+            _homeTestApp(
+              const HomeScreen(),
+              overrides: [
+                workspaceCapabilitySnapshotProvider.overrideWithValue(
+                  entry.value,
+                ),
+                calendarRepositoryProvider.overrideWithValue(repository),
+                calendarWorkspaceContextProvider.overrideWith((ref) async {
+                  contextReads++;
+                  return _calendarContext;
+                }),
+                weaveApiWorkspaceHomeProvider.overrideWith((ref) async => null),
+              ],
+            ),
+          );
+          await _pumpHomeData(tester);
+          expect(contextReads, 0);
+          expect(repository.eventReads, 0);
+          expect(find.text('Protected planning'), findsNothing);
+          expect(find.text('Product center'), findsOneWidget);
+          expect(find.text('Continue'), findsOneWidget);
+          expect(find.textContaining('private capability'), findsNothing);
+          if (entry.key == 'denied') {
+            expect(find.text('Open Chat'), findsOneWidget);
+            expect(find.text('Open Files'), findsOneWidget);
+          }
+        },
+      );
+    }
+
+    testWidgets(
+      'Home hides retained Calendar entries and reloads after current regrant',
+      (tester) async {
+        var contextReads = 0;
+        final repository = _FakeCalendarRepository(
+          events: [_upcomingEvent('Initial admitted event')],
+        );
+        final admission =
+            NotifierProvider<
+              _HomeAdmissionController,
+              AsyncValue<WorkspaceCapabilitySnapshot>
+            >(() => _HomeAdmissionController(AsyncData(_readyCapabilities)));
+        await tester.pumpWidget(
+          _homeTestApp(
+            const HomeScreen(),
+            overrides: [
+              workspaceCapabilitySnapshotProvider.overrideWith(
+                (ref) => ref.watch(admission),
+              ),
+              calendarRepositoryProvider.overrideWithValue(repository),
+              calendarWorkspaceContextProvider.overrideWith((ref) async {
+                contextReads++;
+                return _calendarContext;
+              }),
+              weaveApiWorkspaceHomeProvider.overrideWith((ref) async => null),
+            ],
+          ),
+        );
+        await _pumpHomeData(tester);
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(HomeScreen)),
+        );
+        // Another mounted feature may retain the provider while Home hides it.
+        final retained = container.listen(calendarProvider, (_, _) {});
+        addTearDown(retained.close);
+        expect(find.text('Initial admitted event'), findsOneWidget);
+        expect(repository.eventReads, greaterThan(0));
+        for (final entry in deniedStates.entries) {
+          final previousTitle = repository.events.single.title;
+          final previousReads = repository.eventReads;
+          final previousContextReads = contextReads;
+          container.read(admission.notifier).show(entry.value);
+          await _pumpHomeData(tester);
+          expect(find.text(previousTitle), findsNothing);
+          expect(
+            container.read(calendarProvider).requireValue.events.single.title,
+            previousTitle,
+          );
+          expect(repository.eventReads, previousReads);
+          expect(contextReads, previousContextReads);
+          final freshTitle = 'Fresh event after ${entry.key}';
+          repository.events = [_upcomingEvent(freshTitle)];
+          container
+              .read(admission.notifier)
+              .show(AsyncData(_readyCapabilities));
+          await _pumpHomeData(tester);
+          expect(repository.eventReads, greaterThan(previousReads));
+          expect(contextReads, greaterThan(previousContextReads));
+          expect(find.text(freshTitle), findsOneWidget);
+          expect(find.text(previousTitle), findsNothing);
+        }
+      },
+    );
+
     for (final locale in const [Locale('en'), Locale('de')]) {
       testWidgets(
         'preserves calendar wall-clock fields in ${locale.languageCode}',
@@ -102,7 +294,7 @@ void main() {
             timezone: 'Europe/Berlin',
           );
           await tester.pumpWidget(
-            createTestApp(
+            _homeTestApp(
               Builder(
                 builder: (context) => Localizations.override(
                   context: context,
@@ -204,7 +396,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        createTestApp(
+        _homeTestApp(
           const HomeScreen(),
           overrides: [
             appStartDiscoveryClientProvider.overrideWith(
@@ -281,7 +473,7 @@ void main() {
       tester,
     ) async {
       await tester.pumpWidget(
-        createTestApp(
+        _homeTestApp(
           const HomeScreen(),
           overrides: [
             preferencesStoreProvider.overrideWithValue(
@@ -299,7 +491,7 @@ void main() {
               ),
             ),
             calendarRepositoryProvider.overrideWithValue(
-              const _FakeCalendarRepository(events: []),
+              _FakeCalendarRepository(events: []),
             ),
           ],
         ),
@@ -311,6 +503,23 @@ void main() {
       expect(find.text('Continue'), findsNothing);
     });
   });
+}
+
+const _calendarContext = CalendarWorkspaceContext(
+  ownerKey: 'fixture-member',
+  scopes: CalendarScopeList(),
+  selectedScope: CalendarScope.workspace,
+  evaluationTimeZone: 'Europe/Berlin',
+);
+
+CalendarEvent _upcomingEvent(String title) {
+  final start = DateTime.now().add(const Duration(hours: 2));
+  return CalendarEvent(
+    id: 'fixture-event',
+    title: title,
+    startTime: start,
+    endTime: start.add(const Duration(hours: 1)),
+  );
 }
 
 Future<void> _pumpHomeData(WidgetTester tester) async {

@@ -5981,6 +5981,13 @@
           ]
         },
         {
+          "path": "client/test/features/home/home_screen_test.dart",
+          "fragments": [
+            "Home does not fetch Calendar before current admission:",
+            "Home hides retained Calendar entries and reloads after current regrant"
+          ]
+        },
+        {
           "path": "client/test/features/shell/app_shell_test.dart",
           "fragments": [
             "workspace status localizes backend recovery states"
