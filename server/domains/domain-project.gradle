@@ -1,0 +1,16 @@
+// Transitional verification-only project: source/classpath still belong to :server.
+apply plugin: 'base'
+
+def inventory = project(':server').ext.weaveDomainCatalog.domains[project.name]
+def serverTest = ":server:domain${project.name.capitalize()}UnitTest"
+
+tasks.register('test') {
+    group = 'verification'
+    description = "Run the bounded ${project.name} JVM unit inventory."
+    dependsOn serverTest
+    dependsOn inventory.additional_unit_tasks
+}
+
+tasks.named('check') {
+    dependsOn 'test'
+}

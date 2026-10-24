@@ -1,0 +1,26 @@
+plugins {
+    id 'base'
+}
+
+description = 'Selected JVM unit-test bridges; production domain extraction is not complete.'
+
+def selectedDomains = project(':server').ext.weaveDomainSelection.domains
+
+tasks.register('test') {
+    group = 'verification'
+    description = 'Run the bounded JVM unit inventory for -Pdomains (default: all).'
+    dependsOn selectedDomains.collect { ":server:domains:${it}:test" }
+}
+
+tasks.register('selectionContractTest', Exec) {
+    group = 'verification'
+    description = 'Verify domain selection and source-branch pin semantics.'
+    workingDir rootProject.projectDir
+    commandLine 'python3', '-m', 'unittest', 'tools.domain_selection_resolver_test'
+}
+
+tasks.named('check') {
+    description = 'Check the selected JVM unit inventories without replacing serverCi.'
+    dependsOn 'selectionContractTest'
+    dependsOn selectedDomains.collect { ":server:domains:${it}:check" }
+}

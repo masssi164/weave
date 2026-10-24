@@ -1,0 +1,81 @@
+name: Selected domain JVM checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/domain-unit-checks.yml'
+      - 'tools/domain_selection_*.py'
+      - 'tools/domain_unit_workflow_test.py'
+      - 'server/domains/**'
+      - 'server/gradle/tasks/domain-verification.gradle'
+      - 'server/build.gradle'
+      - 'settings.gradle'
+  workflow_dispatch:
+    inputs:
+      domains:
+        description: 'Domains (all or comma-separated names); empty uses a matching branch pin, then all'
+        type: string
+        required: false
+  workflow_call:
+    inputs:
+      domains:
+        description: 'Domains (all or comma-separated names); empty uses a matching branch pin, then all'
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: domain-unit-checks-${{ github.event.pull_request.number || github.run_id }}-${{ inputs.domains || 'default' }}
+  cancel-in-progress: true
+
+jobs:
+  domain_units:
+    name: Selected domain JVM units (bounded inventory)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.13'
+      - name: Resolve selection and run existing domain units
+        shell: bash
+        env:
+          REQUESTED_DOMAINS: ${{ inputs.domains }}
+          SOURCE_REF: ${{ github.ref }}
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+          selection_args=(--root . --format csv --domains "$REQUESTED_DOMAINS")
+          if [[ "$SOURCE_REF" == refs/heads/* ]]; then
+            selection_args+=(--source-branch "${SOURCE_REF#refs/heads/}" --source-commit "$SOURCE_COMMIT")
+          fi
+          selected_domains="$(python3 tools/domain_selection_resolver.py "${selection_args[@]}")"
+          echo "Selected JVM unit domains: $selected_domains"
+          ./gradlew --no-daemon --stacktrace :server:domains:check "-Pdomains=$selected_domains"
+      - name: Verify Gradle task selection and packaging guard
+        if: github.event_name == 'pull_request'
+        run: python3 -m unittest tools.domain_selection_gradle_test -v
+      - name: Preserve JVM test reports
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: domain-unit-results-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            server/build/test-results/domain*UnitTest/
+            server/build/reports/tests/domain*UnitTest/
+            weave-files-core/build/test-results/test/
+            weave-files-core/build/reports/tests/test/
+          if-no-files-found: ignore
+          retention-days: 7

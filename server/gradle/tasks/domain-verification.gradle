@@ -1,0 +1,53 @@
+def catalogFile = rootProject.file('server/domains/catalog.json')
+ext.weaveDomainCatalog = new groovy.json.JsonSlurper().parse(catalogFile)
+def selectionJson = providers.exec {
+    workingDir rootProject.projectDir
+    commandLine 'python3', 'tools/domain_selection_resolver.py',
+            '--root', rootProject.projectDir.absolutePath,
+            '--domains', providers.gradleProperty('domains').getOrElse('')
+}.standardOutput.asText
+ext.weaveDomainSelection = new groovy.json.JsonSlurper().parseText(selectionJson.get())
+
+def selectedDomainNames = weaveDomainSelection.domains
+def availableDomainNames = weaveDomainCatalog.domains.keySet().sort()
+def verifyFullDomainPackaging = tasks.register('verifyFullDomainPackaging') {
+    group = 'verification'
+    description = 'Reject partial-domain packaging until production module extraction is implemented.'
+    inputs.property('domains', selectedDomainNames)
+    // No outputs: this prerequisite must still run when packaging is UP-TO-DATE.
+    doLast {
+        if (selectedDomainNames != availableDomainNames) {
+            throw new GradleException('Partial -Pdomains currently selects JVM checks only; '
+                    + 'production domain packaging is not implemented. Use -Pdomains=all to package the full Server.')
+        }
+    }
+}
+tasks.matching { it.name in ['bootJar', 'bootBuildImage', 'nativeCompile'] }.configureEach {
+    dependsOn verifyFullDomainPackaging
+}
+
+// These are existing JVM tests, not extracted domains or native/product qualification.
+weaveDomainCatalog.domains.each { domain, inventory ->
+    tasks.register("domain${domain.capitalize()}UnitTest", Test) {
+        group = 'verification'
+        description = "Run the bounded ${domain} JVM unit inventory from the existing Server sources."
+        dependsOn tasks.named('testClasses')
+        testClassesDirs = sourceSets.test.output.classesDirs
+        classpath = sourceSets.test.runtimeClasspath
+        inputs.file(catalogFile)
+        filter {
+            inventory.server_unit_tests.each { includeTestsMatching it }
+            failOnNoMatchingTests = true
+        }
+        useJUnitPlatform {
+            // Class-name filtering alone does not constrain Cucumber discovery.
+            includeEngines 'junit-jupiter'
+            excludeTags 'postgres'
+        }
+        afterSuite { descriptor, result ->
+            if (descriptor.parent == null && result.testCount == result.skippedTestCount) {
+                throw new GradleException("The ${domain} JVM unit inventory executed no tests.")
+            }
+        }
+    }
+}
