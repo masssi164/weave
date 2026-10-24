@@ -1,6 +1,6 @@
 # Implementation brief: diagnose and restore ordinary Dogfood Chat on preserved device state
 
-Status: planning only; implementation and runtime evidence are pending.
+Status: bounded client implementation is present in the draft PR; exact-candidate CI and physical acceptance remain pending.
 Task: [#1704](https://github.com/masssi164/weave/issues/1704).
 This is a bounded implementation handoff, not a second product specification or a release-readiness record.
 
@@ -69,3 +69,23 @@ No owner reinstall/store deletion, provider bypass, authorization relaxation, ge
 ## First implementation action and stop point
 
 Validate the baseline, read the owning code and take the first item of the implementation sequence. Reuse this source-pinned brief; do not restart a whole-project history audit. Stop when this issue's acceptance, required checks and scoped review are satisfied. Record a concrete blocker if required live evidence or a material product decision is unavailable; continue unaffected work within scope.
+
+## Implementation update — 2026-10-24
+
+The owner's current priority is a usable ordinary client on the existing Mac mini setup. This draft now contains actual client repairs.
+
+- Share refresh work for the same saved session across repository instances; serialize the current store read and refresh admission while leaving network work outside the storage queue.
+- Reuse an already renewed session for restore; preserve explicit refresh, logout and replacement-account safeguards.
+- Propagate missing current-session admission as a retryable error and preserve all twelve backend capability states, including denied admin access.
+- Add deterministic concurrency, delayed-read, account isolation and current-session/Space regressions. The existing ordinary default-Space setup remains the preparation path.
+
+### Verification of the implementation
+
+- 74 auth/Chat-coordinator tests passed (17 auth + 57 existing coordinator tests). The exact final auth regressions produce 6 expected failures against unchanged Dev and all pass with the fix.
+- 35 workspace/session/setup tests passed. Both added admission regressions fail against the exact original Dev provider.
+- Focused Dart analysis, formatting and diff checks passed. Full Flutter analysis passed on the combined auth/Space/Home/Files-copy source.
+- Acceptance mapping guard passed; E2E structure guard passed, with the pinned-manifest cross-check unavailable locally.
+
+Independent review examined the final queued refresh admission, delayed-read tests, logout/new-account guards and complete capability merge; no blocking source finding remains.
+
+The original physical Chat failure is not yet attributed to this defect. Keep #1704 open until the existing Mac mini candidate and preserved phone state demonstrate ordinary authenticated Chat. Exact-branch CI and Dogfood/physical evidence are pending.

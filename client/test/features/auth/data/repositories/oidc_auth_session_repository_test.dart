@@ -12,6 +12,7 @@ import '../../../../helpers/auth_test_data.dart';
 import '../../../../helpers/in_memory_stores.dart';
 
 class _FakeOidcClient implements OidcClient {
+  int refreshCalls = 0;
   Future<OidcTokenBundle> Function(AuthConfiguration configuration)?
   authorizeHandler;
   Future<OidcTokenBundle> Function(
@@ -39,6 +40,7 @@ class _FakeOidcClient implements OidcClient {
     AuthConfiguration configuration, {
     required String refreshToken,
   }) {
+    refreshCalls++;
     final handler = refreshHandler;
     if (handler == null) {
       throw StateError('refreshHandler was not configured.');
@@ -58,6 +60,29 @@ class _FakeOidcClient implements OidcClient {
     }
 
     return handler(configuration, idTokenHint);
+  }
+}
+
+class _DelayedReadSecureStore extends InMemorySecureStore {
+  _DelayedReadSecureStore(
+    super.initialValues, {
+    required this.delayedReadNumber,
+  });
+
+  final int delayedReadNumber;
+  final readStarted = Completer<void>();
+  final releaseRead = Completer<void>();
+  int _readCount = 0;
+
+  @override
+  Future<String?> read(String key) async {
+    final readNumber = ++_readCount;
+    final value = await super.read(key);
+    if (readNumber == delayedReadNumber) {
+      readStarted.complete();
+      await releaseRead.future;
+    }
+    return value;
   }
 }
 
@@ -149,7 +174,7 @@ void main() {
       );
     }
 
-    test('late refresh cannot restore a signed-out session', () async {
+    test('late shared refresh cannot restore a signed-out session', () async {
       await secureStore.write(
         authSessionStorageKey,
         AuthSessionDto.fromSession(buildTestAuthSession()).encode(),
@@ -157,11 +182,15 @@ void main() {
       final started = Completer<void>();
       final refresh = Completer<OidcTokenBundle>();
       oidcClient.refreshHandler = (_, _) {
-        started.complete();
+        if (!started.isCompleted) started.complete();
         return refresh.future;
       };
-      final pending = repository.refreshSession(configuration);
+      final pending = Future.wait([
+        repository.refreshSession(configuration),
+        repository.refreshSession(configuration),
+      ]);
       await started.future;
+      await Future<void>.delayed(Duration.zero);
       await repository.clearLocalSession();
       refresh.complete(
         const OidcTokenBundle(
@@ -241,6 +270,272 @@ void main() {
       expect(
         await secureStore.read(authSessionStorageKey),
         contains('access-2'),
+      );
+    });
+
+    for (final sharedRepository in [true, false]) {
+      test(
+        'concurrent feature restores share one refresh; same repository=$sharedRepository',
+        () async {
+          await secureStore.write(
+            authSessionStorageKey,
+            AuthSessionDto.fromSession(
+              buildTestAuthSession(
+                expiresAt: DateTime.now().subtract(const Duration(minutes: 1)),
+              ),
+            ).encode(),
+          );
+          final otherRepository = sharedRepository
+              ? repository
+              : OidcAuthSessionRepository(
+                  secureStore: secureStore,
+                  oidcClient: oidcClient,
+                );
+          final started = Completer<void>();
+          final refresh = Completer<OidcTokenBundle>();
+          oidcClient.refreshHandler = (_, _) {
+            if (!started.isCompleted) started.complete();
+            return refresh.future;
+          };
+          final restores = Future.wait([
+            repository.restoreSession(configuration),
+            otherRepository.restoreSession(configuration),
+            repository.restoreSession(configuration),
+            otherRepository.restoreSession(configuration),
+          ]);
+          await started.future;
+          await Future<void>.delayed(Duration.zero);
+          refresh.complete(
+            OidcTokenBundle(
+              accessToken: 'shared-refreshed-access',
+              refreshToken: 'shared-rotated-refresh',
+              idToken: 'shared-id',
+              expiresAt: DateTime.now().add(const Duration(hours: 1)),
+              tokenType: 'Bearer',
+              scopes: const ['openid'],
+            ),
+          );
+
+          final states = await restores;
+
+          expect(oidcClient.refreshCalls, 1);
+          expect(states, hasLength(4));
+          for (final state in states) {
+            expect(state.status, AuthStatus.authenticated);
+            expect(state.session?.accessToken, 'shared-refreshed-access');
+            expect(state.session?.refreshToken, 'shared-rotated-refresh');
+          }
+          expect(
+            await secureStore.read(authSessionStorageKey),
+            contains('shared-rotated-refresh'),
+          );
+        },
+      );
+    }
+
+    for (final delayedReadNumber in [1, 2]) {
+      test(
+        'staggered restores refresh once despite a delayed session read; read=$delayedReadNumber',
+        () async {
+          final delayedStore = _DelayedReadSecureStore({
+            authSessionStorageKey: AuthSessionDto.fromSession(
+              buildTestAuthSession(
+                expiresAt: DateTime.now().subtract(const Duration(minutes: 1)),
+              ),
+            ).encode(),
+          }, delayedReadNumber: delayedReadNumber);
+          final currentRepository = OidcAuthSessionRepository(
+            secureStore: delayedStore,
+            oidcClient: oidcClient,
+          );
+          final exchangedTokens = <String>[];
+          oidcClient.refreshHandler = (_, refreshToken) async {
+            exchangedTokens.add(refreshToken);
+            return OidcTokenBundle(
+              accessToken: 'renewed-access',
+              refreshToken: 'renewed-refresh',
+              idToken: 'renewed-id',
+              expiresAt: DateTime.now().add(const Duration(hours: 1)),
+              tokenType: 'Bearer',
+              scopes: const ['openid'],
+            );
+          };
+
+          final laggingRestore = currentRepository.restoreSession(
+            configuration,
+          );
+          await delayedStore.readStarted.future;
+          final currentRestore = currentRepository.restoreSession(
+            configuration,
+          );
+          final restores = Future.wait([laggingRestore, currentRestore]);
+          if (delayedReadNumber == 1) {
+            await currentRestore;
+          } else {
+            await Future<void>.delayed(Duration.zero);
+          }
+          final refreshesBeforeRelease = oidcClient.refreshCalls;
+          delayedStore.releaseRead.complete();
+          final states = await restores;
+
+          if (delayedReadNumber == 2) {
+            expect(refreshesBeforeRelease, 0);
+          }
+          for (final state in states) {
+            expect(state.session?.accessToken, 'renewed-access');
+          }
+          expect(oidcClient.refreshCalls, 1);
+          expect(exchangedTokens, ['refresh-token']);
+
+          // Callers can still explicitly refresh an unexpired session.
+          await currentRepository.refreshSession(configuration);
+          expect(oidcClient.refreshCalls, 2);
+          expect(exchangedTokens, ['refresh-token', 'renewed-refresh']);
+        },
+        timeout: const Timeout(Duration(seconds: 5)),
+      );
+    }
+
+    test(
+      'explicit refresh without a refresh token clears the current session',
+      () async {
+        await secureStore.write(
+          authSessionStorageKey,
+          AuthSessionDto.fromSession(
+            buildTestAuthSession(refreshToken: null),
+          ).encode(),
+        );
+
+        final state = await repository.refreshSession(configuration);
+
+        expect(state.status, AuthStatus.signedOut);
+        expect(await secureStore.read(authSessionStorageKey), isNull);
+        expect(oidcClient.refreshCalls, 0);
+      },
+      timeout: const Timeout(Duration(seconds: 5)),
+    );
+
+    test('failed shared refresh allows a later ordinary retry', () async {
+      await secureStore.write(
+        authSessionStorageKey,
+        AuthSessionDto.fromSession(
+          buildTestAuthSession(
+            expiresAt: DateTime.now().subtract(const Duration(minutes: 1)),
+          ),
+        ).encode(),
+      );
+      final started = Completer<void>();
+      final refresh = Completer<OidcTokenBundle>();
+      oidcClient.refreshHandler = (_, _) {
+        if (!started.isCompleted) started.complete();
+        return refresh.future;
+      };
+      final failedRestores = expectLater(
+        Future.wait([
+          repository.restoreSession(configuration),
+          repository.restoreSession(configuration),
+        ]),
+        throwsA(isA<AuthFailure>()),
+      );
+      await started.future;
+      await Future<void>.delayed(Duration.zero);
+      refresh.completeError(const AuthFailure.unknown('Temporarily offline'));
+      await failedRestores;
+      expect(oidcClient.refreshCalls, 1);
+      expect(await secureStore.read(authSessionStorageKey), isNotNull);
+
+      oidcClient.refreshHandler = (_, _) async => OidcTokenBundle(
+        accessToken: 'retry-access',
+        refreshToken: 'retry-refresh',
+        idToken: 'retry-id',
+        expiresAt: DateTime.now().add(const Duration(hours: 1)),
+        tokenType: 'Bearer',
+        scopes: const ['openid'],
+      );
+
+      final retried = await repository.restoreSession(configuration);
+
+      expect(retried.session?.accessToken, 'retry-access');
+      expect(oidcClient.refreshCalls, 2);
+    });
+
+    test('a new account never joins the previous account refresh', () async {
+      await secureStore.write(
+        authSessionStorageKey,
+        AuthSessionDto.fromSession(buildTestAuthSession()).encode(),
+      );
+      final started = Completer<void>();
+      final oldRefresh = Completer<OidcTokenBundle>();
+      final newStarted = Completer<void>();
+      final newRefresh = Completer<OidcTokenBundle>();
+      oidcClient.refreshHandler = (_, refreshToken) {
+        if (refreshToken == 'refresh-token') {
+          started.complete();
+          return oldRefresh.future;
+        }
+        expect(refreshToken, 'new-account-refresh');
+        if (!newStarted.isCompleted) newStarted.complete();
+        return newRefresh.future;
+      };
+      final oldResult = expectLater(
+        repository.refreshSession(configuration),
+        throwsA(
+          isA<AuthFailure>().having(
+            (failure) => failure.type,
+            'superseded account',
+            AuthFailureType.cancelled,
+          ),
+        ),
+      );
+      await started.future;
+      oidcClient.authorizeHandler = (_) async => OidcTokenBundle(
+        accessToken: 'new-account-access',
+        refreshToken: 'new-account-refresh',
+        idToken: 'new-account-id',
+        expiresAt: DateTime.now().subtract(const Duration(minutes: 1)),
+        tokenType: 'Bearer',
+        scopes: const ['openid'],
+      );
+      await repository.signIn(configuration);
+
+      final restoringNewAccount = repository.restoreSession(configuration);
+      await newStarted.future;
+      oldRefresh.complete(
+        const OidcTokenBundle(
+          accessToken: 'old-account-refreshed',
+          refreshToken: 'old-account-rotated',
+          idToken: 'old-id',
+          expiresAt: null,
+          tokenType: 'Bearer',
+          scopes: [],
+        ),
+      );
+      await oldResult;
+      final joiningNewAccount = repository.restoreSession(configuration);
+      await Future<void>.delayed(Duration.zero);
+      newRefresh.complete(
+        OidcTokenBundle(
+          accessToken: 'new-account-refreshed',
+          refreshToken: 'new-account-rotated',
+          idToken: 'new-account-id',
+          expiresAt: DateTime.now().add(const Duration(hours: 1)),
+          tokenType: 'Bearer',
+          scopes: const ['openid'],
+        ),
+      );
+
+      final states = await Future.wait([
+        restoringNewAccount,
+        joiningNewAccount,
+      ]);
+
+      expect(oidcClient.refreshCalls, 2);
+      for (final state in states) {
+        expect(state.session?.accessToken, 'new-account-refreshed');
+      }
+      expect(
+        await secureStore.read(authSessionStorageKey),
+        contains('new-account-refreshed'),
       );
     });
 
