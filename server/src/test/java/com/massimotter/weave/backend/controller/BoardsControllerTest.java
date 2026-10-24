@@ -62,6 +62,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @TestPropertySource(properties = {
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.invalid/realms/weave",
         "weave.boards.workspace.runtime-enabled=true",
+        "weave.workspace.boards.enabled=true",
         "weave.context.authorization.principal-claim=preferred_username"
 })
 @EnableConfigurationProperties({

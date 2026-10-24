@@ -6,9 +6,11 @@ import com.massimotter.weave.backend.config.AgentRuntimeEntitlementProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
 import com.massimotter.weave.backend.model.admin.ProviderCapabilityHealthResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
+import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -410,6 +412,66 @@ class WorkspaceCapabilityServiceTest {
     }
 
     @Test
+    void disabledDomainPolicyRejectsHumanDeviceAndVerifiedMemberGrants() {
+        WorkspaceCapabilityService service = domainPolicyService(false, WorkspaceCapabilityReadiness.READY);
+        Jwt owner = jwt(List.of("owner"), List.of("/capabilities/weaver"));
+        var identity = OrganizationIdentityContextResolver.defaults().resolve(owner);
+
+        for (var domain : domainStatuses(service.snapshot(owner))) {
+            assertThat(domain.policyState()).isEqualTo(WorkspaceCapabilityPolicyState.DISABLED);
+            assertThat(domain.grantedCapabilities()).isNotEmpty();
+            for (String capability : domain.grantedCapabilities()) {
+                assertDisabledPolicy(() -> service.requireCapability(owner, capability, "domain", "read"), capability);
+                assertDisabledPolicy(() -> service.requireCapabilityForVerifiedMember(
+                        identity, capability, "domain", "read"), capability);
+                Jwt device = Jwt.withTokenValue("device").header("alg", "none").subject("device-1")
+                        .claim("weave_auth_method", "device_credential")
+                        .claim("weave_capabilities", List.of(capability)).build();
+                assertDisabledPolicy(() -> service.requireCapability(device, capability, "domain", "read"), capability);
+            }
+        }
+        service.requireCapability(owner, "admin.policy.edit", "admin-control-plane", "update-policy");
+        service.requireCapability(owner, "admin.provider.configure", "admin-control-plane", "configure-provider");
+    }
+
+    @Test
+    void enabledDomainPolicyDoesNotTurnReadinessIntoAuthorization() {
+        WorkspaceCapabilityService service = domainPolicyService(true, WorkspaceCapabilityReadiness.BLOCKED);
+        Jwt owner = jwt(List.of("owner"), List.of("/capabilities/weaver"));
+
+        for (var domain : domainStatuses(service.snapshot(owner))) {
+            assertThat(domain.enabled()).isTrue();
+            assertThat(domain.readiness()).isEqualTo(WorkspaceCapabilityReadiness.BLOCKED);
+            assertThat(domain.grantedCapabilities()).isNotEmpty();
+            for (String capability : domain.grantedCapabilities()) {
+                service.requireCapability(owner, capability, "domain", "read");
+            }
+        }
+    }
+
+    @Test
+    void disabledFilesDoesNotBlockShellOtherDomainsOrSetupAuthority() {
+        var ready = new WorkspaceCapabilityProperties.Capability(true, null, WorkspaceCapabilityReadiness.READY);
+        var service = new WorkspaceCapabilityService(
+                resourceServerProperties("https://auth.weave.test/realms/weave"),
+                new WeaveSecurityProperties("weave-app", "weave-app"),
+                new WorkspaceCapabilityProperties(null, ready,
+                        new WorkspaceCapabilityProperties.Capability(false, null, null), ready, null, null));
+        Jwt owner = jwt(List.of("owner"), List.of());
+        var snapshot = service.snapshot(owner);
+
+        assertThat(snapshot.files().policyState()).isEqualTo(WorkspaceCapabilityPolicyState.DISABLED);
+        assertThat(snapshot.shellAccess().readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
+        assertThat(snapshot.chat().policyState()).isEqualTo(WorkspaceCapabilityPolicyState.ALLOWED);
+        assertThat(snapshot.calendar().policyState()).isEqualTo(WorkspaceCapabilityPolicyState.ALLOWED);
+        service.requireCapability(owner, "chat.send", "chat", "send");
+        service.requireCapability(owner, "calendar.manage_events", "calendar", "create");
+        service.requireCapability(owner, "admin.policy.edit", "admin-control-plane", "update-policy");
+        service.requireCapability(owner, "admin.provider.configure", "admin-control-plane", "configure-provider");
+        assertDisabledPolicy(() -> service.requireCapability(owner, "files.upload", "files", "create"), "files.upload");
+    }
+
+    @Test
     void ownerAndAdminCanConfigureProvidersAndPolicyButOperatorCannotMutate() {
         WorkspaceCapabilityService service = new WorkspaceCapabilityService(
                 resourceServerProperties("https://auth.weave.test/realms/weave"),
@@ -499,6 +561,33 @@ class WorkspaceCapabilityServiceTest {
         OAuth2ResourceServerProperties properties = new OAuth2ResourceServerProperties();
         properties.getJwt().setIssuerUri(issuerUri);
         return properties;
+    }
+
+    private WorkspaceCapabilityService domainPolicyService(boolean enabled, WorkspaceCapabilityReadiness readiness) {
+        var domain = new WorkspaceCapabilityProperties.Capability(enabled, null, readiness);
+        return new WorkspaceCapabilityService(
+                resourceServerProperties("https://auth.weave.test/realms/weave"),
+                new WeaveSecurityProperties("weave-app", "weave-app"),
+                new WorkspaceCapabilityProperties(null, domain, domain, domain, domain, domain,
+                        domain, domain, domain, domain, null, domain),
+                new AgentRuntimeEntitlementProperties(true, null, List.of("calendar.read")));
+    }
+
+    private List<WorkspaceCapabilityStatusResponse> domainStatuses(WorkspaceCapabilitiesResponse snapshot) {
+        return List.of(snapshot.chat(), snapshot.files(), snapshot.calendar(), snapshot.boards(),
+                snapshot.meetingsCalls(), snapshot.documentsCollaboration(), snapshot.decisionsEvidence(),
+                snapshot.manualsHelp(), snapshot.releaseEvidence(), snapshot.agentRuntimeControl());
+    }
+
+    private void assertDisabledPolicy(Runnable operation, String capability) {
+        assertThatThrownBy(operation::run).as("disabled policy for %s", capability)
+                .isInstanceOfSatisfying(ApiErrorException.class, error -> {
+                    assertThat(error.status().value()).isEqualTo(403);
+                    assertThat(error.code()).isEqualTo("capability-policy-blocked");
+                    assertThat(error.details()).containsEntry("policyState", "disabled")
+                            .containsEntry("requiredCapability", capability)
+                            .containsEntry("diagnosticsRedacted", true);
+                });
     }
 
     private Jwt jwt(List<String> roles, List<String> groups) {
