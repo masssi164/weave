@@ -6000,6 +6000,27 @@
             "assertSeparatedApiSessions",
             "verifyHome(memberSession.accessToken())"
           ]
+        },
+        {
+          "path": "client/test/features/home/home_member_summary_test.dart",
+          "fragments": [
+            "Home has accessible product actions in",
+            "Home retry reloads failed member Space admission",
+            "Home failure shows localized member recovery without raw diagnostics"
+          ]
+        },
+        {
+          "path": "client/test/features/home/home_screen_test.dart",
+          "fragments": [
+            "Home does not fetch Calendar before current admission:",
+            "Home hides retained Calendar entries and reloads after current regrant"
+          ]
+        },
+        {
+          "path": "client/test/features/shell/app_shell_test.dart",
+          "fragments": [
+            "workspace status localizes backend recovery states"
+          ]
         }
       ]
     },

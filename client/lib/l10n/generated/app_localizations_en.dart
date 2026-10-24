@@ -171,6 +171,25 @@ class AppLocalizationsEn extends AppLocalizations {
       'Authorized recent workspace activity';
 
   @override
+  String get homeWorkspaceAccessUnavailable =>
+      'Workspace access could not be checked.';
+
+  @override
+  String get homeWorkspaceActionsTitle => 'Your workspace';
+
+  @override
+  String get homeOpenChat => 'Open Chat';
+
+  @override
+  String get homeOpenFiles => 'Open Files';
+
+  @override
+  String get homeOpenCalendar => 'Open Calendar';
+
+  @override
+  String get homeRefreshWorkspace => 'Refresh workspace';
+
+  @override
   String get homeRecentActivityLoading => 'Loading recent workspace activity…';
 
   @override

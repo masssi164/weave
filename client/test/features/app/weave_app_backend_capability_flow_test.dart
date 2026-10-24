@@ -339,7 +339,12 @@ void main() {
 
       expect(find.byType(NavigationBar), findsOneWidget);
 
-      await tester.tap(find.byIcon(Icons.settings_outlined));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(NavigationBar),
+          matching: find.byIcon(Icons.settings_outlined),
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(weaveApiClient.callCount, 1);

@@ -367,7 +367,13 @@ void main() {
       expect(Theme.of(navigationContext).brightness, Brightness.dark);
       expect(find.byIcon(Icons.home), findsOneWidget);
       expect(find.byIcon(Icons.chat_bubble_outline), findsWidgets);
-      expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(NavigationBar),
+          matching: find.byIcon(Icons.settings_outlined),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('applies the persisted app language to MaterialApp locale', (
@@ -400,7 +406,13 @@ void main() {
         expect(find.byType(NavigationBar), findsOneWidget);
         expect(find.byIcon(Icons.home), findsOneWidget);
         expect(find.byIcon(Icons.chat_bubble_outline), findsWidgets);
-        expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byType(NavigationBar),
+            matching: find.byIcon(Icons.settings_outlined),
+          ),
+          findsOneWidget,
+        );
       },
     );
 
@@ -409,7 +421,12 @@ void main() {
     ) async {
       await pumpReadyShell(tester);
 
-      await tester.tap(find.byIcon(Icons.settings_outlined));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(NavigationBar),
+          matching: find.byIcon(Icons.settings_outlined),
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('Appearance'), findsOneWidget);
@@ -453,12 +470,22 @@ void main() {
         capabilitySnapshot: _readyCapabilities,
       );
 
-      await tester.tap(find.byIcon(Icons.folder_outlined));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(NavigationBar),
+          matching: find.byIcon(Icons.folder_outlined),
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('Roadmap.md'), findsOneWidget);
 
-      await tester.tap(find.byIcon(Icons.calendar_month_outlined));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(NavigationBar),
+          matching: find.byIcon(Icons.calendar_month_outlined),
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('Roadmap.md'), findsNothing);
@@ -527,26 +554,13 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('RAW SHELL BACKEND MEMBER IMPACT'), findsNothing);
-      expect(find.widgetWithText(Chip, 'Chat: Limited'), findsOneWidget);
-      expect(
-        find.widgetWithText(Chip, 'Calendar: Unavailable'),
-        findsOneWidget,
-      );
-      expect(
-        find.widgetWithText(Chip, 'Boards: Admin setup needed'),
-        findsOneWidget,
-      );
-      expect(
-        find.byWidgetPredicate(
-          (widget) =>
-              widget is Semantics &&
-              (widget.properties.label?.contains(
-                    'Support reference: Not provided.',
-                  ) ??
-                  false),
-        ),
-        findsWidgets,
-      );
+      expect(find.widgetWithText(ListTile, 'Open Chat'), findsOneWidget);
+      expect(find.textContaining('Limited.'), findsOneWidget);
+      expect(find.widgetWithText(ListTile, 'Open Calendar'), findsOneWidget);
+      expect(find.textContaining('Unavailable.'), findsOneWidget);
+      expect(find.textContaining('Boards'), findsNothing);
+      expect(find.textContaining('Support reference:'), findsNothing);
+      expect(find.text('Open Files'), findsOneWidget);
     });
 
     testWidgets(
