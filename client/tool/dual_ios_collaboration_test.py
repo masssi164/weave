@@ -36,6 +36,101 @@ def with_member_scenario(data):
 
 
 class DualIosCollaborationTest(unittest.TestCase):
+    def test_actor_assertion_frames_preserve_legacy_diagnostics_without_private_values(self):
+        flutter = ('NATIVE_PRODUCT_STAGE phase=workspace-ready\n'
+                   'flutter: ══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════\n'
+                   'Expected: private-label Actual: private-account private-token\n'
+                   'package:weave/system_browser_auth_e2e_test.dart:936:3\n'
+                   'flutter: #4      main.<anonymous closure>.<anonymous closure> '
+                   '(file:///private/actor-A/integration_test/dual_ios_collaboration_test.dart:182:9)\n')
+        browser = 'NATIVE_IOS_BROWSER_STAGE phase=auth-completion-observed\n'
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), mock.patch.object(ios, 'emit_phase_stages', wraps=ios.emit_phase_stages) as legacy:
+            dual.emit_actor_phase_stages('A', 'initial', flutter, browser)
+        legacy.assert_called_once_with('initial', flutter, browser)
+        text = output.getvalue()
+        for retained in ('NATIVE_PRODUCT_STAGE phase=workspace-ready', 'NATIVE_IOS_BROWSER_STAGE phase=auth-completion-observed',
+                         'category=flutter-test-assertion', 'file=system_browser_auth_e2e_test.dart line=936'):
+            self.assertIn(retained, text)
+        self.assertIn('IOS_FLUTTER_DIAGNOSTIC journey=initial actor=A file=dual_ios_collaboration_test.dart line=182 supportSafe=true\n', text)
+        for private in ('private-label', 'private-account', 'private-token', '/private/', 'actor-A/', 'anonymous closure', 'Expected:', 'Actual:'):
+            self.assertNotIn(private, text)
+
+    def test_actor_assertion_frames_require_valid_actor_and_phase(self):
+        flutter = 'EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK\ndual_ios_collaboration_test.dart:1:1'
+        for role in ('A', 'B'):
+            for phase in ('initial', 'restore'):
+                with self.subTest(role=role, phase=phase), contextlib.redirect_stdout(io.StringIO()) as output:
+                    dual.emit_actor_phase_stages(role, phase, flutter, '')
+                self.assertIn(f'journey={phase} actor={role} file=dual_ios_collaboration_test.dart line=1 supportSafe=true', output.getvalue())
+        for role, phase in [('private-actor', 'initial'), ('A actor=private', 'initial'), ('a', 'initial'),
+                            (None, 'initial'), ([], 'initial'), ('A', 'private-phase'), ('B', 'restore\nprivate'), ('A', None)]:
+            with self.subTest(role=role, phase=phase), contextlib.redirect_stdout(io.StringIO()) as output, \
+                    mock.patch.object(ios, 'emit_phase_stages') as legacy:
+                dual.emit_actor_phase_stages(role, phase, flutter, '')
+            legacy.assert_not_called()
+            self.assertEqual(output.getvalue(), '')
+
+    def test_actor_frames_require_a_complete_flutter_test_assertion_header(self):
+        frame = '\n#4      main.<anonymous closure> (integration_test/dual_ios_collaboration_test.dart:18:9)'
+        assertion = 'EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK'
+        for header in ('', 'EXCEPTION CAUGHT BY WIDGETS LIBRARY', 'Expected: ' + assertion,
+                       assertion + ' private-message', '══╡ ' + assertion, assertion + ' ╞══',
+                       'flutter: ══╡ ' + assertion + ' ╞' + '═' * 300,
+                       'The isolated simulator driver did not attach before authentication.\n' + assertion):
+            with self.subTest(header=header), contextlib.redirect_stdout(io.StringIO()) as output, \
+                    mock.patch.object(ios, 'emit_phase_stages', wraps=ios.emit_phase_stages) as legacy:
+                dual.emit_actor_phase_stages('A', 'initial', header + frame, assertion)
+            legacy.assert_called_once_with('initial', header + frame, assertion)
+            self.assertNotIn('file=dual_ios_collaboration_test.dart', output.getvalue())
+
+    def test_actor_assertion_frames_deduplicate_positive_lines_and_stop_at_five(self):
+        frames = []
+        for number in (1, 1, 999999, 2, 3, 4, 5, 6):
+            frames.extend([f'dual_ios_collaboration_test.dart:{number}:1',
+                           f'flutter: #4      main.<anonymous closure> (package:weave/integration_test/dual_ios_collaboration_test.dart:{number}:9)'])
+        with contextlib.redirect_stdout(io.StringIO()) as output:
+            dual.emit_actor_phase_stages('B', 'restore', 'EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK\n' + '\n'.join(frames), '')
+        records = [line for line in output.getvalue().splitlines() if 'file=dual_ios_collaboration_test.dart' in line]
+        self.assertEqual(records, [f'IOS_FLUTTER_DIAGNOSTIC journey=restore actor=B file=dual_ios_collaboration_test.dart line={number} supportSafe=true'
+                                   for number in (1, 999999, 2, 3, 4)])
+
+    def test_actor_assertion_frames_accept_standard_dart_source_forms_without_exporting_paths(self):
+        filename = 'dual_ios_collaboration_test.dart'
+        for source in (filename, 'integration_test/' + filename, '/private/actor/integration_test/' + filename,
+                       'file:///private/actor/integration_test/' + filename, 'file:///' + filename,
+                       'package:weave/' + filename, 'package:weave/integration_test/' + filename):
+            for prefix in ('', 'flutter: '):
+                with self.subTest(source=source, prefix=prefix), contextlib.redirect_stdout(io.StringIO()) as output:
+                    dual.emit_actor_phase_stages('B', 'restore', 'EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK\n'
+                        + prefix + '#4      <anonymous closure> (' + source + ':18:9)', '')
+                self.assertEqual(output.getvalue().splitlines(), [
+                    'IOS_FLUTTER_DIAGNOSTIC journey=restore category=flutter-test-assertion supportSafe=true',
+                    'IOS_FLUTTER_DIAGNOSTIC journey=restore actor=B file=dual_ios_collaboration_test.dart line=18 supportSafe=true'])
+
+    def test_actor_assertion_frames_reject_malformed_oversized_and_source_lookalikes(self):
+        filename = 'dual_ios_collaboration_test.dart'
+        locations = [filename + ':' + number + ':1' for number in ('0', '-1', '+1', '01', '1000000', '12345678901234567890', '１')]
+        locations += [filename + ':12:' + column for column in ('0', '-1', '01', '1000000')]
+        locations += ['private_' + filename + ':12:1', filename + '.private:12:1',
+                      'duаl_ios_collaboration_test.dart:12:1', 'private-' + filename + ':12:1',
+                      'package://foreign/integration_test/' + filename + ':12:1',
+                      'https://private.invalid/integration_test/' + filename + ':12:1',
+                      'file://private/' + filename + ':12:1',
+                      'file:///private/integration_test/' + filename + '?token=private-token:12:1',
+                      'file:///' + 'x' * 2100 + '/integration_test/' + filename + ':12:1']
+        lines = locations + ['flutter: #4      main.<anonymous closure> (' + location + ')' for location in locations]
+        lines += ['Expected: ' + filename + ':12:1', filename + ':12:1 private-token',
+                  '#4      main.<anonymous closure> (' + filename + ':12:1) private-token',
+                  '#4      main.<anonymous closure> (' + filename + ':12:1',
+                  '#10000 main (' + filename + ':12:1)',
+                  '#4 ' + 'x' * 300 + ' (' + filename + ':12:1)',
+                  'flutter: flutter: ' + filename + ':12:1', '\x1b[31m' + filename + ':12:1',
+                  'private_account.dart:12:1']
+        with contextlib.redirect_stdout(io.StringIO()) as output:
+            dual.emit_actor_phase_stages('A', 'initial', 'EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK\n' + '\n'.join(lines), '')
+        self.assertEqual(output.getvalue(), 'IOS_FLUTTER_DIAGNOSTIC journey=initial category=flutter-test-assertion supportSafe=true\n')
+
     def test_initial_actor_browser_selects_only_the_production_journey(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -66,12 +161,15 @@ class DualIosCollaborationTest(unittest.TestCase):
                  mock.patch.object(ios, 'release_driver_barrier', side_effect=stopped), \
                  mock.patch.object(dual.subprocess, 'Popen', side_effect=launch), \
                  mock.patch.object(dual, 'track_process', side_effect=lambda p: p), \
-                 mock.patch.object(dual, 'stop_flutter_process_group'), contextlib.redirect_stdout(io.StringIO()):
+                 mock.patch.object(dual, 'stop_flutter_process_group'), \
+                 mock.patch.object(dual, 'emit_actor_phase_stages', wraps=dual.emit_actor_phase_stages) as stages, \
+                 contextlib.redirect_stdout(io.StringIO()):
                 with self.assertRaises(RuntimeError) as caught:
                     dual.run_actor(actor, 'owned', root, products, root, root / 'app',
                                    {'runId': 'owned-run'}, {}, 'a' * 64, None, None, None)
             self.assertIs(caught.exception, stopped)
             self.assertEqual(sum(command[0] == 'xcodebuild' for command in commands), 1)
+            stages.assert_called_once_with('A', 'initial', '', '')
 
     def test_logout_driver_attaches_before_flutter_and_requires_native_completion(self):
         with tempfile.TemporaryDirectory() as temporary:
