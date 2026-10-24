@@ -88,6 +88,8 @@ def apple(root: Path, component: str, payload: Path, source: str, *, configurati
     sdk = "macosx" if component == "macos-desktop" else "iphonesimulator" if component == "ios-simulator" else "iphoneos"
     if run(root, ["xcrun", "--sdk", sdk, "--show-sdk-version"], capture=True) != pins["sdk"]:
         raise ArtifactError("pinned-apple-sdk-unavailable")
+    if run(root, ["pod", "--version"], capture=True) != pins["cocoapods"]:
+        raise ArtifactError("pinned-cocoapods-unavailable")
     flutter = json.loads(run(root, ["flutter", "--version", "--machine"], capture=True))
     if flutter.get("frameworkVersion") != pins["flutter"] or flutter.get("channel") != "stable":
         raise ArtifactError("pinned-flutter-unavailable")

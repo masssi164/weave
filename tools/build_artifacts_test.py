@@ -118,6 +118,17 @@ class Repository(unittest.TestCase):
         self.commit()
         self.assertTrue(all(before[name] != self.inputs()[name] for name in before))
 
+    def test_cocoapods_toolchain_change_invalidates_only_affected_component(self):
+        before = self.inputs()
+        config = artifacts.configuration(self.root)
+        config["components"]["ios-device"]["toolchain"]["cocoapods"] = "different"
+        self.write(artifacts.CONFIG, json.dumps(config))
+        self.commit()
+        after = self.inputs()
+        self.assertNotEqual(before["ios-device"], after["ios-device"])
+        self.assertEqual(before["ios-simulator"], after["ios-simulator"])
+        self.assertEqual(before["runtime-linux-amd64"], after["runtime-linux-amd64"])
+
     def test_mode_rename_and_deletion_change_input_identity(self):
         values = [artifacts.input_digest(self.root, "ios-device")]
         (self.root / "client/lib/main.dart").chmod(0o755)
@@ -257,6 +268,8 @@ class Repository(unittest.TestCase):
                 return "Xcode " + pins["xcode"] + "\nBuild version " + pins["xcodeBuild"]
             if arguments[:2] == ["xcrun", "--sdk"]:
                 return pins["sdk"]
+            if arguments == ["pod", "--version"]:
+                return pins["cocoapods"]
             if arguments[:2] == ["flutter", "--version"]:
                 return json.dumps({"frameworkVersion": pins["flutter"], "channel": "stable"})
             if "--config-only" in arguments:
@@ -300,6 +313,8 @@ class Repository(unittest.TestCase):
                 return "Xcode " + pins["xcode"] + "\nBuild version " + pins["xcodeBuild"]
             if arguments[:2] == ["xcrun", "--sdk"]:
                 return pins["sdk"]
+            if arguments == ["pod", "--version"]:
+                return pins["cocoapods"]
             if arguments[:2] == ["flutter", "--version"]:
                 return json.dumps({"frameworkVersion": pins["flutter"], "channel": "stable"})
             return ""
@@ -337,6 +352,31 @@ class Repository(unittest.TestCase):
                 self.assertRaisesRegex(artifacts.ArtifactError, "configuration-only-apple-component-required"):
             hosted.main()
         runtime.assert_not_called()
+
+    def test_unpinned_cocoapods_is_rejected_before_dependency_preparation(self):
+        for component in ("ios-device", "ios-simulator", "macos-desktop"):
+            with self.subTest(component=component):
+                pins = artifacts.component_configuration(self.root, component)["toolchain"]
+                commands = []
+
+                def run(root, arguments, **kwargs):
+                    commands.append(arguments)
+                    if arguments == ["xcodebuild", "-version"]:
+                        return "Xcode " + pins["xcode"] + "\nBuild version " + pins["xcodeBuild"]
+                    if arguments[:2] == ["xcrun", "--sdk"]:
+                        return pins["sdk"]
+                    if arguments == ["pod", "--version"]:
+                        return "1.16.2"
+                    self.fail("Unexpected preparation command before CocoaPods validation")
+
+                with patch.object(hosted.platform, "system", return_value="Darwin"), \
+                        patch.object(hosted.platform, "machine", return_value="arm64"), \
+                        patch.object(hosted, "run", side_effect=run), \
+                        self.assertRaisesRegex(artifacts.ArtifactError, "pinned-cocoapods-unavailable"):
+                    hosted.apple(self.root, component, self.root / "unused", self.command("rev-parse", "HEAD"),
+                                 configuration_only=True)
+                self.assertEqual(commands[-1], ["pod", "--version"])
+                self.assertFalse(any(command[0] == "flutter" for command in commands))
 
     def downloaded_fixture(self):
         manifest, archive = self.bundle()
