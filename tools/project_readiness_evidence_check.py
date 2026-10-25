@@ -52,13 +52,13 @@ REQUIRED_SOURCE_FRAGMENTS = {
         "provider replacement dry-run",
         "secretref://",
     ],
-    "server/src/test/java/com/massimotter/weave/backend/controller/AdminControlPlaneControllerTest.java": [
+    "server/app/src/test/java/com/massimotter/weave/backend/controller/AdminControlPlaneControllerTest.java": [
         "adminControlPlaneRejectsMembers",
         "bootstrapRejectsUnsafeAdminRecoveryKeys",
         "adminReadinessTestsAndPolicyUpdatesAreAuditedAndRedacted",
         "migrationDryRunRequired",
     ],
-    "server/src/test/java/com/massimotter/weave/backend/provider/DomainAdapterRegistryMapperTest.java": [
+    "server/app/src/test/java/com/massimotter/weave/backend/provider/DomainAdapterRegistryMapperTest.java": [
         "coreProductDomainsCarryExecutableAdapterFitContracts",
         "providerRegistryAdapterFitSupportsMixedProviderPostureWithoutMemberProviderIds",
     ],

@@ -19,8 +19,12 @@ class PortabilityPersistenceDiscoveryTest {
                 .run(context -> {
                     assertThat(context).hasNotFailed().hasSingleBean(PortabilityPersistenceAutoConfiguration.class);
                     assertThat(context).hasSingleBean(EntityManagerFactory.class);
-                    assertThat(context).hasBean("transferRunJpaRepository");
-                    assertThat(context.getBean(EntityManagerFactory.class).getMetamodel().getEntities()).isNotEmpty();
+                    assertThat(context).hasBean("transferRunJpaRepository")
+                            .hasBean("portabilityPlanJpaRepository").hasBean("portabilityFidelityItemJpaRepository");
+                    assertThat(context.getBean(EntityManagerFactory.class).getMetamodel().getEntities())
+                            .extracting(entity -> entity.getJavaType().getName())
+                            .contains("com.massimotter.weave.backend.portability.adapter.PortabilityPlanJpaEntity",
+                                    "com.massimotter.weave.backend.portability.adapter.PortabilityFidelityItemJpaEntity");
                 });
     }
 

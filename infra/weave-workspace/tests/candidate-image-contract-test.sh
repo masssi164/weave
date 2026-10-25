@@ -105,15 +105,15 @@ reject "${COMPOSE}" '/backend/public.env'
 reject "${COMPOSE}" '/mcp/public.env'
 
 for profile in dev dogfood e2e prod; do
-  server_profile="${REPOSITORY_ROOT}/server/src/main/resources/application-${profile}.yml"
+  server_profile="${REPOSITORY_ROOT}/server/app/src/main/resources/application-${profile}.yml"
   mcp_profile="${REPOSITORY_ROOT}/weave-mcp-server/src/main/resources/application-${profile}.yml"
   contains "${server_profile}" "on-profile: ${profile}"
   contains "${mcp_profile}" "on-profile: ${profile}"
   reject "${mcp_profile}" 'datasource:'
   reject "${mcp_profile}" 'jpa:'
 done
-contains "${REPOSITORY_ROOT}/server/src/main/resources/application-dogfood.yml" 'issuer-uri: https://auth.weave.test/realms/weave'
-contains "${REPOSITORY_ROOT}/server/src/main/resources/application-dogfood.yml" 'jwk-set-uri: http://keycloak:8080/realms/weave/protocol/openid-connect/certs'
+contains "${REPOSITORY_ROOT}/server/app/src/main/resources/application-dogfood.yml" 'issuer-uri: https://auth.weave.test/realms/weave'
+contains "${REPOSITORY_ROOT}/server/app/src/main/resources/application-dogfood.yml" 'jwk-set-uri: http://keycloak:8080/realms/weave/protocol/openid-connect/certs'
 contains "${REPOSITORY_ROOT}/weave-mcp-server/src/main/resources/application-dogfood.yml" 'authorization-server: https://auth.weave.test/realms/weave'
 contains "${REPOSITORY_ROOT}/weave-mcp-server/src/main/resources/application-dogfood.yml" 'token-uri: http://keycloak:8080/realms/weave/protocol/openid-connect/token'
 

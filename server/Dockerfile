@@ -39,7 +39,7 @@ LABEL org.opencontainers.image.title="Weave Server" \
 COPY LICENSE NOTICE.md THIRD_PARTY_NOTICES.md /app/legal/
 COPY rust/vendor/matrix-sdk/LICENSE /app/legal/matrix-sdk-LICENSE
 COPY rust/vendor/matrix-sdk-crypto/LICENSE /app/legal/matrix-sdk-crypto-LICENSE
-ARG JAR_FILE=server/build/libs/*.jar
+ARG JAR_FILE=server/app/build/libs/*.jar
 COPY --chown=10001:10001 ${JAR_FILE} /app/app.jar
 COPY --chown=10001:10001 --from=matrix-protocol /source/target/release/libweave_matrix_protocol.so /app/lib/libweave_matrix_protocol.so
 

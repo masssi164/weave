@@ -35,8 +35,8 @@ The domain checks cover model boundaries, entity mappings, adapter ownership and
 | Removed location | Replacement and reason |
 | --- | --- |
 | `weave-files-core/` | `server/domains/files/model/`; one physical Files-model owner |
-| `server/src/main/java/.../files/adapter/JpaFilesAuthorityRepository.java` | Files persistence library; eliminate the split package between Server and JPA library |
-| `server/src/main/java/.../files/adapter/JpaFilesUserResourceRepository.java` | Files persistence library; keep transactions with the entities they operate on |
+| `server/app/src/main/java/.../files/adapter/JpaFilesAuthorityRepository.java` | Files persistence library; eliminate the split package between Server and JPA library |
+| `server/app/src/main/java/.../files/adapter/JpaFilesUserResourceRepository.java` | Files persistence library; keep transactions with the entities they operate on |
 | `model/gradle/scripts/java-and-dependencies.gradle` | Model dependencies stay in its small build file; common mechanics use the shared domain-library script |
 | `model/gradle/tasks/verification.gradle` | JUnit Platform setup is shared, not copied for every domain library |
 

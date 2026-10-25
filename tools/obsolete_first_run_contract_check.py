@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PRODUCTION_RELATIVE_ROOTS = ("client/lib", "server/src/main")
+PRODUCTION_RELATIVE_ROOTS = ("client/lib", "server/app/src/main")
 PRODUCTION_ROOTS = tuple(ROOT / relative for relative in PRODUCTION_RELATIVE_ROOTS)
 FORBIDDEN = (
     "firstRunStatusProvider",

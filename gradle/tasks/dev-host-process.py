@@ -210,7 +210,7 @@ def main() -> None:
     repository = args.repository.resolve()
     if not (repository / "gradlew").is_file():
         fail(f"repository does not contain gradlew: {repository}")
-    task = ":server:bootRun" if args.component == "server" else ":weave-mcp-server:bootRun"
+    task = ":server:app:bootRun" if args.component == "server" else ":weave-mcp-server:bootRun"
     environment = application_environment(inspected, args.component, args.host_port)
     os.chdir(repository)
     os.execvpe(

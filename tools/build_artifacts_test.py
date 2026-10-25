@@ -34,7 +34,7 @@ class Repository(unittest.TestCase):
         self.write(artifacts.CONFIG, (artifacts.ROOT / artifacts.CONFIG).read_text())
         self.write("specs/weave-specs.lock.json", json.dumps({"specCorpus": {"gitCommit": "a" * 40}}))
         self.write("client/lib/main.dart", "void main() {}\n")
-        self.write("server/src/main/java/Server.java", "class Server {}\n")
+        self.write("server/app/src/main/java/Server.java", "class Server {}\n")
         self.write("contracts/openapi/weave-user-openapi.json", "{}\n")
         self.write("rust/matrix-client/src/lib.rs", "pub fn run() {}\n")
         self.write(artifacts.SCENARIO, json.dumps({"schemaVersion": "fixture/v1", "members": ["a", "b"]}))
@@ -96,7 +96,7 @@ class Repository(unittest.TestCase):
 
     def test_server_change_does_not_rebuild_ios(self):
         before = self.inputs()
-        self.write("server/src/main/java/Server.java", "class Server { int version = 2; }\n")
+        self.write("server/app/src/main/java/Server.java", "class Server { int version = 2; }\n")
         self.commit()
         after = self.inputs()
         self.assertNotEqual(before["runtime-linux-amd64"], after["runtime-linux-amd64"])

@@ -8,7 +8,9 @@ on:
       - 'tools/domain_selection_*.py'
       - 'tools/domain_unit_workflow_test.py'
       - 'server/domains/**'
-      - 'server/gradle/tasks/domain-verification.gradle'
+      - 'server/app/**'
+      - 'server/core/**'
+      - 'server/gradle/**'
       - 'server/build.gradle'
       - 'settings.gradle'
   workflow_dispatch:
@@ -73,9 +75,9 @@ jobs:
         with:
           name: domain-unit-results-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            server/build/test-results/domain*UnitTest/
-            server/build/reports/tests/domain*UnitTest/
-            weave-files-core/build/test-results/test/
-            weave-files-core/build/reports/tests/test/
+            server/app/build/test-results/domain*UnitTest/
+            server/app/build/reports/tests/domain*UnitTest/
+            server/**/build/test-results/test/
+            server/**/build/reports/tests/test/
           if-no-files-found: ignore
           retention-days: 7

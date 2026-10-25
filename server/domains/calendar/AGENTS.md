@@ -11,4 +11,4 @@ Use the root and Server agent rules. Keep code, comments and documentation in En
 - Never resolve circular dependencies by making Calendar depend on the executable Server or another domain's JPA repositories.
 - Record removed source/build paths, replacement and reason in the domain README and commit. Delete redundant implementations rather than commenting them out; retain planned product functions and owner data.
 
-Run `./gradlew :server:domains:calendar:check` and `./gradlew :server:postgresJpaTest --tests '*CalendarEntityFirstBaselinePostgresTest'` from repository root. Generated-baseline integration tests temporarily use the existing Server test harness; that is not a production reverse dependency. Controller/provider and optional executable composition remain open in #1745.
+Run `./gradlew :server:domains:calendar:check` and `./gradlew :server:app:postgresJpaTest --tests '*CalendarEntityFirstBaselinePostgresTest'` from repository root. Generated-baseline integration tests temporarily use the existing Server test harness; that is not a production reverse dependency. Controller/provider and optional executable composition remain open in #1745.

@@ -52,17 +52,17 @@ def check_historical_dav() -> None:
     # Older protocol tests still protect integrity and failure behavior.
     # They do not prove the generated User API replacement.
     require(
-        "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
+        "server/app/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
         "propfindDepthOneReturnsChildrenAsDavResponses",
         "putMkcolAndDeleteUseWebDavFacadeWriteUseCases",
     )
     require(
-        "server/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
+        "server/app/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
         "webDavPutCreateFolderAndDeleteUseFacadePolicyAndPublishMutationAudit",
         "webDavPutResponseEtagChangesForSameSizeOverwriteWhenMetadataDoesNotChange",
     )
     require(
-        "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
+        "server/app/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
         "calDavReportCalendarQueryAndFreeBusyReturnFacadeBackedCalendarData",
         "calDavReportMultigetAndSyncCollectionUseScopedFacadeCalendars",
         "calDavEventReadPutAndDeleteUseCalendarFacadeBoundaryAndStableErrors",
@@ -89,20 +89,20 @@ def check_matrix_boundary() -> None:
         "isNot(contains('BackendChatRepository('))",
     )
     require(
-        "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
+        "server/app/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
         "whoamiUsesRumaValidatedIdentityDerivedFromOidcSubject",
         "syncProjectsCanonicalChatThroughRustWithStableWeaveCursor",
         "sendParsesInRustAndForwardsTransactionForCanonicalIdempotency",
         "joinedRoomsAndMessagesUseCanonicalIdentifiers",
     )
     require(
-        "server/src/main/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionController.java",
+        "server/app/src/main/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionController.java",
         '"/_matrix/client/**"',
         "MatrixProtocolCoreService",
         "ChatDomainFacadeService",
     )
     require(
-        "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
+        "server/app/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
         "chatLegacyRestDataPlaneRoutesAreRemovedInFavorOfMatrixFacade",
     )
     for artifact in ("weave-user-openapi", "weave-admin-openapi"):

@@ -49,7 +49,7 @@ For normal local development:
 
 ```bash
 ./gradlew :infra:composeDevDependenciesReady
-./gradlew :server:serverDevBoot
+./gradlew :server:app:serverDevBoot
 ```
 
 The dev renderer uses the same pinned semantic baseline as other environments. Root `devUp`,

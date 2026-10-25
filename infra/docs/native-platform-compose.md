@@ -29,7 +29,7 @@ there is no second migration step. Use the root lifecycle for ordinary operation
 
 ```bash
 ./gradlew devUp
-./gradlew :server:bootRun
+./gradlew :server:app:bootRun
 ./gradlew :weave-mcp-server:bootRun
 cd admin-console && npm run dev
 ```

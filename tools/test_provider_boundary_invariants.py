@@ -15,7 +15,7 @@ class ProviderBoundaryTest(unittest.TestCase):
             contents = ('drop table if exists weave_matrix_e2ee_snapshots;'
                         if migration == guard.MIGRATIONS[2] else '-- historical migration')
             self.write(guard.MIGRATION_ROOT + '/' + migration, contents)
-        self.write('server/src/main/resources/application.yml', 'ddl-auto: validate')
+        self.write('server/app/src/main/resources/application.yml', 'ddl-auto: validate')
 
     def write(self, relative, contents):
         target = self.root / relative
@@ -24,7 +24,7 @@ class ProviderBoundaryTest(unittest.TestCase):
 
     def test_valid_narrow_protocol_and_optional_s3_adapter_are_allowed(self):
         self.write('rust/matrix-protocol/src/lib.rs', 'use ruma::api;')
-        self.write('server/src/main/java/OptionalS3Adapter.java', 'import software.amazon.awssdk;')
+        self.write('server/app/src/main/java/OptionalS3Adapter.java', 'import software.amazon.awssdk;')
         self.assertEqual(guard.violations(self.root), [])
 
     def test_every_prohibited_identifier_in_every_original_scope_fails(self):
@@ -62,7 +62,7 @@ class ProviderBoundaryTest(unittest.TestCase):
         self.assertTrue(any('filesystem-opendal-required' in error for error in guard.violations(self.root)))
 
     def test_generated_artifacts_do_not_redefine_source_boundary(self):
-        self.write('server/build/classes/OldClass.class', 'weave_matrix_core S3_COMPATIBLE')
+        self.write('server/app/build/classes/OldClass.class', 'weave_matrix_core S3_COMPATIBLE')
         self.write('rust/matrix-protocol/target/cache.txt', 'matrix-sdk')
         self.assertEqual(guard.violations(self.root), [])
 
@@ -94,23 +94,23 @@ class ProviderBoundaryTest(unittest.TestCase):
         self.write(guard.MIGRATION_ROOT + '/' + guard.MIGRATIONS[2], '-- no snapshot drop')
         self.assertTrue(any('migration-snapshot-drop-required' in error
                             for error in guard.violations(self.root)))
-        self.write('server/src/main/resources/application.yml', 'ddl-auto: none')
-        self.write('server/src/main/resources/application-dev-h2.yml', 'ddl-auto: validate')
+        self.write('server/app/src/main/resources/application.yml', 'ddl-auto: none')
+        self.write('server/app/src/main/resources/application-dev-h2.yml', 'ddl-auto: validate')
         self.assertTrue(any('production-ddl-validate-required' in error
                             for error in guard.violations(self.root)))
 
     def test_unsafe_production_ddl_fails_but_dev_h2_remains_explicit_exception(self):
-        self.write('server/src/main/resources/application-dev-h2.yml', 'ddl-auto: update')
+        self.write('server/app/src/main/resources/application-dev-h2.yml', 'ddl-auto: update')
         self.assertEqual(guard.violations(self.root), [])
         for profile in ('application.yml', 'application-dev-postgres.yml', 'application-prod.yml'):
             for value in ('update', 'create', 'create-drop'):
                 for separator in (': ', '='):
                     with self.subTest(profile=profile, value=value, separator=separator):
-                        self.write('server/src/main/resources/' + profile,
+                        self.write('server/app/src/main/resources/' + profile,
                                    'ddl-auto' + separator + value)
                         self.assertTrue(any('unsafe-production-ddl:' in error
                                             for error in guard.violations(self.root)))
-                        self.write('server/src/main/resources/' + profile, 'ddl-auto: validate')
+                        self.write('server/app/src/main/resources/' + profile, 'ddl-auto: validate')
 
     def test_docs_only_ci_still_executes_guard(self):
         root = Path(__file__).resolve().parents[1]

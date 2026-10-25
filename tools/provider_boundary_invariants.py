@@ -9,10 +9,10 @@ from pathlib import Path
 
 # Build output is not source authority. This guard runs before compilation in CI.
 GENERATED_DIRECTORIES = {'build', 'target', '.git', 'node_modules', '.dart_tool'}
-FILESYSTEM_STORE = 'server/src/main/java/com/massimotter/weave/backend/service/files/FilesystemBlobStore.java'
+FILESYSTEM_STORE = 'server/app/src/main/java/com/massimotter/weave/backend/service/files/FilesystemBlobStore.java'
 FORBIDDEN_FILES = (
-    'server/src/main/java/com/massimotter/weave/backend/service/files/S3BlobStore.java',
-    'server/src/test/java/com/massimotter/weave/backend/service/files/S3BlobStoreTest.java',
+    'server/app/src/main/java/com/massimotter/weave/backend/service/files/S3BlobStore.java',
+    'server/app/src/test/java/com/massimotter/weave/backend/service/files/S3BlobStoreTest.java',
 )
 MIGRATIONS = (
     'V1__native_schema_baseline.sql',
@@ -22,14 +22,14 @@ MIGRATIONS = (
     'V5__matrix_shared_user_change_journal.sql',
     'V6__canonical_transfer_runs.sql',
 )
-MIGRATION_ROOT = 'server/src/main/resources/db/migration'
+MIGRATION_ROOT = 'server/app/src/main/resources/db/migration'
 FORBIDDEN_CONTENT = (
     ('migration-public-schema', r'public\.', (MIGRATION_ROOT,)),
     ('unsafe-flyway-authority', r'baselineOnMigrate\(true\)|cleanDisabled\(false\)',
-     ('server/src/main/java',)),
+     ('server/app/src/main/java',)),
     ('protocol-sdk-coupling', r'matrix-sdk|matrix_sdk', ('rust/matrix-protocol',)),
     ('snapshot-persistence-authority', r'MatrixE2eeSnapshot(Store|JpaEntity|JpaRepository)',
-     ('server/src/main', 'server/core/src/main',
+     ('server/app/src/main', 'server/core/src/main',
       'server/domains/chat/persistence/src/main',
       'server/domains/agent-runtime/persistence/src/main',
       'server/domains/portability/persistence/src/main',
@@ -77,7 +77,7 @@ def violations(root: Path) -> list[str]:
     if (not snapshot_drop.is_file() or
             b'drop table if exists weave_matrix_e2ee_snapshots' not in snapshot_drop.read_bytes()):
         failures.append(f'migration-snapshot-drop-required: {MIGRATION_ROOT}/{MIGRATIONS[2]}')
-    resources = root / 'server/src/main/resources'
+    resources = root / 'server/app/src/main/resources'
     configs = [resources / 'application.yml', *sorted(resources.glob('application-*.yml'))]
     production_configs = [path for path in configs
                           if path.is_file() and path.name != 'application-dev-h2.yml']
@@ -92,7 +92,7 @@ def violations(root: Path) -> list[str]:
                 failures.append(f'unsafe-production-ddl: {path.relative_to(root)}:{line_number}: '
                                 f'{match.group().decode("ascii")}')
     if not validate_found:
-        failures.append('production-ddl-validate-required: server/src/main/resources/application*.yml')
+        failures.append('production-ddl-validate-required: server/app/src/main/resources/application*.yml')
     store = root / FILESYSTEM_STORE
     if not store.is_file() or b'org.apache.opendal' not in store.read_bytes():
         failures.append(f'filesystem-opendal-required: {FILESYSTEM_STORE}')

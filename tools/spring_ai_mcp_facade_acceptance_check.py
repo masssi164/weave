@@ -150,7 +150,7 @@ def main() -> int:
         "calendars.queryCalendarAgenda(",
     )
     require(
-        "server/src/main/java/com/massimotter/weave/backend/config/CalendarMcpSecurityConfiguration.java",
+        "server/app/src/main/java/com/massimotter/weave/backend/config/CalendarMcpSecurityConfiguration.java",
         '@Qualifier("calendarMcpWorkloadJwtDecoder")',
         "SCOPE_calendar.read",
     )
@@ -180,7 +180,7 @@ def main() -> int:
         "discoversTheCuratedFilesToolAndCanonicalResourceTemplate",
     )
     require(
-        "server/src/main/java/com/massimotter/weave/backend/config/FilesWebDavSecurityConfiguration.java",
+        "server/app/src/main/java/com/massimotter/weave/backend/config/FilesWebDavSecurityConfiguration.java",
         '@Qualifier("filesMcpWorkloadJwtDecoder")',
         '.securityMatcher("/dav/files", "/dav/files/**", "/api/files/items", "/api/files/items/**")',
         "SCOPE_files.read",
@@ -210,13 +210,13 @@ def main() -> int:
     require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/WeaveServerClient.java")
     require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/HttpMcpBackendContextResolver.java")
     require_absent("weave-mcp-server/src/main/java/com/massimotter/weave/mcp/HttpMcpBackendTokenExchange.java")
-    require_absent("server/src/main/java/com/massimotter/weave/backend/config/McpWorkloadBridgeSecurityConfiguration.java")
-    require_absent("server/src/main/java/com/massimotter/weave/backend/controller/AgentRuntimeMcpContextController.java")
-    require_absent("server/src/main/java/com/massimotter/weave/backend/service/WeaverMcpBridgeService.java")
-    require_absent("server/src/main/java/com/massimotter/weave/backend/weaver/MemberDomainToolDispatcher.java")
-    require_absent("server/src/test/java/com/massimotter/weave/backend/service/WeaverMcpBridgeServiceTest.java")
-    require_absent("server/src/test/java/com/massimotter/weave/backend/weaver/MemberDomainToolDispatcherTest.java")
-    require_absent("server/src/main/java/com/massimotter/weave/backend/weaver/WeaverMcpApprovalReceiptService.java")
+    require_absent("server/app/src/main/java/com/massimotter/weave/backend/config/McpWorkloadBridgeSecurityConfiguration.java")
+    require_absent("server/app/src/main/java/com/massimotter/weave/backend/controller/AgentRuntimeMcpContextController.java")
+    require_absent("server/app/src/main/java/com/massimotter/weave/backend/service/WeaverMcpBridgeService.java")
+    require_absent("server/app/src/main/java/com/massimotter/weave/backend/weaver/MemberDomainToolDispatcher.java")
+    require_absent("server/app/src/test/java/com/massimotter/weave/backend/service/WeaverMcpBridgeServiceTest.java")
+    require_absent("server/app/src/test/java/com/massimotter/weave/backend/weaver/MemberDomainToolDispatcherTest.java")
+    require_absent("server/app/src/main/java/com/massimotter/weave/backend/weaver/WeaverMcpApprovalReceiptService.java")
     require_absent("infra/weave-mcp/pyproject.toml")
     require_absent("infra/weave-mcp/src/weave_mcp/fastmcp_app.py")
     require_absent("infra/weave-mcp/src/weave_mcp/app.py")

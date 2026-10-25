@@ -19,7 +19,7 @@ class JavaAgentContractTest(unittest.TestCase):
         self.write(guard.BASELINE, json.dumps({'schemaVersion': 1, 'selectors': []}))
         for module in guard.MODULES:
             self.write(f'{module}/src/main/java/Example.java', 'class Example {}')
-        for module in ('server', 'weave-mcp-server'):
+        for module in ('server/app', 'weave-mcp-server'):
             self.write(f'{module}/src/main/resources/application.yml', 'spring:\n  application:\n    name: test\n')
         self.write(guard.STANDARD, '# Shared Java/Spring standard\n')
         for name in guard.SKILLS:
@@ -52,7 +52,7 @@ class JavaAgentContractTest(unittest.TestCase):
                 path.unlink()
 
     def test_exact_occurrence_budget_not_entire_file_is_allowed(self):
-        relative = 'server/src/main/java/Legacy.java'
+        relative = 'server/app/src/main/java/Legacy.java'
         signature = guard.compact(SELECTOR)
         self.write(guard.BASELINE, json.dumps({'schemaVersion': 1, 'selectors': [
             {'path': relative, 'kind': 'java-annotation', 'signature': signature, 'count': 1}]}))
@@ -66,7 +66,7 @@ class JavaAgentContractTest(unittest.TestCase):
         self.assertEqual([], guard.selector_violations(self.root))
 
     def test_layout_and_comments_do_not_change_legacy_budget(self):
-        relative = 'server/src/main/java/Legacy.java'
+        relative = 'server/app/src/main/java/Legacy.java'
         self.write(guard.BASELINE, json.dumps({'schemaVersion': 1, 'selectors': [
             {'path': relative, 'kind': 'java-annotation', 'signature': guard.compact(SELECTOR), 'count': 1}]}))
         self.write(relative, '@ConditionalOnProperty(\nname /* comment */ = "weave.chat.provider",\n'
@@ -88,11 +88,11 @@ class JavaAgentContractTest(unittest.TestCase):
         )
         for selector in selectors:
             with self.subTest(selector=selector):
-                self.write('server/src/main/java/NewProvider.java', selector)
+                self.write('server/app/src/main/java/NewProvider.java', selector)
                 self.assert_selector_rejected()
 
     def test_unrelated_infrastructure_conditions_and_comments_are_allowed(self):
-        self.write('server/src/main/java/Infrastructure.java',
+        self.write('server/app/src/main/java/Infrastructure.java',
                    '// ' + SELECTOR + '\n/* ' + SELECTOR + ' */\n'
                    '@ConditionalOnProperty(name="weave.metrics.enabled", havingValue="true")\n'
                    '@Profile("schema-init")\nclass Infrastructure {\n'
@@ -100,19 +100,19 @@ class JavaAgentContractTest(unittest.TestCase):
         self.assertEqual([], guard.selector_violations(self.root))
 
     def test_tests_docs_fixtures_and_generated_artifacts_are_not_production(self):
-        for path in ('server/src/test/java/SelectorFixture.java', 'docs/example.java',
-                     'tools/fixtures/example.java', 'server/build/src/main/java/Generated.java',
-                     'server/src/test/resources/application-fixture.yml'):
+        for path in ('server/app/src/test/java/SelectorFixture.java', 'docs/example.java',
+                     'tools/fixtures/example.java', 'server/app/build/src/main/java/Generated.java',
+                     'server/app/src/test/resources/application-fixture.yml'):
             self.write(path, SELECTOR + '\nprovider: ${WEAVE_CHAT_PROVIDER:native}')
         self.assertEqual([], guard.selector_violations(self.root))
 
     def test_production_package_named_like_a_build_directory_is_not_skipped(self):
-        self.write('server/src/main/java/example/target/NewProvider.java', SELECTOR)
+        self.write('server/app/src/main/java/example/target/NewProvider.java', SELECTOR)
         self.assert_selector_rejected()
 
     def test_source_symlinks_are_rejected_without_reading_their_targets(self):
-        for relative in ('server/src/main/java/Linked.java',
-                         'server/src/main/resources/application-linked.yml'):
+        for relative in ('server/app/src/main/java/Linked.java',
+                         'server/app/src/main/resources/application-linked.yml'):
             with self.subTest(path=relative):
                 link = self.root / relative
                 link.symlink_to(self.root / 'missing-private-target')
@@ -129,7 +129,7 @@ class JavaAgentContractTest(unittest.TestCase):
                 self.assert_selector_rejected()
 
     def test_yaml_comments_and_secret_delivery_are_not_provider_selection(self):
-        self.write('server/src/main/resources/application-extra.yml',
+        self.write('server/app/src/main/resources/application-extra.yml',
                    '# provider: ${WEAVE_FILES_PROVIDER:native}\n'
                    'password: ${DATABASE_PASSWORD}\nprovider:\n  enabled: true\n')
         self.assertEqual([], guard.selector_violations(self.root))
@@ -140,13 +140,13 @@ class JavaAgentContractTest(unittest.TestCase):
             path.unlink()
             self.assertTrue(any('scan-root-missing-or-empty:' in x for x in guard.selector_violations(self.root)))
             path.write_text('class Example {}')
-        (self.root / 'server/src/main/resources/application.yml').unlink()
+        (self.root / 'server/app/src/main/resources/application.yml').unlink()
         self.assertTrue(any('configuration-root-missing:' in x for x in guard.selector_violations(self.root)))
         (self.root / guard.BASELINE).unlink()
         self.assertTrue(any('baseline-invalid:' in x for x in guard.selector_violations(self.root)))
 
     def test_duplicate_or_unbounded_baseline_entries_are_invalid(self):
-        entry = {'path': 'server/src/main/java/X.java', 'kind': 'java-annotation',
+        entry = {'path': 'server/app/src/main/java/X.java', 'kind': 'java-annotation',
                  'signature': guard.compact(SELECTOR), 'count': 1}
         for entries in ([entry, entry], [dict(entry, count=0)], [dict(entry, count='*')]):
             self.write(guard.BASELINE, json.dumps({'schemaVersion': 1, 'selectors': entries}))
@@ -181,7 +181,7 @@ class JavaAgentContractTest(unittest.TestCase):
         self.assertTrue(any('skill-unsupported-link-scheme:' in x for x in guard.skill_violations(self.root)))
 
     def test_failure_messages_do_not_echo_source_payloads(self):
-        self.write('server/src/main/java/Unsafe.java', SELECTOR.replace('native', 'private-secret-sentinel'))
+        self.write('server/app/src/main/java/Unsafe.java', SELECTOR.replace('native', 'private-secret-sentinel'))
         self.assertNotIn('private-secret-sentinel', '\n'.join(guard.selector_violations(self.root)))
 
 

@@ -20,6 +20,6 @@ From repository root:
 
 ```sh
 ./gradlew :server:domains:files:check
-./gradlew :server:entitySchemaCheck
+./gradlew :server:app:entitySchemaCheck
 ./gradlew coreArchitectureCi
 ```

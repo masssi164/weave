@@ -40,7 +40,7 @@ def require(path: str, *fragments: str) -> None:
 
 def check_historical_dav() -> None:
     require(
-        "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
+        "server/app/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
         "propfindDepthOneReturnsChildrenAsDavResponses",
         "getDownloadsFileThroughFacadePath",
         "putMkcolAndDeleteUseWebDavFacadeWriteUseCases",
@@ -48,7 +48,7 @@ def check_historical_dav() -> None:
         "not(containsString(\"remote.php\"))",
     )
     require(
-        "server/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
+        "server/app/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
         "webDavWritePreconditionsFailBeforeStorageMutationButAfterAttemptAudit",
         "webDavWriteRejectionsRequireEditPolicyAndPublishSupportSafeAudit",
     )
@@ -98,7 +98,7 @@ def check_generated_user_boundary() -> None:
         "unsupported mutations and denied actions never use a fallback route",
     )
     require(
-        "server/src/test/java/com/massimotter/weave/backend/service/files/FilesUserApiServiceTest.java",
+        "server/app/src/test/java/com/massimotter/weave/backend/service/files/FilesUserApiServiceTest.java",
         "otherMemberCannotInspectOrDownloadOwnerResource",
         "anotherOrganizationCannotResolveTheSameOpaqueFileId",
         "observedPathReplacementDuringDownloadFailsClosed",

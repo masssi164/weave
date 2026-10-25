@@ -10,10 +10,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @AutoConfiguration
 @Import(JpaMemberSessionStateStore.class)
 @EntityScan(basePackages = {
-        "com.massimotter.weave.backend.identity.organization.persistence",
+        "com.massimotter.weave.backend.identity",
         "com.massimotter.weave.backend.audit.persistence",
-        "com.massimotter.weave.backend.identity.persistence",
-        "com.massimotter.weave.backend.identity.profile.persistence",
         "com.massimotter.weave.backend.security.persistence",
         "com.massimotter.weave.backend.schema.persistence",
         "com.massimotter.weave.backend.providerbinding.persistence",
@@ -22,10 +20,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
         "com.massimotter.weave.backend.spaces.adapter"
 })
 @EnableJpaRepositories(basePackages = {
-        "com.massimotter.weave.backend.identity.organization.persistence",
+        "com.massimotter.weave.backend.identity",
         "com.massimotter.weave.backend.audit.persistence",
-        "com.massimotter.weave.backend.identity.persistence",
-        "com.massimotter.weave.backend.identity.profile.persistence",
         "com.massimotter.weave.backend.security.persistence",
         "com.massimotter.weave.backend.schema.persistence",
         "com.massimotter.weave.backend.providerbinding.persistence",

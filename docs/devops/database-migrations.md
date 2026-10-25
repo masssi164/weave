@@ -20,7 +20,7 @@ postgres provision/reconcile
 Committed migrations live in:
 
 ```text
-server/src/main/resources/db/migration/
+server/app/src/main/resources/db/migration/
 ```
 
 Use monotonically increasing Flyway versions and descriptive names, for example:

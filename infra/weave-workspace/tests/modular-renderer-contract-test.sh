@@ -6,8 +6,8 @@ ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)"
 GATEWAY="${ROOT}/infra/weave-workspace/scripts/rendering/gateway.py"
 PROVIDERS="${ROOT}/infra/weave-workspace/scripts/rendering/providers.py"
 RENDERER="${ROOT}/infra/weave-workspace/scripts/render_config.py"
-SERVER_DOGFOOD="${ROOT}/server/src/main/resources/application-dogfood.yml"
-SERVER_E2E="${ROOT}/server/src/main/resources/application-e2e.yml"
+SERVER_DOGFOOD="${ROOT}/server/app/src/main/resources/application-dogfood.yml"
+SERVER_E2E="${ROOT}/server/app/src/main/resources/application-e2e.yml"
 
 require() {
   local file="$1"

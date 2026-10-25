@@ -6,6 +6,11 @@ group = 'com.massimotter.weave.core'
 base { archivesName = 'weave-core' }
 
 dependencies {
+    implementation 'com.fasterxml.jackson.core:jackson-annotations'
+    api libs.swagger.annotations
+    implementation 'io.micrometer:micrometer-core'
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    testImplementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-autoconfigure'
     implementation 'org.springframework.boot:spring-boot-persistence'
     testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa'

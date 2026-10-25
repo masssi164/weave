@@ -76,14 +76,14 @@ Use explicit `@GetExchange`, `@PostExchange`, etc., under optional `@HttpExchang
 
 Preserve operation-scoped authorization, token ownership/expiry/invalidation, `private_key_jwt`, exact SecretRef access, allowlists, timeouts, status mapping and redaction. No member tokens to provider administration, implicit write retries or global bearer interceptor. Imperative clients/manual factories need an actual API limitation and tests.
 
-Reference tests in `server/src/test/java/com/massimotter/weave/backend/config/reference/` prove registration, typed properties, mapping, group isolation, request-time credentials and no implicit 401 retry; they do not prove production Keycloak security. That refactor remains #1730.
+Reference tests in `server/app/src/test/java/com/massimotter/weave/backend/config/reference/` prove registration, typed properties, mapping, group isolation, request-time credentials and no implicit 401 retry; they do not prove production Keycloak security. That refactor remains #1730.
 
 ## Native/AOT build and acceptance
 
 Read versions from `gradle/libs.versions.toml` and the owning module. At this standard's introduction Boot is 4.1.0 and source/toolchain Java 21; `native-runtime.gradle` builds Rust JNI, not a GraalVM executable.
 
 - Separate source compatibility from the native builder. Boot 4's supported path requires compatible GraalVM 25+; centrally pin native-build-tools and verify exact Boot/Gradle compatibility rather than silently upgrading.
-- Boot's `org.graalvm.buildtools.native` integration supplies AOT wiring; JVM-AOT can use `org.springframework.boot.aot`. Confirm tasks before advertising `:server:processAot`, `:server:nativeCompile` or `:server:nativeTest`.
+- Boot's `org.graalvm.buildtools.native` integration supplies AOT wiring; JVM-AOT can use `org.springframework.boot.aot`. Confirm tasks before advertising `:server:app:processAot`, `:server:app:nativeCompile` or `:server:app:nativeTest`.
 - AOT sees adapter definitions without live providers or secret access. Use supported registrations and narrow reflection/resource/serialization/proxy/JNI hints. Never register entire packages indiscriminately or commit sensitive agent output.
 - Validate actual native auth/HTTP clients, JSON, PostgreSQL/schema lifecycle, startup/shutdown and OpenDAL/Rust JNI paths. Compatible tests/fakes are needed; changing Mockito's mock maker does not make it generally native-safe.
 - Qualify OS/architecture/libc and native library classifiers. macOS ARM binaries are not Linux ARM container binaries. Automatic delivery targets Linux ARM64; other platforms remain manual. No assumed cross-compilation.
@@ -93,7 +93,7 @@ Read versions from `gradle/libs.versions.toml` and the owning module. At this st
 ## Verification and reference sources
 
 ```sh
-./gradlew javaAgentContractCheck :server:javaAgentReferenceTest
+./gradlew javaAgentContractCheck :server:app:javaAgentReferenceTest
 ./gradlew coreArchitectureCi
 ```
 

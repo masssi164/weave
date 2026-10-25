@@ -23,7 +23,7 @@ SKILLS = ('weave-spring-architecture', 'weave-http-clients',
 STANDARD = 'docs/java-spring-standard.md'
 # Required roots track actual extracted libraries, not the retired root Files project.
 # The walk below still inspects every production source root, including future modules.
-MODULES = ('server', 'server/core', 'server/core/model',
+MODULES = ('server/app', 'server/core', 'server/core/model',
            'server/domains/agent-runtime/model', 'server/domains/agent-runtime/persistence',
            'server/domains/agent-runtime/provider', 'server/domains/agent-runtime/security',
            'server/domains/portability/model', 'server/domains/portability/persistence',
@@ -115,7 +115,7 @@ def source_paths(root: Path, failures: list[str]):
             failures.append(f'scan-root-missing-or-empty: {module}/src/main/java')
         if any(parent.is_symlink() for parent in (path, *path.parents) if parent != root and root in parent.parents):
             failures.append(f'source-symlink-not-scanned: {module}/src/main/java')
-    for module in ('server', 'weave-mcp-server'):
+    for module in ('server/app', 'weave-mcp-server'):
         if not (root / module / 'src/main/resources/application.yml').is_file():
             failures.append(f'configuration-root-missing: {module}/src/main/resources/application.yml')
     for directory, directories, files in os.walk(root):

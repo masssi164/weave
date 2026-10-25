@@ -126,11 +126,11 @@ List<String> artifactPathsForGate(String gateName) {
         case 'specContractTest':
             return ['tools/spec_contract_check_test.py']
         case 'domainRegistryCheck':
-            return ['specs/0004-domain-registry/canonical-domain-registry-v1.json', 'server/src/main/resources/canonical-domain-registry-v1.json', 'tools/domain_registry_check.py']
+            return ['specs/0004-domain-registry/canonical-domain-registry-v1.json', 'server/app/src/main/resources/canonical-domain-registry-v1.json', 'tools/domain_registry_check.py']
         case 'spaceAnchorCheck':
             return ['docs/space-anchor-contract.md', 'specs/0005-spaces-anchor/space-anchor-fixture.json', 'tools/space_anchor_check.py']
         case 'portabilityContractCheck':
-            return ['server/src/main/resources/contracts/portability', 'specs/0006-portability-contract', 'tools/portability_contract_check.py']
+            return ['server/app/src/main/resources/contracts/portability', 'specs/0006-portability-contract', 'tools/portability_contract_check.py']
         case 'chatProviderSwitchCheck':
             return ['release/provider-lab/chat-switch', 'fixtures/provider-lab/chat-fixture.json', 'tools/chat_provider_switch_check.py']
         case 'productTrustClaimMatrixCheck':

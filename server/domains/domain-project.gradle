@@ -2,7 +2,7 @@
 apply plugin: 'base'
 
 def inventory = project(':server').ext.weaveDomainCatalog.domains[project.name]
-def serverTest = ":server:domain${project.name.capitalize()}UnitTest"
+def serverTest = ":server:app:domain${project.name.capitalize()}UnitTest"
 
 tasks.register('test') {
     group = 'verification'

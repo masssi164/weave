@@ -38,8 +38,8 @@ The service aggregates disabled Boards/other sections into global degradation an
 
 ## Bounded starting paths
 
-- `server/src/main/java/com/massimotter/weave/backend/service/WorkspaceHomeService.java`
-- `server/src/test/java/com/massimotter/weave/backend/service/WorkspaceHomeServiceTest.java`
+- `server/app/src/main/java/com/massimotter/weave/backend/service/WorkspaceHomeService.java`
+- `server/app/src/test/java/com/massimotter/weave/backend/service/WorkspaceHomeServiceTest.java`
 - `client/lib/features/shell/presentation/shell_workspace_status.dart`
 - `client/lib/features/app/domain/entities/workspace_home_snapshot.dart`
 - `client/lib/features/app/presentation/providers/workspace_connection_provider.dart`

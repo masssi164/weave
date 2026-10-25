@@ -8,10 +8,12 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @AutoConfiguration
 @EntityScan(basePackages = {
         "com.massimotter.weave.backend.transfer.adapter",
+        "com.massimotter.weave.backend.portability.adapter",
         "com.massimotter.weave.backend.portability.persistence"
 })
 @EnableJpaRepositories(basePackages = {
         "com.massimotter.weave.backend.transfer.adapter",
+        "com.massimotter.weave.backend.portability.adapter",
         "com.massimotter.weave.backend.portability.persistence"
 })
 public class PortabilityPersistenceAutoConfiguration {}

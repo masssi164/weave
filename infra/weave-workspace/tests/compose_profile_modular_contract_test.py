@@ -59,7 +59,7 @@ def materialize_example(profile: str, destination: Path) -> Path:
 
 def assert_spring_profile_contract(profile: str) -> None:
     server = (
-        REPOSITORY_ROOT / f"server/src/main/resources/application-{profile}.yml"
+        REPOSITORY_ROOT / f"server/app/src/main/resources/application-{profile}.yml"
     ).read_text(encoding="utf-8")
     mcp = (
         REPOSITORY_ROOT

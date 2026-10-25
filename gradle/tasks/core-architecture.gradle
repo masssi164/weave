@@ -20,6 +20,6 @@ tasks.register('coreArchitectureCi') {
             ':server:domains:chat:persistence:check',
             ':server:domains:files:check',
             ':server:domains:calendar:check',
-            ':server:entitySchemaCheck',
+            ':server:app:entitySchemaCheck',
             ':weave-mcp-server:test'
 }

@@ -19,9 +19,9 @@ require "${GATEWAY}" 'handle @internal {'
 require "${GATEWAY}" 'respond 404'
 require "${GATEWAY}" 'handle /api/* {'
 require "${ROOT_DIR}/scripts/operator_check.py" 'context.env["WEAVE_API_URL"].rstrip("/") + "/health/ready"'
-require "${REPO_ROOT}/server/src/main/resources/application.yml" 'import: classpath:application-base.yml'
-require "${REPO_ROOT}/server/src/main/resources/application-base.yml" 'open-in-view: false'
-require "${REPO_ROOT}/server/src/main/resources/application-base.yml" 'ddl-auto: ${WEAVE_JPA_DDL_AUTO:validate}'
+require "${REPO_ROOT}/server/app/src/main/resources/application.yml" 'import: classpath:application-base.yml'
+require "${REPO_ROOT}/server/app/src/main/resources/application-base.yml" 'open-in-view: false'
+require "${REPO_ROOT}/server/app/src/main/resources/application-base.yml" 'ddl-auto: ${WEAVE_JPA_DDL_AUTO:validate}'
 
 if grep -Eq 'reverse_proxy[^\n]*(/actuator|actuator:)' "${GATEWAY}"; then
   fail "Actuator must never be reverse proxied by the public gateway"

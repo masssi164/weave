@@ -114,7 +114,7 @@ jobs:
           name: api-contract-diagnostics-${{ github.sha }}
           path: |
             build/openapi/
-            server/build/reports/tests/openApiContractExport/
+            server/app/build/reports/tests/openApiContractExport/
           if-no-files-found: ignore
           retention-days: 7
 

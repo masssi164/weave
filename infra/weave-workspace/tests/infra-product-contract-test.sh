@@ -120,9 +120,9 @@ require "${ROOT_DIR}/compose.e2e.yaml" 'weave.provider-bindings.bootstrap.calend
 require "${ROOT_DIR}/compose.e2e.yaml" 'weave.provider-bindings.bootstrap.calendar.adapter-key: weave-native'
 require "${ROOT_DIR}/compose.e2e.yaml" 'weave.provider-bindings.bootstrap.calendar.configuration-ref: configuration:calendar:deployment'
 reject "${ROOT_DIR}/compose.prod.yaml" 'weave.provider-bindings.bootstrap.calendar.enabled: "true"'
-require "${REPO_ROOT}/server/src/main/resources/application-e2e.yml" 'credential-ref: secretref:weave/runtime-state-s3'
-reject "${REPO_ROOT}/server/src/main/resources/application-dogfood.yml" 'credential-ref: secretref:weave/runtime-state-s3'
-reject "${REPO_ROOT}/server/src/main/resources/application-e2e.yml" 'credential-ref: secretref://weave/runtime-state-s3'
+require "${REPO_ROOT}/server/app/src/main/resources/application-e2e.yml" 'credential-ref: secretref:weave/runtime-state-s3'
+reject "${REPO_ROOT}/server/app/src/main/resources/application-dogfood.yml" 'credential-ref: secretref:weave/runtime-state-s3'
+reject "${REPO_ROOT}/server/app/src/main/resources/application-e2e.yml" 'credential-ref: secretref://weave/runtime-state-s3'
 require "${ROOT_DIR}/compose.yaml" 'runtime-state-volume-init:'
 require "${ROOT_DIR}/compose.yaml" 'com.massimotter.weave.operation: volume-initialize'
 require "${ROOT_DIR}/compose.yaml" 'mc alias set -- runtime-state'
@@ -163,10 +163,10 @@ require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'ordinary reconciliation re
 require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'oidcManagedProjectionDigest'
 
 for profile in dev dogfood e2e prod; do
-  require "${REPO_ROOT}/server/src/main/resources/application-${profile}.yml" "on-profile: ${profile}"
+  require "${REPO_ROOT}/server/app/src/main/resources/application-${profile}.yml" "on-profile: ${profile}"
   require "${REPO_ROOT}/weave-mcp-server/src/main/resources/application-${profile}.yml" "on-profile: ${profile}"
 done
-require "${REPO_ROOT}/server/src/main/resources/application-dogfood.yml" 'issuer-uri: https://auth.weave.test/realms/weave'
+require "${REPO_ROOT}/server/app/src/main/resources/application-dogfood.yml" 'issuer-uri: https://auth.weave.test/realms/weave'
 require "${REPO_ROOT}/weave-mcp-server/src/main/resources/application-dogfood.yml" 'authorization-server: https://auth.weave.test/realms/weave'
 reject "${ROOT_DIR}/scripts/render_config.py" '_backend_env'
 reject "${ROOT_DIR}/scripts/render_config.py" '_mcp_env'
@@ -181,7 +181,7 @@ require "${ROOT_DIR}/compose.yaml" \
 require "${ROOT_DIR}/compose.yaml" 'target: identity-reference-hmac-key'
 [[ "$(grep -Fc 'source: identity-reference-hmac-key' "${ROOT_DIR}/compose.yaml")" == "1" ]] ||
   fail "identity-reference-hmac-key must be mounted into Weave Server exactly once"
-reject "${REPO_ROOT}/server/src/main/resources/application.yml" \
+reject "${REPO_ROOT}/server/app/src/main/resources/application.yml" \
   'spring.security.oauth2.client.registration.weave-identity-admin.client-secret'
 
 require "${REPO_ROOT}/settings.gradle" "include 'server:core',"
@@ -208,10 +208,10 @@ reject "${ROOT_DIR}/compose.yaml" 'weave/weave.identity.invitations.keycloak.cli
 reject "${ROOT_DIR}/scripts/init_secrets.py" '"keycloak-weave-identity-admin",'
 require "${ROOT_DIR}/scripts/init_secrets.py" \
   '("keycloak-weave-identity-admin-jwk.json", "weave-identity-admin-current")'
-reject "${REPO_ROOT}/server/src/main/resources/application.yml" 'WEAVE_IDENTITY_EVENTS_HMAC_SECRET'
-reject "${REPO_ROOT}/server/src/main/resources/application-base.yml" 'weave-keycloak:8080'
-reject "${REPO_ROOT}/server/src/main/java/com/massimotter/weave/backend/config/IdentityInvitationProperties.java" \
+reject "${REPO_ROOT}/server/app/src/main/resources/application.yml" 'WEAVE_IDENTITY_EVENTS_HMAC_SECRET'
+reject "${REPO_ROOT}/server/app/src/main/resources/application-base.yml" 'weave-keycloak:8080'
+reject "${REPO_ROOT}/server/app/src/main/java/com/massimotter/weave/backend/config/IdentityInvitationProperties.java" \
   'weave-keycloak:8080'
-reject "${REPO_ROOT}/server/src/main/java/com/massimotter/weave/backend/config/SecurityConfig.java" '/api/internal/keycloak/events'
+reject "${REPO_ROOT}/server/app/src/main/java/com/massimotter/weave/backend/config/SecurityConfig.java" '/api/internal/keycloak/events'
 
 printf 'V01_INFRA_CONTROL_PLANE_BOOTSTRAP status=passed infrastructure product contract tests passed\n'

@@ -90,5 +90,5 @@ boundaries separately.
 - MatrixRTC pin: `../weave-specs/contracts/matrixrtc-profile-v0.yaml`
 - Product projection: `docs/architecture/domain-facade-protocol-projections.md`
 - Acceptance: `e2e/features/calls_webrtc_join_grants.feature`
-- Negative route guards: `server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java`
+- Negative route guards: `server/app/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java`
 - Member contract: `client/lib/features/chat/domain/entities/channel_workspace.dart`

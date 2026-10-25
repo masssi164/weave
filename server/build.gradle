@@ -1,17 +1,4 @@
-plugins {
-    alias(libs.plugins.spring.boot)
-    alias(libs.plugins.spring.dependency.management)
-    id 'java'
-}
+plugins { id 'base' }
 
-group = 'com.massimotter.weave'
-version = '0.1.0'
-
-apply from: "${projectDir}/gradle/scripts/java-and-dependencies.gradle"
-apply from: "${projectDir}/gradle/tasks/native-runtime.gradle"
-apply from: "${projectDir}/gradle/tasks/development.gradle"
-apply from: "${projectDir}/gradle/tasks/admin-console.gradle"
-apply from: "${projectDir}/gradle/tasks/verification.gradle"
-apply from: "${projectDir}/gradle/tasks/domain-verification.gradle"
-apply from: "${projectDir}/gradle/tasks/operations.gradle"
-apply from: "${projectDir}/gradle/tasks/entity-schema.gradle"
+description = 'Server composition and resolved domain selection.'
+apply from: rootProject.file('server/gradle/scripts/domain-selection.gradle')

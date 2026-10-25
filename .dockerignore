@@ -10,9 +10,10 @@
 !rust/matrix-core/src/
 !rust/matrix-core/src/**
 !server/
-!server/build/
-!server/build/libs/
-!server/build/libs/*.jar
+!server/app/
+!server/app/build/
+!server/app/build/libs/
+!server/app/build/libs/*.jar
 !weave-mcp-server/
 !weave-mcp-server/build/
 !weave-mcp-server/build/libs/

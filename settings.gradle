@@ -11,7 +11,8 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = 'weave-orchestration'
-include 'server:core',
+include 'server:app',
+        'server:core',
         'server:core:model',
         'server:domains:agent-runtime',
         'server:domains:agent-runtime:model',

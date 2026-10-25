@@ -16,7 +16,7 @@ Read `docs/java-spring-standard.md` from the repository root and use the applica
 
 ## Module ownership during extraction
 
-Read `docs/architecture/server-domain-ownership.md` and the affected domain's README/AGENTS. Files model and complete transactional JPA adapter implementation are under `server/domains/files`; Calendar model and JPA mappings are under `server/domains/calendar`. Their controllers/providers and the executable App/Core split are still transitional. Do not recreate old root copies or claim a complete reduced-domain runtime.
+Read `docs/architecture/server-domain-ownership.md` and the affected domain's README/AGENTS. Files model and complete transactional JPA adapter implementation are under `server/domains/files`; Calendar model and JPA mappings are under `server/domains/calendar`. The sole executable is `server/app`; its remaining controllers/providers and runtime Core/domain extraction are still transitional. Do not recreate old root copies or claim a complete reduced-domain runtime.
 
 Shared Java build mechanics live in `server/gradle/scripts/domain-library.gradle`; each library owns its dependencies. Core cannot import optional domain implementation. Shared Security/Identity/Spaces persistence stays with its actual responsibility; no generic dumping ground for domain entities or providers.
 
@@ -30,10 +30,10 @@ The current initializer remains transitional until generated-baseline integrity 
 
 Validation from the repository root:
 
-- `./gradlew javaAgentContractCheck :server:javaAgentReferenceTest` for bounded standard/reference checks, not migration/native qualification.
+- `./gradlew javaAgentContractCheck :server:app:javaAgentReferenceTest` for bounded standard/reference checks, not migration/native qualification.
 - `./gradlew :server:domains:files:check :server:domains:calendar:check` for domain libraries.
-- `./gradlew :server:entitySchemaCheck` for offline generation.
-- `./gradlew :server:postgresJpaTest --tests '*EntityFirstBaselinePostgresTest'` for generated-baseline PostgreSQL contracts.
+- `./gradlew :server:app:entitySchemaCheck` for offline generation.
+- `./gradlew :server:app:postgresJpaTest --tests '*EntityFirstBaselinePostgresTest'` for generated-baseline PostgreSQL contracts.
 - `./gradlew coreArchitectureCi` and `./gradlew serverCi` for the applicable combined gates; existing protocol/API checks remain required.
 
 ## Global Weave agent baseline

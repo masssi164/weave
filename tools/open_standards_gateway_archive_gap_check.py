@@ -85,13 +85,13 @@ def require_gap_inventory() -> None:
 
 def require_current_evidence_boundaries() -> None:
     require("tools/target_standard_facade_hard_gate_check.py", "TARGET_STANDARDS_WEBDAV_FILES_CURRENT_PROOF", "TARGET_STANDARDS_CALDAV_CALENDAR_SERVER_MVP", "TARGET_STANDARDS_MATRIX_CHAT_SERVER_MVP")
-    require("server/src/main/java/com/massimotter/weave/backend/controller/FilesWebDavController.java", 'case "MOVE" -> move(request)', 'case "COPY" -> copy(request)', 'case "LOCK" -> lock(request)', 'case "UNLOCK" -> unlock(request)')
-    require("server/src/main/java/com/massimotter/weave/backend/service/FilesFacadeService.java", "copyWebDavPath(", "moveWebDavPath(", "lockWebDavPath(", "unlockWebDavPath(", "files-locked")
-    require("server/src/main/java/com/massimotter/weave/backend/controller/CalDavCalendarController.java", 'case "MKCALENDAR", "COPY", "MOVE", "LOCK", "UNLOCK" -> unsupportedMethod(method)')
-    require("server/src/main/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionController.java", '"X-Weave-Matrix-Core", "rust-ruma-jni"', "chatDomainFacadeService.conversations(jwt)", "chatDomainFacadeService.sendEvent(")
-    require("server/src/main/java/com/massimotter/weave/backend/matrix/MatrixProtocolCodec.java", "Map<String, Object> project(MatrixProtocolOperation operation, String inputJson)")
+    require("server/app/src/main/java/com/massimotter/weave/backend/controller/FilesWebDavController.java", 'case "MOVE" -> move(request)', 'case "COPY" -> copy(request)', 'case "LOCK" -> lock(request)', 'case "UNLOCK" -> unlock(request)')
+    require("server/app/src/main/java/com/massimotter/weave/backend/service/FilesFacadeService.java", "copyWebDavPath(", "moveWebDavPath(", "lockWebDavPath(", "unlockWebDavPath(", "files-locked")
+    require("server/app/src/main/java/com/massimotter/weave/backend/controller/CalDavCalendarController.java", 'case "MKCALENDAR", "COPY", "MOVE", "LOCK", "UNLOCK" -> unsupportedMethod(method)')
+    require("server/app/src/main/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionController.java", '"X-Weave-Matrix-Core", "rust-ruma-jni"', "chatDomainFacadeService.conversations(jwt)", "chatDomainFacadeService.sendEvent(")
+    require("server/app/src/main/java/com/massimotter/weave/backend/matrix/MatrixProtocolCodec.java", "Map<String, Object> project(MatrixProtocolOperation operation, String inputJson)")
     require(
-        "server/src/main/java/com/massimotter/weave/backend/matrix/MatrixProtocolCoreService.java",
+        "server/app/src/main/java/com/massimotter/weave/backend/matrix/MatrixProtocolCoreService.java",
         "implements MatrixProtocolCodec",
         "NativeMatrixCore.projectJson(operation.wireName(),",
         ", serverName)",
@@ -100,10 +100,10 @@ def require_current_evidence_boundaries() -> None:
     )
     require("rust/matrix-protocol/Cargo.toml", 'name = "weave-matrix-protocol"', "ruma", "jni")
     require("rust/matrix-client/Cargo.toml", 'name = "weave-matrix-client"', "flutter_rust_bridge", "matrix-sdk")
-    forbidden_calls_path = ROOT / "server/src/main/java/com/massimotter/weave/backend/controller/CallsController.java"
+    forbidden_calls_path = ROOT / "server/app/src/main/java/com/massimotter/weave/backend/controller/CallsController.java"
     if forbidden_calls_path.exists():
         fail("legacy member Calls controller must be removed")
-    for path in ROOT.glob("server/src/main/java/**/*.java"):
+    for path in ROOT.glob("server/app/src/main/java/**/*.java"):
         text = path.read_text(encoding="utf-8")
         if '"/api/calls' in text or "com.weave.call." in text:
             fail(f"legacy Calls contract remains in {path.relative_to(ROOT)}")

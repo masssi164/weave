@@ -205,7 +205,7 @@ def main() -> int:
         assert "./operator-check.sh test" not in workflow
         assert "./install.sh test" not in workflow
 
-    backend_resources = repository / "server/src/main/resources"
+    backend_resources = repository / "server/app/src/main/resources"
     mcp_resources = repository / "weave-mcp-server/src/main/resources"
     for environment in ("dogfood", "e2e"):
         backend_profile = (backend_resources / f"application-{environment}.yml").read_text(

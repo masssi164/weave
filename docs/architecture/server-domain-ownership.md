@@ -15,9 +15,19 @@ removed without weakening the active security behavior.
 Core and the five persistence owners register scoped entity/repository wiring through their
 own Boot imports resources. Six actual Boot discovery tests pass. Shared provider health uses
 domain contributions, and shared member/session revocation no longer imports Chat types.
+The health cache, safe response, deferred probe contract and typed settings now live in
+Core health. Its module-local servlet auto-configuration is discovered without optional
+domain classes and does not probe providers during construction. The global provider
+configuration is retired; Files, Calendar, Chat, Boards, Integrations and Meetings own
+their existing registry metadata and adapter selection.
 
-**Still transitional:** `server` remains the executable. The remaining services/controllers,
-provider runtime wiring, final `server/app`, real selected-runtime packaging, future-domain
+**Executable composition:** `server/app` is now the only Boot executable; `server` is a base
+project that resolves domain selection once. Root tasks, API/schema tooling, host runners,
+Docker JAR paths and complete source inputs target App. The independent nested Server
+wrapper/settings were retired in favor of the repository-pinned root wrapper.
+
+**Still transitional:** The remaining services/controllers, provider runtime wiring,
+real selected-runtime packaging, future-domain
 release exclusion and reduced discovery/client integration are not complete. The verification
 bridge and partial-packaging guard remain until those behaviors are implemented. No ARM64,
 native or live/human release qualification is claimed from library checks.
@@ -91,7 +101,7 @@ From the repository root:
 ./gradlew coreArchitectureCi
 ```
 
-These are library checks, not a claim that the production domain selector or new App assembly is finished. Existing complete Server, PostgreSQL, API and protocol checks remain required. The source-level relational inventory includes nested domain projects, not only the old root locations; domain architecture tests inspect their compiled classes. Image source-input closure includes new module sources/build files and shared build mechanics.
+These are library checks, not a claim that the production domain selector is finished. Existing complete Server, PostgreSQL, API and protocol checks remain required. The source-level relational inventory includes nested domain projects, not only the old root locations; domain architecture tests inspect their compiled classes. Image source-input closure includes new module sources/build files and shared build mechanics.
 
 The active historical Flyway catalog remains unchanged during extraction. Entity-first
 authoring and any deliberate pre-release consolidation follow the explicit corpus proposal
@@ -109,7 +119,7 @@ workflow is removed as its own instructions required, resolving both current CI 
 | Phase | Milestone and implementation decisions | Checks | Status / blockers |
 | --- | --- | --- | --- |
 | 1. Ownership and contracts | Inventory source/resources/dependencies and assign actual owners; prepare Entity-first and selected-domain discovery corpus changes; retain this plan as the single execution record | Corpus lint/examples, resolver tests, source inspection | In progress; accepted pin remains unchanged pending normal corpus review |
-| 2. Domain composition | App is the sole executable; Core owns justified platform responsibilities; runtime modules own imports registration and scoped persistence; separate non-web tooling | Compile, dependency graph, real imports discovery and bean uniqueness | Scoped persistence imports/discovery implemented; App/runtime still pending |
+| 2. Domain composition | App is the sole executable; Core owns justified platform responsibilities; runtime modules own imports registration and scoped persistence; separate non-web tooling | Compile, dependency graph, real imports discovery and bean uniqueness | App executable split and scoped persistence imports/discovery implemented; domain runtime extraction still pending |
 | 3. Vertical extraction and ORM | Files/Calendar/Chat own services/controllers/providers/persistence; future domains remain buildable outside release; convert ordinary Calendar/Matrix JDBC CRUD | Domain units, PostgreSQL writes/isolation/constraints/transactions, no legacy copies | Calendar ORM conversion and persistence-library extraction implemented; runtime/API still open |
 | 4. Core and build finalization | Remove feature dependencies from Core; one selection drives real checks, runtime, schema/API and identity; preserve data-safe initializer until qualified cutover | Architecture rules, selected JAR/SDK inspection, offline deterministic schema | Shared session and health boundaries extracted; runtime selection remains pending; schema cutover requires accepted corpus and integrity/recovery evidence |
 | 5. Runtime and clients | Release and three single-domain variants start with honest capabilities/endpoints; generated User/Admin contracts follow registered handlers; Flutter uses stable destinations | API/auth/client freshness, variants, Compose/two-member acceptance, ARM64/AOT/JNI where available | Pending; no live or native qualification claimed |
@@ -117,7 +127,7 @@ workflow is removed as its own instructions required, resolving both current CI 
 
 ### Ownership map and removal rationale
 
-| Current owner | Target owner / action | Rationale and dependencies |
+| Current location / owner | Target owner / action | Rationale and dependencies |
 | --- | --- | --- |
 | Server executable, operator dispatch and web composition | App; move | Composition and application entry points, not feature business logic |
 | Files model/JPA libraries and Server Files controllers/use cases/providers | Files; retain libraries and move runtime | Files owns storage authority, DAV/OpenDAL/S3, bindings and mutation semantics; uses Core authorization/Spaces/audit |
@@ -166,7 +176,7 @@ acceptance or platform evidence remains a blocker; it never becomes an inferred 
   plus the existing 12 Cucumber Boards scenarios passed. PostgreSQL required an explicit
   observed local Docker socket via `DOCKER_HOST`; no persistent Docker configuration changed.
 - After moving production store/unit test: `./gradlew :server:domains:calendar:persistence:test
-  :server:compileTestJava --no-daemon --console=plain` passed.
+  :server:app:compileTestJava --no-daemon --console=plain` passed.
 - `python3 -m unittest tools.domain_selection_resolver_test tools.domain_unit_workflow_test
   tools.test_dev_ci_impact`: 66 passed. `:server:domains:check -Pdomains=files,chat` passed.
 - Corpus proposal: [weave-specs#172](https://github.com/masssi164/weave-specs/pull/172). Its local
@@ -230,3 +240,33 @@ recheck and audit. Zero-domain and single-domain compositions preserve the share
 Focused service/contribution/controller/bootstrap checks: 48 passed; authoritative Space and
 Dogfood preparation PostgreSQL checks: 13 passed. Existing incidental Cucumber discovery also
 ran its 12 scenarios. These are bounded backend checks, not two-member native acceptance.
+
+### App split checkpoint
+
+- Moved the executable source sets and build into `server/app`; no source-set aliases or
+  duplicate production copies. `server` retains only the shared resolver and composition
+  mechanics. Domain library dependencies remain explicit and currently include future
+  code until the remaining vertical extraction is complete. Partial packaging still fails.
+- Updated root gates, API export, host runners, CI callers, Docker artifact paths, source
+  guards and source-input closure. Retired `server/gradlew`, nested settings and duplicate
+  wrapper distribution; historical executed-command evidence remains unchanged.
+- Before this move, `coreArchitectureCi canonicalDataCi :server:test :server:postgresJpaTest
+  specCorpusConformance` passed against the accepted corpus. Those historical task names
+  describe that checked revision; current executable tasks use `:server:app:`.
+- Review corrected incomplete Core Identity and Portability persistence discovery. Owning
+  module checks passed all 8 tests without skips, asserting the specific formerly omitted
+  entities and repository beans.
+
+- App checkpoint validation (source represented by the App split commit):
+  `DOCKER_HOST=unix:///Users/flotterotter/.orbstack/run/docker.sock` and
+  `WEAVE_SPEC_CORPUS_ROOT=<accepted f049c0b18794 checkout>` with
+  `./gradlew coreArchitectureCi canonicalDataCi serverCi specCorpusConformance
+  checkOpenApiContractFresh --no-daemon --console=plain`: **passed**. App unit lane
+  1,478 tests / 14 PostgreSQL-only skips; PostgreSQL lane 189 / zero skips; Core 13 /
+  zero skips. Actual User/Admin export matched committed contracts.
+- `./gradlew :server:app:bootJar -Pdomains=all --console=plain`: **passed**. This is
+  the full current transitional composition, including future code, not the release
+  runtime or a reduced variant. `ProviderRegistryConfigurationTest`/controller focus:
+  36 passed, no skips. Selection/workflow/Gradle wiring: 13 passed. Source-guard,
+  resolver and impact fixtures: 84 passed. Artifact identity/input fixtures: 39 passed
+  (`TMPDIR=/private/tmp` avoids the macOS `/var` alias in fixture canonicalization).

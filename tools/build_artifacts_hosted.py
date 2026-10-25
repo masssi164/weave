@@ -175,7 +175,7 @@ def runtime(root: Path, payload: Path, source: str) -> None:
     environment = {**os.environ, "WEAVE_OPENDAL_CLASSIFIER": "linux-x86_64",
                    "RUSTUP_TOOLCHAIN": component_configuration(root, "runtime-linux-amd64")["toolchain"]["rust"]}
     run(root, ["./gradlew", "--no-daemon", "--max-workers=2", "--init-script", "tools/build_artifacts_driver.gradle",
-               ":server:bootJar", ":weave-mcp-server:bootJar", ":weave-product-e2e:installDist"], env=environment)
+               ":server:app:bootJar", ":weave-mcp-server:bootJar", ":weave-product-e2e:installDist"], env=environment)
     copy_bundle(root / "weave-product-e2e/build/install/weave-product-e2e", payload / "test-driver")
     created = git(root, "show", "-s", "--format=%cI", source).decode().strip()
     spec_digest = digest_file(root / "specs/weave-specs.lock.json")

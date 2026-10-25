@@ -1,4 +1,4 @@
-def adminConsoleDirectory = file("${projectDir}/../admin-console")
+def adminConsoleDirectory = rootProject.file('admin-console')
 def adminConsolePackageLock = file("${adminConsoleDirectory}/package-lock.json")
 def adminConsoleInstalledLock = file("${adminConsoleDirectory}/node_modules/.package-lock.json")
 def adminConsoleDistribution = file("${adminConsoleDirectory}/dist")

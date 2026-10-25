@@ -241,7 +241,7 @@ class ImpactTest(unittest.TestCase):
                     self.assertTrue(impact.select([path])['user'])
 
     def test_docs_and_server_internal_changes_skip_consumers(self):
-        for path in ('docs/architecture.md', 'server/src/main/java/InternalService.java'):
+        for path in ('docs/architecture.md', 'server/app/src/main/java/InternalService.java'):
             selected = impact.select([path])
             self.assertFalse(selected['user'])
             self.assertFalse(selected['admin'])
@@ -268,7 +268,7 @@ class ImpactTest(unittest.TestCase):
                 with self.subTest(paths=paths):
                     self.assertEqual(impact.select(paths), expected)
             self.assertEqual(impact.select(sorted(reviewed)), expected)
-            for path in ('server/src/main/java/InternalService.java',
+            for path in ('server/app/src/main/java/InternalService.java',
                          'client/lib/generated/user_api/api.dart',
                          'contracts/openapi/weave-admin-openapi.json'):
                 for paths in ([*reviewed, path], [path, *reviewed]):
@@ -331,7 +331,7 @@ class ImpactTest(unittest.TestCase):
                       ['client/lib/features/chat/presentation/screen.dart'],
                       ['client/pubspec.lock', 'docs/quality-and-evidence.md']):
             self.assertFalse(impact.select(paths)['backend'], paths)
-        for path in ('server/src/test/resources/fixture.json', 'server/docs/context-space-adr.md',
+        for path in ('server/app/src/test/resources/fixture.json', 'server/docs/context-space-adr.md',
                      'server/domains/agent-runtime/security/src/main/java/Authz.java',
                      'weave-mcp-server/gradle/scripts/java-and-dependencies.gradle',
                      'server/core/src/main/resources/db/migration/V1.sql',
@@ -340,7 +340,7 @@ class ImpactTest(unittest.TestCase):
                      'infra/weave-workspace/scripts/build_runtime_state_image.sh',
                      'rust/matrix-protocol/src/lib.rs', 'Cargo.lock'):
             self.assertTrue(impact.select([path])['backend'], path)
-        self.assertTrue(impact.select(['docs/readme.md', 'server/src/main/resources/application.yml'])['backend'])
+        self.assertTrue(impact.select(['docs/readme.md', 'server/app/src/main/resources/application.yml'])['backend'])
 
     def test_backend_aggregate_requires_every_selected_module_job(self):
         needs = {job: {'result': 'success'} for job in results.REQUIRED}
@@ -359,7 +359,7 @@ class ImpactTest(unittest.TestCase):
         with self.assertRaises(ValueError): results.validate(needs)
 
     def test_cross_boundary_static_guards_are_not_underselected(self):
-        selected = impact.select(['server/src/main/resources/application-base.yml'])
+        selected = impact.select(['server/app/src/main/resources/application-base.yml'])
         self.assertTrue(selected['infra'])
         self.assertTrue(selected['docs'])
 

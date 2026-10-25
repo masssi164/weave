@@ -1,13 +1,13 @@
 tasks.register('postgresPersistenceCi') {
     group = 'verification'
     description = 'Run the current PostgreSQL/Flyway/JPA foundation tests, including authoritative server repository contracts.'
-    dependsOn ':server:core:test', ':server:domains:agent-runtime:persistence:test', ':server:domains:chat:persistence:test', ':server:domains:portability:persistence:test', ':server:postgresJpaTest'
+    dependsOn ':server:core:test', ':server:domains:agent-runtime:persistence:test', ':server:domains:chat:persistence:test', ':server:domains:portability:persistence:test', ':server:app:postgresJpaTest'
 }
 
 tasks.register('protocolFacadeFoundationCi') {
     group = 'verification'
     description = 'Run the current Server protocol regression suite while focused WebDAV, CalDAV, and Matrix gates are split by their owning issues.'
-    dependsOn ':server:test'
+    dependsOn ':server:app:test'
 }
 
 tasks.register('mcpFoundationCi') {

@@ -170,7 +170,7 @@ class InventoryTest(unittest.TestCase):
             self.assertEqual(len(inventory['server_unit_tests']), len(set(inventory['server_unit_tests'])))
             for name in inventory['server_unit_tests']:
                 with self.subTest(domain=domain, name=name):
-                    path = ROOT / 'server/src/test/java' / (name.replace('.', '/') + '.java')
+                    path = ROOT / 'server/app/src/test/java' / (name.replace('.', '/') + '.java')
                     source = path.read_text()
                     self.assertNotIn('@Testcontainers', source)
                     self.assertNotIn('@SpringBootTest', source)
