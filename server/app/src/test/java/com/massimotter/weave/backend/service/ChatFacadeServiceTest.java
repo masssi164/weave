@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationRequest;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
-
 import com.massimotter.weave.backend.audit.AuditRequiredException;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.chat.ChatDomainFacadeService;
@@ -9,12 +9,12 @@ import com.massimotter.weave.backend.chat.domain.ChatConversation;
 import com.massimotter.weave.backend.chat.domain.ChatEncryptionState;
 import com.massimotter.weave.backend.chat.domain.ChatHistoryPolicy;
 import com.massimotter.weave.backend.chat.domain.ChatMemberState;
-import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.AgentRuntimeEntitlementProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
-import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
 import com.massimotter.weave.backend.model.chat.DecisionLedgerCreateRequest;
 import com.massimotter.weave.backend.model.chat.DecisionLedgerReferenceRequest;
@@ -25,7 +25,6 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.security.oauth2.jwt.Jwt;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
@@ -37,7 +36,7 @@ class ChatFacadeServiceTest {
 
     @Test
     void decisionsAcceptNativeOrganizationTokenWithoutLegacyTenantAliases() {
-        java.util.concurrent.atomic.AtomicReference<com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest> captured =
+        java.util.concurrent.atomic.AtomicReference<com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationRequest> captured =
                 new java.util.concurrent.atomic.AtomicReference<>();
         WorkspaceCapabilityProperties properties = workspaceCapabilityProperties();
         ChatFacadeService service = new ChatFacadeService(

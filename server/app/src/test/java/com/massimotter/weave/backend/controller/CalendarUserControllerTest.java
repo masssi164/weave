@@ -1,5 +1,8 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
+import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -51,11 +54,11 @@ class CalendarUserControllerTest {
         org.assertj.core.api.Assertions.assertThat(policy.effectivePolicySnapshot(guest, "workspace-default").orgRoles()).containsExactly("guest");
         org.assertj.core.api.Assertions.assertThat(policy.grantedCapabilities(guest)).isEmpty();
         var context = new ContextAuthorizationProperties(null, null, null, null, null, null, null, null);
-        var rights = mock(com.massimotter.weave.backend.context.authz.ContextAuthorizationPort.class);
+        var rights = mock(com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort.class);
         var bindings = mock(com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository.class);
         var audit = mock(com.massimotter.weave.backend.audit.AuditEventPublisher.class);
         var realCalendar = new CalendarUserApiService(HumanJwtTestSupport.organizationAdmission(),
-                com.massimotter.weave.backend.service.OrganizationIdentityContextResolver.configured(context),
+                com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver.configured(context),
                 context, rights, policy, bindings, List.of(), audit);
         // Reuse the MVC/security fixture while obtaining the denial from real policy code.
         doAnswer(call -> realCalendar.read(call.getArgument(0), call.getArgument(1), call.getArgument(2)))

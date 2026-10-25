@@ -8,7 +8,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarEvent;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarId;
@@ -20,14 +19,14 @@ import com.massimotter.weave.backend.calendar.domain.CalendarDomain.TemporalValu
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.WriteIntent;
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
-import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
-import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
-import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
+import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
 import com.massimotter.weave.backend.controller.CalendarUserController;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.providerbinding.adapter.ProviderBindingJpaTestFactory;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
-import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
+import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.service.calendar.CalendarOccurrenceEngine;
 import com.massimotter.weave.backend.service.calendar.CalendarUserApiService;

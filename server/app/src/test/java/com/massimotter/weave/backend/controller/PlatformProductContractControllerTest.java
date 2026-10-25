@@ -1,9 +1,8 @@
 package com.massimotter.weave.backend.controller;
 
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
-
-import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
-import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,7 +14,6 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;

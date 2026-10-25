@@ -1,11 +1,13 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
+import com.massimotter.weave.backend.identity.OrganizationIdentityContext;
 import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.AuditEvent;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditRedactionLevel;
 import com.massimotter.weave.backend.config.IdentityInvitationProperties;
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient;
 import com.massimotter.weave.backend.identity.IdentityOpaqueReferenceCodec;
 import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient.KeycloakAdminException;

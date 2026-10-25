@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.files.spaces;
 
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.files.port.FilesUserResourceRepository;
 import com.massimotter.weave.backend.service.files.FilesUserApiService;
 import com.massimotter.weave.backend.spaces.relationship.SpaceRelationshipContribution;

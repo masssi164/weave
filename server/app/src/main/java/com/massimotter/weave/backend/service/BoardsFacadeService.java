@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.AuditEvent;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
@@ -19,11 +20,11 @@ import com.massimotter.weave.backend.boards.port.MoveTaskCommand;
 import com.massimotter.weave.backend.boards.port.TaskQuery;
 import com.massimotter.weave.backend.boards.support.BoardsErrorCode;
 import com.massimotter.weave.backend.boards.support.BoardsException;
-import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
-import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
-import com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest;
-import com.massimotter.weave.backend.context.authz.ContextPermission;
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationRequest;
+import com.massimotter.weave.backend.spaces.authorization.ContextPermission;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.model.boards.BoardsCreateTaskRequest;
 import com.massimotter.weave.backend.model.boards.BoardsLinkDecisionRequest;
 import com.massimotter.weave.backend.model.boards.BoardsMoveTaskRequest;

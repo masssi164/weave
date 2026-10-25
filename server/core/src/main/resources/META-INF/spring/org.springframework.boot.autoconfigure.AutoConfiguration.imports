@@ -1,2 +1,3 @@
 com.massimotter.weave.core.autoconfigure.CorePersistenceAutoConfiguration
 com.massimotter.weave.core.autoconfigure.CoreProviderHealthAutoConfiguration
+com.massimotter.weave.core.autoconfigure.CoreSecurityAutoConfiguration

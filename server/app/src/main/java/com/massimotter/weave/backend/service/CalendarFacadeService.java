@@ -1,11 +1,11 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.AuditEvent;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditRedactionLevel;
 import com.massimotter.weave.backend.audit.AuditWriteGate;
-import com.massimotter.weave.backend.calendar.domain.CalendarDomain.Attendee;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarEvent;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarId;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarScope;
@@ -16,11 +16,11 @@ import com.massimotter.weave.backend.calendar.domain.CalendarDomain.FreeBusyWind
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.ScopeType;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.WriteIntent;
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
-import com.massimotter.weave.backend.exception.ApiErrorException;
-import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
-import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
-import com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest;
-import com.massimotter.weave.backend.context.authz.ContextPermission;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
+import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationRequest;
+import com.massimotter.weave.backend.spaces.authorization.ContextPermission;
 import com.massimotter.weave.backend.model.calendar.CalendarAccessModelResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarAccessPolicyResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarClientSetupOptionResponse;

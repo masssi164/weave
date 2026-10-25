@@ -18,7 +18,7 @@ import com.massimotter.weave.backend.chat.domain.ChatTimeline;
 import com.massimotter.weave.backend.chat.domain.ChatTimelinePage;
 import com.massimotter.weave.backend.chat.domain.ChatTimelineEvent;
 import com.massimotter.weave.backend.chat.domain.ChatTransactionId;
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService;
 import com.massimotter.weave.backend.matrix.MatrixE2eeStateService;
 import com.massimotter.weave.backend.matrix.MatrixDeviceProofService;

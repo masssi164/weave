@@ -1,7 +1,6 @@
 package com.massimotter.weave.backend.bdd;
 
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
-
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -11,7 +10,6 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.queryParam;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
-
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.boards.domain.BoardCapability;
 import com.massimotter.weave.backend.boards.openproject.OpenProjectBoardsRepository;
@@ -21,11 +19,11 @@ import com.massimotter.weave.backend.boards.port.BoardsRuntimeGuard;
 import com.massimotter.weave.backend.boards.port.CreateTaskCommand;
 import com.massimotter.weave.backend.boards.support.BoardsErrorCode;
 import com.massimotter.weave.backend.boards.support.BoardsException;
-import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
-import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.model.boards.BoardsWorkspaceResponse;
 import com.massimotter.weave.backend.service.BoardsFacadeService;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;

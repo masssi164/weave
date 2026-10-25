@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.calendar.spaces;
 
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.service.calendar.CalendarUserApiService;
 import com.massimotter.weave.backend.spaces.relationship.SpaceRelationshipContribution;
 import java.util.ArrayList;

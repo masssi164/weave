@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -9,7 +10,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-
 import com.massimotter.weave.backend.chat.port.ChatProviderPort;
 import com.massimotter.weave.backend.providerbinding.domain.ProviderBinding;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;

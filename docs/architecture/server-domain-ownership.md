@@ -121,7 +121,7 @@ workflow is removed as its own instructions required, resolving both current CI 
 | 1. Ownership and contracts | Inventory source/resources/dependencies and assign actual owners; prepare Entity-first and selected-domain discovery corpus changes; retain this plan as the single execution record | Corpus lint/examples, resolver tests, source inspection | In progress; accepted pin remains unchanged pending normal corpus review |
 | 2. Domain composition | App is the sole executable; Core owns justified platform responsibilities; runtime modules own imports registration and scoped persistence; separate non-web tooling | Compile, dependency graph, real imports discovery and bean uniqueness | App executable split and scoped persistence imports/discovery implemented; domain runtime extraction still pending |
 | 3. Vertical extraction and ORM | Files/Calendar/Chat own services/controllers/providers/persistence; future domains remain buildable outside release; convert ordinary Calendar/Matrix JDBC CRUD | Domain units, PostgreSQL writes/isolation/constraints/transactions, no legacy copies | Calendar ORM conversion and persistence-library extraction implemented; runtime/API still open |
-| 4. Core and build finalization | Remove feature dependencies from Core; one selection drives real checks, runtime, schema/API and identity; preserve data-safe initializer until qualified cutover | Architecture rules, selected JAR/SDK inspection, offline deterministic schema | Shared session and health boundaries extracted; runtime selection remains pending; schema cutover requires accepted corpus and integrity/recovery evidence |
+| 4. Core and build finalization | Remove feature dependencies from Core; one selection drives real checks, runtime, schema/API and identity; preserve data-safe initializer until qualified cutover | Architecture rules, selected JAR/SDK inspection, offline deterministic schema | Shared session/identity/policy and health implementations extracted into Core; runtime selection remains pending; schema cutover requires accepted corpus and integrity/recovery evidence |
 | 5. Runtime and clients | Release and three single-domain variants start with honest capabilities/endpoints; generated User/Admin contracts follow registered handlers; Flutter uses stable destinations | API/auth/client freshness, variants, Compose/two-member acceptance, ARM64/AOT/JNI where available | Pending; no live or native qualification claimed |
 | 6. Review and delivery | Consolidate docs/Skills/instructions; review combined diff; coherent commits/push and exact-revision PR evidence | Applicable combined CI, diff review, protected checks | Pending; no protected merge/deployment/data reset authorized |
 
@@ -270,3 +270,26 @@ ran its 12 scenarios. These are bounded backend checks, not two-member native ac
   36 passed, no skips. Selection/workflow/Gradle wiring: 13 passed. Source-guard,
   resolver and impact fixtures: 84 passed. Artifact identity/input fixtures: 39 passed
   (`TMPDIR=/private/tmp` avoids the macOS `/var` alias in fixture canonicalization).
+
+### Shared Identity/Security extraction
+
+Identity resolution/context and identity-key formatting now belong to Core Identity. Shared
+Security owns Keycloak organization parsing/admission, session cutoffs/revocation and typed
+settings. Foundational Space authorization values/ports are framework-free in Core model;
+the configured policy adapter and strict seed loader remain Core runtime. The common HTTP
+error contract lives in Core API errors. No generic Core service/model/config dumping ground
+was created. Core has no optional domain dependency.
+
+The actual serving services register through module-local servlet auto-configuration; schema
+and operator contexts retain their explicit independent wiring. Existing default construction
+consumers retain the same fail-closed configured-policy defaults. Human JWT fixtures moved
+into Core test fixtures, with direct App test dependency rather than duplicate helpers.
+
+- Shared Identity/Security checks: `./gradlew :server:core:check :server:core:model:check
+  :server:app:test --tests '*JwtDecoderConfigTest' --tests '*FirstPartyIdentityContractTest'
+  --tests '*AdminUserHttpAdmissionTest' --tests '*SpacesRelationshipsUserControllerTest'
+  --tests '*DefaultSpaceBootstrapServiceTest' :server:app:javaAgentReferenceTest
+  --console=plain`: **passed**. 102 focused App tests, 39 Core tests and 3 Core-model
+  tests, zero failures/skips. Core discovery asserts actual shared identity/policy/session
+  beans are singletons with no optional domain on its test classpath, and absent in the
+  non-web persistence context.

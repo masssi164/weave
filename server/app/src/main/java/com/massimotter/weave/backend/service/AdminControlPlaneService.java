@@ -1,10 +1,13 @@
 package com.massimotter.weave.backend.service;
 
+
+import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
+import com.massimotter.weave.backend.identity.OrganizationIdentityContext;
 import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.AuditEvent;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditRedactionLevel;
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyResponse;
 import com.massimotter.weave.backend.model.admin.AdminAuditEventResponse;
 import com.massimotter.weave.backend.model.admin.AdminControlPlaneResponse;
@@ -33,11 +36,9 @@ import com.massimotter.weave.backend.model.admin.SuiteDomainReadinessResponse;
 import com.massimotter.weave.backend.provider.ProviderCapabilityContracts;
 import com.massimotter.weave.backend.provider.ProviderCategoryCatalog;
 import com.massimotter.weave.backend.provider.ProviderRegistry;
-import com.massimotter.weave.backend.provider.ProviderModule;
 import com.massimotter.weave.backend.provider.ProviderRegistryResponse;
 import com.massimotter.weave.backend.provider.ProviderSelection;
 import com.massimotter.weave.backend.provider.ProviderSelectionRepository;
-import com.massimotter.weave.backend.provider.ProviderState;
 import com.massimotter.weave.backend.provider.ProviderStatusResponse;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
 import com.massimotter.weave.backend.domainfacade.CanonicalDomainDefinition;
@@ -64,9 +65,8 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
-
-import static com.massimotter.weave.backend.model.IdentityKeyFormat.MAX_PRIMARY_IDENTITY_KEY_LENGTH;
-import static com.massimotter.weave.backend.model.IdentityKeyFormat.PRIMARY_IDENTITY_KEY_PATTERN;
+import static com.massimotter.weave.backend.identity.IdentityKeyFormat.MAX_PRIMARY_IDENTITY_KEY_LENGTH;
+import static com.massimotter.weave.backend.identity.IdentityKeyFormat.PRIMARY_IDENTITY_KEY_PATTERN;
 
 @Service
 public class AdminControlPlaneService {

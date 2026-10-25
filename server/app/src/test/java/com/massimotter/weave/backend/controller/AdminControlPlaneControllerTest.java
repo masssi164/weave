@@ -1,14 +1,13 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.security.NativeOrganizationClaims;
 import com.massimotter.weave.backend.chat.config.ChatProviderRegistryConfiguration;
 import com.massimotter.weave.backend.files.config.FilesProviderRegistryConfiguration;
 import com.massimotter.weave.backend.calendar.config.CalendarProviderRegistryConfiguration;
 import com.massimotter.weave.backend.integrations.config.IntegrationProviderRegistryConfiguration;
 import com.massimotter.weave.backend.boards.config.BoardsProviderRegistryConfiguration;
 import com.massimotter.weave.backend.meetings.config.MeetingsProviderRegistryConfiguration;
-
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
-
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
@@ -18,7 +17,7 @@ import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.DevopsProviderConfiguration;
 import com.massimotter.weave.backend.config.SecurityConfig;
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyResponse;
@@ -39,7 +38,7 @@ import java.time.Instant;
 import com.massimotter.weave.backend.service.AdminControlPlaneService;
 import com.massimotter.weave.backend.service.InMemoryOrganizationBootstrapRepository;
 import com.massimotter.weave.backend.service.OrganizationBootstrapRepository;
-import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
+import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.service.ProductProfileOverrideRepository;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.service.migration.MigrationRunEvidenceRepository;
@@ -62,7 +61,6 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;

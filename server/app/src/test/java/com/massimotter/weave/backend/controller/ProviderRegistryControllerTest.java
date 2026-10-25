@@ -1,14 +1,13 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.security.NativeOrganizationClaims;
 import com.massimotter.weave.backend.chat.config.ChatProviderRegistryConfiguration;
 import com.massimotter.weave.backend.files.config.FilesProviderRegistryConfiguration;
 import com.massimotter.weave.backend.calendar.config.CalendarProviderRegistryConfiguration;
 import com.massimotter.weave.backend.integrations.config.IntegrationProviderRegistryConfiguration;
 import com.massimotter.weave.backend.boards.config.BoardsProviderRegistryConfiguration;
 import com.massimotter.weave.backend.meetings.config.MeetingsProviderRegistryConfiguration;
-
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
-
 import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
@@ -18,7 +17,7 @@ import com.massimotter.weave.backend.config.AdminApiSecurityConfiguration;
 import com.massimotter.weave.backend.service.AdminProviderRegistryService;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
 import com.massimotter.weave.backend.service.files.FilesProviderResolver;
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
@@ -45,7 +44,6 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;

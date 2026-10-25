@@ -1,7 +1,6 @@
 package com.massimotter.weave.backend.chat;
 
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -10,7 +9,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
-
 import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.chat.adapter.WeaveCanonicalChatAdapter;
@@ -29,9 +27,9 @@ import com.massimotter.weave.backend.chat.domain.ChatIdentityRef;
 import com.massimotter.weave.backend.chat.domain.ChatResolvedIdentity;
 import com.massimotter.weave.backend.chat.domain.ChatEncryptionState;
 import com.massimotter.weave.backend.chat.port.ChatProviderPort;
-import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
-import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
-import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
+import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
 import com.massimotter.weave.backend.identity.IdentityReferences;
 import com.massimotter.weave.backend.identity.CurrentOrganizationMemberQuery;
 import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
@@ -48,7 +46,7 @@ import com.massimotter.weave.backend.provider.ProviderStatusResponse;
 import com.massimotter.weave.backend.provider.StaticProviderPort;
 import com.massimotter.weave.backend.portability.ProviderReadiness;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
-import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
+import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.spaces.port.SpaceAccessPort;
 import java.time.Clock;
 import java.time.Instant;
@@ -183,7 +181,7 @@ class ChatDomainFacadeServiceTest {
                 new ProviderRegistry(List.of(chatProvider(true)), capabilities, selections),
                 selections, capabilities, new InMemoryAuditEventPublisher(), provider,
                 allowAllContexts(), contextProperties(),
-                com.massimotter.weave.backend.service.OrganizationIdentityContextResolver.configured(contextProperties()),
+                com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver.configured(contextProperties()),
                 FIXED, bindingGate);
 
         assertThat(service.memberReadiness(memberJwt()).memberState()).isEqualTo(ChatMemberState.MISCONFIGURED);

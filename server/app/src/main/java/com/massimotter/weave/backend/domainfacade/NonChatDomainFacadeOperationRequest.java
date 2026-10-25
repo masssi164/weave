@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.domainfacade;
 
-import com.massimotter.weave.backend.context.authz.ContextPermission;
+import com.massimotter.weave.backend.spaces.authorization.ContextPermission;
 
 /**
  * Canonical operation gate input shared by Files, Calendar, and Boards facades.

@@ -1,9 +1,9 @@
 package com.massimotter.weave.backend.service.spaces;
 
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.model.spaces.SpaceUserListResponse;
 import com.massimotter.weave.backend.model.spaces.SpaceUserResponse;
-import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
+import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.spaces.port.SpaceReadPort;
 import java.util.List;
 import java.util.Map;

@@ -1,6 +1,8 @@
 package com.massimotter.weave.backend.service;
 
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
+import com.massimotter.weave.backend.identity.OrganizationIdentityContext;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.model.AuthenticatedUserResponse;
 import com.massimotter.weave.backend.model.ModuleSyncStatusResponse;
 import com.massimotter.weave.backend.model.ProfileReadinessResponse;

@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -7,7 +8,6 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
 import com.massimotter.weave.backend.controller.AdminControlPlaneController;
 import com.massimotter.weave.backend.controller.IdentityController;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
@@ -15,7 +15,7 @@ import com.massimotter.weave.backend.identity.IdentityReferences;
 import com.massimotter.weave.backend.model.admin.AdminControlPlaneResponse;
 import com.massimotter.weave.backend.model.admin.AdminCurrentActorResponse;
 import com.massimotter.weave.backend.service.AdminControlPlaneService;
-import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
+import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.service.ProductProfileOverrideRepository;
 import com.massimotter.weave.backend.service.ProductProfileService;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;

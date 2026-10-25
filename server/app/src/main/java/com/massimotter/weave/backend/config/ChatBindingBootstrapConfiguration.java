@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.chat.port.ChatProviderPort;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
 import java.time.Instant;

@@ -1,7 +1,6 @@
 package com.massimotter.weave.backend.service;
 
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
-
 import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.agentruntime.adapter.McpExchangedTokenPolicy;
@@ -9,15 +8,15 @@ import com.massimotter.weave.backend.agentruntime.application.McpWorkloadAuthori
 import com.massimotter.weave.backend.agentruntime.domain.ExchangedWorkloadToken;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
 import com.massimotter.weave.backend.agentruntime.domain.WeaverWorkloadPrincipal;
-import com.massimotter.weave.backend.config.ContextAuthorizationConfiguration;
-import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.security.config.ContextAuthorizationConfiguration;
+import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
-import com.massimotter.weave.backend.exception.ApiErrorException;
-import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
-import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
-import com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest;
-import com.massimotter.weave.backend.context.authz.ContextPermission;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationRequest;
+import com.massimotter.weave.backend.spaces.authorization.ContextPermission;
 import com.massimotter.weave.backend.files.adapter.FilesAuthorityJpaTestFactory;
 import com.massimotter.weave.backend.files.application.FilesLockService;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileContent;
@@ -66,7 +65,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;

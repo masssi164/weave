@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.security.MemberSessionRevocationService;
 import com.massimotter.weave.backend.controller.IdentitySessionController;
 import com.massimotter.weave.backend.service.MemberInvitationService;
 import java.time.Instant;
@@ -21,7 +22,6 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.jwt.JwtValidationException;
 import org.springframework.test.web.servlet.MockMvc;
-
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.notNullValue;

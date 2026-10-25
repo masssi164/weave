@@ -1,7 +1,6 @@
 package com.massimotter.weave.backend.service;
 
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -9,11 +8,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-
 import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.config.IdentityInvitationProperties;
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.identity.invitation.InMemoryProvisioningIntentRepository;
 import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient;
 import com.massimotter.weave.backend.identity.IdentityOpaqueReferenceCodec;

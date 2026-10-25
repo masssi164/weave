@@ -1,5 +1,8 @@
 package com.massimotter.weave.backend.service.calendar;
 
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
+import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -12,11 +15,10 @@ import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
 import com.massimotter.weave.backend.agentruntime.domain.WeaverWorkloadPrincipal;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.*;
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
-import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
-import com.massimotter.weave.backend.context.authz.*;
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.model.calendar.CalendarUserModels.*;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;

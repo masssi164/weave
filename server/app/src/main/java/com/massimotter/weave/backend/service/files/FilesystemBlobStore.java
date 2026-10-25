@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.service.files;
 
 import com.massimotter.weave.backend.config.WeaveNativeFilesProperties;
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.files.port.BlobStorePort;
 import jakarta.annotation.PreDestroy;
 import java.io.IOException;

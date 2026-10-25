@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.controller;
 
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.identity.bootstrap.DefaultSpaceBootstrapCredential;
 import com.massimotter.weave.backend.model.spaces.DefaultSpaceBootstrapResponse;
 import com.massimotter.weave.backend.service.spaces.DefaultSpaceBootstrapService;

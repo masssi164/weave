@@ -1,12 +1,12 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.config.MatrixChatProperties;
 import com.massimotter.weave.backend.config.PlatformContractProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -19,7 +19,7 @@ class PlatformContractServiceTest {
             PlatformContractService invalid = service(new MatrixChatProperties(false, null, null), true,
                     new PlatformContractProperties(origin, null, null, null, null, null, null, null));
             assertThatThrownBy(invalid::config)
-                    .isInstanceOf(com.massimotter.weave.backend.exception.ApiErrorException.class)
+                    .isInstanceOf(com.massimotter.weave.backend.api.error.ApiErrorException.class)
                     .hasMessageContaining("configuration is unavailable")
                     .hasMessageNotContaining(origin);
         }
@@ -173,7 +173,7 @@ class PlatformContractServiceTest {
                 "https://user:secret@api.weave.test/_matrix/client", "api.weave.test");
 
         assertThatThrownBy(invalid::config)
-                .isInstanceOf(com.massimotter.weave.backend.exception.ApiErrorException.class)
+                .isInstanceOf(com.massimotter.weave.backend.api.error.ApiErrorException.class)
                 .hasMessageContaining("not configured safely");
     }
 

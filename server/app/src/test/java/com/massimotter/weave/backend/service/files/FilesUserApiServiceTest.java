@@ -1,15 +1,17 @@
 package com.massimotter.weave.backend.service.files;
 
+import com.massimotter.weave.backend.spaces.authorization.ContextPermission;
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationRequest;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.agentruntime.adapter.McpExchangedTokenPolicy;
 import com.massimotter.weave.backend.agentruntime.application.McpWorkloadAuthorizationService;
 import com.massimotter.weave.backend.agentruntime.domain.ExchangedWorkloadToken;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
 import com.massimotter.weave.backend.agentruntime.domain.WeaverWorkloadPrincipal;
-import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
-import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
-import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.files.application.FilesMutationIntentService;
 import com.massimotter.weave.backend.operation.domain.OperationIntent;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileContent;
@@ -26,7 +28,7 @@ import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
 import com.massimotter.weave.backend.providerbinding.domain.ProviderBinding;
 import com.massimotter.weave.backend.providerbinding.domain.ProviderObjectMapping;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
-import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
+import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import java.time.Instant;
 import java.util.List;
@@ -40,7 +42,6 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -109,9 +110,9 @@ class FilesUserApiServiceTest {
         assertThat(listed.parentFileId()).isEqualTo(FilesUserApiService.ROOT_ID);
         assertThat(listed.allowedActions()).containsExactly("listChildren");
         assertThat(listed.items()).isEmpty();
-        verify(authorization).check(new com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest(
+        verify(authorization).check(new com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationRequest(
                 "org-a", "workspace-default", "user:alice",
-                com.massimotter.weave.backend.context.authz.ContextPermission.VIEW));
+                com.massimotter.weave.backend.spaces.authorization.ContextPermission.VIEW));
         verify(auditEvents).publish(any());
         verify(provider, never()).list(any());
     }
@@ -616,9 +617,9 @@ class FilesUserApiServiceTest {
     @Test
     void currentReadOnlyGrantDoesNotAdvertiseMutationOrShareActions() {
         when(authorization.check(any())).thenAnswer(invocation -> {
-            var request = (com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest)
+            var request = (com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationRequest)
                     invocation.getArgument(0);
-            return request.permission() == com.massimotter.weave.backend.context.authz.ContextPermission.VIEW
+            return request.permission() == com.massimotter.weave.backend.spaces.authorization.ContextPermission.VIEW
                     ? ContextAuthorizationDecision.allow("read")
                     : ContextAuthorizationDecision.deny("read-only");
         });

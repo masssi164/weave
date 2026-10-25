@@ -4,7 +4,7 @@ import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
-import com.massimotter.weave.backend.service.OrganizationIdentityContext;
+import com.massimotter.weave.backend.identity.OrganizationIdentityContext;
 import java.util.List;
 import java.util.Optional;
 

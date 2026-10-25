@@ -1,13 +1,14 @@
 package com.massimotter.weave.backend.dogfood;
 
+import com.massimotter.weave.backend.security.config.DeploymentOrganizationProperties;
+import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import static com.massimotter.weave.backend.dogfood.DogfoodPreparationProtocol.*;
 import static com.massimotter.weave.backend.dogfood.DogfoodPreparationProtocolTest.*;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
-
 import com.massimotter.weave.backend.audit.*;
 import com.massimotter.weave.backend.config.*;
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.identity.IdentityOpaqueReferenceCodec;
 import com.massimotter.weave.backend.identity.IdentityReferences;
 import com.massimotter.weave.backend.identity.invitation.*;

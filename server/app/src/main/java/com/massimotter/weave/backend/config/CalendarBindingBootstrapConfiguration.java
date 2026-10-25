@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
 import com.massimotter.weave.backend.service.calendar.CalendarUserApiService;
 import com.massimotter.weave.backend.service.calendar.CalendarProviderBindingReadiness;

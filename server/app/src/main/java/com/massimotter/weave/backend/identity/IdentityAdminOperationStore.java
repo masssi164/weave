@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.identity;
 
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.identity.persistence.IdentityAdminOperationEntity;
 import com.massimotter.weave.backend.identity.persistence.IdentityAdminOperationId;
 import com.massimotter.weave.backend.identity.persistence.IdentityAdminOperationJpaRepository;

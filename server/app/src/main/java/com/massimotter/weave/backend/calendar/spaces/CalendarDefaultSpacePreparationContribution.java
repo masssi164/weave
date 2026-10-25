@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.calendar.spaces;
 
 import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
-import com.massimotter.weave.backend.service.OrganizationIdentityContext;
+import com.massimotter.weave.backend.identity.OrganizationIdentityContext;
 import com.massimotter.weave.backend.service.calendar.CalendarProviderBindingReadiness;
 import com.massimotter.weave.backend.spaces.preparation.DefaultSpacePreparationContribution;
 import java.util.List;

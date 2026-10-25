@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
-
 import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChange;
@@ -15,14 +15,14 @@ import com.massimotter.weave.backend.calendar.domain.CalendarDomain.EventVersion
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.FreeBusyWindow;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.ScopeType;
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
-import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
-import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
-import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
-import com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest;
-import com.massimotter.weave.backend.context.authz.ContextPermission;
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationRequest;
+import com.massimotter.weave.backend.spaces.authorization.ContextPermission;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.model.calendar.CalendarScopeResponse;
 import com.massimotter.weave.backend.model.calendar.CreateCalendarEventRequest;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
@@ -46,7 +46,6 @@ import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OA
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 

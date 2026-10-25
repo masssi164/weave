@@ -9,8 +9,8 @@ import com.massimotter.weave.backend.model.agentruntime.DeleteAgentRuntimeStateR
 import com.massimotter.weave.backend.model.agentruntime.RevokeAgentRuntimeRequest;
 import com.massimotter.weave.backend.model.agentruntime.StopAgentRuntimeRequest;
 import com.massimotter.weave.backend.model.agentruntime.SuspendAgentRuntimeRequest;
-import com.massimotter.weave.backend.service.OrganizationIdentityContext;
-import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
+import com.massimotter.weave.backend.identity.OrganizationIdentityContext;
+import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;

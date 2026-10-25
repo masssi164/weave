@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -67,7 +69,7 @@ class CalendarBindingBootstrapConfigurationTest {
         }
         when(provider.configured()).thenReturn(false);
         assertThatThrownBy(() -> config.calendarBindingBootstrap(repository, properties("tenant-default"), context, readiness).run(null))
-                .isInstanceOf(com.massimotter.weave.backend.exception.ApiErrorException.class);
+                .isInstanceOf(com.massimotter.weave.backend.api.error.ApiErrorException.class);
         verify(repository, never()).activate(anyString(), anyString(), anyLong(), anyString(), anyString(), any());
     }
 

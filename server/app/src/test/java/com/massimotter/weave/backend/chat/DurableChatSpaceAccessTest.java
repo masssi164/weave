@@ -5,10 +5,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
-
 import com.massimotter.weave.backend.chat.domain.ChatActorRef;
 import com.massimotter.weave.backend.chat.domain.ChatRequestContext;
-import com.massimotter.weave.backend.context.authz.ContextPermission;
+import com.massimotter.weave.backend.spaces.authorization.ContextPermission;
 import com.massimotter.weave.backend.identity.IdentityReferences;
 import com.massimotter.weave.backend.spaces.port.SpaceAccessPort;
 import java.util.List;

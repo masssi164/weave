@@ -1,5 +1,8 @@
 package com.massimotter.weave.backend.dogfood;
 
+import com.massimotter.weave.backend.security.config.DeploymentOrganizationProperties;
+import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.audit.JpaAuditEventPublisher;
 import com.massimotter.weave.backend.config.*;
 import com.massimotter.weave.backend.identity.IdentityOpaqueReferenceCodec;

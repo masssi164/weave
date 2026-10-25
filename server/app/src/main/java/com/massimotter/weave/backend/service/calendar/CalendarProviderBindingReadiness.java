@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.service.calendar;
 
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.providerbinding.domain.ProviderBinding;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
 import java.util.HashMap;

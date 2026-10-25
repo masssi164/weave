@@ -1,13 +1,12 @@
 package com.massimotter.weave.backend.service.interop;
 
 import com.massimotter.weave.backend.config.InteropGatewayProperties;
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.model.interop.CanonicalBridgeEventResponse;
 import com.massimotter.weave.backend.model.interop.SlackEventRequest;
 import com.massimotter.weave.backend.model.interop.SlackOutboundMessageRequest;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 

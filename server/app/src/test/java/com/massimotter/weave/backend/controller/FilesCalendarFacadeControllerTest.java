@@ -1,7 +1,6 @@
 package com.massimotter.weave.backend.controller;
 
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
-
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarEvent;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChange;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChangeSet;
@@ -18,20 +17,18 @@ import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
-import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.AgentRuntimeEntitlementProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
-import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
-import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
-import com.massimotter.weave.backend.model.calendar.CalendarEventResponse;
-import com.massimotter.weave.backend.model.calendar.CalendarScopeResponse;
 import com.massimotter.weave.backend.service.CalendarFacadeService;
 import com.massimotter.weave.backend.service.FilesFacadeService;
 import com.massimotter.weave.backend.service.files.FilesUserApiService;
-import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
+import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.files.application.FilesLockService;
 import com.massimotter.weave.backend.files.application.FilesMutationIntentService;
@@ -65,7 +62,6 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -232,7 +228,7 @@ class FilesCalendarFacadeControllerTest {
         when(resources.find("tenant-default", "file:guest-probe")).thenReturn(java.util.Optional.of(resource));
         var empty = new org.springframework.beans.factory.support.StaticListableBeanFactory();
         var realFiles = new FilesUserApiService(OrganizationIdentityContextResolver.configured(
-                new com.massimotter.weave.backend.config.ContextAuthorizationProperties(null, null, null, null, null, null, null, null)),
+                new com.massimotter.weave.backend.security.config.ContextAuthorizationProperties(null, null, null, null, null, null, null, null)),
                 contextAuthorizationProperties, contextAuthorizationPort, policy, binding, filesProviderResolver, resources,
                 filesMutationIntentService, transactions, auditEventPublisher,
                 empty.getBeanProvider(com.massimotter.weave.backend.agentruntime.application.McpWorkloadAuthorizationService.class),

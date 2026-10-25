@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
-
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.audit.AuditAction;
@@ -10,7 +10,7 @@ import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.audit.JpaAuditEventPublisher;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.model.admin.CapabilityWhitelistUpdateRequest;
 import com.massimotter.weave.backend.model.admin.EffectivePolicySimulationRequest;
 import com.massimotter.weave.backend.audit.persistence.AuditEventJpaRepository;
@@ -32,7 +32,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.security.oauth2.jwt.Jwt;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;

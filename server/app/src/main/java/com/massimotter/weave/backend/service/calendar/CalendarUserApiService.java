@@ -1,5 +1,9 @@
 package com.massimotter.weave.backend.service.calendar;
 
+import com.massimotter.weave.backend.spaces.authorization.ContextPermission;
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationRequest;
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
+import com.massimotter.weave.backend.spaces.authorization.ContextGraphRelation;
 import com.massimotter.weave.backend.audit.*;
 import com.massimotter.weave.backend.agentruntime.adapter.McpExchangedTokenPolicy;
 import com.massimotter.weave.backend.agentruntime.application.McpWorkloadAuthorizationService;
@@ -8,16 +12,15 @@ import com.massimotter.weave.backend.agentruntime.port.McpWorkloadAuthorizationE
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.*;
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
 import com.massimotter.weave.backend.service.calendar.CalendarProviderBindingReadiness.Bound;
-import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
-import com.massimotter.weave.backend.context.authz.*;
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.identity.IdentityReferences;
 import com.massimotter.weave.backend.model.calendar.CalendarUserModels;
 import com.massimotter.weave.backend.model.calendar.CalendarUserModels.*;
 import com.massimotter.weave.backend.providerbinding.domain.*;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
 import com.massimotter.weave.backend.security.DeploymentOrganizationAdmission;
-import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
+import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.spaces.port.SpaceAccessPort;
 import java.nio.charset.StandardCharsets;

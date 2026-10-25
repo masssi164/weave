@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.service.guest;
 
 import com.massimotter.weave.backend.config.GuestAccessProperties;
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.model.guest.GuestAccessContractResponse;
 import com.massimotter.weave.backend.model.guest.GuestInvitationRequest;
 import com.massimotter.weave.backend.model.guest.GuestInvitationResponse;

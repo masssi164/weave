@@ -6,7 +6,7 @@ import com.massimotter.weave.backend.agentruntime.domain.RuntimeProfileJwkSet;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadPrincipal;
 import com.massimotter.weave.backend.agentruntime.port.InvalidRuntimeWorkloadTokenException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileTrustBundlePublisher;
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.model.agentruntime.FlattenedRuntimeProfileJwsResponse;
 import java.time.Clock;
 import java.time.Instant;

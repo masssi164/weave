@@ -58,6 +58,7 @@ dependencies {
     implementation project(':server:domains:calendar:model')
     implementation project(':server:domains:calendar:persistence')
     implementation project(':server:core')
+    testImplementation testFixtures(project(':server:core'))
     implementation project(':server:domains:agent-runtime:persistence')
     implementation project(':server:domains:chat:persistence')
     implementation project(':server:domains:portability:persistence')

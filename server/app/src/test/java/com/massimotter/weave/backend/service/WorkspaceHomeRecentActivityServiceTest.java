@@ -1,14 +1,16 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
+import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.AuditEvent;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditRedactionLevel;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
-import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
-import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
-import com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest;
-import com.massimotter.weave.backend.context.authz.ContextPermission;
+import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationRequest;
+import com.massimotter.weave.backend.spaces.authorization.ContextPermission;
 import com.massimotter.weave.backend.identity.IdentityReferences;
 import com.massimotter.weave.backend.spaces.port.SpaceAccessPort;
 import java.time.Instant;
@@ -18,7 +20,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jwt.Jwt;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
@@ -38,7 +39,7 @@ class WorkspaceHomeRecentActivityServiceTest {
         AtomicBoolean granted = new AtomicBoolean(true);
         when(spaces.allows(any(), any(), any(), any())).thenAnswer(call ->
                 granted.get() && SHARED_CONTEXT.equals(call.getArgument(1)));
-        var staticRights = mock(com.massimotter.weave.backend.context.authz.ContextAuthorizationPort.class);
+        var staticRights = mock(com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort.class);
         WorkspaceHomeRecentActivityService service = new WorkspaceHomeRecentActivityService(
                 auditFixture(), staticRights, properties(), identityContexts(), spaces);
 

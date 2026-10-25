@@ -1,7 +1,8 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
+import com.massimotter.weave.backend.identity.OrganizationIdentityContext;
 import com.massimotter.weave.backend.health.ProviderCapabilityHealthService;
-
 import com.massimotter.weave.backend.config.AgentRuntimeEntitlementProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
@@ -13,7 +14,7 @@ import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
 import com.massimotter.weave.backend.model.admin.EffectivePolicyDenyResponse;
 import com.massimotter.weave.backend.model.admin.EffectivePolicyResponse;
 import com.massimotter.weave.backend.health.api.ProviderCapabilityHealthResponse;
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;

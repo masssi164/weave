@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.service;
 
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.model.admin.FilesBindingStatusResponse;
 import com.massimotter.weave.backend.model.admin.FilesBindingStatusResponse.BindingState;
 import com.massimotter.weave.backend.model.admin.FilesBindingStatusResponse.Readiness;

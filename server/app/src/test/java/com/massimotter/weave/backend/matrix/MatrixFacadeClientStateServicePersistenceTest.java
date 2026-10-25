@@ -2,9 +2,8 @@ package com.massimotter.weave.backend.matrix;
 
 import com.massimotter.weave.backend.chat.persistence.MatrixIdentityProjectionJpaRepository;
 import com.massimotter.weave.backend.security.persistence.MatrixRevokedSessionJpaRepository;
-
-import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
-import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
+import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.security.MemberSessionCutoffService;
 import com.massimotter.weave.backend.security.MemberSessionRevocationService;
 import com.massimotter.weave.backend.security.persistence.JpaMemberSessionStateStore;
@@ -24,7 +23,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.transaction.annotation.Transactional;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.AdditionalAnswers.delegatesTo;

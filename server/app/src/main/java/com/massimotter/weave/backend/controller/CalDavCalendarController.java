@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.controller;
 
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.controller.protocol.CalDavReportParser;
 import com.massimotter.weave.backend.controller.protocol.CalDavReportParser.InvalidCalDavReportException;
 import com.massimotter.weave.backend.controller.protocol.CalDavReportParser.Report;

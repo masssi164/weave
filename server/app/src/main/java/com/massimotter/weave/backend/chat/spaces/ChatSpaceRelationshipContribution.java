@@ -3,7 +3,7 @@ package com.massimotter.weave.backend.chat.spaces;
 import com.massimotter.weave.backend.chat.ChatDomainFacadeService;
 import com.massimotter.weave.backend.chat.domain.ChatAccessDeniedException;
 import com.massimotter.weave.backend.chat.domain.ConversationId;
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.matrix.MatrixProtocolCoreService;
 import com.massimotter.weave.backend.spaces.relationship.SpaceRelationshipContribution;
 import java.util.ArrayList;

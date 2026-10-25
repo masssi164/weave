@@ -5,8 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.identity.bootstrap.BootstrapOwnerCredential;
 import com.massimotter.weave.backend.model.identity.BootstrapOwnerInvitationRequest;
 import com.massimotter.weave.backend.model.identity.MemberInvitationResponse;

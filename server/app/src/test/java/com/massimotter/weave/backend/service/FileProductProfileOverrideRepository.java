@@ -3,7 +3,7 @@ package com.massimotter.weave.backend.service;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
-import com.massimotter.weave.backend.model.IdentityKeyFormat;
+import com.massimotter.weave.backend.identity.IdentityKeyFormat;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

@@ -13,7 +13,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
 import com.massimotter.weave.backend.agentruntime.application.AgentRuntimeAdminService;
 import com.massimotter.weave.backend.agentruntime.application.AgentRuntimeAdminService.AdminContext;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCommandConflictException;
@@ -24,7 +23,7 @@ import com.massimotter.weave.backend.config.AgentRuntimeErrorResponseWriter;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.exception.AgentRuntimeAdminExceptionHandler;
 import com.massimotter.weave.backend.model.agentruntime.AgentRuntimeProjectionResponse;
-import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
+import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.security.DeploymentOrganizationAdmission;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import java.time.Instant;

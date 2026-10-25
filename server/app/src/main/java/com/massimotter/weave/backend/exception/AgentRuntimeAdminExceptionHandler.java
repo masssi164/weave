@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.exception;
 
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.port.InvalidRuntimeProfileException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCommandConflictException;

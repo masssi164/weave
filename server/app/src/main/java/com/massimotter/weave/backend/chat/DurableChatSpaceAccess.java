@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.chat;
 
 import com.massimotter.weave.backend.chat.domain.ChatRequestContext;
-import com.massimotter.weave.backend.context.authz.ContextPermission;
+import com.massimotter.weave.backend.spaces.authorization.ContextPermission;
 import com.massimotter.weave.backend.identity.IdentityReferences;
 import com.massimotter.weave.backend.spaces.port.SpaceAccessPort;
 import java.util.List;

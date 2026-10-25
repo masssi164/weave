@@ -1,6 +1,5 @@
 package com.massimotter.weave.backend.identity;
 
-import com.massimotter.weave.backend.model.IdentityKeyFormat;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;

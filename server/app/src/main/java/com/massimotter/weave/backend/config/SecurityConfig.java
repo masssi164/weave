@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.security.config.OrganizationAdmissionConfiguration;
 import com.massimotter.weave.backend.controller.BootstrapOwnerInvitationController;
 import com.massimotter.weave.backend.controller.DefaultSpaceBootstrapController;
 import com.massimotter.weave.backend.controller.IdentitySessionController;
@@ -13,6 +14,7 @@ import java.util.List;
 import java.util.Locale;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.http.HttpMethod;
@@ -35,6 +37,7 @@ import org.springframework.security.web.firewall.HttpFirewall;
 import org.springframework.security.web.firewall.StrictHttpFirewall;
 
 @Configuration
+@Import(OrganizationAdmissionConfiguration.class)
 @EnableMethodSecurity
 public class SecurityConfig {
 
@@ -104,12 +107,6 @@ public class SecurityConfig {
     WorkspaceAccessAuthorizationManager workspaceAccessAuthorizationManager(
             DeploymentOrganizationAdmission organizationAdmission) {
         return new WorkspaceAccessAuthorizationManager(organizationAdmission);
-    }
-
-    @Bean
-    DeploymentOrganizationAdmission deploymentOrganizationAdmission(
-            DeploymentOrganizationProperties primary, ContextAuthorizationProperties context) {
-        return new DeploymentOrganizationAdmission(primary, context);
     }
 
     @Bean

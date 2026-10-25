@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationRequest;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
-
 import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.AuditRequiredException;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
@@ -23,11 +23,11 @@ import com.massimotter.weave.backend.boards.port.BoardsRepository;
 import com.massimotter.weave.backend.boards.port.CreateTaskCommand;
 import com.massimotter.weave.backend.boards.port.MoveTaskCommand;
 import com.massimotter.weave.backend.boards.port.TaskQuery;
-import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
-import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -35,7 +35,6 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.security.oauth2.jwt.Jwt;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -85,7 +84,7 @@ class BoardsFacadeServiceTest {
 
     @Test
     void workspaceUsesJwtTenantAndContextClaimsForContextBoundProviderReads() {
-        java.util.concurrent.atomic.AtomicReference<com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest> captured =
+        java.util.concurrent.atomic.AtomicReference<com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationRequest> captured =
                 new java.util.concurrent.atomic.AtomicReference<>();
         BoardsFacadeService service = new BoardsFacadeService(
                 new BoardsRuntimeGuard(true),
@@ -108,7 +107,7 @@ class BoardsFacadeServiceTest {
 
     @Test
     void workspaceAcceptsNativeOrganizationTokenWithoutLegacyTenantAliases() {
-        java.util.concurrent.atomic.AtomicReference<com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest> captured =
+        java.util.concurrent.atomic.AtomicReference<com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationRequest> captured =
                 new java.util.concurrent.atomic.AtomicReference<>();
         BoardsFacadeService service = new BoardsFacadeService(
                 new BoardsRuntimeGuard(true),
@@ -148,7 +147,7 @@ class BoardsFacadeServiceTest {
 
     @Test
     void createTaskRequiresEditPermissionForDefaultWorkspaceContext() {
-        java.util.concurrent.atomic.AtomicReference<com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest> captured =
+        java.util.concurrent.atomic.AtomicReference<com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationRequest> captured =
                 new java.util.concurrent.atomic.AtomicReference<>();
         BoardsFacadeService service = new BoardsFacadeService(
                 new BoardsRuntimeGuard(true),

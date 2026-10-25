@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.office.port;
 
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.model.office.OfficeCapabilitiesResponse;
 import com.massimotter.weave.backend.model.office.OfficeCapabilityFlagsResponse;
 import com.massimotter.weave.backend.model.office.OfficeLaunchRequest;

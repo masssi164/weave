@@ -2,7 +2,7 @@ package com.massimotter.weave.backend.providerbinding.adapter;
 
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
 import com.massimotter.weave.backend.config.CalendarBindingBootstrapConfiguration;
-import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
 import com.massimotter.weave.backend.providerbinding.domain.ProviderBinding;
 import com.massimotter.weave.backend.service.calendar.CalendarProviderBindingReadiness;

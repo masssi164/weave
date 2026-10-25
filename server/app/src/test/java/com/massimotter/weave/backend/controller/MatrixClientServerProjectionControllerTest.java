@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.security.MemberSessionRevocationService;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
-
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.ChatDomainFacadeService;
 import com.massimotter.weave.backend.chat.domain.ChatAccessDeniedException;
@@ -35,7 +35,7 @@ import com.massimotter.weave.backend.matrix.MatrixE2eeStateService;
 import com.massimotter.weave.backend.matrix.MatrixDeviceProofService;
 import com.massimotter.weave.backend.matrix.InMemoryMatrixE2eeRelationalStore;
 import com.massimotter.weave.backend.matrix.MatrixProtocolCoreService;
-import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
+import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.testing.InMemoryMatrixFacadeClientStateStore;
 import java.time.Instant;
 import java.nio.charset.StandardCharsets;
@@ -60,7 +60,6 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;

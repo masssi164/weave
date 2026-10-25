@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.model.admin;
 
+
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -7,9 +8,8 @@ import jakarta.validation.constraints.Size;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-
-import static com.massimotter.weave.backend.model.IdentityKeyFormat.MAX_PRIMARY_IDENTITY_KEY_LENGTH;
-import static com.massimotter.weave.backend.model.IdentityKeyFormat.PRIMARY_IDENTITY_KEY_PATTERN;
+import static com.massimotter.weave.backend.identity.IdentityKeyFormat.MAX_PRIMARY_IDENTITY_KEY_LENGTH;
+import static com.massimotter.weave.backend.identity.IdentityKeyFormat.PRIMARY_IDENTITY_KEY_PATTERN;
 
 @Schema(description = "Admin-owned first-use organization bootstrap contract for existing or newly provisioned organizations.")
 public record OrganizationBootstrapRequest(

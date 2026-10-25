@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.security.MemberSessionRevocationService;
+import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.JWSSigner;
@@ -31,9 +33,8 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.jwt.JwtValidationException;
 import com.massimotter.weave.backend.security.MemberSessionCutoffService;
-import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
+import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.testing.InMemoryMatrixFacadeClientStateStore;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertThrows;

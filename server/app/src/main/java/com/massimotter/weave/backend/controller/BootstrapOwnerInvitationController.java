@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.controller;
 
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.identity.bootstrap.BootstrapOwnerCredential;
 import com.massimotter.weave.backend.model.ApiErrorResponse;
 import com.massimotter.weave.backend.model.identity.BootstrapOwnerInvitationRequest;

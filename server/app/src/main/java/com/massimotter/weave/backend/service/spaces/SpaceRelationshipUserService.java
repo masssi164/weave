@@ -1,10 +1,10 @@
 package com.massimotter.weave.backend.service.spaces;
 
-import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
-import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.model.spaces.SpaceRelationshipListResponse;
 import com.massimotter.weave.backend.model.spaces.SpaceRelationshipResponse;
-import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
+import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.security.DeploymentOrganizationAdmission;
 import com.massimotter.weave.backend.spaces.port.SpaceAccessPort;
 import com.massimotter.weave.backend.spaces.port.SpaceAccessPort.Permission;
