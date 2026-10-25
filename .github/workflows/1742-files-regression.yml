@@ -33,12 +33,13 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+          import json
           import subprocess
-          expected_parent = 'b1a29fb9c08d2c2584e475ff359f8c4862fea073'
+          expected_parent = 'bfc1d417ba31b6e8108dec951764e5518c018717'
           if subprocess.check_output(['git', 'rev-parse', 'HEAD^'], text=True).strip() != expected_parent:
               raise SystemExit('Feature parent changed; review the source delta first')
           native = Path('client/integration_test/dual_ios_collaboration_test.dart')
-          mapping = Path('e2e/scenario-mapping.yaml')
+          mapping = Path('e2e/scenario_mappings.json')
           tests = Path('client/test/features/files/files_screen_test.dart').read_text()
           text = native.read_text()
           start = text.index('Future<void> selectNativeDualFilesScope(')
@@ -64,10 +65,12 @@ jobs:
               ('scope selection leaves a failed child through native Back',
                'folder navigation leaves a failed child through native Back'),
           )
-          for old, new in pairs:
+          for index, (old, new) in enumerate(pairs):
+              print(f'Mapping {index}: oldCount={evidence.count(old)} newTestPresent={new in tests}')
               if new not in tests or evidence.count(old) != 1:
                   raise SystemExit('Reviewed acceptance mapping/test name changed')
               evidence = evidence.replace(old, new, 1)
+          json.loads(evidence)
           native.write_text(updated)
           mapping.write_text(evidence)
           PY
@@ -75,12 +78,12 @@ jobs:
           git diff --check
           python3 - <<'PY'
           import subprocess
-          allowed = {'client/integration_test/dual_ios_collaboration_test.dart', 'e2e/scenario-mapping.yaml'}
+          allowed = {'client/integration_test/dual_ios_collaboration_test.dart', 'e2e/scenario_mappings.json'}
           changed = set(subprocess.check_output(['git', 'diff', '--name-only'], text=True).splitlines())
           if not changed <= allowed:
               raise SystemExit('Unexpected mutation; refusing to commit')
           PY
-          git add -- client/integration_test/dual_ios_collaboration_test.dart e2e/scenario-mapping.yaml
+          git add -- client/integration_test/dual_ios_collaboration_test.dart e2e/scenario_mappings.json
           git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'fix(files): preserve hittable location rows and current acceptance references'
           git push origin HEAD:refs/heads/feat/1742-collaboration-files-root
           git rev-parse HEAD
