@@ -1,0 +1,4 @@
+plugins { id 'base' }
+
+// Aggregation is wired by the normalized selection catalog as domain extraction advances.
+// Do not add unconditional dependencies on every optional domain.

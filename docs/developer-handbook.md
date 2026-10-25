@@ -12,7 +12,7 @@ Weave is now a monorepo product stack:
 | --- | --- |
 | `client/` | Flutter mobile/desktop app shell, custom chat/files/settings UX, client validation, accessibility, deterministic screenshots. |
 | `server/` | Product API/BFF, auth/profile facade, files/calendar/boards facades, authorization, audit, readiness, and backend contract tests. |
-| `weave-application-core/`, `weave-files-core/` | Framework-free canonical values, use cases, and ports. |
+| `weave-application-core/`, `server/domains/files/model/` | Framework-free canonical values, use cases, and ports. |
 | `weave-persistence-jpa/`, `weave-runtime-*-adapters/` | Portable entity persistence and explicitly composed provider/security adapters. |
 | `weave-mcp-server/` | Separate workload-only Spring AI MCP process using the generated Weave User API client for product HTTP calls. |
 | `weave-product-e2e/` | Plain-Java real-browser/OIDC/User API/MCP product proof; no runtime beans or implementation-module dependency. |

@@ -147,3 +147,10 @@ These are **source-file counts, not Java type/class counts**, measured from the 
 | `core/persistence` (separate Gradle project) | 46 | At least 13 have Agent Runtime / Portability / Transfer paths |
 
 **Priority:** remove future-product runtime dependencies from the release Core *before* investing in superficial Lombok cleanups. Each moved source must keep one owner and preserve its JPA/database/API/security contract. Some path matches can still resolve to a shared primitive after inspection; directory naming alone is not a deletion authorization.
+
+
+## Phase 2.1: first physical domain extraction
+
+The first production-code step relocates the framework-free Files model from historical root `weave-files-core` to `server/domains/files/model` (Gradle path `:server:domains:files:model`), preserving the complete Java production and test sources without code rewriting. The root copy is removed; the executable Server and JPA dependency graph point at the new coordinate. This is **not yet the whole Files domain**, because Files persistence entities, provider adapters, REST controllers and the Spring Boot runtime remain transitional and are assigned to the next slices. Full and reduced `bootJar` variants remain unqualified.
+
+Every follow-on extraction follows the same discipline: single physical owner, correct Gradle dependencies, source fingerprint closure, selected-domain tests, and documentation. Preserve all existing historical Flyway migrations and support-safe authentication behavior.

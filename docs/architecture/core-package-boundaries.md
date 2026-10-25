@@ -57,7 +57,7 @@ The repository is intentionally being migrated in vertical slices rather than th
 ### Canonical modules already present
 
 - `weave-application-core`: framework-free domain/application/port code. Calendar canonical domain currently lives here. Historical Agent Runtime code remains present but is not part of the Files/Calendar/Chat target core.
-- `weave-files-core`: framework-free canonical Files domain.
+- `server/domains/files/model`: framework-free canonical Files domain.
 - `weave-persistence-jpa`: JPA/Flyway persistence implementations.
 - `weave-runtime-provider-adapters`: southbound provider implementations.
 - `weave-runtime-security-adapters`: security/IAM infrastructure adapters.

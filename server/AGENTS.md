@@ -10,9 +10,15 @@ The server owns Weave product facades, authorization, audit, provider boundaries
 - Context/Space authorization is the gate for workspace-scoped provider data.
 - Prefer Cucumber/JUnit and facade contract tests for product behavior; map release-grade behavior back to `../e2e/scenario_mappings.json`.
 
-Validation from `server/`:
+Validation from the repository root (single Gradle wrapper authority):
 
-- `./gradlew test`
+- `./gradlew :server:domains:files:model:test` verifies the relocated framework-free Files model.
+- `./gradlew coreArchitectureCi` runs the canonical architecture gate.
+- `./gradlew :server:test` keeps the complete legacy Server integration tests while extraction continues.
+
+**Current status:** Files model is now owned by `server/domains/files/model`. Files JPA entities, provider adapters, controllers and the executable App remain in transitional modules until the following extraction steps. The standalone `weave-files-core` root was retired; never recreate a duplicate.
+
+For each future source move, update Gradle coordinates, image input closures, CI source filters, documentation and architecture tests in the **same PR**. Do not claim a reduced runtime or successful AOT qualification until the actual executable composition is proven.
 
 ## Global Weave agent baseline
 

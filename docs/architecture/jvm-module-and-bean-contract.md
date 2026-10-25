@@ -16,7 +16,7 @@ as implementation instructions.
 ## Module dependency direction
 
 ```text
-weave-application-core       weave-files-core
+weave-application-core       server/domains/files/model
           ▲                         ▲
           │                         │
           ├──────────────┐          │
@@ -44,7 +44,7 @@ only their deployed public protocols.
 | Module | Permitted dependencies | Bean ownership | Explicitly forbidden |
 | --- | --- | --- | --- |
 | `weave-application-core` | Java 21 only | none | Spring, Jakarta Persistence, Hibernate, JDBC, HTTP, MCP, Jackson and provider types |
-| `weave-files-core` | Java 21 only | none | framework, transport and provider dependencies |
+| `server/domains/files/model` | Java 21 only | none | framework, transport and provider dependencies |
 | `weave-persistence-jpa` | Application Core, Jakarta Persistence, Spring Data JPA, MapStruct API/processor | no configuration beans; entity/repository implementations are discovered only by the Server composition root | Web/controller DTOs, MCP, providers, JDBC templates, Hibernate APIs in entity code |
 | `weave-runtime-provider-adapters` | Application Core and Jackson for provider payload normalization | no component scanning; Server configuration creates the selected port implementations explicitly | controllers, persistence entities, MCP annotations, provider DTOs crossing a port |
 | `weave-runtime-security-adapters` | Application Core, Spring Security JOSE, canonical JSON and Jackson | no security filter chains; Server configuration creates cryptographic/policy port implementations explicitly | HTTP endpoints, JPA, provider administration and MCP transport |

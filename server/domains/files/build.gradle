@@ -1,0 +1,4 @@
+plugins { id 'base' }
+
+// Files owns its JVM model. Its API, persistence and provider adapters migrate in subsequent slices.
+tasks.named('check') { dependsOn ':server:domains:files:model:check' }
