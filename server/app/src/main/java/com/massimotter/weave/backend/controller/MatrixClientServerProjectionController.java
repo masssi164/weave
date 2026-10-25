@@ -24,7 +24,7 @@ import com.massimotter.weave.backend.matrix.MatrixE2eeStateService;
 import com.massimotter.weave.backend.matrix.MatrixDeviceProofService;
 import com.massimotter.weave.backend.matrix.MatrixProtocolCoreService;
 import com.massimotter.weave.backend.matrix.MatrixProtocolException;
-import com.massimotter.weave.backend.service.MemberDisplayNameQuery;
+import com.massimotter.weave.backend.identity.application.MemberDisplayNameQuery;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;

@@ -1,5 +1,9 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.identity.profile.api.IdentityController;
+
+import com.massimotter.weave.backend.identity.profile.api.ProfileController;
+
 import com.massimotter.weave.backend.identity.profile.port.ProductProfileOverrideRepository;
 
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
@@ -9,7 +13,6 @@ import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.identity.profile.domain.ProductProfileOverride;
-import com.massimotter.weave.backend.identity.profile.port.ProductProfileOverrideRepository;
 import com.massimotter.weave.backend.identity.profile.application.ProductProfileService;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import java.util.HashMap;
@@ -41,7 +44,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(
         controllers = {ProfileController.class, IdentityController.class},
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
-@Import({
+@Import({ProfileController.class, IdentityController.class,
         OrganizationIdentityContextResolver.class,
         SecurityConfig.class,
         ApiAuthenticationEntryPoint.class,

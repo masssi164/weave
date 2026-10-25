@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.identity.invitation.api.BootstrapOwnerInvitationController;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
@@ -7,9 +9,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.identity.bootstrap.BootstrapOwnerCredential;
-import com.massimotter.weave.backend.model.identity.BootstrapOwnerInvitationRequest;
-import com.massimotter.weave.backend.model.identity.MemberInvitationResponse;
-import com.massimotter.weave.backend.service.MemberInvitationService;
+import com.massimotter.weave.backend.identity.invitation.api.BootstrapOwnerInvitationRequest;
+import com.massimotter.weave.backend.identity.invitation.api.MemberInvitationResponse;
+import com.massimotter.weave.backend.identity.invitation.application.MemberInvitationService;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;

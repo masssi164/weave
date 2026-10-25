@@ -1,8 +1,8 @@
 package com.massimotter.weave.backend.config;
 
 import com.massimotter.weave.backend.security.MemberSessionRevocationService;
-import com.massimotter.weave.backend.controller.IdentitySessionController;
-import com.massimotter.weave.backend.service.MemberInvitationService;
+import com.massimotter.weave.backend.identity.invitation.api.IdentitySessionController;
+import com.massimotter.weave.backend.identity.invitation.application.MemberInvitationService;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;

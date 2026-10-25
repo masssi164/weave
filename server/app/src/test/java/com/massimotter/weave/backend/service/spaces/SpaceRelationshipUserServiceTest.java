@@ -20,7 +20,7 @@ import com.massimotter.weave.backend.files.port.FilesUserResourceRepository;
 import com.massimotter.weave.backend.identity.IdentityReferences;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.files.application.FilesUserApiService;
-import com.massimotter.weave.backend.service.calendar.CalendarUserApiService;
+import com.massimotter.weave.backend.calendar.application.CalendarUserApiService;
 import com.massimotter.weave.backend.security.DeploymentOrganizationAdmission;
 import com.massimotter.weave.backend.spaces.port.SpaceAccessPort;
 import com.massimotter.weave.backend.spaces.port.SpaceAccessPort.Permission;
@@ -167,7 +167,7 @@ class SpaceRelationshipUserServiceTest {
                 .thenReturn(true);
         when(calendar.materializedEventRefsInSpace(member, "workspace-default", "", 100))
                 .thenReturn(List.of(eventId));
-        var checkedEvent = mock(com.massimotter.weave.backend.model.calendar.CalendarUserModels.Event.class);
+        var checkedEvent = mock(com.massimotter.weave.backend.calendar.api.CalendarUserModels.Event.class);
         when(checkedEvent.id()).thenReturn(eventId);
         when(calendar.readMaterializedEventInSpace(member, "workspace-default", eventId))
                 .thenReturn(checkedEvent);
@@ -285,7 +285,7 @@ class SpaceRelationshipUserServiceTest {
         String eventId = "event:" + "c".repeat(64);
         when(spaces.allows("tenant-default", "workspace-default", ACCOUNT, Permission.VIEW)).thenReturn(true);
         when(calendar.materializedEventRefsInSpace(member, "workspace-default", "", 100)).thenReturn(List.of(eventId));
-        var event = mock(com.massimotter.weave.backend.model.calendar.CalendarUserModels.Event.class);
+        var event = mock(com.massimotter.weave.backend.calendar.api.CalendarUserModels.Event.class);
         when(event.id()).thenReturn(eventId);
         when(calendar.readMaterializedEventInSpace(member, "workspace-default", eventId)).thenReturn(event);
         when(chat.joinedConversationRefsInSpace(member, "workspace-default", "", 100)).thenReturn(List.of("room-one"));

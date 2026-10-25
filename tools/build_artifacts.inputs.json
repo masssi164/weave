@@ -34,6 +34,8 @@
         "server/domains/files/model/build.gradle",
         "server/domains/files/persistence/src/main/**",
         "server/domains/files/persistence/build.gradle",
+        "server/domains/calendar/src/main/**",
+        "server/domains/calendar/build.gradle",
         "server/domains/calendar/model/src/main/**",
         "server/domains/calendar/model/build.gradle",
         "server/domains/calendar/persistence/src/main/**",

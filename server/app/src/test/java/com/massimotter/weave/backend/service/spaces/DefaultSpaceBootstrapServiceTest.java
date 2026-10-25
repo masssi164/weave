@@ -12,7 +12,7 @@ import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
 import com.massimotter.weave.backend.providerbinding.contract.ProviderConformanceProfile;
 import com.massimotter.weave.backend.providerbinding.domain.ProviderBinding;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
-import com.massimotter.weave.backend.service.calendar.CalendarProviderBindingReadiness;
+import com.massimotter.weave.backend.calendar.application.CalendarProviderBindingReadiness;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.Set;

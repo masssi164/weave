@@ -1,13 +1,15 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.identity.invitation.api.IdentitySessionController;
+
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.massimotter.weave.backend.model.identity.IdentitySessionReconcileResponse;
-import com.massimotter.weave.backend.service.MemberInvitationService;
+import com.massimotter.weave.backend.identity.invitation.api.IdentitySessionReconcileResponse;
+import com.massimotter.weave.backend.identity.invitation.application.MemberInvitationService;
 import java.util.List;
 import java.util.Map;
 import ch.qos.logback.classic.Logger;

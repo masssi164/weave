@@ -1,5 +1,8 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.calendar.api.CalendarController;
+import com.massimotter.weave.backend.calendar.api.CalendarDavSetupController;
+import com.massimotter.weave.backend.calendar.api.dav.CalDavCalendarController;
 import com.massimotter.weave.backend.files.api.FilesDavSetupController;
 import com.massimotter.weave.backend.files.api.FilesWebDavController;
 import com.massimotter.weave.backend.files.api.FilesController;
@@ -32,14 +35,14 @@ import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
-import com.massimotter.weave.backend.service.CalendarFacadeService;
+import com.massimotter.weave.backend.calendar.application.CalendarFacadeService;
 import com.massimotter.weave.backend.files.application.FilesFacadeService;
 import com.massimotter.weave.backend.files.application.FilesUserApiService;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.files.application.FilesLockService;
 import com.massimotter.weave.backend.files.application.FilesMutationIntentService;
-import com.massimotter.weave.backend.service.calendar.CalendarAdapterException;
+import com.massimotter.weave.backend.calendar.domain.CalendarAdapterException;
 import com.massimotter.weave.backend.security.device.DeviceCredentialAuthenticationFilter;
 import com.massimotter.weave.backend.security.device.DeviceCredentialRepository;
 import com.massimotter.weave.backend.security.device.DeviceCredentialService;
@@ -101,6 +104,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
                 CalDavCalendarController.class},
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
+        CalendarController.class,
+        CalendarDavSetupController.class,
+        CalDavCalendarController.class,
         FilesController.class,
         FilesDavSetupController.class,
         FilesUserItemsController.class,

@@ -1,11 +1,11 @@
 package com.massimotter.weave.backend.providerbinding.adapter;
 
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
-import com.massimotter.weave.backend.config.CalendarBindingBootstrapConfiguration;
+import com.massimotter.weave.backend.calendar.config.CalendarBindingBootstrapConfiguration;
 import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.providerbinding.contract.ProviderConformanceProfile;
 import com.massimotter.weave.backend.providerbinding.domain.ProviderBinding;
-import com.massimotter.weave.backend.service.calendar.CalendarProviderBindingReadiness;
+import com.massimotter.weave.backend.calendar.application.CalendarProviderBindingReadiness;
 import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import java.util.List;
 import java.util.Map;

@@ -14,7 +14,7 @@ remains `f049c0b1879414eb529a3df83a18224407f1a436`.
 | Human Keycloak administration | Core `backend.identity.keycloak.KeycloakAdminClient` declares named HTTP operations. `KeycloakAuthConfig` binds the protected transport; `identity.invitation.KeycloakIdentityAdminClient` translates domain results and `KeycloakIdentityAdminOperationPolicy` enforces exact admission/status. |
 | Keycloak OAuth2 client authentication and SecretRefs | Existing Core `security.keycloak` and `security.secret` implementations; no duplicate token cache or transport. |
 | Files Nextcloud WebDAV | Files `files.config.http.NextcloudHttpConfig`; `files.provider.NextcloudFilesAdapter` retains specialized DAV/streaming/207 behavior. |
-| Calendar CalDAV | Calendar `calendar.config.http.CalDavHttpConfig`, physically under App until Calendar runtime extraction; REPORT/PROPFIND and bounded parsing remain provider-owned. |
+| Calendar CalDAV | Calendar runtime `calendar.config.http.CalDavHttpConfig`; REPORT/PROPFIND and bounded parsing remain provider-owned. |
 | Chat Synapse | Chat `chat.provider.synapse.config.SynapseHttpConfig`, physically under App until Chat runtime extraction; Matrix streaming/auth/status remain adapter-owned. |
 | Future Boards OpenProject | `boards.openproject.config` HTTP interface/factory; physical App ownership remains transitional. Its two verb-level operations are not claimed as a complete endpoint-specific declarative conversion. |
 

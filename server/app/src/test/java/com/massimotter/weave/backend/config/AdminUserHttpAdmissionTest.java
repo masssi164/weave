@@ -16,14 +16,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import com.massimotter.weave.backend.controller.AdminControlPlaneController;
-import com.massimotter.weave.backend.controller.IdentityController;
+import com.massimotter.weave.backend.identity.profile.api.IdentityController;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.identity.IdentityReferences;
 import com.massimotter.weave.backend.model.admin.AdminControlPlaneResponse;
 import com.massimotter.weave.backend.model.admin.AdminCurrentActorResponse;
 import com.massimotter.weave.backend.service.AdminControlPlaneService;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
-import com.massimotter.weave.backend.identity.profile.port.ProductProfileOverrideRepository;
 import com.massimotter.weave.backend.identity.profile.application.ProductProfileService;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -61,7 +60,7 @@ import org.springframework.test.web.servlet.MockMvc;
 /** Signed HTTP bearers traverse the production filter chains and decoder validators. */
 @WebMvcTest(controllers = {AdminControlPlaneController.class, IdentityController.class},
     excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
-@Import({SecurityConfig.class, AdminApiSecurityConfiguration.class,
+@Import({IdentityController.class,SecurityConfig.class, AdminApiSecurityConfiguration.class,
     ApiAuthenticationEntryPoint.class, ApiAccessDeniedHandler.class, ApiErrorResponseWriter.class,
     ApiExceptionHandler.class, AdminUserHttpAdmissionTest.Decoders.class})
 @TestPropertySource(properties = {

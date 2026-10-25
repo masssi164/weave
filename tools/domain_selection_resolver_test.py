@@ -177,21 +177,27 @@ class InventoryTest(unittest.TestCase):
                     self.assertNotIn('PostgresTest', name)
 
     def test_domain_bridge_projects_exist_for_the_catalog(self):
-        for domain in load_catalog(ROOT)['domains']:
+        for domain, inventory in load_catalog(ROOT)['domains'].items():
             source = (ROOT / 'server/domains' / domain / 'build.gradle').read_text()
-            if domain == 'files':
-                self.assertIn("id 'java-library'", source)
-                self.assertNotIn('domain-project.gradle', source)
-            else:
+            if inventory['server_unit_tests']:
                 self.assertIn('domain-project.gradle', source)
+            else:
+                self.assertIn("id 'java-library'", source)
+                self.assertIn('domain-library.gradle', source)
+                self.assertNotIn('domain-project.gradle', source)
+                self.assertNotIn('server:app', source)
+                self.assertIn(f':server:domains:{domain}:test', inventory['additional_unit_tasks'])
+                self.assertTrue((ROOT / 'server/domains' / domain / 'src/test/java').is_dir())
 
-    def test_files_includes_its_existing_framework_free_unit_suite(self):
-        self.assertIn(':server:domains:files:model:test', load_catalog(ROOT)['domains']['files']['additional_unit_tasks'])
+    def test_extracted_domains_include_their_framework_free_unit_suites(self):
+        for domain in ('files', 'calendar'):
+            self.assertIn(f':server:domains:{domain}:model:test', load_catalog(ROOT)['domains'][domain]['additional_unit_tasks'])
 
-    def test_real_owning_test_tasks_replace_the_files_app_bridge(self):
-        inventory = load_catalog(ROOT)['domains']['files']
-        self.assertEqual(inventory['server_unit_tests'], [])
-        self.assertIn(':server:domains:files:test', inventory['additional_unit_tasks'])
+    def test_real_owning_test_tasks_replace_extracted_app_bridges(self):
+        for domain in ('files', 'calendar'):
+            inventory = load_catalog(ROOT)['domains'][domain]
+            self.assertEqual(inventory['server_unit_tests'], [])
+            self.assertIn(f':server:domains:{domain}:test', inventory['additional_unit_tasks'])
         source = (ROOT / 'server/gradle/tasks/domain-verification.gradle').read_text()
         self.assertIn('inventory.server_unit_tests }.each', source)
 

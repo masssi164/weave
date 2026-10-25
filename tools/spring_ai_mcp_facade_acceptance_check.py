@@ -150,7 +150,7 @@ def main() -> int:
         "calendars.queryCalendarAgenda(",
     )
     require(
-        "server/app/src/main/java/com/massimotter/weave/backend/config/CalendarMcpSecurityConfiguration.java",
+        "server/domains/calendar/src/main/java/com/massimotter/weave/backend/calendar/config/CalendarMcpSecurityConfiguration.java",
         '@Qualifier("calendarMcpWorkloadJwtDecoder")',
         "SCOPE_calendar.read",
     )

@@ -5,7 +5,7 @@
   "policy": "Exact legacy selector occurrences only. Removal is allowed; additions or widening require an explicit architecture review. Do not regenerate this baseline to make a failing check pass. This is debt, not a provider-switch implementation.",
   "selectors": [
     {
-      "path": "server/app/src/main/java/com/massimotter/weave/backend/calendar/adapter/NativeCalendarProviderAdapter.java",
+      "path": "server/domains/calendar/src/main/java/com/massimotter/weave/backend/calendar/persistence/NativeCalendarProviderAdapter.java",
       "kind": "java-annotation",
       "signature": "@ConditionalOnProperty(name=\"weave.calendar.provider\",havingValue=\"weave-native\",matchIfMissing=true)",
       "count": 1
@@ -47,7 +47,7 @@
       "count": 1
     },
     {
-      "path": "server/app/src/main/java/com/massimotter/weave/backend/config/CalendarCalDavConfiguration.java",
+      "path": "server/domains/calendar/src/main/java/com/massimotter/weave/backend/calendar/config/CalendarCalDavConfiguration.java",
       "kind": "java-annotation",
       "signature": "@ConditionalOnProperty(name=\"weave.calendar.provider\",havingValue=\"nextcloud-caldav\")",
       "count": 1

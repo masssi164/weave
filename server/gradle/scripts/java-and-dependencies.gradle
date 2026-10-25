@@ -16,7 +16,6 @@ dependencies {
     implementation libs.springdoc.webmvc.api
     implementation libs.jcs
     implementation libs.zxing.core
-    implementation libs.ical4j
     implementation libs.flyway.core
     implementation libs.flyway.postgresql
 
@@ -26,8 +25,7 @@ dependencies {
 
     implementation project(':server:core:model')
     implementation project(':server:domains:files')
-    implementation project(':server:domains:calendar:model')
-    implementation project(':server:domains:calendar:persistence')
+    implementation project(':server:domains:calendar')
     implementation project(':server:core')
     testImplementation testFixtures(project(':server:core'))
     implementation project(':server:domains:agent-runtime:persistence')

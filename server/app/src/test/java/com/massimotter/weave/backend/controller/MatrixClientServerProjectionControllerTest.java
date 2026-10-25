@@ -149,7 +149,7 @@ class MatrixClientServerProjectionControllerTest {
     private MatrixFacadeClientStateStore stateStore;
 
     @MockitoBean
-    private com.massimotter.weave.backend.service.MemberDisplayNameQuery memberDisplayNames;
+    private com.massimotter.weave.backend.identity.application.MemberDisplayNameQuery memberDisplayNames;
 
     @Test
     void matrixClientServerProjectionRequiresWorkspaceToken() throws Exception {

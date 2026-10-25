@@ -1,5 +1,19 @@
 package com.massimotter.weave.core.autoconfigure;
 
+import com.massimotter.weave.backend.identity.invitation.application.MemberInvitationService;
+
+import com.massimotter.weave.backend.identity.invitation.api.MemberInvitationController;
+
+import com.massimotter.weave.backend.identity.invitation.api.IdentitySessionController;
+
+import com.massimotter.weave.backend.identity.invitation.api.BootstrapOwnerInvitationController;
+
+import com.massimotter.weave.backend.identity.bootstrap.BootstrapOwnerCredential;
+
+import com.massimotter.weave.backend.identity.application.MemberDisplayNameQuery;
+
+import com.massimotter.weave.backend.identity.IdentityOpaqueReferenceCodec;
+
 import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient;
 import com.massimotter.weave.backend.identity.keycloak.IdentityInvitationProperties;
 import com.massimotter.weave.backend.identity.keycloak.KeycloakAuthConfig;
@@ -15,5 +29,17 @@ import org.springframework.context.annotation.Import;
 })
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @EnableConfigurationProperties(IdentityInvitationProperties.class)
-@Import({KeycloakAuthConfig.class, KeycloakIdentityAdminClient.class})
-public class CoreIdentityAdminAutoConfiguration {}
+@Import({KeycloakAuthConfig.class, KeycloakIdentityAdminClient.class,
+        IdentityOpaqueReferenceCodec.class,
+        MemberDisplayNameQuery.class,
+        MemberInvitationService.class,
+        MemberInvitationController.class,
+        IdentitySessionController.class,
+        BootstrapOwnerInvitationController.class,
+        BootstrapOwnerCredential.class})
+public class CoreIdentityAdminAutoConfiguration {
+    @org.springframework.context.annotation.Bean
+    com.massimotter.weave.backend.identity.bootstrap.IdentityReferenceReadiness identityReferenceReadiness(IdentityOpaqueReferenceCodec references) {
+        return new com.massimotter.weave.backend.identity.bootstrap.IdentityReferenceReadiness(references);
+    }
+}

@@ -1,5 +1,8 @@
 package com.massimotter.weave.backend.dogfood;
 
+
+import com.massimotter.weave.backend.identity.invitation.application.MemberInvitationService;
+
 import com.massimotter.weave.backend.identity.keycloak.IdentityInvitationProperties;
 import com.massimotter.weave.backend.capability.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
@@ -15,7 +18,6 @@ import com.massimotter.weave.backend.identity.keycloak.KeycloakAuthConfig;
 import com.massimotter.weave.backend.identity.IdentityOpaqueReferenceCodec;
 import com.massimotter.weave.backend.identity.invitation.*;
 import com.massimotter.weave.backend.audit.persistence.AuditEventJpaRepository;
-import com.massimotter.weave.backend.identity.persistence.ProvisioningIntentJpaRepository;
 import com.massimotter.weave.backend.schema.ServingSchemaAuthorityGuard;
 import com.massimotter.weave.backend.service.*;
 import com.massimotter.weave.backend.spaces.adapter.JpaDogfoodSpacePreparationAdapter;
@@ -45,9 +47,5 @@ class DogfoodPreparationConfiguration {
     @Bean
     JpaAuditEventPublisher auditPublisher(AuditEventJpaRepository repository, ObjectMapper mapper) {
         return new JpaAuditEventPublisher(repository, mapper);
-    }
-    @Bean
-    JpaProvisioningIntentRepository provisioningIntents(ProvisioningIntentJpaRepository repository) {
-        return new JpaProvisioningIntentRepository(repository);
     }
 }

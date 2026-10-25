@@ -1,9 +1,7 @@
 package com.massimotter.weave.backend.config;
 
 import tools.jackson.databind.ObjectMapper;
-import com.massimotter.weave.backend.identity.invitation.JpaProvisioningIntentRepository;
 import com.massimotter.weave.backend.operation.application.OperationIntentService;
-import com.massimotter.weave.backend.identity.persistence.ProvisioningIntentJpaRepository;
 import com.massimotter.weave.backend.portability.persistence.MigrationRunEvidenceJpaRepository;
 import com.massimotter.weave.backend.readiness.persistence.JpaPersistenceReadinessProbe;
 import com.massimotter.weave.backend.schema.persistence.SchemaAuthorityJpaRepository;
@@ -46,10 +44,5 @@ public class WeavePersistenceConfiguration {
     return new JpaMigrationRunEvidenceRepository(repository, objectMapper);
   }
 
-  @Bean
-  JpaProvisioningIntentRepository jpaProvisioningIntentRepository(
-      ProvisioningIntentJpaRepository intents) {
-    return new JpaProvisioningIntentRepository(intents);
-  }
 
 }

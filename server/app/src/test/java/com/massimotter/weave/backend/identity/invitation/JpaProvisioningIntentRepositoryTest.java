@@ -1,5 +1,11 @@
 package com.massimotter.weave.backend.identity.invitation;
 
+import com.massimotter.weave.backend.identity.invitation.persistence.JpaProvisioningIntentRepository;
+
+import com.massimotter.weave.backend.identity.invitation.domain.ProvisioningIntentStatus;
+
+import com.massimotter.weave.backend.identity.invitation.domain.ProvisioningIntent;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 

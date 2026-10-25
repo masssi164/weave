@@ -87,7 +87,7 @@ def require_current_evidence_boundaries() -> None:
     require("tools/target_standard_facade_hard_gate_check.py", "TARGET_STANDARDS_WEBDAV_FILES_CURRENT_PROOF", "TARGET_STANDARDS_CALDAV_CALENDAR_SERVER_MVP", "TARGET_STANDARDS_MATRIX_CHAT_SERVER_MVP")
     require("server/domains/files/src/main/java/com/massimotter/weave/backend/files/api/FilesWebDavController.java", 'case "MOVE" -> move(request)', 'case "COPY" -> copy(request)', 'case "LOCK" -> lock(request)', 'case "UNLOCK" -> unlock(request)')
     require("server/domains/files/src/main/java/com/massimotter/weave/backend/files/application/FilesFacadeService.java", "copyWebDavPath(", "moveWebDavPath(", "lockWebDavPath(", "unlockWebDavPath(", "files-locked")
-    require("server/app/src/main/java/com/massimotter/weave/backend/controller/CalDavCalendarController.java", 'case "MKCALENDAR", "COPY", "MOVE", "LOCK", "UNLOCK" -> unsupportedMethod(method)')
+    require("server/domains/calendar/src/main/java/com/massimotter/weave/backend/calendar/api/dav/CalDavCalendarController.java", 'case "MKCALENDAR", "COPY", "MOVE", "LOCK", "UNLOCK" -> unsupportedMethod(method)')
     require("server/app/src/main/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionController.java", '"X-Weave-Matrix-Core", "rust-ruma-jni"', "chatDomainFacadeService.conversations(jwt)", "chatDomainFacadeService.sendEvent(")
     require("server/app/src/main/java/com/massimotter/weave/backend/matrix/MatrixProtocolCodec.java", "Map<String, Object> project(MatrixProtocolOperation operation, String inputJson)")
     require(

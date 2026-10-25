@@ -35,6 +35,7 @@ FORBIDDEN_CONTENT = (
       'server/domains/portability/persistence/src/main',
       'server/domains/files/src/main',
       'server/domains/files/persistence/src/main',
+      'server/domains/calendar/src/main',
       'server/domains/calendar/persistence/src/main')),
     ('retired-matrix-coupling', r'weave\.chat\.matrix-facade\.enabled|facadeEnabled|weave_matrix_core',
      ('server', 'gradle', 'rust', 'Cargo.toml', 'Cargo.lock')),

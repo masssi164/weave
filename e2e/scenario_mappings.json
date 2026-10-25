@@ -830,7 +830,7 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/service/calendar/CalendarUserApiServiceTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/calendar/application/CalendarUserApiServiceTest.java",
           "fragments": [
             "disabledCalendarPolicyBlocksMemberReadsAndOwnerWritesBeforeProviderAccess",
             "enabledCalendarAllowsOrdinaryMemberWritesWithCurrentEditPermission",
@@ -4765,7 +4765,7 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/app/src/main/java/com/massimotter/weave/backend/controller/CalDavCalendarController.java",
+          "path": "server/domains/calendar/src/main/java/com/massimotter/weave/backend/calendar/api/dav/CalDavCalendarController.java",
           "fragments": [
             "/.well-known/caldav",
             "principalMultistatus",
@@ -4785,7 +4785,7 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/app/src/main/java/com/massimotter/weave/backend/controller/CalDavCalendarController.java",
+          "path": "server/domains/calendar/src/main/java/com/massimotter/weave/backend/calendar/api/dav/CalDavCalendarController.java",
           "fragments": [
             "/.well-known/caldav",
             "principalMultistatus",
@@ -4805,7 +4805,7 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/app/src/main/java/com/massimotter/weave/backend/controller/CalDavCalendarController.java",
+          "path": "server/domains/calendar/src/main/java/com/massimotter/weave/backend/calendar/api/dav/CalDavCalendarController.java",
           "fragments": [
             "CALENDAR_MULTIGET",
             "FREE_BUSY_QUERY",
@@ -4826,7 +4826,7 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/app/src/main/java/com/massimotter/weave/backend/controller/CalDavCalendarController.java",
+          "path": "server/domains/calendar/src/main/java/com/massimotter/weave/backend/calendar/api/dav/CalDavCalendarController.java",
           "fragments": [
             "calendarMultigetMultistatus",
             "syncCalDavResources",
@@ -4870,7 +4870,7 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/app/src/main/java/com/massimotter/weave/backend/controller/CalDavCalendarController.java",
+          "path": "server/domains/calendar/src/main/java/com/massimotter/weave/backend/calendar/api/dav/CalDavCalendarController.java",
           "fragments": [
             "calendarMultigetMultistatus",
             "syncCalDavResources",
@@ -4890,7 +4890,7 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/app/src/main/java/com/massimotter/weave/backend/controller/CalDavCalendarController.java",
+          "path": "server/domains/calendar/src/main/java/com/massimotter/weave/backend/calendar/api/dav/CalDavCalendarController.java",
           "fragments": [
             "CALENDAR_MULTIGET",
             "FREE_BUSY_QUERY",
@@ -4904,14 +4904,14 @@
       "tag": "@caldav-recurrence-dst",
       "scenario": "Recurring event across DST boundary is expanded consistently",
       "feature": "e2e/features/calendar_caldav_facade.feature",
-      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/service/calendar/IcalendarMapperTest.java",
+      "executableTest": "server/domains/calendar/src/test/java/com/massimotter/weave/backend/calendar/provider/icalendar/IcalendarMapperTest.java",
       "evidenceMarkers": [
         "CALDAV_RECURRENCE_DST_FACADE"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/service/calendar/IcalendarMapperTest.java",
+          "path": "server/domains/calendar/src/test/java/com/massimotter/weave/backend/calendar/provider/icalendar/IcalendarMapperTest.java",
           "fragments": [
             "RRULE:FREQ=WEEKLY;COUNT=3",
             "RDATE;TZID=Europe/Berlin",
@@ -4925,7 +4925,7 @@
       "tag": "@caldav-canonical-thread",
       "scenario": "Channel event keeps one canonical meeting-thread reference",
       "feature": "e2e/features/calendar_caldav_facade.feature",
-      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/service/calendar/IcalendarMapperTest.java",
+      "executableTest": "server/domains/calendar/src/test/java/com/massimotter/weave/backend/calendar/provider/icalendar/IcalendarMapperTest.java",
       "evidenceMarkers": [
         "CALDAV_CANONICAL_THREAD_PROJECTION"
       ],
@@ -5507,7 +5507,7 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/service/calendar/CalendarUserApiServiceTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/calendar/application/CalendarUserApiServiceTest.java",
           "fragments": [
             "currentCalendarWorkloadReadsThroughMemberSpaceAndAuditsWithoutMaterializing",
             "revokedWorkloadSpaceFailsBeforeCalendarProviderQuery"

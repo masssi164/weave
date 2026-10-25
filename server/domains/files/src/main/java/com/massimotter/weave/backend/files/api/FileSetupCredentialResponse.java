@@ -26,4 +26,8 @@ public record FileSetupCredentialResponse(
     public FileSetupCredentialResponse {
         revocationActions = revocationActions == null ? List.of() : List.copyOf(revocationActions);
     }
+    @Override
+    public String toString() {
+        return "FileSetupCredentialResponse[secretMaterialReturned=" + secretMaterialReturned + "]";
+    }
 }

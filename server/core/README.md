@@ -19,7 +19,9 @@ services and provider health are servlet-only. Their explicit beans consume requ
 contracts; health consumes deferred domain probes and does not contact providers during
 construction. No domain component scan or optional feature implementation is required.
 
-Core Identity also owns the actual human Keycloak administration client, named HTTP
+Core Identity also owns invitation values/ports, transactional adapters and use cases, current
+member display-name queries and the shared identity/profile/invitation HTTP adapters. Human
+Keycloak administration uses the named HTTP
 interface, operation allowlist and invitation settings. The protected transport preserves
 private-key JWT, exact SecretRefs, timeouts, URL context paths, expected statuses and 401
 invalidation. Module-local servlet imports register it once; construction needs no mounted

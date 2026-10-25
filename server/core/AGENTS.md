@@ -22,3 +22,8 @@ Profile values/ports, JPA and use cases belong to Identity; device hashing/revoc
 belongs to Security with domain-owned scope declarations. Shared Space adapters and HTTP error/
 authentication adapters require actual imports discovery, including omitted-protocol tests.
 Never add a Matrix error/path branch back into shared HTTP security.
+
+Identity owns current-member queries, invitation values/ports/persistence/use cases and shared
+profile/identity/invitation HTTP adapters. Mounted HMAC reference material loads at real serving
+readiness or first use; the ordered readiness hook must still fail startup before serving or
+startup workflows when the exact SecretRef is invalid. Construction for AOT never reads it.

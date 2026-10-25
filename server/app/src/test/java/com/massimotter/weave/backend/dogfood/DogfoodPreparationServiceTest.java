@@ -1,5 +1,11 @@
 package com.massimotter.weave.backend.dogfood;
 
+import com.massimotter.weave.backend.identity.invitation.domain.ProvisioningIntentStatus;
+
+import com.massimotter.weave.backend.identity.invitation.domain.ProvisioningIntent;
+
+import com.massimotter.weave.backend.identity.invitation.application.MemberInvitationService;
+
 import com.massimotter.weave.backend.identity.keycloak.IdentityInvitationProperties;
 import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.security.config.DeploymentOrganizationProperties;

@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.model.identity;
 
+import com.massimotter.weave.backend.identity.invitation.api.MemberInvitationRequest;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 

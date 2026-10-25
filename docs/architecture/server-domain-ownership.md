@@ -4,10 +4,11 @@ Implementation owner: #1745; integration parent: #1741; PR: #1746. This is the c
 
 ## Current state versus target
 
-**Implemented:** Files owns its actual serving runtime: authenticated services, controllers, wire
+**Implemented:** Files and Calendar own their actual serving runtimes: authenticated services, controllers, wire
 values, provider integrations, settings, resources and tests, plus pure model and transactional
-JPA adapters. Its owning checks and real Boot discovery run without App, Calendar or Chat. Calendar owns its
-pure model, normalized mappings and production JPA payload store. Core owns shared persistence
+JPA adapters. Their owning checks and real Boot discovery run without App or sibling domains. Calendar owns
+its temporal/recurrence orchestration, native/CalDAV providers, pure model, normalized mappings
+and production JPA payload store. Core owns shared persistence
 under actual identity/security/Spaces/audit/operation/binding/readiness/schema packages; its pure
 model has no optional feature implementation. Chat, Agent Runtime and Portability have owning
 JPA libraries; Agent Runtime and Portability models and existing adapter libraries are below
@@ -28,10 +29,9 @@ project that resolves domain selection once. Root tasks, API/schema tooling, hos
 Docker JAR paths and complete source inputs target App. The independent nested Server
 wrapper/settings were retired in favor of the repository-pinned root wrapper.
 
-**Still transitional:** Calendar/Chat services/controllers/providers, remaining shared platform
+**Still transitional:** Chat services/controllers/providers, remaining shared platform
 services and future-domain runtimes still require extraction. Real selected-runtime packaging, future-domain
-release exclusion and reduced discovery/client integration are not complete. Calendar/Chat retain a verification
-bridge; Files uses genuine owning checks. Partial App packaging/API/schema export guards remain
+release exclusion and reduced discovery/client integration are not complete. Chat retains a verification bridge; Files and Calendar use genuine owning checks. Partial App packaging/API/schema export guards remain
 until real selected runtime composition is implemented. No ARM64,
 native or live/human release qualification is claimed from library checks.
 
@@ -57,7 +57,7 @@ Core must not depend on an optional domain implementation. Domains must not depe
 ## Current leaf projects
 
 - `:server:domains:files` runtime, `:server:domains:files:model` and `:server:domains:files:persistence`: see `server/domains/files/README.md` for ownership and removal rationale.
-- `:server:domains:calendar:model` and `:server:domains:calendar:persistence`: see `server/domains/calendar/README.md`.
+- `:server:domains:calendar` runtime, `:server:domains:calendar:model` and `:server:domains:calendar:persistence`: see `server/domains/calendar/README.md`.
 - `:server:core:model` and `:server:core`: shared pure contracts and responsibility-owned persistence.
 - Agent Runtime `model`, `persistence`, `provider` and `security`; Portability `model` and
   `persistence`; Chat `persistence`: see their owning READMEs.
@@ -122,8 +122,8 @@ workflow is removed as its own instructions required, resolving both current CI 
 | Phase | Milestone and implementation decisions | Checks | Status / blockers |
 | --- | --- | --- | --- |
 | 1. Ownership and contracts | Inventory source/resources/dependencies and assign actual owners; prepare Entity-first and selected-domain discovery corpus changes; retain this plan as the single execution record | Corpus lint/examples, resolver tests, source inspection | In progress; accepted pin remains unchanged pending normal corpus review |
-| 2. Domain composition | App is the sole executable; Core owns justified platform responsibilities; runtime modules own imports registration and scoped persistence; separate non-web tooling | Compile, dependency graph, real imports discovery and bean uniqueness | App executable split, Core shared wiring and actual Files runtime/imports implemented; Calendar/Chat and future runtime extraction pending |
-| 3. Vertical extraction and ORM | Files/Calendar/Chat own services/controllers/providers/persistence; future domains remain buildable outside release; convert ordinary Calendar/Matrix JDBC CRUD | Domain units, PostgreSQL writes/isolation/constraints/transactions, no legacy copies | Files vertical runtime and Calendar/Matrix ORM extraction implemented; remaining Calendar/Chat/future runtime/API ownership open |
+| 2. Domain composition | App is the sole executable; Core owns justified platform responsibilities; runtime modules own imports registration and scoped persistence; separate non-web tooling | Compile, dependency graph, real imports discovery and bean uniqueness | App executable split, Core shared wiring and actual Files/Calendar runtime/imports implemented; Chat and future runtime extraction pending |
+| 3. Vertical extraction and ORM | Files/Calendar/Chat own services/controllers/providers/persistence; future domains remain buildable outside release; convert ordinary Calendar/Matrix JDBC CRUD | Domain units, PostgreSQL writes/isolation/constraints/transactions, no legacy copies | Files/Calendar vertical runtimes and Calendar/Matrix ORM extraction implemented; remaining Chat/future runtime/API ownership open |
 | 4. Core and build finalization | Remove feature dependencies from Core; one selection drives real checks, runtime, schema/API and identity; preserve data-safe initializer until qualified cutover | Architecture rules, selected JAR/SDK inspection, offline deterministic schema | Shared session/identity/policy and health implementations extracted into Core; runtime selection remains pending; schema cutover requires accepted corpus and integrity/recovery evidence |
 | 5. Runtime and clients | Release and three single-domain variants start with honest capabilities/endpoints; generated User/Admin contracts follow registered handlers; Flutter uses stable destinations | API/auth/client freshness, variants, Compose/two-member acceptance, ARM64/AOT/JNI where available | Pending; no live or native qualification claimed |
 | 6. Review and delivery | Consolidate docs/Skills/instructions; review combined diff; coherent commits/push and exact-revision PR evidence | Applicable combined CI, diff review, protected checks | Pending; no protected merge/deployment/data reset authorized |
@@ -600,36 +600,6 @@ actual OpenAPI export runs 14 tests and normalization runs five. The separate fu
 200 tests with no skips/failures/errors in 2m59s. Selected Files aggregate checks also pass.
 No persistent operator database, owner data or migration history was reset.
 
-### Existing provider HTTP work reconciliation checkpoint
-
-The normal merge of existing HTTP PR #1732 retains the current Files ownership and Core
-Security token/SecretRef implementations. Named Keycloak HTTP operations, exact operation
-and successful-status admission, fixture-only request attributes, URL context paths,
-private-key JWT authentication, bounded timeouts and 401 invalidation are preserved. Core
-Identity now physically owns the admin client, policy, original invitation settings and
-protected HTTP binding. The redundant incoming settings snapshot and production test-only
-RestClient constructor were removed; independent client/policy/fixture tests and their
-explicit protected-proxy helper now belong to Core. Actual module-local Boot discovery
-proves singleton serving beans and non-web absence without reading credentials.
-
-The incoming Nextcloud factory belongs to Files; CalDAV, Synapse and OpenProject factories
-belong to their existing Calendar, Chat and Boards business namespaces (the latter three
-remain physically under App until their runtime extraction). Specialized DAV/Matrix
-protocol behavior remains in its provider. No second Keycloak transport/token cache,
-Core-to-optional-domain dependency, new public setting or dependency upgrade was added.
-The required existing pinned Boot RestClient module is declared by its actual Core consumer.
-Implementation provenance is recorded in `server/docs/keycloak-admin-http-client-refactor.md`,
-which points back to the authoritative Java standard rather than defining parallel rules.
-
-Final combined JVM validation passed in 1m57s: Core/model and Files owning checks, whole
-App tests, fresh User/Admin OpenAPI and `coreArchitectureCi`. Core ran 157 tests, Core model
-3, Files runtime 94/model 21/persistence 11, App 1,262 with 24 existing lane skips, OpenAPI
-14 and normalization 5; zero failures/errors. The prior Files checkpoint's PostgreSQL
-qualification is not relabeled as qualification of this later HTTP source revision. No
-runtime/persistence contract or accepted corpus pin changed; Linux ARM64/native/AOT and
-integrated product qualification remain separate. Calendar runtime extraction is next.
-
-
 ### Protected HTTP client integration checkpoint
 
 The existing HTTP-client implementation from PR #1732 is incorporated by normal branch merge,
@@ -667,3 +637,81 @@ index's ARM64 manifest `sha256:89d56312ace1d9b0bf8168f1a92ea135ba185d2844285f765
 a disposable ARM64 container produced the existing required services-JAR SHA-256
 `b295c806047aea4b3ca31352c1664bff698106013902cb2b66f0cd1a61c2ad83`. This is dependency validation,
 not a Weave ARM64 image, native executable or release qualification.
+
+
+### Calendar runtime and shared Identity checkpoint
+
+Calendar now owns its actual serving runtime under `:server:domains:calendar`: authenticated
+use cases, User/DAV/setup controllers and wire values, native JPA provider, CalDAV transport,
+recurrence/parsing/rendering, settings, binding bootstrap and health/capability/Space contributions.
+Sixty App production files moved physically. Normalized mappings/store and native JPA adapter
+share the owning `calendar.persistence` namespace; pure model remains separate. Existing
+package-private mappings stay private rather than becoming a cross-domain API. Calendar's
+`ical4j` dependency moved with its runtime consumers. Bootstrap business validation lives in
+an application class; configuration only constructs its runner.
+
+Module-local runtime imports register the actual servlet graph after scoped persistence.
+Three standalone contexts prove native and CalDAV construction without live providers/secrets,
+bean uniqueness, actual handler registration, no serving graph in non-web tooling and absence
+of Files OpenDAL, Matrix JNI and Chat persistence implementations. App excludes the owning
+namespace from transitional scanning, preserving Boot filters. There are no legacy source-set
+aliases, forwarding controllers or duplicate implementations. Actual JAR inspection finds the
+Calendar runtime/model/persistence libraries and their imports/handlers, with zero copies of
+the sixty moved implementations in App classes.
+
+Independent units move with Calendar. Two suites using the full installation fixture remain
+App integration tests in Calendar business packages. The resolver schedules real owning tests;
+only Chat retains the transitional App bridge. Its inventory test now distinguishes actual
+runtime projects by their task closure rather than a Files-only name exception. Rendered
+mobile-profile results belong to application instead of provider implementation. Source guards
+continue inspecting actual API/persistence/provider paths without loosening the boundary rule.
+
+Core Identity now owns current-member/display-name queries, invitation use cases and HTTP
+adapters, profile/identity HTTP adapters, invitation JPA adaptation and pure invitation
+values/ports. The shared in-memory invitation test adapter is a test fixture. App/operator
+repository duplicates and the invitation service's default-identity test convenience constructor
+are removed. Existing User/Admin URLs, authorization, provider sequencing, idempotency and
+wire shapes remain unchanged. Organization administration/Weaver entitlement separation and
+remaining foundational Space controllers still require their later ownership cleanup.
+
+HMAC reference construction no longer reads a mounted secret during AOT/context construction.
+The ordered serving readiness runner validates the exact SecretRef before normal startup
+workflows/traffic; first use also fails closed. Same key-length/symlink/readability checks and
+one-time key caching remain. Tests cover unavailable/short/symlinked secrets, a mount arriving
+after construction, cached-key behavior and the actual imports-discovered readiness hook.
+Standalone discovery verifies actual shared controllers and no non-web serving graph. MVC
+slices explicitly import relocated handlers while full runtime uses module-local discovery.
+Calendar and Files one-time credential DTOs now redact diagnostics without altering JSON or
+credential accessors; owning regressions preserve the wire values and exclude sensitive output.
+
+Final main-source combined command:
+`./gradlew :server:domains:calendar:check :server:core:model:check :server:app:test
+checkOpenApiContractFresh coreArchitectureCi :server:app:bootJar -Pdomains=all --console=plain`
+passed in 3m3s. Core 186/model 3,
+Calendar 71/model 4/persistence 10, Files 95/model 21/persistence 11, App 1,169 with 24 explicit
+PostgreSQL/MinIO lane skips, OpenAPI export 14 and normalization five; zero failures/errors.
+The strengthened Calendar discovery assertions also passed selected Calendar checks afterwards.
+`:server:domains:check -Pdomains=calendar` passed; resolver 32 tests. `:server:app:entitySchemaCheck`
+passed against the selected compiled graph. The separate scoped disposable PostgreSQL command
+`:server:app:postgresJpaTest -Pdomains=all --console=plain` passed 200 tests with zero skips,
+failures or errors in three minutes. No owner data, database or migration history was reset.
+Production inventory: 912 file FQNs, no duplicates. Distinct context-lane scheduling is a
+remaining build cleanup, not a completed qualification claim.
+
+### Flutter stable navigation checkpoint
+
+The existing Flutter application now shares `ShellDestination` identities between route
+composition, navigation semantics and member-Space refresh. Indices only adapt that list to
+GoRouter/Material widgets. Production still uses the accepted full shell and bootstrap rules;
+there is no reduced-manifest activation, provider inference or separate per-selection client.
+New widget fixtures prove omitted/reordered destinations retain correct routes and semantics at
+ordinary and doubled text scale. Existing English/German large-text targets, keyboard access,
+bootstrap/sign-in redirects and navigation continue passing.
+
+Pinned local Flutter 3.41.6 / Dart 3.11.4 / Rust 1.95.0: `flutter pub get`, `flutter gen-l10n`
+and the repository build_runner command passed without dependency upgrades; only the router's
+owned generated hash changed. `flutter test --no-pub test/core/router test/features/shell`
+passed 80 tests. Final `flutter analyze --no-pub --fatal-infos` passed and
+`dart format --output=none --set-exit-if-changed .` checked 482 files with zero changes.
+The first widget run built the pinned local Matrix bridge; this is not server Linux ARM64,
+GraalVM native or two-member product acceptance. Full application/native/HIL lanes remain separate.

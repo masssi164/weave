@@ -29,7 +29,7 @@ MODULES = ('server/app', 'server/core', 'server/core/model',
            'server/domains/portability/model', 'server/domains/portability/persistence',
            'server/domains/chat/persistence',
            'server/domains/files', 'server/domains/files/model', 'server/domains/files/persistence',
-           'server/domains/calendar/model', 'server/domains/calendar/persistence',
+           'server/domains/calendar', 'server/domains/calendar/model', 'server/domains/calendar/persistence',
            'weave-mcp-server', 'weave-product-e2e')
 SKIP = {'.git', '.gradle', '.dart_tool', 'build', 'target', 'node_modules'}
 STRING = r'"""[\s\S]*?"""|"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\''

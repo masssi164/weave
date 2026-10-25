@@ -58,7 +58,8 @@ class ServerArchitectureBoundaryTest {
             BACKEND_PACKAGE + "boards.deck.",
             BACKEND_PACKAGE + "boards.local.",
             BACKEND_PACKAGE + "files.provider.NextcloudFilesAdapter",
-            BACKEND_PACKAGE + "service.calendar.CalDavCalendarAdapter");
+            BACKEND_PACKAGE + "calendar.provider.",
+            BACKEND_PACKAGE + "calendar.persistence.NativeCalendarProviderAdapter");
     private static final List<String> NATIVE_OR_MCP_CONTRACT_FORBIDDEN_LITERALS = List.of(
             "nextcloud",
             "/remote.php/dav",
@@ -307,7 +308,7 @@ class ServerArchitectureBoundaryTest {
     @Test
     void calendarCalDavMethodsRouteThroughCalendarFacadeUseCases() throws IOException {
         JavaSource calDavController = productionSources().stream()
-                .filter(source -> source.path().endsWith(Path.of("controller", "CalDavCalendarController.java")))
+                .filter(source -> source.path().endsWith(Path.of("calendar", "api", "dav", "CalDavCalendarController.java")))
                 .findFirst()
                 .orElseThrow();
 
@@ -791,7 +792,9 @@ class ServerArchitectureBoundaryTest {
     }
 
     private static boolean isPublicDeliveryContract(JavaSource source) {
-        return source.packageName().equals(BACKEND_PACKAGE + "controller")
+        return source.packageName().endsWith(".api")
+                || source.packageName().contains(".api.")
+                || source.packageName().equals(BACKEND_PACKAGE + "controller")
                 || source.packageName().startsWith(BACKEND_PACKAGE + "controller.")
                 || source.packageName().equals(BACKEND_PACKAGE + "model")
                 || source.packageName().startsWith(BACKEND_PACKAGE + "model.");
@@ -802,6 +805,8 @@ class ServerArchitectureBoundaryTest {
         return !source.packageName().equals(BACKEND_PACKAGE + "config")
                 && !source.packageName().startsWith(BACKEND_PACKAGE + "config.")
                 && !source.packageName().startsWith(BACKEND_PACKAGE + "chat.provider.")
+                && !source.packageName().startsWith(BACKEND_PACKAGE + "calendar.provider.")
+                && !source.packageName().startsWith(BACKEND_PACKAGE + "calendar.config")
                 && (className.contains("Mcp")
                 || className.contains("WebDav")
                 || className.contains("CalDav")
@@ -813,11 +818,11 @@ class ServerArchitectureBoundaryTest {
         String path = source.path().toString().replace('\\', '/');
         String className = source.path().getFileName().toString();
         return path.contains("/files/api/FileNative")
-                || path.contains("/model/calendar/CalendarNative")
-                || path.contains("/model/calendar/CalendarClientSetup")
-                || path.contains("/model/calendar/CalendarExternalEndpoints")
+                || path.contains("/calendar/api/CalendarNative")
+                || path.contains("/calendar/api/CalendarClientSetup")
+                || path.contains("/calendar/api/CalendarExternalEndpoints")
                 || path.contains("/model/calls/CallNative")
-                || path.contains("/service/calendar/AppleMobileConfigProfileRenderer")
+                || path.contains("/calendar/provider/caldav/AppleMobileConfigProfileRenderer")
                 || path.contains("/weaver/")
                 || className.contains("Mcp");
     }
