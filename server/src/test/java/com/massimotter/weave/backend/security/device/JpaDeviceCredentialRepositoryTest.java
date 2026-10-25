@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.security.device;
 
-import com.massimotter.weave.backend.persistence.jpa.security.DeviceCredentialJpaRepository;
+import com.massimotter.weave.backend.security.persistence.DeviceCredentialJpaRepository;
 import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;

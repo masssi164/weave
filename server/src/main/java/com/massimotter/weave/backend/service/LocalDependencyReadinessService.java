@@ -4,7 +4,7 @@ import com.massimotter.weave.backend.agentruntime.application.AgentRuntimeWorklo
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadReconciliationReport;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeStateStore;
 import com.massimotter.weave.backend.model.PlatformStatusResponse;
-import com.massimotter.weave.backend.persistence.jpa.readiness.JpaPersistenceReadinessProbe;
+import com.massimotter.weave.backend.readiness.persistence.JpaPersistenceReadinessProbe;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;

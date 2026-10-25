@@ -1,7 +1,7 @@
 tasks.register('postgresPersistenceCi') {
     group = 'verification'
     description = 'Run the current PostgreSQL/Flyway/JPA foundation tests, including authoritative server repository contracts.'
-    dependsOn ':weave-persistence-jpa:test', ':server:postgresJpaTest'
+    dependsOn ':server:core:test', ':server:domains:agent-runtime:persistence:test', ':server:domains:chat:persistence:test', ':server:domains:portability:persistence:test', ':server:postgresJpaTest'
 }
 
 tasks.register('protocolFacadeFoundationCi') {

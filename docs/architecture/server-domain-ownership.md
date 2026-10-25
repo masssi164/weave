@@ -4,9 +4,23 @@ Implementation owner: #1745; integration parent: #1741; PR: #1746. This is the c
 
 ## Current state versus target
 
-**Implemented:** Files model, entities/repositories and transactional JPA adapters live under `server/domains/files`. Calendar model and JPA mappings live under `server/domains/calendar`. Each model/persistence library is a real Gradle project with its own compile boundary and tests. The retired root Files model has no second production copy.
+**Implemented:** Files owns its pure model and transactional JPA adapters. Calendar owns its
+pure model, normalized mappings and production JPA payload store. Core owns shared persistence
+under actual identity/security/Spaces/audit/operation/binding/readiness/schema packages; its pure
+model has no optional feature implementation. Chat, Agent Runtime and Portability have owning
+JPA libraries; Agent Runtime and Portability models and existing adapter libraries are below
+Server. All former Server-owned root projects are retired. Five shadowed adapter copies were
+removed without weakening the active security behavior.
 
-**Still transitional:** `server` remains the executable application. Files/Calendar authenticated services, controllers, provider adapters and runtime wiring, Chat extraction, the small shared Core and final `server/app` composition are not complete. The generic root JPA and runtime-adapter projects remain only until their remaining owners are extracted. Do not claim that reduced `bootJar` variants, module-local runtime auto-configuration, ARM64/native execution or owner HIL are qualified by these library moves.
+Core and the five persistence owners register scoped entity/repository wiring through their
+own Boot imports resources. Six actual Boot discovery tests pass. Shared provider health uses
+domain contributions, and shared member/session revocation no longer imports Chat types.
+
+**Still transitional:** `server` remains the executable. The remaining services/controllers,
+provider runtime wiring, final `server/app`, real selected-runtime packaging, future-domain
+release exclusion and reduced discovery/client integration are not complete. The verification
+bridge and partial-packaging guard remain until those behaviors are implemented. No ARM64,
+native or live/human release qualification is claimed from library checks.
 
 The initial release product scope is **Files, Calendar and Chat**. Boards, Office, DevOps, Agent Runtime, portability/transfer, guest-facing and integration features remain planned domains. Move their implementations out of Core rather than deleting agreed product scope.
 
@@ -31,6 +45,9 @@ Core must not depend on an optional domain implementation. Domains must not depe
 
 - `:server:domains:files:model` and `:server:domains:files:persistence`: see `server/domains/files/README.md` for ownership and removal rationale.
 - `:server:domains:calendar:model` and `:server:domains:calendar:persistence`: see `server/domains/calendar/README.md`.
+- `:server:core:model` and `:server:core`: shared pure contracts and responsibility-owned persistence.
+- Agent Runtime `model`, `persistence`, `provider` and `security`; Portability `model` and
+  `persistence`; Chat `persistence`: see their owning READMEs.
 - Shared Java/toolchain/JUnit mechanics: `server/gradle/scripts/domain-library.gradle`. Dependencies remain in each library. Domain-qualified groups and archives prevent sibling libraries named `model` or `persistence` from claiming the same Gradle component identity.
 
 The canonical package-direction rules remain in `docs/architecture/core-package-boundaries.md`. Keep model/provider/persistence/API boundaries explicit; do not generate a Gradle project for every package or maintain empty placeholder domains.
@@ -49,7 +66,9 @@ Optional shared workflows consume domain-owned contributions through small contr
 
 ## Build selection and OpenAPI
 
-The agreed selection rule is explicit pipeline `domains` / `-Pdomains`, then a matching branch's `pinned_domains`, then `all`. `all` means registered domains, not every future feature. Reuse the shared resolver from #1744 when integrating production composition; do not invent another resolver or silently package excluded code. Branch pins are resolved to exact source commits. Domain set, platform, toolchain/flavor, source and spec identity must participate in artifact identity and digest consumption.
+The agreed selection rule is explicit pipeline `domains` / `-Pdomains`, then a matching branch's `pinned_domains`, then `all`. `all` expands the canonical selectable catalog. The current bridge still catalogs only Files,
+Chat and Calendar; catalog expansion to implemented future runtimes is part of unfinished
+production composition, not permission to redefine final `all` as the release set. Reuse the shared resolver from #1744 when integrating production composition; do not invent another resolver or silently package excluded code. Branch pins are resolved to exact source commits. Domain set, platform, toolchain/flavor, source and spec identity must participate in artifact identity and digest consumption.
 
 The selected controllers and their Spring handler mappings must exist **before** code-first OpenAPI export. Use actual Gradle prerequisite dependencies, not ordering hints alone. Generated User/Admin clients follow the completed export. Keep the accepted OrgManifest/API contract intact; reduced/no-Chat discovery requires its explicit accepted contract change.
 
@@ -74,7 +93,9 @@ From the repository root:
 
 These are library checks, not a claim that the production domain selector or new App assembly is finished. Existing complete Server, PostgreSQL, API and protocol checks remain required. The source-level relational inventory includes nested domain projects, not only the old root locations; domain architecture tests inspect their compiled classes. Image source-input closure includes new module sources/build files and shared build mechanics.
 
-Preserve one complete historical Flyway catalog. JPA mappings remain domain-owned and production uses the migrated schema. No source move rewrites historical SQL.
+The active historical Flyway catalog remains unchanged during extraction. Entity-first
+authoring and any deliberate pre-release consolidation follow the explicit corpus proposal
+and integrity/recovery gates; source moves never reset data or rewrite applied history.
 
 ## Living six-phase execution plan
 
@@ -88,9 +109,9 @@ workflow is removed as its own instructions required, resolving both current CI 
 | Phase | Milestone and implementation decisions | Checks | Status / blockers |
 | --- | --- | --- | --- |
 | 1. Ownership and contracts | Inventory source/resources/dependencies and assign actual owners; prepare Entity-first and selected-domain discovery corpus changes; retain this plan as the single execution record | Corpus lint/examples, resolver tests, source inspection | In progress; accepted pin remains unchanged pending normal corpus review |
-| 2. Domain composition | App is the sole executable; Core owns justified platform responsibilities; runtime modules own imports registration and scoped persistence; separate non-web tooling | Compile, dependency graph, real imports discovery and bean uniqueness | Pending |
+| 2. Domain composition | App is the sole executable; Core owns justified platform responsibilities; runtime modules own imports registration and scoped persistence; separate non-web tooling | Compile, dependency graph, real imports discovery and bean uniqueness | Scoped persistence imports/discovery implemented; App/runtime still pending |
 | 3. Vertical extraction and ORM | Files/Calendar/Chat own services/controllers/providers/persistence; future domains remain buildable outside release; convert ordinary Calendar/Matrix JDBC CRUD | Domain units, PostgreSQL writes/isolation/constraints/transactions, no legacy copies | Calendar ORM conversion and persistence-library extraction implemented; runtime/API still open |
-| 4. Core and build finalization | Remove feature dependencies from Core; one selection drives real checks, runtime, schema/API and identity; preserve data-safe initializer until qualified cutover | Architecture rules, selected JAR/SDK inspection, offline deterministic schema | Pending; active schema cutover requires accepted corpus and integrity/recovery evidence |
+| 4. Core and build finalization | Remove feature dependencies from Core; one selection drives real checks, runtime, schema/API and identity; preserve data-safe initializer until qualified cutover | Architecture rules, selected JAR/SDK inspection, offline deterministic schema | Shared session and health boundaries extracted; runtime selection remains pending; schema cutover requires accepted corpus and integrity/recovery evidence |
 | 5. Runtime and clients | Release and three single-domain variants start with honest capabilities/endpoints; generated User/Admin contracts follow registered handlers; Flutter uses stable destinations | API/auth/client freshness, variants, Compose/two-member acceptance, ARM64/AOT/JNI where available | Pending; no live or native qualification claimed |
 | 6. Review and delivery | Consolidate docs/Skills/instructions; review combined diff; coherent commits/push and exact-revision PR evidence | Applicable combined CI, diff review, protected checks | Pending; no protected merge/deployment/data reset authorized |
 
@@ -151,3 +172,44 @@ acceptance or platform evidence remains a blocker; it never becomes an inferred 
 - Corpus proposal: [weave-specs#172](https://github.com/masssi164/weave-specs/pull/172). Its local
   lint (159 entries/26 example pairs), vector freshness, ready-claim self-test, link check and
   bundle build passed. It is proposed, not the implementation's accepted pin.
+
+### Server-internal library consolidation checkpoint
+
+The former root application-core project is split into Core model, Agent Runtime model and
+Portability model. Root JPA sources are split into Core and Chat/Agent Runtime/Portability
+persistence owners; framework-free source sets and compiled architecture tests remain separate.
+Root provider/security adapters move under Agent Runtime with their existing security/provider
+dependency tests. Generated clients, MCP and product E2E remain standalone. The old root build
+projects are removed with no source-set forwarding.
+
+This relocation does not yet extract the remaining executable's services/controllers or
+exclude future runtime code from release assembly. Shared workload-security types historically
+in Agent Runtime still need their actual Core security boundary before runtime exclusion.
+
+Duplicate-source review found four additional shadowed Agent Runtime adapters. Their active
+Server implementations replace stale root-library copies under the actual adapter owner.
+In particular, the active exact-audience token policy and explicit READ_ONLY/READ_WRITE
+SecretRef access modes are preserved; stale copies must not silently weaken them. Related
+unit tests move into the adapter libraries. One whitespace-equivalent signer duplicate was
+also removed. Source architecture inspection now walks every real Server production root.
+
+### Shared security and persistence discovery checkpoint
+
+- Shared session port and JPA adapter now belong to Core Security. JWT validation and member
+  cutoff depend on shared security; Chat retains identity projection and delegates shared state.
+  Existing table/hash, claim precedence, expiry, bounded retries and independent transactions
+  are preserved. Focused auth/Matrix/security: 131 passed; authoritative PostgreSQL: 6 passed.
+- Health contribution tests: 17 passed; Java reference checks: 13 passed; Python static checks:
+  16 passed. Domain-owned configuration preserves existing provider routing and cached probe
+  semantics; absent contributions create no entries/gauges and duplicate IDs are rejected.
+- Six persistence projects now prove actual Boot imports-resource discovery and real repository
+  construction without manual test imports of their configurations. These use H2 only for
+  bean wiring; authoritative integrity and recovery evidence remains PostgreSQL.
+- Artifact input closure follows moved production sources/build files.
+  `TMPDIR=/private/tmp python3 tools/build_artifacts_test.py`: 39 passed; the canonical macOS
+  temporary path avoids `/var` versus `/private/var` fixture mismatches without changing product code.
+- Source inspection walks every real Server production root and reports no duplicate types or
+  retired root projects. Physical `@Column(name="tenant_id")` metadata is distinguished from
+  human-token claim aliases; the executable still cannot declare entities/repositories.
+- Corpus proposal #172 hosted Specification conformance succeeded; normal review/acceptance
+  and the resulting implementation pin update remain pending.

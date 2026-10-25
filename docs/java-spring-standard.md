@@ -13,7 +13,7 @@ This is Weave's single coding standard for Java/Spring implementation and review
 
 ## Ownership and package placement
 
-- The transitional `weave-application-core` and extracted `server/domains/files/model` / `server/domains/calendar/model` stay framework-free: canonical values, use cases and ports, not Spring/JPA/Jackson/HTTP types. The old `weave-files-core` root is retired, not another source authority.
+- `server/core/model` and the owning Files, Calendar, Agent Runtime and Portability model libraries stay framework-free: canonical values, use cases and ports, not Spring/JPA/Jackson/HTTP types. The old `weave-files-core` root is retired, not another source authority.
 - Domains own their entities, repositories, transactional adapters, application services, API controllers and provider dependencies. Current and target ownership are distinguished in [Server domain ownership](architecture/server-domain-ownership.md). Do not claim the App/Core/runtime extraction is finished from a model-library move.
 - Core contains genuinely shared identity, authorization, Spaces, audit and narrow contracts, never optional-domain implementation. Adapters implement domain ports. Preserve architecture tests and forbid domain-to-executable or cross-domain repository dependencies.
 - The executable application composes selected domains. Group integration wiring under its actual owner, for example `config/keycloak/KeycloakAdminClient.java`, `KeycloakAdminProperties.java`, and `KeycloakAuthConfig.java` for shared identity. Domain-specific provider clients belong to that domain, not global Core/config.

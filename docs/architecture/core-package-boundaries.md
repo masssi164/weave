@@ -41,12 +41,12 @@ Forbidden:
 | Files JPA types and transactional adapters | `server/domains/files/persistence` |
 | Canonical Calendar values | `server/domains/calendar/model` |
 | Calendar JPA mappings and repository interfaces | `server/domains/calendar/persistence` |
-| Remaining shared and legacy canonical code | `weave-application-core` (transitional) |
-| Remaining non-Files/non-Calendar JPA types | `weave-persistence-jpa` (transitional) |
-| Remaining provider/security adapter modules | `weave-runtime-provider-adapters`, `weave-runtime-security-adapters` (transitional) |
+| Shared framework-free identity/Spaces/operation/binding contracts | `server/core/model` |
+| Shared persistence and domain-owned JPA graphs | `server/core` and owning domain `persistence` libraries |
+| Agent Runtime provider/security adapters | `server/domains/agent-runtime/provider`, `server/domains/agent-runtime/security` |
 | Serving composition, remaining controllers/providers/use cases | `server` (transitional executable) |
 
-The shared modules above are not the final Core design. Classify remaining Identity/Security/Spaces/audit code separately from planned Agent Runtime, Boards, Office, DevOps and portability domains. No future feature is deleted merely to make Core appear small.
+The remaining executable services are not the final Core design. Classify remaining Identity/Security/Spaces/audit code separately from planned Agent Runtime, Boards, Office, DevOps and portability domains. No future feature is deleted merely to make Core appear small.
 
 ## Domain integration
 

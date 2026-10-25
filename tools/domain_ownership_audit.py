@@ -72,7 +72,8 @@ def audit(root: Path) -> dict:
             entries.append({
                 "path": relative,
                 "project": project,
-                "suggestedOwner": expected_owner(package, file.name),
+                "suggestedOwner": {"agentruntime": "agent-runtime"}.get(
+                    expected_owner(package, file.name), expected_owner(package, file.name)),
                 "entity": bool(ENTITY.search(source)),
                 "jpaRepository": bool(REPOSITORY.search(source)),
                 "nominalType": (package + "." if package else "") + file.stem,

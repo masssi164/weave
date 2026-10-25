@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.config;
 
-import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService;
+import com.massimotter.weave.backend.security.MemberSessionRevocationService;
 import com.massimotter.weave.backend.security.MemberSessionCutoffService;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.proc.DefaultJOSEObjectTypeVerifier;
@@ -40,7 +40,7 @@ public class JwtDecoderConfig {
     JwtDecoder memberJwtDecoder(
             OAuth2ResourceServerProperties resourceServerProperties,
             WeaveSecurityProperties weaveSecurityProperties,
-            ObjectProvider<MatrixFacadeClientStateService> memberSessions,
+            ObjectProvider<MemberSessionRevocationService> memberSessions,
             ObjectProvider<MemberSessionCutoffService> memberCutoffs) {
         return withMemberSessionRevocation(
                 withMemberCutoff(jwtDecoder(resourceServerProperties, weaveSecurityProperties),
@@ -51,7 +51,7 @@ public class JwtDecoderConfig {
     JwtDecoder memberJwtDecoder(
             OAuth2ResourceServerProperties resourceServerProperties,
             WeaveSecurityProperties weaveSecurityProperties,
-            ObjectProvider<MatrixFacadeClientStateService> memberSessions) {
+            ObjectProvider<MemberSessionRevocationService> memberSessions) {
         return withMemberSessionRevocation(
                 jwtDecoder(resourceServerProperties, weaveSecurityProperties), memberSessions::getObject);
     }
@@ -68,12 +68,12 @@ public class JwtDecoderConfig {
     }
 
     static JwtDecoder withMemberSessionRevocation(
-            JwtDecoder decoder, Supplier<MatrixFacadeClientStateService> memberSessions) {
+            JwtDecoder decoder, Supplier<MemberSessionRevocationService> memberSessions) {
         return token -> {
             Jwt jwt = decoder.decode(token);
             // Resolve only after signature/claim validation, so contract export
-            // does not load the native Matrix runtime through authentication.
-            MatrixFacadeClientStateService sessions = memberSessions.get();
+            // loads no optional domain runtime through authentication.
+            MemberSessionRevocationService sessions = memberSessions.get();
             if (sessions.revoked(jwt)) {
                 // Retain the longest expiry when another already-issued bearer
                 // from the same revoked OIDC session is presented.

@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.service.migration;
 
-import com.massimotter.weave.backend.persistence.jpa.migration.MigrationRunEvidenceJpaRepository;
+import com.massimotter.weave.backend.portability.persistence.MigrationRunEvidenceJpaRepository;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;

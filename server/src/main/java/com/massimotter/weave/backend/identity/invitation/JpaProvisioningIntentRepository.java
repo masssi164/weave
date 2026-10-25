@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.identity.invitation;
 
-import com.massimotter.weave.backend.persistence.jpa.identity.ProvisioningIntentJpaEntity;
-import com.massimotter.weave.backend.persistence.jpa.identity.ProvisioningIntentJpaRepository;
+import com.massimotter.weave.backend.identity.persistence.ProvisioningIntentJpaEntity;
+import com.massimotter.weave.backend.identity.persistence.ProvisioningIntentJpaRepository;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;

@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.service.migration;
 
-import com.massimotter.weave.backend.persistence.jpa.migration.MigrationRunEvidenceJpaRepository;
+import com.massimotter.weave.backend.portability.persistence.MigrationRunEvidenceJpaRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 

@@ -1,11 +1,13 @@
 package com.massimotter.weave.backend.matrix;
 
-import com.massimotter.weave.backend.persistence.jpa.matrix.MatrixIdentityProjectionJpaRepository;
-import com.massimotter.weave.backend.persistence.jpa.matrix.MatrixRevokedSessionJpaRepository;
+import com.massimotter.weave.backend.chat.persistence.MatrixIdentityProjectionJpaRepository;
+import com.massimotter.weave.backend.security.persistence.MatrixRevokedSessionJpaRepository;
 
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.security.MemberSessionCutoffService;
+import com.massimotter.weave.backend.security.MemberSessionRevocationService;
+import com.massimotter.weave.backend.security.persistence.JpaMemberSessionStateStore;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -180,7 +182,7 @@ class MatrixFacadeClientStateServicePersistenceTest {
                 OrganizationIdentityContextResolver.configured(authorization);
         MatrixFacadeClientStateService first =
                 new MatrixFacadeClientStateService(
-                        protocol, stateStore, authorization, identityContextResolver);
+                        protocol, stateStore, new MemberSessionRevocationService(stateStore, identityContextResolver), authorization, identityContextResolver);
 
         Jwt session = jwt();
         MatrixFacadeClientStateService.MatrixIdentity registered =
@@ -225,7 +227,7 @@ class MatrixFacadeClientStateServicePersistenceTest {
         first.revoke(session);
         MatrixFacadeClientStateService restarted =
                 new MatrixFacadeClientStateService(
-                        protocol, stateStore(dataSource), authorization, identityContextResolver);
+                        protocol, stateStore(dataSource), new MemberSessionRevocationService(stateStore(dataSource), identityContextResolver), authorization, identityContextResolver);
 
         assertThat(registered.userId()).isEqualTo(matrixUserId);
         assertThat(registeredAgain).isEqualTo(registered);
@@ -289,7 +291,8 @@ class MatrixFacadeClientStateServicePersistenceTest {
         }).when(racingRevocations).findById(any());
         MatrixFacadeClientStateStore stateStore = new JpaMatrixFacadeClientStateStore(
                 racingIdentities,
-                racingRevocations,
+                new JpaMemberSessionStateStore(racingRevocations,
+                        com.massimotter.weave.backend.testing.JpaTestDatabase.transactionManager(dataSource)),
                 com.massimotter.weave.backend.testing.JpaTestDatabase.transactionManager(dataSource));
         MatrixProtocolCoreService protocol = mock(MatrixProtocolCoreService.class);
         String matrixUserId = "@user_projection:api.weave.test";
@@ -299,6 +302,7 @@ class MatrixFacadeClientStateServicePersistenceTest {
         MatrixFacadeClientStateService service = new MatrixFacadeClientStateService(
                 protocol,
                 stateStore,
+                new MemberSessionRevocationService(stateStore, OrganizationIdentityContextResolver.configured(authorization)),
                 authorization,
                 OrganizationIdentityContextResolver.configured(authorization));
         OuterTransactionBoundary outerTransaction =
@@ -397,7 +401,8 @@ class MatrixFacadeClientStateServicePersistenceTest {
                         MatrixRevokedSessionJpaRepository.class);
         return new JpaMatrixFacadeClientStateStore(
                 identities,
-                revocations,
+                new JpaMemberSessionStateStore(revocations,
+                        com.massimotter.weave.backend.testing.JpaTestDatabase.transactionManager(dataSource)),
                 com.massimotter.weave.backend.testing.JpaTestDatabase.transactionManager(dataSource));
     }
 

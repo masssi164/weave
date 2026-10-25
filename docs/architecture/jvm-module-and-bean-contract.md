@@ -1,200 +1,58 @@
-# JVM module, dependency, and bean contract
+# JVM module, dependency and bean contract
 
-Status: historical Java/Spring implementation inventory. Its northbound DAV,
-MCP-over-DAV, OpenAPI-control-only, and private ARC/Runner delivery assertions
-are superseded for the current release by the pinned
-`steering/release-2026-10-product-consolidation.md` profile and #1470. Server
-code generates separate User and Admin OpenAPI artifacts; Files and Calendar use
-the generated User API, MCP and member E2E flows share the generated JVM User
-client, administrative E2E actions use the separate generated Admin client, and
-Chat uses the bounded Weave Matrix Client-Server facade. Provider adoption
-and migration belong to #1498. The module dependency and security notes below
-remain useful historical evidence only where they agree with current source and
-the pinned corpus. Do not use the older transport or private-execution examples
-as implementation instructions.
+The [Server ownership guide](server-domain-ownership.md) records implemented ownership and the
+living extraction plan. The [Java/Spring standard](../java-spring-standard.md) owns coding and
+configuration policy. The pinned corpus owns product and delivery contracts. This document
+explains the current dependency direction without duplicating those rules.
 
-**Current extraction note (2026-10-25):** Files pure model and its JPA mapping library now live in `server/domains/files/model` and `server/domains/files/persistence` as separate Gradle projects. The topology and single-server composition below describe the remaining transitional modules; do not reintroduce a Root Files model or put Files entities back in the generic JPA module. The full Server App/domain extraction is not complete.
+## Compiled library ownership
 
-## Module dependency direction
+Core model contains independently useful identity references, Spaces contracts, operation
+intents and provider-binding values/ports. It is framework-free. Agent Runtime and Portability
+have separate framework-free models; they are not platform prerequisites merely because the
+old application-core project contained them.
 
-```text
-weave-application-core       server/domains/files/model
-          ▲                         ▲
-          │                         │
-          ├──────────────┐          │
-          │              │          │
-weave-persistence-jpa    │          │
-weave-runtime-provider-adapters     │
-weave-runtime-security-adapters     │
-          ▲              ▲          ▲
-          └──────────────┴──────────┤
-                                   server
+Core persistence is organized under actual identity, security, audit, Spaces, operation,
+provider-binding, readiness and schema responsibilities. Domain entities/repositories live in
+Files, Calendar, Chat, Agent Runtime or Portability persistence. Each persistence project
+uses the aligned JPA platform and depends inward on the relevant pure model. No persistence
+project depends on the executable or on another domain's private entities.
 
-weave-mcp-server ── generated User HTTP ──> server
+Agent Runtime's existing provider and security adapter libraries retain separate compiled
+boundaries: provider normalization cannot acquire persistence or delivery ownership, and
+cryptographic/security adapters cannot acquire HTTP administration or JPA dependencies. Their
+single identical signer implementation is owned by Security. Its behavior tests moved with it.
 
-weave-product-e2e ── OIDC/WebDAV/MCP ──> running Server + MCP
-```
+The retired root projects have no source-set aliases or second production copies. Their
+replacements are `server/core/model`, `server/core`, `server/domains/agent-runtime` libraries,
+`server/domains/portability` libraries and `server/domains/chat/persistence`.
 
-The MCP process has no Java project dependency on Server, Application Core, persistence, or a
-provider adapter. Its only integration with Server is a standards-based, OAuth2-protected
-northbound projection. For the first vertical slice that projection is the generated User Files API.
-The product E2E module likewise has no project dependency on either implementation; it drives
-only their deployed public protocols.
+## Runtime wiring and current limitation
 
-## Dependency and bean ownership
+Persistence libraries register module-local `@AutoConfiguration` through their own
+`META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`. They scope
+entity/repository discovery to their actual responsibility packages and do not instantiate
+servlet controllers or provider clients. Real discovery tests use Boot's import discovery,
+not a manual import of the configuration under test. H2 proves this wiring only; PostgreSQL
+remains authoritative for persistence semantics.
 
-| Module | Permitted dependencies | Bean ownership | Explicitly forbidden |
-| --- | --- | --- | --- |
-| `weave-application-core` | Java 21 only | none | Spring, Jakarta Persistence, Hibernate, JDBC, HTTP, MCP, Jackson and provider types |
-| `server/domains/files/model` | Java 21 only | none | framework, transport and provider dependencies |
-| `weave-persistence-jpa` | Application Core, Jakarta Persistence, Spring Data JPA, MapStruct API/processor | no configuration beans; entity/repository implementations are discovered only by the Server composition root | Web/controller DTOs, MCP, providers, JDBC templates, Hibernate APIs in entity code |
-| `weave-runtime-provider-adapters` | Application Core and Jackson for provider payload normalization | no component scanning; Server configuration creates the selected port implementations explicitly | controllers, persistence entities, MCP annotations, provider DTOs crossing a port |
-| `weave-runtime-security-adapters` | Application Core, Spring Security JOSE, canonical JSON and Jackson | no security filter chains; Server configuration creates cryptographic/policy port implementations explicitly | HTTP endpoints, JPA, provider administration and MCP transport |
-| `server` | Spring Boot WebMVC/RestClient, Security Resource Server and OAuth2 Client, Validation, Data JPA, Actuator, OpenAPI plus the adapter modules | the application composition root: security chains, use-case services, transaction/JPA composition, provider selection, one qualified Keycloak admin `RestClient`, and the one-shot code-first schema initializer | Spring AI MCP transport/tools, MCP token-exchange admission, provider-shaped northbound contracts |
-| `weave-mcp-server` | Spring Boot RestClient, generated JVM User client, Security Resource Server and OAuth2 Client, Spring AI MCP WebMVC, Actuator and PEM/JWK support | one MCP security chain, one JWT decoder, one token-exchange boundary, one request-scoped exchanged credential, generated Files and Calendar User clients, curated read projections, framework transport customizers | DataSource, JPA, Hibernate, schema initialization, Server entities/use cases and every southbound provider |
-| `weave-product-e2e` | Plain Java, Playwright, Jackson, Nimbus JOSE/JWT, JUnit, AssertJ and ArchUnit | no Spring beans; one bounded process drives invitation, browser activation, PKCE, ARC, WebDAV and MCP | Spring, JPA/Hibernate, Server/MCP implementation dependencies, provider adapters, credential/evidence persistence |
+The remaining executable is still transitional: services, controllers and provider integration
+must finish moving to runtime domain owners before selected executable packaging is complete.
+The partial-packaging guard remains active. Library checks and persistence discovery are not
+reduced-runtime qualification. App composition must replace broad executable scanning with
+explicit Core/domain wiring and preserve non-web tooling contexts.
 
-Only the two deployable Spring processes apply the Spring Boot plugin. All JVM modules use Java 21 and resolve
-Spring/Security/Jackson versions from the repository version catalog and the Spring Boot BOM.
-The MCP executable imports the compatible Spring AI BOM; no library module pins an alternative
-Spring generation. The verification-only E2E module applies the Java plugin and is never packaged
-into a runtime image.
+Shared health uses narrow domain contributions; the scheduler owns caching, backoff, metrics
+and redaction while each domain owns its actual probe and provider lookup. Authentication
+revocation state belongs to Security independently of Chat identity/device/crypto state.
 
-## Server security beans
+## Independent processes and consumers
 
-The normal API is a stateless OAuth2 Resource Server. Its shared JWT decoder validates signature,
-issuer, timestamps, exact audience and first-party client binding. Purpose-specific chains are
-ordered before the general API chain only where their token profile is materially different:
-Agent Runtime administration, RuntimeProfile delivery, isolated Chat proof, Matrix application
-service callback, and Files/Calendar read-only workload access. A chain owns one exact path family and cannot
-act as a fallback for another.
+MCP is a separate executable that depends on the generated User client, never Server/Core
+implementations, JPA, provider adapters or schema initialization. Product E2E is a plain Java
+public-protocol consumer using distinct member and workload identities. Generated User/Admin
+clients remain standalone and generated. Only executable applications apply the Boot plugin.
 
-Server-to-Keycloak invitation administration is the single OAuth2 Client integration for that
-boundary:
-
-- Boot owns the `ClientRegistrationRepository`, authorized-client service and
-  `OAuth2AuthorizedClientManager`.
-- `KeycloakAdminClientConfiguration` owns one qualified
-  `keycloakIdentityAdminRestClient`.
-- `OAuth2ClientHttpRequestInterceptor` obtains and caches the `client_credentials` token under
-  the fixed service principal `weave-server`.
-- `KeycloakIdentityAdminClient` owns only Keycloak admin URI/payload normalization. It contains
-  no token endpoint call, bearer cache, password grant or human-token relay.
-
-Agent Runtime Control reuses the same Spring Security OAuth2 implementation without adding a
-second protocol stack:
-
-- the two explicitly qualified Keycloak administration token ports separate workload-client
-  mutation from read-only entitlement observation;
-- `SpringSecurityKeycloakAdminAccessTokenProvider` resolves each long-lived client secret only
-  through its mounted `SecretRef` and delegates the grant to
-  `RestClientClientCredentialsTokenResponseClient`;
-- the short-lived bearer cache and rejection invalidation remain inside that one adapter;
-- `weave-runtime-provider-adapters` contains Keycloak Admin REST normalization but no token
-  endpoint request, Spring bean, OAuth implementation or secret-bearing configuration.
-
-The first-owner bootstrap adds no second identity client:
-
-- `BootstrapOwnerCredential` is created only when
-  `weave.identity.invitations.bootstrap-owner.enabled=true`; it reads a read-only, private
-  SecretRef on every constant-time comparison and rejects symlinks or permissive POSIX modes.
-- `BootstrapOwnerInvitationController` owns exactly
-  `POST /api/bootstrap/owner-invitation`; the general API chain permits this path because the
-  controller authenticates the one-shot SecretRef itself.
-- `MemberInvitationService` still creates the canonical provisioning intent and delegates the
-  provider invitation to the same OAuth2-secured `KeycloakIdentityAdminClient`.
-- The controller and credential bean do not exist in the normal runtime profile. An empty-realm
-  check, exact provider/local correlation, and owner-only projection make retries fail closed.
-
-The JPA starter owns `EntityManagerFactory`, transaction management, repository proxies and
-Hibernate. H2 `dev-h2` uses an isolated in-memory schema built from entities with `update`.
-PostgreSQL uses the exact Server image in persistent one-shot `schema-init` mode, followed by a
-support-safe receipt check; serving instances use `ddl-auto=validate` and require the exact
-candidate marker. `JpaAuditEventPublisher` is the required runtime audit bean; application
-services do not silently create an in-memory audit sink. No production-shaped profile falls back
-to H2.
-
-## MCP security beans
-
-The MCP application has one workload-only Security filter chain:
-
-- `mcpJwtDecoder` validates issuer, time, access-token type and the exact singleton MCP resource audience;
-- `McpRequestAdmissionFilter` validates extension negotiation, cell client, workload role and
-  required scopes before tool dispatch;
-- `McpBackendTokenExchange` uses Spring Security's RFC 8693
-  `TokenExchangeOAuth2AuthorizedClientProvider`,
-  `RestClientTokenExchangeTokenResponseClient`, and `private_key_jwt`;
-- `McpInvocationCredentials` is request-scoped and exposes only the exchanged backend token;
-- `FilesUserApiClient` attaches that exchanged token to generated User Files operations and has no
-  route or credential fallback;
-- `FilesMcpProjection` alone owns `files.search` and
-  `weave://files/{canonicalFileId}`.
-
-The incoming MCP bearer is never put into a backend request. Token exchange cannot widen scopes,
-produce a refresh token, outlive the cell token, or target a different backend resource.
-
-## Open-standard reuse
-
-OpenAPI is the server-owned description for User and Admin HTTP routes and generates typed
-Flutter, MCP, product E2E and Admin transport clients. It is not a universal protocol compiler:
-
-- OIDC/OAuth2 clients use discovery metadata and Spring/Flutter OIDC libraries;
-- Files clients and MCP consume the User Files HTTP API;
-- Calendar clients consume the User Calendar HTTP API;
-- Chat clients and future MCP projections consume the Matrix Client-Server projection;
-- MCP discovery, tools, resources, prompts and schemas are generated by the MCP implementation.
-
-This gives Client and MCP the same canonical domain projections without inventing private
-tool-specific Server endpoints or pretending that OpenAPI describes Matrix or
-MCP itself.
-
-## Identity and candidate artifacts
-
-Static Keycloak state is rendered reproducibly from the canonical realm source and enters only
-through Keycloak realm import. The separately invoked, rootless post-import migration is bounded
-to FGAP state import cannot express, requires a verified private backup, deletes its temporary
-bootstrap authority, records a digest-bound receipt, and must produce an empty second plan.
-
-During active development, `Full Compose E2E` builds from and tests the exact checked-out `dev` or
-`dogfood` SHA through `./gradlew testApp`; dogfood deployment builds local Server and MCP images
-through the root Compose lifecycle. There is no active Candidate Cut or candidate manifest in this
-loop. A future production-hardening ADR must reintroduce immutable image publication, SBOM,
-provenance, and release promotion rules for the selected production target.
-
-## Fresh product-flow proof
-
-`./gradlew testApp` owns one run-scoped stack from preparation through exact teardown:
-
-1. A local image build requires a clean Git worktree; candidate CI instead supplies paired,
-   published digest references for all three candidate runtime images. This prevents an
-   uncommitted source tree from inheriting a misleading commit revision label.
-2. `prepare-product-flow` creates namespace, ports, ownership evidence, a machine-only Chat proof
-   SecretRef and empty human membership inputs. It creates no `credentials.env`.
-3. The protected first-owner operation emits a normal Keycloak organization invitation.
-4. The Java process reads the matching one-time action from loopback Mailpit, uses real Chromium
-   with an exact leaf-SPKI pin, and holds the generated password only in memory.
-5. Owner and member use Authorization Code with PKCE S256. The owner invites the member through
-   Weave with `agent-runtime.entitled`.
-6. ARC provisions the per-cell `private_key_jwt` SecretRef. The workload negotiates MCP, discovers
-   `files.search`, and reaches the generated User Files API with current workload authorization.
-7. Revocation must deny a second workload invocation. The run then destroys only resources whose
-   namespace and immutable ownership evidence match.
-
-The only durable product-flow artifact contains timestamps and hashes plus protocol/result enums.
-It contains no email, password, bearer token, action URL, client assertion, client ID or private
-key.
-
-## Enforcement
-
-- ArchUnit rejects frameworks from Application Core, delivery/provider dependencies from
-  persistence, Spring/OAuth/JPA from provider adapters, delivery/provider HTTP/JPA from security
-  adapters, and backend/JPA dependencies from MCP.
-- Server H2 repository tests give fast feedback; `postgresJpaTest` is the authoritative
-  migration/entity/repository gate.
-- OpenAPI and generated Flutter/Admin models have freshness gates.
-- `infraStatic` validates the Desired State, ownership labels and lifecycle scripts.
-- `testAppContract` compiles and architecture-tests the verification module without starting a
-  stack; the candidate `fresh-product-proof` job runs the full disposable stack.
-- `identityOpsValidate` validates the exact bundled Desired State/provider combination in the
-  hardened container sandbox.
-- `serverCi` and `mcpCi` remain separate process/module gates.
+Follow the ownership guide for actual commands, pending extraction and exact-source evidence.
+Historical DAV-only, private Runner and SQL-first implementation instructions are superseded;
+they must not be reintroduced as active rules.

@@ -3,7 +3,7 @@ package com.massimotter.weave.backend.dogfood;
 import static com.massimotter.weave.backend.dogfood.DogfoodPreparationProtocol.*;
 
 import com.massimotter.weave.backend.audit.*;
-import com.massimotter.weave.backend.persistence.jpa.audit.AuditEventJpaRepository;
+import com.massimotter.weave.backend.audit.persistence.AuditEventJpaRepository;
 import java.time.Instant;
 import java.util.Map;
 import org.springframework.transaction.annotation.Transactional;

@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.security;
 
-import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateStore;
+import com.massimotter.weave.backend.security.port.MemberSessionStateStore;
 import com.massimotter.weave.backend.service.OrganizationIdentityContext;
 import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import java.nio.charset.StandardCharsets;
@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.util.HexFormat;
 import java.util.Objects;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 
@@ -23,17 +24,17 @@ public class MemberSessionCutoffService {
     // admitted by its iat, so retaining this hashed epoch does not block reauth.
     private static final Instant RETAIN_UNTIL = Instant.parse("9999-12-31T23:59:59Z");
 
-    private final MatrixFacadeClientStateStore stateStore;
+    private final MemberSessionStateStore stateStore;
     private final OrganizationIdentityContextResolver identities;
     private final Clock clock;
 
     @Autowired
-    public MemberSessionCutoffService(MatrixFacadeClientStateStore stateStore,
+    public MemberSessionCutoffService(@Qualifier("memberSessionStateStore") MemberSessionStateStore stateStore,
             OrganizationIdentityContextResolver identities) {
         this(stateStore, identities, Clock.systemUTC());
     }
 
-    MemberSessionCutoffService(MatrixFacadeClientStateStore stateStore,
+    MemberSessionCutoffService(MemberSessionStateStore stateStore,
             OrganizationIdentityContextResolver identities, Clock clock) {
         this.stateStore = Objects.requireNonNull(stateStore, "stateStore");
         this.identities = Objects.requireNonNull(identities, "identities");

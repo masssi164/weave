@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.service;
 
-import com.massimotter.weave.backend.persistence.jpa.OrganizationBootstrapJpaRepository;
+import com.massimotter.weave.backend.identity.organization.persistence.OrganizationBootstrapJpaRepository;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;

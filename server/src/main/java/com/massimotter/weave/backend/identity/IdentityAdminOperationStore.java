@@ -1,9 +1,9 @@
 package com.massimotter.weave.backend.identity;
 
 import com.massimotter.weave.backend.exception.ApiErrorException;
-import com.massimotter.weave.backend.persistence.jpa.identity.IdentityAdminOperationEntity;
-import com.massimotter.weave.backend.persistence.jpa.identity.IdentityAdminOperationId;
-import com.massimotter.weave.backend.persistence.jpa.identity.IdentityAdminOperationJpaRepository;
+import com.massimotter.weave.backend.identity.persistence.IdentityAdminOperationEntity;
+import com.massimotter.weave.backend.identity.persistence.IdentityAdminOperationId;
+import com.massimotter.weave.backend.identity.persistence.IdentityAdminOperationJpaRepository;
 import java.time.Clock;
 import java.util.Map;
 import java.util.Optional;

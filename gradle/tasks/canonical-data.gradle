@@ -1,5 +1,5 @@
 tasks.register('canonicalDataCi') {
     group = 'verification'
     description = 'Run provider-independent canonical identity, transfer-envelope, loss-accounting, checkpoint, and connector-coordination tests.'
-    dependsOn ':weave-application-core:test'
+    dependsOn ':server:core:model:test', ':server:domains:portability:model:test', ':server:domains:agent-runtime:model:test'
 }

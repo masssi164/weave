@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.provider;
 
-import com.massimotter.weave.backend.persistence.jpa.provider.ProviderSelectionJpaEntity;
-import com.massimotter.weave.backend.persistence.jpa.provider.ProviderSelectionJpaRepository;
+import com.massimotter.weave.backend.providerbinding.persistence.ProviderSelectionJpaEntity;
+import com.massimotter.weave.backend.providerbinding.persistence.ProviderSelectionJpaRepository;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;

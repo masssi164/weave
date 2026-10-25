@@ -332,9 +332,9 @@ class ImpactTest(unittest.TestCase):
                       ['client/pubspec.lock', 'docs/quality-and-evidence.md']):
             self.assertFalse(impact.select(paths)['backend'], paths)
         for path in ('server/src/test/resources/fixture.json', 'server/docs/context-space-adr.md',
-                     'weave-runtime-security-adapters/src/main/java/Authz.java',
+                     'server/domains/agent-runtime/security/src/main/java/Authz.java',
                      'weave-mcp-server/gradle/scripts/java-and-dependencies.gradle',
-                     'weave-persistence-jpa/src/main/resources/db/migration/V1.sql',
+                     'server/core/src/main/resources/db/migration/V1.sql',
                      'contracts/openapi/weave-user-openapi.json', 'fixtures/test.json',
                      'specs/weave-specs.lock.json', 'e2e/features/auth.feature',
                      'infra/weave-workspace/scripts/build_runtime_state_image.sh',

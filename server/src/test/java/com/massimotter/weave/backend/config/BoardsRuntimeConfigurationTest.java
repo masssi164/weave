@@ -6,7 +6,7 @@ import com.massimotter.weave.backend.audit.JpaAuditEventPublisher;
 import com.massimotter.weave.backend.audit.FileAuditEventPublisher;
 import com.massimotter.weave.backend.boards.local.LocalWorkspaceBoardsRepository;
 import com.massimotter.weave.backend.boards.openproject.OpenProjectBoardsRepository;
-import com.massimotter.weave.backend.persistence.jpa.audit.AuditEventJpaRepository;
+import com.massimotter.weave.backend.audit.persistence.AuditEventJpaRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.web.client.RestClient;

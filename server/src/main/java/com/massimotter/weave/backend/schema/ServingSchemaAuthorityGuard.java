@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.schema;
 
-import com.massimotter.weave.backend.persistence.jpa.schema.SchemaAuthorityJpaRepository;
+import com.massimotter.weave.backend.schema.persistence.SchemaAuthorityJpaRepository;
 import java.sql.Connection;
 import java.util.Arrays;
 import java.util.Set;

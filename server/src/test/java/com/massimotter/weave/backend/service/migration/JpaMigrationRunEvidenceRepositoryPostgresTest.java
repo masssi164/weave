@@ -26,10 +26,10 @@ class JpaMigrationRunEvidenceRepositoryPostgresTest {
         DriverManagerDataSource dataSource = postgresDataSource();
         migrate(dataSource);
         Instant now = Instant.parse("2026-05-31T08:00:00Z");
-        com.massimotter.weave.backend.persistence.jpa.migration.MigrationRunEvidenceJpaRepository springData =
+        com.massimotter.weave.backend.portability.persistence.MigrationRunEvidenceJpaRepository springData =
                 com.massimotter.weave.backend.testing.JpaTestDatabase.repository(
                         dataSource,
-                        com.massimotter.weave.backend.persistence.jpa.migration.MigrationRunEvidenceJpaRepository.class);
+                        com.massimotter.weave.backend.portability.persistence.MigrationRunEvidenceJpaRepository.class);
         var repository = new JpaMigrationRunEvidenceRepository(
                 springData,
                 tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build());

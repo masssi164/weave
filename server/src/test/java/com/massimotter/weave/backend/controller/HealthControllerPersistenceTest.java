@@ -2,7 +2,7 @@ package com.massimotter.weave.backend.controller;
 
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.model.PlatformStatusResponse;
-import com.massimotter.weave.backend.persistence.jpa.readiness.JpaPersistenceReadinessProbe;
+import com.massimotter.weave.backend.readiness.persistence.JpaPersistenceReadinessProbe;
 import com.massimotter.weave.backend.service.LocalDependencyReadinessService;
 import com.massimotter.weave.backend.service.PlatformContractService;
 import com.massimotter.weave.backend.service.ProviderCapabilityHealthService;

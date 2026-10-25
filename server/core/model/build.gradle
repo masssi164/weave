@@ -1,0 +1,14 @@
+plugins { id 'java-library' }
+
+apply from: rootProject.file('server/gradle/scripts/domain-library.gradle')
+
+group = 'com.massimotter.weave.core.model'
+base { archivesName = 'weave-core-model' }
+
+dependencies {
+    api platform(libs.spring.boot.bom)
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.assertj:assertj-core'
+    testImplementation libs.archunit.junit5
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}

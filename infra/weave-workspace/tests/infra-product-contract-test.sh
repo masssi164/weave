@@ -184,10 +184,10 @@ require "${ROOT_DIR}/compose.yaml" 'target: identity-reference-hmac-key'
 reject "${REPO_ROOT}/server/src/main/resources/application.yml" \
   'spring.security.oauth2.client.registration.weave-identity-admin.client-secret'
 
-require "${REPO_ROOT}/settings.gradle" "include 'weave-application-core',"
-require "${REPO_ROOT}/settings.gradle" "'weave-persistence-jpa',"
-require "${REPO_ROOT}/settings.gradle" "'weave-runtime-security-adapters',"
-require "${REPO_ROOT}/settings.gradle" "'weave-runtime-provider-adapters',"
+require "${REPO_ROOT}/settings.gradle" "include 'server:core',"
+require "${REPO_ROOT}/settings.gradle" "'server:domains:chat:persistence',"
+require "${REPO_ROOT}/settings.gradle" "'server:domains:agent-runtime:security',"
+require "${REPO_ROOT}/settings.gradle" "'server:domains:agent-runtime:provider',"
 require "${REPO_ROOT}/settings.gradle" "'infra',"
 require "${REPO_ROOT}/settings.gradle" "'server',"
 require "${REPO_ROOT}/settings.gradle" "'weave-mcp-server'"

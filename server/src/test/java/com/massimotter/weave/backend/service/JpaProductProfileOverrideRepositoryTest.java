@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.service;
 
-import com.massimotter.weave.backend.persistence.jpa.profile.ProductProfileOverrideJpaRepository;
+import com.massimotter.weave.backend.identity.profile.persistence.ProductProfileOverrideJpaRepository;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;

@@ -2,8 +2,8 @@ package com.massimotter.weave.backend.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.massimotter.weave.backend.persistence.jpa.OrganizationBootstrapEntity;
-import com.massimotter.weave.backend.persistence.jpa.OrganizationBootstrapJpaRepository;
+import com.massimotter.weave.backend.identity.organization.persistence.OrganizationBootstrapEntity;
+import com.massimotter.weave.backend.identity.organization.persistence.OrganizationBootstrapJpaRepository;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;

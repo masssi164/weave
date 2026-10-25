@@ -98,6 +98,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         ApiExceptionHandler.class,
         MatrixProtocolCoreService.class,
         MatrixFacadeClientStateService.class,
+        com.massimotter.weave.backend.security.MemberSessionRevocationService.class,
+        MatrixClientServerProjectionControllerTest.SharedSessionStateConfiguration.class,
         OrganizationIdentityContextResolver.class,
         InMemoryMatrixFacadeClientStateStore.class,
         InMemoryMatrixE2eeRelationalStore.class,
@@ -110,6 +112,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "weave.matrix.facade.base-url=https://api.weave.test"
 })
 class MatrixClientServerProjectionControllerTest {
+
+    @org.springframework.boot.test.context.TestConfiguration(proxyBeanMethods = false)
+    static class SharedSessionStateConfiguration {
+        @org.springframework.context.annotation.Bean("memberSessionStateStore")
+        com.massimotter.weave.backend.security.port.MemberSessionStateStore memberSessionStateStore(
+                MatrixFacadeClientStateStore stateStore) { return stateStore; }
+    }
+
 
     // WEAVE_CHAT_DOMAIN_FACADE
 

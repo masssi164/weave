@@ -1,0 +1,19 @@
+plugins { id 'java-library' }
+
+apply from: rootProject.file('server/gradle/scripts/domain-library.gradle')
+
+group = 'com.massimotter.weave.domains.agent-runtime.security'
+base { archivesName = 'weave-domains-agent-runtime-security' }
+
+dependencies {
+    api platform(libs.spring.boot.bom)
+    api project(':server:core:model')
+    api project(':server:domains:agent-runtime:model')
+    implementation 'tools.jackson.core:jackson-databind'
+    implementation libs.jcs
+    implementation 'org.springframework.security:spring-security-oauth2-jose'
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.assertj:assertj-core'
+    testImplementation libs.archunit.junit5
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}

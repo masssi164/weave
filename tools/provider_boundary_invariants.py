@@ -29,11 +29,16 @@ FORBIDDEN_CONTENT = (
      ('server/src/main/java',)),
     ('protocol-sdk-coupling', r'matrix-sdk|matrix_sdk', ('rust/matrix-protocol',)),
     ('snapshot-persistence-authority', r'MatrixE2eeSnapshot(Store|JpaEntity|JpaRepository)',
-     ('server/src/main', 'weave-persistence-jpa/src/main')),
+     ('server/src/main', 'server/core/src/main',
+      'server/domains/chat/persistence/src/main',
+      'server/domains/agent-runtime/persistence/src/main',
+      'server/domains/portability/persistence/src/main',
+      'server/domains/files/persistence/src/main',
+      'server/domains/calendar/persistence/src/main')),
     ('retired-matrix-coupling', r'weave\.chat\.matrix-facade\.enabled|facadeEnabled|weave_matrix_core',
      ('server', 'gradle', 'rust', 'Cargo.toml', 'Cargo.lock')),
     ('native-s3-configuration', r'S3_COMPATIBLE|weave\.files\.native\.blob-store',
-     ('server', 'weave-files-core', 'weave-application-core', 'docs', 'README.md')),
+     ('server', 'docs', 'README.md')),
     ('filesystem-aws-coupling', r'software.amazon.awssdk', (FILESYSTEM_STORE,)),
 )
 

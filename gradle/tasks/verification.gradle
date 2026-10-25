@@ -12,9 +12,9 @@ registerCommandTask('clientDeterministicCi', file('client'), ['bash', '-lc', 'fl
 tasks.register('serverCi') {
     group = 'verification'
     description = 'Run core and adapter architecture tests plus the authoritative PostgreSQL JPA contract gate.'
-    dependsOn ':weave-application-core:test',
+    dependsOn ':server:core:model:test',
             ':server:domains:files:check',
-            ':weave-persistence-jpa:test',
+            ':server:core:test', ':server:domains:agent-runtime:persistence:test', ':server:domains:chat:persistence:test', ':server:domains:portability:persistence:test',
             ':server:test',
             ':server:postgresJpaTest'
 }

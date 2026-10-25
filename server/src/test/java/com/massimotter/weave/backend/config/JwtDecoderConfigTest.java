@@ -86,10 +86,10 @@ class JwtDecoderConfigTest {
             cutoffs.advance("acme", ISSUER_URI, "revoked-subject", backendNow);
             cutoffs.advance("acme", ISSUER_URI, "revoked-subject", issuerNotBefore);
             var sessions = org.mockito.Mockito.mock(
-                    com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService.class);
+                    com.massimotter.weave.backend.security.MemberSessionRevocationService.class);
             @SuppressWarnings("unchecked")
             org.springframework.beans.factory.ObjectProvider<
-                    com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService> sessionsProvider =
+                    com.massimotter.weave.backend.security.MemberSessionRevocationService> sessionsProvider =
                     org.mockito.Mockito.mock(org.springframework.beans.factory.ObjectProvider.class);
             @SuppressWarnings("unchecked")
             org.springframework.beans.factory.ObjectProvider<MemberSessionCutoffService> cutoffProvider =
@@ -123,11 +123,11 @@ class JwtDecoderConfigTest {
             WeaveSecurityProperties security =
                     new WeaveSecurityProperties("https://api.weave.test/api", "weave-app");
             var sessions = org.mockito.Mockito.mock(
-                    com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService.class);
+                    com.massimotter.weave.backend.security.MemberSessionRevocationService.class);
             var cutoffs = org.mockito.Mockito.mock(MemberSessionCutoffService.class);
             @SuppressWarnings("unchecked")
             org.springframework.beans.factory.ObjectProvider<
-                    com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService> sessionsProvider =
+                    com.massimotter.weave.backend.security.MemberSessionRevocationService> sessionsProvider =
                     org.mockito.Mockito.mock(org.springframework.beans.factory.ObjectProvider.class);
             @SuppressWarnings("unchecked")
             org.springframework.beans.factory.ObjectProvider<MemberSessionCutoffService> cutoffProvider =
@@ -168,10 +168,10 @@ class JwtDecoderConfigTest {
         RSAKey signingKey = rsaSigningKey();
         try (JwksServer jwksServer = JwksServer.start(signingKey)) {
             var sessions = org.mockito.Mockito.mock(
-                    com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService.class);
+                    com.massimotter.weave.backend.security.MemberSessionRevocationService.class);
             @SuppressWarnings("unchecked")
             org.springframework.beans.factory.ObjectProvider<
-                    com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService> provider =
+                    com.massimotter.weave.backend.security.MemberSessionRevocationService> provider =
                     org.mockito.Mockito.mock(org.springframework.beans.factory.ObjectProvider.class);
             org.mockito.Mockito.when(provider.getObject()).thenReturn(sessions);
             OAuth2ResourceServerProperties properties = new OAuth2ResourceServerProperties();

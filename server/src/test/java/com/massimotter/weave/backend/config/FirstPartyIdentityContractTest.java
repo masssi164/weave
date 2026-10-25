@@ -48,7 +48,7 @@ class FirstPartyIdentityContractTest {
     private MockMvc mockMvc;
 
     @Autowired
-    private com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService memberSessions;
+    private com.massimotter.weave.backend.security.MemberSessionRevocationService memberSessions;
 
     @MockitoBean
     private JwtDecoder jwtDecoder;
@@ -73,7 +73,7 @@ class FirstPartyIdentityContractTest {
     }
 
     @Test
-    void matrixLogoutRejectsRetainedMemberBearerOnUserApi() throws Exception {
+    void sharedSessionRevocationRejectsRetainedMemberBearerOnUserApi() throws Exception {
         Jwt session = jwt("logout-user-probe", List.of(REQUIRED_AUDIENCE), "weave:workspace",
                 Map.of("azp", FIRST_PARTY_CLIENT_ID, "sid", "logout-user-probe-session",
                         "organization", organizationWithRole("member")));

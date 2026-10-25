@@ -13,7 +13,11 @@ tasks.register('coreArchitectureCi') {
     description = 'Enforce canonical core, extracted domain-library and MCP dependency boundaries.'
 
     dependsOn 'javaAgentContractCheck',
-            ':weave-application-core:test',
+            ':server:core:model:test',
+            ':server:core:check',
+            ':server:domains:agent-runtime:check',
+            ':server:domains:portability:check',
+            ':server:domains:chat:persistence:check',
             ':server:domains:files:check',
             ':server:domains:calendar:check',
             ':server:entitySchemaCheck',

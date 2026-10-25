@@ -13,7 +13,7 @@ import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.model.admin.CapabilityWhitelistUpdateRequest;
 import com.massimotter.weave.backend.model.admin.EffectivePolicySimulationRequest;
-import com.massimotter.weave.backend.persistence.jpa.audit.AuditEventJpaRepository;
+import com.massimotter.weave.backend.audit.persistence.AuditEventJpaRepository;
 import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
 import com.massimotter.weave.backend.provider.ProviderRegistry;
 import com.massimotter.weave.backend.provider.ProviderSelection;

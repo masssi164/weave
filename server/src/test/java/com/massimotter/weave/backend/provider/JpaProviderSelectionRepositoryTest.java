@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.provider;
 
-import com.massimotter.weave.backend.persistence.jpa.provider.ProviderSelectionJpaRepository;
+import com.massimotter.weave.backend.providerbinding.persistence.ProviderSelectionJpaRepository;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;

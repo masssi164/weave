@@ -52,14 +52,19 @@ dependencies {
     implementation libs.aws.s3
     implementation libs.aws.url.connection.client
 
-    implementation project(':weave-application-core')
+    implementation project(':server:core:model')
     implementation project(':server:domains:files:model')
     implementation project(':server:domains:files:persistence')
     implementation project(':server:domains:calendar:model')
     implementation project(':server:domains:calendar:persistence')
-    implementation project(':weave-persistence-jpa')
-    implementation project(':weave-runtime-provider-adapters')
-    implementation project(':weave-runtime-security-adapters')
+    implementation project(':server:core')
+    implementation project(':server:domains:agent-runtime:persistence')
+    implementation project(':server:domains:chat:persistence')
+    implementation project(':server:domains:portability:persistence')
+    implementation project(':server:domains:agent-runtime:model')
+    implementation project(':server:domains:portability:model')
+    implementation project(':server:domains:agent-runtime:provider')
+    implementation project(':server:domains:agent-runtime:security')
     runtimeOnly 'org.postgresql:postgresql'
     developmentOnly 'com.h2database:h2'
 

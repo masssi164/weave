@@ -23,11 +23,14 @@ SKILLS = ('weave-spring-architecture', 'weave-http-clients',
 STANDARD = 'docs/java-spring-standard.md'
 # Required roots track actual extracted libraries, not the retired root Files project.
 # The walk below still inspects every production source root, including future modules.
-MODULES = ('server', 'weave-application-core',
+MODULES = ('server', 'server/core', 'server/core/model',
+           'server/domains/agent-runtime/model', 'server/domains/agent-runtime/persistence',
+           'server/domains/agent-runtime/provider', 'server/domains/agent-runtime/security',
+           'server/domains/portability/model', 'server/domains/portability/persistence',
+           'server/domains/chat/persistence',
            'server/domains/files/model', 'server/domains/files/persistence',
            'server/domains/calendar/model', 'server/domains/calendar/persistence',
-           'weave-persistence-jpa', 'weave-runtime-provider-adapters',
-           'weave-runtime-security-adapters', 'weave-mcp-server', 'weave-product-e2e')
+           'weave-mcp-server', 'weave-product-e2e')
 SKIP = {'.git', '.gradle', '.dart_tool', 'build', 'target', 'node_modules'}
 STRING = r'"""[\s\S]*?"""|"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\''
 JAVA_TOKEN = re.compile(rf'({STRING})|//[^\n]*|/\*[\s\S]*?\*/')

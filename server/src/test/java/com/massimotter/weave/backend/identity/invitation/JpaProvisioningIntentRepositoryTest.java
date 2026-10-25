@@ -3,7 +3,7 @@ package com.massimotter.weave.backend.identity.invitation;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.massimotter.weave.backend.persistence.jpa.identity.ProvisioningIntentJpaRepository;
+import com.massimotter.weave.backend.identity.persistence.ProvisioningIntentJpaRepository;
 import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import java.time.Instant;
 import java.util.UUID;

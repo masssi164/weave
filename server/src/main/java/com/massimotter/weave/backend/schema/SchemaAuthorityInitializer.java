@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.schema;
 
-import com.massimotter.weave.backend.persistence.jpa.schema.SchemaAuthorityJpaRepository;
+import com.massimotter.weave.backend.schema.persistence.SchemaAuthorityJpaRepository;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;

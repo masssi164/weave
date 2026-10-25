@@ -2,7 +2,7 @@ package com.massimotter.weave.backend.service;
 
 import com.massimotter.weave.backend.agentruntime.application.AgentRuntimeWorkloadReconciliationService;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadReconciliationReport;
-import com.massimotter.weave.backend.persistence.jpa.readiness.JpaPersistenceReadinessProbe;
+import com.massimotter.weave.backend.readiness.persistence.JpaPersistenceReadinessProbe;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 

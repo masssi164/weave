@@ -422,8 +422,8 @@ class SchemaAuthorityInitializerPostgresTest {
 
   private ServingSchemaAuthorityGuard servingGuard(Environment environment) throws Exception {
     var markerRepository = org.mockito.Mockito.mock(
-        com.massimotter.weave.backend.persistence.jpa.schema.SchemaAuthorityJpaRepository.class);
-    var marker = new com.massimotter.weave.backend.persistence.jpa.schema.SchemaAuthorityJpaEntity(
+        com.massimotter.weave.backend.schema.persistence.SchemaAuthorityJpaRepository.class);
+    var marker = new com.massimotter.weave.backend.schema.persistence.SchemaAuthorityJpaEntity(
         SchemaAuthorityInitializer.EPOCH, SchemaAuthorityInitializer.MODEL_ID, CANDIDATE,
         receipt(environment).path("catalogFingerprint").asText(), java.time.Instant.now());
     org.mockito.Mockito.when(markerRepository.findAll()).thenReturn(List.of(marker));
@@ -778,8 +778,8 @@ class SchemaAuthorityInitializerPostgresTest {
       runtimeEnvironment.put("WEAVE_SCHEMA_RUNTIME_ROLE", role);
       SchemaAuthorityInitializer.run(runtimeEnvironment);
       var markerRepository = org.mockito.Mockito.mock(
-          com.massimotter.weave.backend.persistence.jpa.schema.SchemaAuthorityJpaRepository.class);
-      var acceptedMarker = new com.massimotter.weave.backend.persistence.jpa.schema.SchemaAuthorityJpaEntity(
+          com.massimotter.weave.backend.schema.persistence.SchemaAuthorityJpaRepository.class);
+      var acceptedMarker = new com.massimotter.weave.backend.schema.persistence.SchemaAuthorityJpaEntity(
           SchemaAuthorityInitializer.EPOCH, SchemaAuthorityInitializer.MODEL_ID, CANDIDATE,
           receipt(environment).path("catalogFingerprint").asText(), java.time.Instant.now());
       org.mockito.Mockito.when(markerRepository.findAll()).thenReturn(List.of(acceptedMarker));

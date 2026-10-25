@@ -3,8 +3,8 @@ package com.massimotter.weave.backend.service;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
-import com.massimotter.weave.backend.persistence.jpa.profile.ProductProfileOverrideJpaEntity;
-import com.massimotter.weave.backend.persistence.jpa.profile.ProductProfileOverrideJpaRepository;
+import com.massimotter.weave.backend.identity.profile.persistence.ProductProfileOverrideJpaEntity;
+import com.massimotter.weave.backend.identity.profile.persistence.ProductProfileOverrideJpaRepository;
 import java.util.Map;
 import org.springframework.transaction.annotation.Transactional;
 

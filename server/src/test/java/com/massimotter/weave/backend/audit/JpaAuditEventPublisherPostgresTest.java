@@ -67,10 +67,10 @@ class JpaAuditEventPublisherPostgresTest {
     }
 
     private JpaAuditEventPublisher publisher(DriverManagerDataSource dataSource) {
-        com.massimotter.weave.backend.persistence.jpa.audit.AuditEventJpaRepository springData =
+        com.massimotter.weave.backend.audit.persistence.AuditEventJpaRepository springData =
                 com.massimotter.weave.backend.testing.JpaTestDatabase.repository(
                         dataSource,
-                        com.massimotter.weave.backend.persistence.jpa.audit.AuditEventJpaRepository.class);
+                        com.massimotter.weave.backend.audit.persistence.AuditEventJpaRepository.class);
         return new JpaAuditEventPublisher(
                 springData,
                 tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build());

@@ -62,7 +62,7 @@ class RelationalModelParityTest {
                 .contains("1");
 
         // Domain ownership does not create a second owner for historical Flyway scripts.
-        for (String module : List.of("weave-persistence-jpa", "server/domains")) {
+        for (String module : List.of("server/core", "server/domains")) {
             Path root = repositoryRoot.resolve(module);
             if (!Files.isDirectory(root)) {
                 continue;
@@ -115,7 +115,7 @@ class RelationalModelParityTest {
         StringBuilder source = new StringBuilder();
         // Walk real nested source roots: the old two fixed /src/main/java roots silently
         // stopped inspecting Files and Calendar entities as they were extracted.
-        for (String module : List.of("server", "weave-persistence-jpa")) {
+        for (String module : List.of("server")) {
             try (var files = Files.walk(repositoryRoot.resolve(module))) {
                 for (Path file : files.filter(Files::isRegularFile)
                         .filter(path -> path.toString().endsWith(".java"))

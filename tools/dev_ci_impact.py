@@ -16,9 +16,8 @@ GATES = ('user', 'admin', 'client', 'admin_console', 'infra', 'docs', 'rust', 'b
 KNOWN_ROOTS = {
     '.github', '.specify', 'client', 'admin-console', 'contracts', 'docs', 'e2e',
     'fixtures', 'gradle', 'infra', 'release', 'rust', 'server', 'specs', 'tools',
-    'weave-admin-api-client', 'weave-user-api-client', 'weave-application-core',
-    'weave-files-core', 'weave-persistence-jpa', 'weave-mcp-server',
-    'weave-product-e2e', 'weave-runtime-provider-adapters', 'weave-runtime-security-adapters',
+    'weave-admin-api-client', 'weave-user-api-client', 'weave-mcp-server',
+    'weave-product-e2e',
 }
 KNOWN_FILES = {'AGENTS.md', 'CONTRIBUTING.md', 'LICENSE', 'NOTICE.md', 'README.md',
                'THIRD_PARTY_NOTICES.md', 'Makefile', 'Cargo.toml', 'Cargo.lock',

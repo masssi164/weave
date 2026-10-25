@@ -16,7 +16,7 @@ class ServerArchitectureBoundaryTest {
     private static final String ENTERPRISE_TARGET_BOUNDARY_GATE = "ENTERPRISE_TARGET_BOUNDARY_GATE";
     private static final String BACKEND_PACKAGE = "com.massimotter.weave.backend.";
     private static final Path SPACE_CREATION_FENCE_SOURCE = Path.of(
-            "weave-persistence-jpa/src/main/java/com/massimotter/weave/backend/spaces/adapter/SpacePersistence.java");
+            "server/core/src/main/java/com/massimotter/weave/backend/spaces/adapter/SpacePersistence.java");
     // WEAVE-DOMAIN-SPACES names this sole fixed statement under ADR 0023. The rest of its file remains guarded.
     private static final String SPACE_CREATION_FENCE_DECLARATION =
             "@Modifying(flushAutomatically = true) @Query(value = \"\"\" "
@@ -457,7 +457,7 @@ class ServerArchitectureBoundaryTest {
 
         List<String> literalOwners = productionSources().stream()
                 .filter(source -> source.text().contains("\"weave_tenant_id\"")
-                        || source.text().contains("\"tenant_id\""))
+                        || source.text().replaceAll("@(?:Column|UniqueConstraint)\\([^)]*\\)", "").contains("\"tenant_id\""))
                 .map(source -> source.path().getFileName().toString())
                 .distinct()
                 .sorted()
@@ -473,7 +473,10 @@ class ServerArchitectureBoundaryTest {
     @Test
     void serverCompositionContainsNoJpaEntityOrSpringDataRepositoryDeclaration()
             throws IOException {
-        assertThat(productionSources())
+        assertThat(productionSources().stream()
+                .filter(source -> source.path().toAbsolutePath().normalize()
+                        .startsWith(sourceRoot().toAbsolutePath().normalize())).toList())
+                .isNotEmpty()
                 .allSatisfy(source -> assertThat(source.text())
                         .as(source.path().toString())
                         .doesNotContain("@Entity\n", "@Entity\r", "@Entity(")
@@ -484,10 +487,7 @@ class ServerArchitectureBoundaryTest {
     void productionDataAccessUsesJpaWithoutNativeSqlOrJdbcEscapeHatches()
             throws IOException {
         List<JavaSource> persistence = persistenceSources();
-        List<JavaSource> dataAccessSources = java.util.stream.Stream.concat(
-                        productionSources().stream(),
-                        persistence.stream())
-                .toList();
+        List<JavaSource> dataAccessSources = persistence;
         Set<String> nativeCollaborationSqlExceptions = Set.of(
                 "MatrixE2eeRelationalStore.java");
         assertThat(dataAccessSources.stream()
@@ -604,7 +604,7 @@ class ServerArchitectureBoundaryTest {
     void workloadRegistrationAuthorityRemainsAnAdapterPrivateSecretRefProtocol()
             throws IOException {
         List<JavaSource> providerAdapters =
-                moduleProductionSources("weave-runtime-provider-adapters");
+                moduleProductionSources("server/domains/agent-runtime/provider");
         JavaSource transport = providerAdapters.stream()
                 .filter(source -> source.path().endsWith(
                         Path.of("agentruntime", "adapter",
@@ -647,7 +647,7 @@ class ServerArchitectureBoundaryTest {
                 .containsOnlyOnce(
                         "root.resolve(\"weave/agent-runtime/registration-deletions\")")
                 .doesNotContain("RegistrationRecovery");
-        assertThat(moduleProductionSources("weave-application-core"))
+        assertThat(moduleProductionSources("server/domains/agent-runtime/model"))
                 .allSatisfy(source -> assertThat(source.text())
                         .as(source.path().toString())
                         .doesNotContain(
@@ -683,13 +683,7 @@ class ServerArchitectureBoundaryTest {
     }
 
     private static List<JavaSource> productionSources() throws IOException {
-        Path sourceRoot = sourceRoot();
-        try (var paths = Files.walk(sourceRoot)) {
-            return paths
-                    .filter(path -> path.toString().endsWith(".java"))
-                    .map(ServerArchitectureBoundaryTest::readSource)
-                    .toList();
-        }
+        return persistenceSources();
     }
 
     private static JavaSource sourceEndingWith(Path suffix) throws IOException {
@@ -700,14 +694,13 @@ class ServerArchitectureBoundaryTest {
     }
 
     private static List<JavaSource> persistenceSources() throws IOException {
-        Path persistenceRoot = Files.isDirectory(Path.of("src/main/java"))
-                ? Path.of("../weave-persistence-jpa/src/main/java")
-                : Path.of("weave-persistence-jpa/src/main/java");
-        try (var paths = Files.walk(persistenceRoot)) {
-            return paths
-                    .filter(path -> path.toString().endsWith(".java"))
-                    .map(ServerArchitectureBoundaryTest::readSource)
-                    .toList();
+        Path serverRoot = (Files.isDirectory(Path.of("src/main/java")) ? Path.of(".") : Path.of("server"))
+                .toAbsolutePath().normalize();
+        try (var paths = Files.walk(serverRoot)) {
+            return paths.filter(path -> path.toString().endsWith(".java"))
+                    .filter(path -> path.toString().replace('\\', '/').contains("/src/main/java/"))
+                    .filter(path -> !path.toString().replace('\\', '/').contains("/build/"))
+                    .map(ServerArchitectureBoundaryTest::readSource).toList();
         }
     }
 
