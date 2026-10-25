@@ -120,15 +120,20 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Garden'));
       await tester.pumpAndSettle();
+      expect(find.text('root:space-z'), findsOneWidget);
       expect(
-        router.routeInformationProvider.value.uri.path,
+        GoRouterState.of(tester.element(find.text('root:space-z'))).uri.path,
         '/files/spaces/space-z',
       );
-      expect(find.text('root:space-z'), findsOneWidget);
+      expect(router.canPop(), isTrue);
       router.pop();
       await tester.pumpAndSettle();
-      expect(router.routeInformationProvider.value.uri.path, AppRoutes.files);
       expect(find.text('Garden'), findsOneWidget);
+      expect(
+        GoRouterState.of(tester.element(find.byType(FilesLocationsScreen))).uri.path,
+        AppRoutes.files,
+      );
+      expect(router.canPop(), isFalse);
     },
   );
 
@@ -139,12 +144,21 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Garden'));
       await tester.pumpAndSettle();
+      expect(find.text('root:space-z'), findsOneWidget);
       router.pop();
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey(('files-location', null))));
+      final private = find.byWidgetPredicate((widget) =>
+          widget is Semantics &&
+          widget.properties.identifier == 'files-location-private');
+      expect(private, findsOneWidget);
+      await tester.tap(private);
       await tester.pumpAndSettle();
-      expect(router.routeInformationProvider.value.uri.path, '/files/private');
       expect(find.text('private-root'), findsOneWidget);
+      expect(
+        GoRouterState.of(tester.element(find.text('private-root'))).uri.path,
+        '/files/private',
+      );
+      expect(find.text('root:space-z'), findsNothing);
     },
   );
 
@@ -169,8 +183,14 @@ void main() {
         tester.element(find.byType(FilesLocationsScreen)),
       );
       container.invalidate(weaveApiMemberSpacesProvider);
+      expect(container.read(weaveApiMemberSpacesProvider).isLoading, isTrue);
+      // Drain the provider notification, then render its loading state without
+      // completing the replacement membership result.
+      await tester.pump();
       await tester.pump();
       expect(find.text('Garden'), findsNothing);
+      expect(find.text('Planning'), findsNothing);
+      expect(find.byType(ListTile), findsNothing);
       refresh.complete(
         const MemberSpaceAccessSnapshot(
           visibleSpaceRefs: {'space-a'},
