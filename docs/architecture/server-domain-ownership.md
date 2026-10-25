@@ -114,3 +114,15 @@ All registered current release domains are the `all` default; matching branch pi
 ## Review requirements
 
 Every phase is a small linked PR with one release-notes label, no parallel source authority, independently reviewable failure boundaries and exact-commit CI. Do not merge the still-draft #1744 verification bridge as if it were production extraction. Do not publish the previously staged incomplete source tree as an accepted consolidation; the historical root projects and Core-owned future-domain code still require removal. No live state or persistent volumes are reset by refactoring.
+
+
+## Verified blockers in the previously staged, unpublished tree
+
+The intermediate Git tree inspected before this phase is **not safe to publish as a completed module extraction**:
+
+- `server/domains/files`, `server/domains/chat`, and `server/domains/calendar` all resolve to the **same Git tree SHA** `19176c72abbdb590e96acda7761e4542fac153b6` — they are identical placeholder project trees, not three independent production implementations.
+- Legacy `weave-application-core`, `weave-files-core`, `weave-persistence-jpa`, `weave-runtime-provider-adapters`, `weave-runtime-security-adapters` and `server/src` remain in that root tree beside the new layout.
+- Its root `settings.gradle` still includes the legacy root projects and a verification-only domain bridge, rather than a proven production module graph.
+- Domain ownership, actual omitted-runtime classpaths, JPA entity placement, and code-first OpenAPI order therefore require a new exact-head implementation and CI proof. Previous local assertions against a different source tree cannot be attributed to this staged Git tree.
+
+**No WIP tree promotion, destructive path removal, speculative code deletion, or Dogfood image promotion is authorized until those blockers are resolved.**
