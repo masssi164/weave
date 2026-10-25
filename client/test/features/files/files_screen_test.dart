@@ -1987,6 +1987,13 @@ void main() {
       if (change != 'unchanged') {
         expect(find.text(l10n.filesUnavailableSpace), findsOneWidget);
         expect(find.text('Shared route preview bytes.'), findsNothing);
+        expect(
+          find.descendant(
+            of: find.byType(AlertDialog),
+            matching: find.text('preview.txt'),
+          ),
+          findsNothing,
+        );
       }
       await tester.tap(
         find.descendant(
@@ -2047,6 +2054,13 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('files-preview-content')), findsNothing);
       expect(find.text('Late revoked preview bytes.'), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('preview.txt'),
+        ),
+        findsNothing,
+      );
       await tester.tap(
         find.descendant(
           of: find.byType(AlertDialog),

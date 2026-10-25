@@ -1283,7 +1283,7 @@ class _FilePreview extends ConsumerWidget {
             ) ==
             true;
     return AlertDialog(
-      title: Text(entry.name),
+      title: Text(stillAvailable ? entry.name : l10n.filesScreenTitle),
       content: SizedBox(
         width: 560,
         child: !stillAvailable
