@@ -1,0 +1,41 @@
+// ORM authoring/export tooling is deliberately absent from the serving bootJar.
+sourceSets {
+    schemaExport {
+        compileClasspath += sourceSets.main.output + configurations.runtimeClasspath
+        runtimeClasspath += sourceSets.main.output + configurations.runtimeClasspath
+    }
+}
+sourceSets.test.compileClasspath += sourceSets.schemaExport.output
+sourceSets.test.runtimeClasspath += sourceSets.schemaExport.output
+
+tasks.named('compileSchemaExportJava') { dependsOn tasks.named('classes') }
+tasks.named('compileTestJava') { dependsOn tasks.named('schemaExportClasses') }
+
+def entityBaseline = layout.buildDirectory.file('generated/entity-schema/V1__entity_baseline.sql')
+tasks.register('entitySchemaExport', JavaExec) {
+    group = 'build'
+    description = 'Generate a candidate PostgreSQL baseline from compiled JPA entities, without a database.'
+    dependsOn tasks.named('schemaExportClasses')
+    classpath = sourceSets.schemaExport.runtimeClasspath
+    mainClass = 'com.massimotter.weave.schema.EntitySchemaExporter'
+    javaLauncher = javaToolchains.launcherFor(java.toolchain)
+    args entityBaseline.get().asFile.absolutePath
+    inputs.files(sourceSets.main.runtimeClasspath).withPropertyName('entityModelClasspath')
+    outputs.file(entityBaseline)
+}
+
+tasks.register('entitySchemaContractTest', Test) {
+    group = 'verification'
+    description = 'Verify real ORM schema export, deterministic output and offline-only operation.'
+    dependsOn tasks.named('testClasses')
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    filter { includeTestsMatching 'com.massimotter.weave.schema.EntityFirstSchemaExportTest' }
+    useJUnitPlatform { includeEngines 'junit-jupiter' }
+}
+
+tasks.register('entitySchemaCheck') {
+    group = 'verification'
+    description = 'Export the actual compiled entity set and check the ORM-first authoring boundary.'
+    dependsOn tasks.named('entitySchemaExport'), tasks.named('entitySchemaContractTest')
+}

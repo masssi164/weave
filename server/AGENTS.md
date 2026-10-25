@@ -16,11 +16,18 @@ Read `docs/architecture/server-domain-ownership.md` and the affected domain's RE
 
 Shared Java build mechanics live in `server/gradle/scripts/domain-library.gradle`; each library owns its dependencies. Core cannot import optional domain implementation. Shared Security/Identity/Spaces persistence stays with its actual responsibility; no generic dumping ground for domain entities or providers.
 
-When removing obsolete code or build plumbing, delete it instead of commenting it out. Record reason, replacement and compatibility impact in the commit and owning domain README. Retain agreed future functionality and historical Flyway migrations. Every source move updates Gradle dependencies, artifact input closure, source guards, domain tests and documentation together.
+When removing obsolete code or build plumbing, delete it instead of commenting it out. Record reason, replacement and compatibility impact in the commit and owning domain README. Retain agreed future functionality, not obsolete implementation layers. Every source move updates Gradle dependencies, artifact input closure, source guards, domain tests and documentation together.
+
+## Entity-first and ORM-first persistence
+
+The owner-approved authoring direction is `docs/architecture/entity-first-persistence.md`, reconciled with the corpus in weave-specs#170. Entities own ORM-expressible schema, and ordinary product data access uses JPA/Spring Data rather than duplicate handwritten SQL. The PostgreSQL baseline is generated from compiled mappings; generated SQL is an artifact, not a second model to maintain. Use selective Lombok, typed queries and declarative transactions without removing invariants.
+
+The current committed migration/initializer remains transitional until the generated baseline's PostgreSQL integrity and recovery checks pass. No released-user compatibility requirement forces retention of every pre-release intermediate migration. This is not authorization to reset owner data, rewrite an applied persistent schema, or remove unmapped integrity constraints. Keep domain ownership and complete controller/service extraction independent of this cutover.
 
 Validation from the repository root:
 
 - `./gradlew :server:domains:files:check :server:domains:calendar:check`
+- `./gradlew :server:entitySchemaCheck` for offline entity-first schema generation.
 - `./gradlew coreArchitectureCi`
 - `./gradlew :server:test` and the existing PostgreSQL/protocol/API gates for integration.
 
