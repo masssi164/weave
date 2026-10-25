@@ -14,3 +14,8 @@ java {
 tasks.withType(Test).configureEach {
     useJUnitPlatform()
 }
+
+// Runtime libraries own HTTP handlers/proxies too; preserve names required by Spring and AOT.
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs.add('-parameters')
+}

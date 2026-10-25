@@ -57,7 +57,7 @@ class ServerArchitectureBoundaryTest {
             BACKEND_PACKAGE + "boards.vikunja.",
             BACKEND_PACKAGE + "boards.deck.",
             BACKEND_PACKAGE + "boards.local.",
-            BACKEND_PACKAGE + "service.files.NextcloudFilesAdapter",
+            BACKEND_PACKAGE + "files.provider.NextcloudFilesAdapter",
             BACKEND_PACKAGE + "service.calendar.CalDavCalendarAdapter");
     private static final List<String> NATIVE_OR_MCP_CONTRACT_FORBIDDEN_LITERALS = List.of(
             "nextcloud",
@@ -248,11 +248,11 @@ class ServerArchitectureBoundaryTest {
     @Test
     void filesMemberDataPlaneIsServerOwnedAndCodeFirst() throws IOException {
         JavaSource filesController = productionSources().stream()
-                .filter(source -> source.path().endsWith(Path.of("controller", "FilesController.java")))
+                .filter(source -> source.path().endsWith(Path.of("files", "api", "FilesController.java")))
                 .findFirst()
                 .orElseThrow();
         JavaSource userController = productionSources().stream()
-                .filter(source -> source.path().endsWith(Path.of("controller", "FilesUserItemsController.java")))
+                .filter(source -> source.path().endsWith(Path.of("files", "api", "FilesUserItemsController.java")))
                 .findFirst()
                 .orElseThrow();
 
@@ -289,7 +289,7 @@ class ServerArchitectureBoundaryTest {
     @Test
     void filesWebDavWriteMethodsRouteThroughFacadeUseCases() throws IOException {
         JavaSource filesWebDavController = productionSources().stream()
-                .filter(source -> source.path().endsWith(Path.of("controller", "FilesWebDavController.java")))
+                .filter(source -> source.path().endsWith(Path.of("files", "api", "FilesWebDavController.java")))
                 .findFirst()
                 .orElseThrow();
 
@@ -812,7 +812,7 @@ class ServerArchitectureBoundaryTest {
     private static boolean isMemberNativeOrMcpContract(JavaSource source) {
         String path = source.path().toString().replace('\\', '/');
         String className = source.path().getFileName().toString();
-        return path.contains("/model/files/FileNative")
+        return path.contains("/files/api/FileNative")
                 || path.contains("/model/calendar/CalendarNative")
                 || path.contains("/model/calendar/CalendarClientSetup")
                 || path.contains("/model/calendar/CalendarExternalEndpoints")

@@ -37,17 +37,11 @@
       "additional_unit_tasks": []
     },
     "files": {
-      "server_unit_tests": [
-        "com.massimotter.weave.backend.service.files.BootstrapNextcloudFilesAccountResolverTest",
-        "com.massimotter.weave.backend.service.files.FilesProviderResolverTest",
-        "com.massimotter.weave.backend.service.files.FilesUserApiServiceTest",
-        "com.massimotter.weave.backend.service.files.FilesystemBlobStoreTest",
-        "com.massimotter.weave.backend.service.files.NextcloudFilesAdapterTest",
-        "com.massimotter.weave.backend.service.files.WeaveNativeFilesQueryDelegationTest",
-        "com.massimotter.weave.backend.service.files.WeaveS3FilesAdapterTest"
-      ],
+      "server_unit_tests": [],
       "additional_unit_tasks": [
-        ":server:domains:files:model:test"
+        ":server:domains:files:test",
+        ":server:domains:files:model:test",
+        ":server:domains:files:persistence:test"
       ]
     }
   }

@@ -1,3 +1,59 @@
-apply from: "${rootDir}/server/domains/domain-project.gradle"
+plugins { id 'java-library' }
 
-tasks.named('check') { dependsOn ':server:domains:files:model:check', ':server:domains:files:persistence:check' }
+apply from: rootProject.file('server/gradle/scripts/domain-library.gradle')
+
+group = 'com.massimotter.weave.files'
+base { archivesName = 'weave-files' }
+
+def dogfoodLifecycleRequested = gradle.startParameter.taskNames.any { requestedTask ->
+    requestedTask.tokenize(':').last() in ['dogfoodUp', 'dogfoodReset']
+}
+def weaveOpenDalClassifier = System.getenv('WEAVE_OPENDAL_CLASSIFIER')
+        ?: project.findProperty('weaveOpenDalClassifier')
+        ?: (dogfoodLifecycleRequested ? 'linux-x86_64' : null)
+        ?: {
+    def os = System.getProperty('os.name').toLowerCase(java.util.Locale.ROOT)
+    def arch = System.getProperty('os.arch').toLowerCase(java.util.Locale.ROOT)
+    def arm = arch in ['aarch64', 'arm64']
+    if (os.contains('mac') || os.contains('darwin')) return arm ? 'osx-aarch_64' : 'osx-x86_64'
+    if (os.contains('win')) return 'windows-x86_64'
+    if (os.contains('linux')) return arm ? 'linux-aarch_64' : 'linux-x86_64'
+    throw new GradleException("Unsupported OpenDAL native platform: ${os}/${arch}; set WEAVE_OPENDAL_CLASSIFIER explicitly")
+}.call()
+def supportedOpenDalClassifiers = [
+        'linux-aarch_64',
+        'linux-x86_64',
+        'osx-aarch_64',
+        'osx-x86_64',
+        'windows-x86_64',
+] as Set
+if (!(weaveOpenDalClassifier in supportedOpenDalClassifiers)) {
+    throw new GradleException("Unsupported OpenDAL native classifier: ${weaveOpenDalClassifier}")
+}
+
+dependencies {
+    api platform(libs.spring.boot.bom)
+    api project(':server:core')
+    api project(':server:domains:files:model')
+    api project(':server:domains:files:persistence')
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    implementation 'org.springframework.boot:spring-boot-starter-restclient'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.security:spring-security-oauth2-resource-server'
+    implementation libs.opendal
+    runtimeOnly "org.apache.opendal:opendal:${libs.versions.opendal.get()}:${weaveOpenDalClassifier}"
+    testImplementation testFixtures(project(':server:core'))
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-actuator'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation libs.archunit.junit5
+    testRuntimeOnly libs.h2.test
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('check') {
+    dependsOn ':server:core:check', ':server:core:model:check',
+            ':server:domains:files:model:check', ':server:domains:files:persistence:check'
+}

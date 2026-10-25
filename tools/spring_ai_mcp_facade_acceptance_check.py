@@ -180,7 +180,7 @@ def main() -> int:
         "discoversTheCuratedFilesToolAndCanonicalResourceTemplate",
     )
     require(
-        "server/app/src/main/java/com/massimotter/weave/backend/config/FilesWebDavSecurityConfiguration.java",
+        "server/domains/files/src/main/java/com/massimotter/weave/backend/files/config/FilesWebDavSecurityConfiguration.java",
         '@Qualifier("filesMcpWorkloadJwtDecoder")',
         '.securityMatcher("/dav/files", "/dav/files/**", "/api/files/items", "/api/files/items/**")',
         "SCOPE_files.read",

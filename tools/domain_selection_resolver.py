@@ -40,11 +40,12 @@ def load_catalog(root: Path) -> dict:
     for inventory in domains.values():
         tests = inventory.get('server_unit_tests') if isinstance(inventory, dict) else None
         tasks = inventory.get('additional_unit_tasks') if isinstance(inventory, dict) else None
-        if (not isinstance(tests, list) or not tests
+        if (not isinstance(tests, list)
                 or any(not isinstance(name, str)
                        or not re.fullmatch(r'(?:[A-Za-z_$][\w$]*\.)+[A-Za-z_$][\w$]*Test', name)
                        for name in tests)
                 or len(tests) != len(set(tests)) or not isinstance(tasks, list)
+                or not (tests or tasks)
                 or any(not isinstance(task, str) or not re.fullmatch(r'(?::[a-z][a-z0-9-]*)+:test', task)
                        for task in tasks)):
             raise DomainSelectionError('catalog must declare explicit non-empty JVM test inventories')

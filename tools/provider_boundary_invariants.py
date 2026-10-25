@@ -9,7 +9,7 @@ from pathlib import Path
 
 # Build output is not source authority. This guard runs before compilation in CI.
 GENERATED_DIRECTORIES = {'build', 'target', '.git', 'node_modules', '.dart_tool'}
-FILESYSTEM_STORE = 'server/app/src/main/java/com/massimotter/weave/backend/service/files/FilesystemBlobStore.java'
+FILESYSTEM_STORE = 'server/domains/files/src/main/java/com/massimotter/weave/backend/files/provider/FilesystemBlobStore.java'
 FORBIDDEN_FILES = (
     'server/app/src/main/java/com/massimotter/weave/backend/service/files/S3BlobStore.java',
     'server/app/src/test/java/com/massimotter/weave/backend/service/files/S3BlobStoreTest.java',
@@ -33,6 +33,7 @@ FORBIDDEN_CONTENT = (
       'server/domains/chat/persistence/src/main',
       'server/domains/agent-runtime/persistence/src/main',
       'server/domains/portability/persistence/src/main',
+      'server/domains/files/src/main',
       'server/domains/files/persistence/src/main',
       'server/domains/calendar/persistence/src/main')),
     ('retired-matrix-coupling', r'weave\.chat\.matrix-facade\.enabled|facadeEnabled|weave_matrix_core',

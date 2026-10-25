@@ -38,6 +38,12 @@ The active initializer remains unchanged until generated-baseline integrity/reco
 | Several provider implementations | Adapter catalog and runtime resolver | `@Qualifier` disambiguates injection; `@Primary` is not organization routing |
 | Request-bound credentials | Existing request scope or explicit per-call context | No mutable member credentials in a singleton |
 
+Runtime libraries register actual integration through their module-local Boot imports, independently
+of App scanning. Keep controller stereotypes required for handler discovery and meaningful
+`@Repository` exception-translation metadata; prevent duplicate scanning rather than deleting
+semantic annotations. The shared library build preserves Java `-parameters` metadata for HTTP
+handlers/proxies and AOT; the application plugin's compiler defaults do not configure plain libraries.
+
 Prefer stateless/thread-safe singletons. Use prototype/request scope or `ObjectProvider` only for demonstrated lifetime/optional dependencies, not circular-dependency concealment. `@Lazy` is not safe readiness. Provider/client construction performs no provider writes, migrations, credential acquisition or network readiness probes. Mandatory database/TLS infrastructure retains fail-fast initialization.
 
 Use `@Validated`, Jakarta constraints, nested `@Valid` and typed `Duration`/URI settings. Mandatory infrastructure fails fast; defaults are explicit. Avoid scattered `@Value` and duplicate settings already owned by Boot. Test successful binding, invalid/missing mandatory values and exactly one registration.

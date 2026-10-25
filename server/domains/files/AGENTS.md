@@ -12,7 +12,7 @@ Files is a feature module. Its model stays Spring-free. Its entities, Spring Dat
 - Favor immutable records and declarative Spring interfaces; no blanket Lombok `@Data` on JPA entities.
 - Record each obsolete path, replacement and removal reason in this domain's README and the commit. No commented-out duplicate implementations.
 
-Current extraction: the pure model, JPA mappings/repositories and both transactional JPA adapters are domain-owned. Authenticated services, controllers, provider adapters and runtime auto-configuration are still transitional; do not claim a complete Files-only executable.
+Current extraction: the actual runtime, pure model, JPA mappings/repositories and both transactional adapters are Files-owned. Runtime imports register actual services/providers/controllers, while App excludes the Files business namespace from its transitional scan. Selected App packaging and reduced API/client activation remain separate integration work; do not claim a complete Files-only executable from library checks.
 
 The resource entity now declares the active-path unique constraint, lifecycle/path check and parent index previously expressed only in V9 SQL. These annotations preserve existing behavior while making generated schemas usable; they are not a new parallel migration catalog.
 
@@ -23,3 +23,8 @@ From repository root:
 ./gradlew :server:app:entitySchemaCheck
 ./gradlew coreArchitectureCi
 ```
+
+Independent Files unit tests belong to the actual runtime project. Keep existing App integration/
+PostgreSQL harnesses executing until their shared fixtures are independently owned; never add an
+App dependency to make a domain test compile. Preserve controller stereotypes for HTTP handler
+discovery and prevent duplicate registration through explicit module-local imports.

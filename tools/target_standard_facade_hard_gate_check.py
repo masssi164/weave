@@ -57,7 +57,7 @@ def check_historical_dav() -> None:
         "putMkcolAndDeleteUseWebDavFacadeWriteUseCases",
     )
     require(
-        "server/app/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
+        "server/app/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
         "webDavPutCreateFolderAndDeleteUseFacadePolicyAndPublishMutationAudit",
         "webDavPutResponseEtagChangesForSameSizeOverwriteWhenMetadataDoesNotChange",
     )

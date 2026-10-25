@@ -71,19 +71,19 @@
       "count": 1
     },
     {
-      "path": "server/app/src/main/java/com/massimotter/weave/backend/service/files/OpenDalS3ObjectStorageAdapter.java",
+      "path": "server/domains/files/src/main/java/com/massimotter/weave/backend/files/provider/OpenDalS3ObjectStorageAdapter.java",
       "kind": "java-annotation",
       "signature": "@ConditionalOnExpression(\"'${weave.files.provider:weave-native}' == 'weave-s3-minio'\")",
       "count": 1
     },
     {
-      "path": "server/app/src/main/java/com/massimotter/weave/backend/service/files/WeaveNativeFilesAdapter.java",
+      "path": "server/domains/files/src/main/java/com/massimotter/weave/backend/files/provider/WeaveNativeFilesAdapter.java",
       "kind": "java-annotation",
       "signature": "@ConditionalOnExpression(\"'${weave.files.provider:weave-native}' != 'weave-s3-minio'\")",
       "count": 1
     },
     {
-      "path": "server/app/src/main/java/com/massimotter/weave/backend/service/files/WeaveS3FilesAdapter.java",
+      "path": "server/domains/files/src/main/java/com/massimotter/weave/backend/files/provider/WeaveS3FilesAdapter.java",
       "kind": "java-annotation",
       "signature": "@ConditionalOnExpression(\"'${weave.files.provider:weave-native}' == 'weave-s3-minio'\")",
       "count": 1

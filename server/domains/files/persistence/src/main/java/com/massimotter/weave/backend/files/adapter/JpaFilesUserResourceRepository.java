@@ -5,8 +5,8 @@ import com.massimotter.weave.backend.files.port.FilesUserResourceRepository;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.stereotype.Repository;
 
 @Repository
 @Transactional(readOnly = true)

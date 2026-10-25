@@ -8,17 +8,13 @@ import com.massimotter.weave.backend.config.ChatRuntimeProperties;
 import com.massimotter.weave.backend.config.ConnectorRuntimeProperties;
 import com.massimotter.weave.backend.security.config.DeploymentOrganizationProperties;
 import com.massimotter.weave.backend.config.DefaultSpaceBootstrapProperties;
-import com.massimotter.weave.backend.config.FilesRuntimeProperties;
-import com.massimotter.weave.backend.config.FilesProviderAccountsProperties;
 import com.massimotter.weave.backend.config.GuestAccessProperties;
 import com.massimotter.weave.backend.config.IdentityInvitationProperties;
 import com.massimotter.weave.backend.config.InteropGatewayProperties;
 import com.massimotter.weave.backend.config.LiveKitSfuProviderProperties;
 import com.massimotter.weave.backend.config.MatrixChatProperties;
 import com.massimotter.weave.backend.config.MigrationToolkitProperties;
-import com.massimotter.weave.backend.config.NextcloudFilesProperties;
 import com.massimotter.weave.backend.discovery.config.PlatformContractProperties;
-import com.massimotter.weave.backend.config.WeaveNativeFilesProperties;
 import com.massimotter.weave.backend.security.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.capability.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.identity.migration.KeycloakRealmMigrationCli;
@@ -33,6 +29,19 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 /** Product runtime. Flyway is the sole schema authority; Hibernate validates the migrated schema. */
 @SpringBootApplication
+@org.springframework.context.annotation.ComponentScan(
+        basePackages = "com.massimotter.weave.backend",
+        excludeFilters = {
+                @org.springframework.context.annotation.ComponentScan.Filter(
+                        type = org.springframework.context.annotation.FilterType.CUSTOM,
+                        classes = org.springframework.boot.context.TypeExcludeFilter.class),
+                @org.springframework.context.annotation.ComponentScan.Filter(
+                        type = org.springframework.context.annotation.FilterType.CUSTOM,
+                        classes = org.springframework.boot.autoconfigure.AutoConfigurationExcludeFilter.class),
+                @org.springframework.context.annotation.ComponentScan.Filter(
+                        type = org.springframework.context.annotation.FilterType.REGEX,
+                        pattern = "com\\.massimotter\\.weave\\.backend\\.files\\..*")
+        })
 @EnableScheduling
 @EnableConfigurationProperties({
         CalendarCalDavProperties.class,
@@ -41,18 +50,14 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         ConnectorRuntimeProperties.class,
         DeploymentOrganizationProperties.class,
         DefaultSpaceBootstrapProperties.class,
-        FilesRuntimeProperties.class,
-        FilesProviderAccountsProperties.class,
         GuestAccessProperties.class,
         InteropGatewayProperties.class,
         IdentityInvitationProperties.class,
         LiveKitSfuProviderProperties.class,
         MatrixChatProperties.class,
         MigrationToolkitProperties.class,
-        NextcloudFilesProperties.class,
         PlatformContractProperties.class,
         WeaveSecurityProperties.class,
-        WeaveNativeFilesProperties.class,
         WorkspaceCapabilityProperties.class
 })
 public class WeaveBackendApplication {

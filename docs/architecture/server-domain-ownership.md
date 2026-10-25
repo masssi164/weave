@@ -4,7 +4,9 @@ Implementation owner: #1745; integration parent: #1741; PR: #1746. This is the c
 
 ## Current state versus target
 
-**Implemented:** Files owns its pure model and transactional JPA adapters. Calendar owns its
+**Implemented:** Files owns its actual serving runtime: authenticated services, controllers, wire
+values, provider integrations, settings, resources and tests, plus pure model and transactional
+JPA adapters. Its owning checks and real Boot discovery run without App, Calendar or Chat. Calendar owns its
 pure model, normalized mappings and production JPA payload store. Core owns shared persistence
 under actual identity/security/Spaces/audit/operation/binding/readiness/schema packages; its pure
 model has no optional feature implementation. Chat, Agent Runtime and Portability have owning
@@ -26,10 +28,11 @@ project that resolves domain selection once. Root tasks, API/schema tooling, hos
 Docker JAR paths and complete source inputs target App. The independent nested Server
 wrapper/settings were retired in favor of the repository-pinned root wrapper.
 
-**Still transitional:** The remaining services/controllers, provider runtime wiring,
-real selected-runtime packaging, future-domain
-release exclusion and reduced discovery/client integration are not complete. The verification
-bridge and partial-packaging guard remain until those behaviors are implemented. No ARM64,
+**Still transitional:** Calendar/Chat services/controllers/providers, remaining shared platform
+services and future-domain runtimes still require extraction. Real selected-runtime packaging, future-domain
+release exclusion and reduced discovery/client integration are not complete. Calendar/Chat retain a verification
+bridge; Files uses genuine owning checks. Partial App packaging/API/schema export guards remain
+until real selected runtime composition is implemented. No ARM64,
 native or live/human release qualification is claimed from library checks.
 
 The initial release product scope is **Files, Calendar and Chat**. Boards, Office, DevOps, Agent Runtime, portability/transfer, guest-facing and integration features remain planned domains. Move their implementations out of Core rather than deleting agreed product scope.
@@ -53,7 +56,7 @@ Core must not depend on an optional domain implementation. Domains must not depe
 
 ## Current leaf projects
 
-- `:server:domains:files:model` and `:server:domains:files:persistence`: see `server/domains/files/README.md` for ownership and removal rationale.
+- `:server:domains:files` runtime, `:server:domains:files:model` and `:server:domains:files:persistence`: see `server/domains/files/README.md` for ownership and removal rationale.
 - `:server:domains:calendar:model` and `:server:domains:calendar:persistence`: see `server/domains/calendar/README.md`.
 - `:server:core:model` and `:server:core`: shared pure contracts and responsibility-owned persistence.
 - Agent Runtime `model`, `persistence`, `provider` and `security`; Portability `model` and
@@ -119,8 +122,8 @@ workflow is removed as its own instructions required, resolving both current CI 
 | Phase | Milestone and implementation decisions | Checks | Status / blockers |
 | --- | --- | --- | --- |
 | 1. Ownership and contracts | Inventory source/resources/dependencies and assign actual owners; prepare Entity-first and selected-domain discovery corpus changes; retain this plan as the single execution record | Corpus lint/examples, resolver tests, source inspection | In progress; accepted pin remains unchanged pending normal corpus review |
-| 2. Domain composition | App is the sole executable; Core owns justified platform responsibilities; runtime modules own imports registration and scoped persistence; separate non-web tooling | Compile, dependency graph, real imports discovery and bean uniqueness | App executable split and scoped persistence imports/discovery implemented; domain runtime extraction still pending |
-| 3. Vertical extraction and ORM | Files/Calendar/Chat own services/controllers/providers/persistence; future domains remain buildable outside release; convert ordinary Calendar/Matrix JDBC CRUD | Domain units, PostgreSQL writes/isolation/constraints/transactions, no legacy copies | Calendar/Matrix ORM conversion and persistence-library extraction implemented; runtime/API still open |
+| 2. Domain composition | App is the sole executable; Core owns justified platform responsibilities; runtime modules own imports registration and scoped persistence; separate non-web tooling | Compile, dependency graph, real imports discovery and bean uniqueness | App executable split, Core shared wiring and actual Files runtime/imports implemented; Calendar/Chat and future runtime extraction pending |
+| 3. Vertical extraction and ORM | Files/Calendar/Chat own services/controllers/providers/persistence; future domains remain buildable outside release; convert ordinary Calendar/Matrix JDBC CRUD | Domain units, PostgreSQL writes/isolation/constraints/transactions, no legacy copies | Files vertical runtime and Calendar/Matrix ORM extraction implemented; remaining Calendar/Chat/future runtime/API ownership open |
 | 4. Core and build finalization | Remove feature dependencies from Core; one selection drives real checks, runtime, schema/API and identity; preserve data-safe initializer until qualified cutover | Architecture rules, selected JAR/SDK inspection, offline deterministic schema | Shared session/identity/policy and health implementations extracted into Core; runtime selection remains pending; schema cutover requires accepted corpus and integrity/recovery evidence |
 | 5. Runtime and clients | Release and three single-domain variants start with honest capabilities/endpoints; generated User/Admin contracts follow registered handlers; Flutter uses stable destinations | API/auth/client freshness, variants, Compose/two-member acceptance, ARM64/AOT/JNI where available | Pending; no live or native qualification claimed |
 | 6. Review and delivery | Consolidate docs/Skills/instructions; review combined diff; coherent commits/push and exact-revision PR evidence | Applicable combined CI, diff review, protected checks | Pending; no protected merge/deployment/data reset authorized |
@@ -542,3 +545,57 @@ regressions, architecture checks and fresh full User/Admin API export passed wit
 --tests '*ServerArchitectureBoundaryTest' --tests '*FilesWebDavSecurityConfigurationTest'
 --tests '*CalendarMcpSecurityConfigurationTest' checkOpenApiContractFresh`. No persistence
 mapping or transaction changes are included in this follow-up.
+
+### Files runtime extraction checkpoint
+
+The actual `:server:domains:files` project now compiles its complete serving implementation:
+Files controllers/wire values, authenticated use cases, native/Nextcloud/S3 provider adapters,
+typed settings, provider/bootstrap/health/capability/Space contributions and actual Spring
+integration. Fifty-six former App production files moved to Files business packages; there
+are no legacy source-set aliases or forwarding copies. Model and persistence remain useful
+separate projects. App composes the runtime dependency and excludes its business namespace
+from transitional scanning while retaining Boot's test/auto-configuration filters.
+
+Files runtime imports register actual servlet beans/controllers; persistence imports register
+both actual transactional JPA adapters beside scoped mappings/repositories. Controller and
+Repository annotations retain their handler-discovery and exception-translation meanings;
+component scanning is not their registration mechanism. Discovery without App proves bean
+uniqueness, real Files request mappings, absent Calendar/Chat implementation classes and no
+serving providers/controllers/native filesystem construction in non-web contexts. Required
+local Files storage and SecretRef-root configuration remain explicit; no live provider or
+mounted credential is needed by the isolated discovery fixture.
+
+Nine independent unit classes moved with the runtime. Existing full-App HTTP, PostgreSQL,
+locking, native composition and backup/restore harnesses continue using the extracted code.
+The App scaffold no longer registers Files lock/mutation/bootstrap beans or owns their
+settings. Files owns organization-binding status probes; shared binding-status values/port
+belong to Core, and App projects the unchanged accepted Admin wire shape. The future
+FilesDocs canonical interoperability facade remains outside release Files.
+
+The existing resolver/catalog now accepts an explicit owning-task closure instead of an App
+class inventory. Files no longer applies the verification bridge; an empty legacy inventory
+never creates an unfiltered App test task. Selection precedence/pinning is unchanged. The
+same existing partial-App guard also protects actual API and schema exports: until selected
+App composition is implemented, reduced exports reject rather than rewrite full contracts
+under a reduced identity. Negative executions preserved existing export hashes and mtimes.
+The Files library is independently buildable; a complete Files-only App executable is not
+yet claimed.
+
+OpenDAL 0.50.0 and the unchanged platform-classifier resolution now belong to Files. The
+shared domain-library build preserves Java parameter metadata needed by Spring HTTP/AOT
+reflection, previously supplied implicitly by the executable Boot plugin. The real BDD
+credential creation/revocation path exposed and verified this prerequisite. Actual full App
+JAR inspection finds the Files runtime/model/persistence nested JARs, the actual controller,
+use case and imports resource in the runtime JAR, and no Files implementation classes in
+App's own classes. This Mac build uses `osx-aarch_64`; Linux ARM64/native-image qualification
+is separate. Existing finite native/S3 startup-selector debt remains tracked under #1736.
+
+Final source validation: `:server:domains:files:check`, whole `:server:app:test`,
+`checkOpenApiContractFresh`, `coreArchitectureCi` and `:server:app:bootJar -Pdomains=all`
+passed together in 1m48s. Results: Core 98, Core model 3, Files runtime 94 (including two
+actual discovery contexts), Files model 21, Files persistence 11 and App 1,307 tests, with
+zero failures/errors. App retains 24 explicitly skipped PostgreSQL/MinIO cases in that lane;
+actual OpenAPI export runs 14 tests and normalization runs five. The separate full
+`:server:app:postgresJpaTest -Pdomains=all` with scoped disposable OrbStack PostgreSQL passed
+200 tests with no skips/failures/errors in 2m59s. Selected Files aggregate checks also pass.
+No persistent operator database, owner data or migration history was reset.

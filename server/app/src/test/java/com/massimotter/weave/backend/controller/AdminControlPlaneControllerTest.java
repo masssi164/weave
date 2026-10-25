@@ -84,6 +84,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(
         controllers = AdminControlPlaneController.class,
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
+@org.springframework.boot.context.properties.EnableConfigurationProperties(
+        com.massimotter.weave.backend.files.config.FilesRuntimeProperties.class)
 @Import({
         OrganizationIdentityContextResolver.class,
         SecurityConfig.class,

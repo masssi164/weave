@@ -166,7 +166,7 @@ class InventoryTest(unittest.TestCase):
     def test_each_declared_unit_class_exists_and_is_not_an_obvious_integration_suite(self):
         catalog = load_catalog(ROOT)
         for domain, inventory in catalog['domains'].items():
-            self.assertTrue(inventory['server_unit_tests'], domain)
+            self.assertTrue(inventory['server_unit_tests'] or inventory['additional_unit_tasks'], domain)
             self.assertEqual(len(inventory['server_unit_tests']), len(set(inventory['server_unit_tests'])))
             for name in inventory['server_unit_tests']:
                 with self.subTest(domain=domain, name=name):
@@ -179,10 +179,21 @@ class InventoryTest(unittest.TestCase):
     def test_domain_bridge_projects_exist_for_the_catalog(self):
         for domain in load_catalog(ROOT)['domains']:
             source = (ROOT / 'server/domains' / domain / 'build.gradle').read_text()
-            self.assertIn('domain-project.gradle', source)
+            if domain == 'files':
+                self.assertIn("id 'java-library'", source)
+                self.assertNotIn('domain-project.gradle', source)
+            else:
+                self.assertIn('domain-project.gradle', source)
 
     def test_files_includes_its_existing_framework_free_unit_suite(self):
         self.assertIn(':server:domains:files:model:test', load_catalog(ROOT)['domains']['files']['additional_unit_tasks'])
+
+    def test_real_owning_test_tasks_replace_the_files_app_bridge(self):
+        inventory = load_catalog(ROOT)['domains']['files']
+        self.assertEqual(inventory['server_unit_tests'], [])
+        self.assertIn(':server:domains:files:test', inventory['additional_unit_tasks'])
+        source = (ROOT / 'server/gradle/tasks/domain-verification.gradle').read_text()
+        self.assertIn('inventory.server_unit_tests }.each', source)
 
     def test_invalid_catalog_is_rejected(self):
         for payload in [{}, {'domains': {}}, {'domains': {'all': {}}}, {'domains': {'../files': {}}},

@@ -18,7 +18,9 @@ class FilesPersistenceDiscoveryTest {
                         "spring.flyway.enabled=false")
                 .run(context -> {
                     assertThat(context).hasNotFailed().hasSingleBean(FilesPersistenceAutoConfiguration.class);
-                    assertThat(context).hasSingleBean(EntityManagerFactory.class);
+                    assertThat(context).hasSingleBean(EntityManagerFactory.class)
+                            .hasSingleBean(com.massimotter.weave.backend.files.port.FilesAuthorityRepository.class)
+                            .hasSingleBean(com.massimotter.weave.backend.files.port.FilesUserResourceRepository.class);
                     assertThat(context).hasBean("filesUserResourceJpaRepository");
                     assertThat(context.getBean(EntityManagerFactory.class).getMetamodel().getEntities()).isNotEmpty();
                 });

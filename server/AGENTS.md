@@ -16,7 +16,7 @@ Read `docs/java-spring-standard.md` from the repository root and use the applica
 
 ## Module ownership during extraction
 
-Read `docs/architecture/server-domain-ownership.md` and the affected domain's README/AGENTS. Files model and complete transactional JPA adapter implementation are under `server/domains/files`; Calendar model and JPA mappings are under `server/domains/calendar`. The sole executable is `server/app`; its remaining controllers/providers and runtime Core/domain extraction are still transitional. Do not recreate old root copies or claim a complete reduced-domain runtime.
+Read `docs/architecture/server-domain-ownership.md` and the affected domain's README/AGENTS. Files actual runtime (controllers, services, providers, settings and Boot imports), model and transactional JPA adapters are under `server/domains/files`; Calendar model and JPA mappings/store are under `server/domains/calendar`. The sole executable is `server/app`; remaining Calendar/Chat/future runtime and shared platform extraction is still transitional. Files owning checks must not compile against App. Do not recreate old root copies or claim a complete reduced-domain runtime.
 
 Shared Java build mechanics live in `server/gradle/scripts/domain-library.gradle`; each library owns its dependencies. Core cannot import optional domain implementation. Shared Security/Identity/Spaces persistence stays with its actual responsibility; no generic dumping ground for domain entities or providers.
 

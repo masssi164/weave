@@ -9,7 +9,7 @@ import com.massimotter.weave.backend.calendar.config.CalendarProviderHealthConfi
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
 import com.massimotter.weave.backend.chat.config.ChatProviderHealthConfiguration;
 import com.massimotter.weave.backend.chat.port.ChatProviderPort;
-import com.massimotter.weave.backend.config.FilesRuntimeProperties;
+import com.massimotter.weave.backend.files.config.FilesRuntimeProperties;
 import com.massimotter.weave.backend.health.config.ProviderHealthProperties;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;

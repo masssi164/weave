@@ -28,6 +28,8 @@
         "server/app/build.gradle",
         "server/gradle/**",
         "server/Dockerfile",
+        "server/domains/files/src/main/**",
+        "server/domains/files/build.gradle",
         "server/domains/files/model/src/main/**",
         "server/domains/files/model/build.gradle",
         "server/domains/files/persistence/src/main/**",

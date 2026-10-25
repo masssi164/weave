@@ -11,7 +11,7 @@ import com.massimotter.weave.backend.provider.ProviderRegistry;
 import com.massimotter.weave.backend.provider.ProviderRegistryResponse;
 import com.massimotter.weave.backend.providerbinding.domain.ProviderBinding;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
-import com.massimotter.weave.backend.service.files.FilesProviderResolver;
+import com.massimotter.weave.backend.files.application.FilesProviderResolver;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import java.time.Instant;
 import java.util.List;
@@ -27,7 +27,8 @@ class AdminProviderRegistryServiceTest {
     private final ProviderBindingRepository bindings = mock(ProviderBindingRepository.class);
     private final FilesProviderResolver files = mock(FilesProviderResolver.class);
     private final AdminProviderRegistryService service = new AdminProviderRegistryService(
-            registry, capabilities, HumanJwtTestSupport.organizationAdmission(), bindings, files);
+            registry, capabilities, HumanJwtTestSupport.organizationAdmission(),
+            List.of(new com.massimotter.weave.backend.files.application.FilesProviderBindingStatus(bindings, files)));
 
     @BeforeEach
     void configuredSnapshot() {
@@ -83,6 +84,14 @@ class AdminProviderRegistryServiceTest {
                 .claim("tenant_id", "other-tenant").build();
         assertThatThrownBy(() -> service.status(wrong)).isInstanceOf(ApiErrorException.class);
         verifyNoInteractions(registry, bindings, files, capabilities);
+    }
+
+    @Test
+    void omittedDomainDoesNotCreateASyntheticBindingStatus() {
+        var withoutFiles = new AdminProviderRegistryService(registry, capabilities,
+                HumanJwtTestSupport.organizationAdmission(), List.of());
+        assertThat(withoutFiles.status(admin()).filesBinding()).isNull();
+        verifyNoInteractions(bindings, files);
     }
 
     private Jwt admin() {

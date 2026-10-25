@@ -48,7 +48,7 @@ def check_historical_dav() -> None:
         "not(containsString(\"remote.php\"))",
     )
     require(
-        "server/app/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
+        "server/app/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
         "webDavWritePreconditionsFailBeforeStorageMutationButAfterAttemptAudit",
         "webDavWriteRejectionsRequireEditPolicyAndPublishSupportSafeAudit",
     )
@@ -98,7 +98,7 @@ def check_generated_user_boundary() -> None:
         "unsupported mutations and denied actions never use a fallback route",
     )
     require(
-        "server/app/src/test/java/com/massimotter/weave/backend/service/files/FilesUserApiServiceTest.java",
+        "server/domains/files/src/test/java/com/massimotter/weave/backend/files/application/FilesUserApiServiceTest.java",
         "otherMemberCannotInspectOrDownloadOwnerResource",
         "anotherOrganizationCannotResolveTheSameOpaqueFileId",
         "observedPathReplacementDuringDownloadFailsClosed",

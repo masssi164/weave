@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.service.files;
 
+import com.massimotter.weave.backend.files.provider.WeaveNativeFilesAdapter;
+import com.massimotter.weave.backend.files.provider.NextcloudFilesAdapter;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
@@ -30,11 +32,11 @@ class CanonicalNativeFilesPrimarySelectionTest {
     @Test
     void nativeAndNextcloudProvidersCoexistWithNativeAsLegacyPrimary() {
         assertThat(filesProviders)
-                .containsOnlyKeys("weaveNativeFilesAdapter", "nextcloudFilesAdapter");
-        assertThat(filesProviders.get("weaveNativeFilesAdapter"))
+                .containsOnlyKeys(WeaveNativeFilesAdapter.class.getName(), NextcloudFilesAdapter.class.getName());
+        assertThat(filesProviders.get(WeaveNativeFilesAdapter.class.getName()))
                 .isInstanceOf(WeaveNativeFilesAdapter.class);
-        assertThat(filesProviders.get("nextcloudFilesAdapter"))
+        assertThat(filesProviders.get(NextcloudFilesAdapter.class.getName()))
                 .isInstanceOf(NextcloudFilesAdapter.class);
-        assertThat(primaryFilesProvider).isSameAs(filesProviders.get("weaveNativeFilesAdapter"));
+        assertThat(primaryFilesProvider).isSameAs(filesProviders.get(WeaveNativeFilesAdapter.class.getName()));
     }
 }

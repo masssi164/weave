@@ -19,7 +19,7 @@ import com.massimotter.weave.backend.files.domain.FilesUserResource;
 import com.massimotter.weave.backend.files.port.FilesUserResourceRepository;
 import com.massimotter.weave.backend.identity.IdentityReferences;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
-import com.massimotter.weave.backend.service.files.FilesUserApiService;
+import com.massimotter.weave.backend.files.application.FilesUserApiService;
 import com.massimotter.weave.backend.service.calendar.CalendarUserApiService;
 import com.massimotter.weave.backend.security.DeploymentOrganizationAdmission;
 import com.massimotter.weave.backend.spaces.port.SpaceAccessPort;
@@ -62,7 +62,7 @@ class SpaceRelationshipUserServiceTest {
         when(chat.joinedConversationRefsInSpace(eq(member), anyString(), anyString(), eq(100)))
                 .thenReturn(List.of());
         when(files.inspect(eq(member), anyString())).thenAnswer(call ->
-                new com.massimotter.weave.backend.model.files.FilesUserItemResponse(
+                new com.massimotter.weave.backend.files.api.FilesUserItemResponse(
                         call.getArgument(1), "file:root", "stable.txt", "/stable.txt",
                         "file", 0, null, Instant.EPOCH, "revision", List.of("inspect")));
     }
@@ -105,7 +105,7 @@ class SpaceRelationshipUserServiceTest {
         when(records.activeInSpace("tenant-default", "workspace-default", "user:member", "", 25))
                 .thenReturn(List.of(resource("file:stable")));
         when(files.inspect(session, "file:stable")).thenReturn(
-                new com.massimotter.weave.backend.model.files.FilesUserItemResponse(
+                new com.massimotter.weave.backend.files.api.FilesUserItemResponse(
                         "file:stable", "file:root", "stable.txt", "/stable.txt",
                         "file", 0, null, Instant.EPOCH, "revision", List.of("inspect")));
 

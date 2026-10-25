@@ -17,7 +17,7 @@ import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.config.AdminApiSecurityConfiguration;
 import com.massimotter.weave.backend.service.AdminProviderRegistryService;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
-import com.massimotter.weave.backend.service.files.FilesProviderResolver;
+import com.massimotter.weave.backend.files.application.FilesProviderResolver;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.capability.api.WorkspaceCapabilitiesResponse;
@@ -58,6 +58,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+@org.springframework.boot.context.properties.EnableConfigurationProperties(
+        com.massimotter.weave.backend.files.config.FilesRuntimeProperties.class)
 @WebMvcTest(
         controllers = ProviderRegistryController.class,
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
@@ -65,6 +67,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         SecurityConfig.class,
         AdminApiSecurityConfiguration.class,
         AdminProviderRegistryService.class,
+        com.massimotter.weave.backend.files.application.FilesProviderBindingStatus.class,
         ApiAuthenticationEntryPoint.class,
         ApiAccessDeniedHandler.class,
         ApiErrorResponseWriter.class,

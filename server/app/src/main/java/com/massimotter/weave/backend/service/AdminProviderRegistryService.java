@@ -7,12 +7,12 @@ import com.massimotter.weave.backend.model.admin.FilesBindingStatusResponse.Bind
 import com.massimotter.weave.backend.model.admin.FilesBindingStatusResponse.Readiness;
 import com.massimotter.weave.backend.provider.ProviderRegistry;
 import com.massimotter.weave.backend.provider.ProviderRegistryResponse;
-import com.massimotter.weave.backend.providerbinding.domain.ProviderBinding;
-import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
 import com.massimotter.weave.backend.security.DeploymentOrganizationAdmission;
-import com.massimotter.weave.backend.service.files.FilesProviderResolver;
-import com.massimotter.weave.backend.service.files.FilesUserApiService;
 import java.util.Map;
+import java.util.List;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import com.massimotter.weave.backend.providerbinding.port.ProviderBindingStatusContribution;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
@@ -22,16 +22,15 @@ public final class AdminProviderRegistryService {
     private final ProviderRegistry registry;
     private final WorkspaceCapabilityService capabilities;
     private final DeploymentOrganizationAdmission admission;
-    private final ProviderBindingRepository bindings;
-    private final FilesProviderResolver files;
+    private final Map<String, ProviderBindingStatusContribution> bindingStatuses;
 
     public AdminProviderRegistryService(ProviderRegistry registry, WorkspaceCapabilityService capabilities,
-            DeploymentOrganizationAdmission admission, ProviderBindingRepository bindings, FilesProviderResolver files) {
+            DeploymentOrganizationAdmission admission, List<ProviderBindingStatusContribution> bindingStatuses) {
         this.registry = registry;
         this.capabilities = capabilities;
         this.admission = admission;
-        this.bindings = bindings;
-        this.files = files;
+        this.bindingStatuses = bindingStatuses.stream().collect(Collectors.toUnmodifiableMap(
+                ProviderBindingStatusContribution::domain, Function.identity()));
     }
 
     public ProviderRegistryResponse status(Jwt jwt) {
@@ -52,21 +51,10 @@ public final class AdminProviderRegistryService {
     }
 
     private FilesBindingStatusResponse filesBinding(String organization) {
-        var binding = bindings.current(organization, "files")
-                .filter(value -> value.state() == ProviderBinding.State.ACTIVE
-                        && organization.equals(value.organizationRef()) && "files".equals(value.domain()));
-        if (binding.isEmpty()) {
-            return new FilesBindingStatusResponse(BindingState.NO_ACTIVE_BINDING, null, null, Readiness.NOT_CONFIGURED);
-        }
-        ProviderBinding current = binding.orElseThrow();
-        Readiness readiness;
-        try {
-            files.pinned(current, organization, FilesUserApiService.SPACE_REF);
-            readiness = Readiness.CONFIGURED;
-        } catch (FilesProviderResolver.ProviderUnavailableException
-                | FilesProviderResolver.StaleBindingException | ApiErrorException unavailable) {
-            readiness = Readiness.UNAVAILABLE;
-        }
-        return new FilesBindingStatusResponse(BindingState.ACTIVE, current.revision(), current.adapterKey(), readiness);
+        var contribution = bindingStatuses.get("files");
+        if (contribution == null) return null;
+        var status = contribution.status(organization);
+        return new FilesBindingStatusResponse(BindingState.valueOf(status.bindingState().name()),
+                status.bindingRevision(), status.adapterKey(), Readiness.valueOf(status.readiness().name()));
     }
 }

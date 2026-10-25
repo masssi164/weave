@@ -1,5 +1,9 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.files.api.FilesDavSetupController;
+import com.massimotter.weave.backend.files.api.FilesWebDavController;
+import com.massimotter.weave.backend.files.api.FilesController;
+import com.massimotter.weave.backend.files.api.FilesUserItemsController;
 import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation;
 import com.massimotter.weave.backend.security.workload.jwt.McpExchangedTokenPolicy;
 
@@ -29,8 +33,8 @@ import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDe
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.service.CalendarFacadeService;
-import com.massimotter.weave.backend.service.FilesFacadeService;
-import com.massimotter.weave.backend.service.files.FilesUserApiService;
+import com.massimotter.weave.backend.files.application.FilesFacadeService;
+import com.massimotter.weave.backend.files.application.FilesUserApiService;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.files.application.FilesLockService;
@@ -96,7 +100,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
                 CalendarDavSetupController.class,
                 CalDavCalendarController.class},
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
-@Import({com.massimotter.weave.backend.chat.api.security.MatrixClientSecurityErrorWriter.class,
+@Import({
+        FilesController.class,
+        FilesDavSetupController.class,
+        FilesUserItemsController.class,
+        FilesWebDavController.class,com.massimotter.weave.backend.chat.api.security.MatrixClientSecurityErrorWriter.class,
         com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation.Configuration.class,
         OrganizationIdentityContextResolver.class,
         SecurityConfig.class,
@@ -175,7 +183,7 @@ class FilesCalendarFacadeControllerTest {
     private FilesUserApiService filesUserApiService;
 
     @MockitoBean
-    private com.massimotter.weave.backend.service.files.FilesProviderResolver filesProviderResolver;
+    private com.massimotter.weave.backend.files.application.FilesProviderResolver filesProviderResolver;
 
     @BeforeEach
     void allowContextAccess() {

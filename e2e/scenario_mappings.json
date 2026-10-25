@@ -107,7 +107,7 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
           "fragments": [
             "webDavPutCreateFolderAndDeleteUseFacadePolicyAndPublishMutationAudit",
             "FILES_WEBDAV_WRITE_COMPLETED"
@@ -4503,7 +4503,7 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/app/src/main/java/com/massimotter/weave/backend/controller/FilesWebDavController.java",
+          "path": "server/domains/files/src/main/java/com/massimotter/weave/backend/files/api/FilesWebDavController.java",
           "fragments": [
             "case \"PROPFIND\" -> propfind(request)",
             "WebDavPropfindListing listing = filesFacadeService.webDavPropfind(path)",
@@ -4536,7 +4536,7 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/app/src/main/java/com/massimotter/weave/backend/controller/FilesWebDavController.java",
+          "path": "server/domains/files/src/main/java/com/massimotter/weave/backend/files/api/FilesWebDavController.java",
           "fragments": [
             "case \"GET\" -> get(request, false)",
             "case \"HEAD\" -> get(request, true)",
@@ -4549,7 +4549,7 @@
       "tag": "@files-webdav-put-create",
       "scenario": "PUT creates a file with If-None-Match and records audit",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
       "evidenceMarkers": [
         "FILES_WEBDAV_PUT_CREATE_AUDIT"
       ],
@@ -4569,7 +4569,7 @@
       "tag": "@files-webdav-put-stale",
       "scenario": "PUT update rejects stale ETags",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
       "evidenceMarkers": [
         "FILES_WEBDAV_STALE_ETAG_PRECONDITION"
       ],
@@ -4588,14 +4588,14 @@
       "tag": "@files-webdav-mkcol",
       "scenario": "MKCOL creates a folder and rejects duplicates or missing parents",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
       "evidenceMarkers": [
         "FILES_WEBDAV_MKCOL_CONFLICTS"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/app/src/main/java/com/massimotter/weave/backend/service/FilesFacadeService.java",
+          "path": "server/domains/files/src/main/java/com/massimotter/weave/backend/files/application/FilesFacadeService.java",
           "fragments": [
             "requireParentCollection(adapter, normalizedPath, operation)",
             "A collection or file already exists at this path."
@@ -4607,7 +4607,7 @@
       "tag": "@files-webdav-delete",
       "scenario": "DELETE removes a resource with If-Match and records audit",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
       "evidenceMarkers": [
         "FILES_WEBDAV_DELETE_AUDIT"
       ],
@@ -4627,7 +4627,7 @@
       "tag": "@files-webdav-move",
       "scenario": "MOVE handles Destination and Overwrite without provider leakage",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
       "evidenceMarkers": [
         "FILES_WEBDAV_COPY_MOVE_CANONICAL"
       ],
@@ -4648,7 +4648,7 @@
       "tag": "@files-webdav-copy",
       "scenario": "COPY handles Destination and Overwrite without provider leakage",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
       "evidenceMarkers": [
         "FILES_WEBDAV_COPY_MOVE_CANONICAL"
       ],
@@ -4669,7 +4669,7 @@
       "tag": "@files-webdav-lock-unlock",
       "scenario": "LOCK exposes lockdiscovery and blocks conflicting writes with 423",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
       "evidenceMarkers": [
         "FILES_WEBDAV_LOCK_CONFLICT"
       ],
@@ -4696,7 +4696,7 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/service/files/NextcloudFilesAdapterTest.java",
+          "path": "server/domains/files/src/test/java/com/massimotter/weave/backend/files/provider/NextcloudFilesAdapterTest.java",
           "fragments": [
             "mapsAuthAndQuotaFailuresWithoutLeakingProviderSecrets",
             "files-quota-exceeded",
@@ -4746,7 +4746,7 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/service/files/FilesUserApiServiceTest.java",
+          "path": "server/domains/files/src/test/java/com/massimotter/weave/backend/files/application/FilesUserApiServiceTest.java",
           "fragments": [
             "anotherOrganizationCannotResolveTheSameOpaqueFileId",
             "currentReadOnlyGrantDoesNotAdvertiseMutationOrShareActions"

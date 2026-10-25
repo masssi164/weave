@@ -10,9 +10,9 @@ import com.massimotter.weave.backend.operation.application.OperationIntentServic
 import com.massimotter.weave.backend.operation.domain.OperationIntent.State;
 import com.massimotter.weave.backend.providerbinding.adapter.JpaProviderBindingRepository;
 import com.massimotter.weave.backend.providerbinding.adapter.ProviderBindingJpaTestFactory;
-import com.massimotter.weave.backend.providerbinding.application.FilesProviderBindingBootstrap;
-import com.massimotter.weave.backend.providerbinding.application.FilesProviderBindingBootstrap.ProviderBindingBootstrapConflictException;
-import com.massimotter.weave.backend.providerbinding.application.ProviderBindingBootstrapProperties;
+import com.massimotter.weave.backend.files.application.FilesProviderBindingBootstrap;
+import com.massimotter.weave.backend.files.application.FilesProviderBindingBootstrap.ProviderBindingBootstrapConflictException;
+import com.massimotter.weave.backend.files.config.ProviderBindingBootstrapProperties;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;

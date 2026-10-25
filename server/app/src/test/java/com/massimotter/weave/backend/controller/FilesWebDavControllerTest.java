@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.files.api.FilesWebDavController;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import com.massimotter.weave.backend.security.http.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.security.http.ApiAuthenticationEntryPoint;
@@ -7,16 +8,16 @@ import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
-import com.massimotter.weave.backend.model.files.FileItemResponse;
+import com.massimotter.weave.backend.files.api.FileItemResponse;
 import com.massimotter.weave.backend.security.device.DeviceCredentialService;
-import com.massimotter.weave.backend.service.FilesFacadeService;
-import com.massimotter.weave.backend.service.files.DownloadedFile;
-import com.massimotter.weave.backend.service.files.WebDavLockResult;
-import com.massimotter.weave.backend.service.files.WebDavPropfindListing;
-import com.massimotter.weave.backend.service.files.WebDavPropfindResource;
-import com.massimotter.weave.backend.service.files.WebDavMutationResult;
-import com.massimotter.weave.backend.service.files.WebDavSearchRequest;
-import com.massimotter.weave.backend.service.files.WebDavSearchResult;
+import com.massimotter.weave.backend.files.application.FilesFacadeService;
+import com.massimotter.weave.backend.files.application.DownloadedFile;
+import com.massimotter.weave.backend.files.api.dav.WebDavLockResult;
+import com.massimotter.weave.backend.files.api.dav.WebDavPropfindListing;
+import com.massimotter.weave.backend.files.api.dav.WebDavPropfindResource;
+import com.massimotter.weave.backend.files.api.dav.WebDavMutationResult;
+import com.massimotter.weave.backend.files.api.dav.WebDavSearchRequest;
+import com.massimotter.weave.backend.files.api.dav.WebDavSearchResult;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +49,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         controllers = FilesWebDavController.class,
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
+        FilesWebDavController.class,
         SecurityConfig.class,
         ApiAuthenticationEntryPoint.class,
         ApiAccessDeniedHandler.class,

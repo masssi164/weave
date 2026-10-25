@@ -66,7 +66,7 @@ class DogfoodPreparationContextPostgresTest {
             assertThat(context.getBeansOfType(org.springframework.boot.ApplicationRunner.class)).isEmpty();
             assertThat(context.getBeansOfType(org.springframework.scheduling.annotation.ScheduledAnnotationBeanPostProcessor.class)).isEmpty();
             assertThat(context.getBeansOfType(com.massimotter.weave.backend.config.WeavePersistenceConfiguration.class)).isEmpty();
-            assertThat(context.getBeansOfType(com.massimotter.weave.backend.providerbinding.application.FilesProviderBindingBootstrap.class)).isEmpty();
+            assertThat(context.getBeansOfType(com.massimotter.weave.backend.files.application.FilesProviderBindingBootstrap.class)).isEmpty();
             assertThat(context.getBeansOfType(com.massimotter.weave.backend.service.spaces.DefaultSpaceBootstrapService.class)).isEmpty();
             var source = context.getBean(javax.sql.DataSource.class);
             try (var connection = source.getConnection(); var rows = connection.createStatement().executeQuery(
