@@ -372,3 +372,36 @@ environment setting was introduced.
 - Remaining transport cleanup includes suitable existing Keycloak REST integration under
   the shared declarative HTTP standard, preserving bounded bodies, authentication,
   allowlists, timeout and error behavior; no framework upgrade is authorized.
+
+### Shared operation and provider-binding runtime
+
+The actual `operation.adapter.JpaOperationIntentRepository` and
+`providerbinding.adapter.JpaProviderBindingRepository` move from App into Core beside their
+owning mappings. Module-local serving auto-configurations import the real adapters and
+construct the shared operation service. Their scoped transactions, outbox atomicity,
+idempotency reconciliation, active-binding locks and bounded mapping queries are preserved.
+Non-web export/operator contexts retain their explicit graph.
+
+Provider selection values/port/store exception move from App's generic `provider` package to
+Core model `providerbinding.selection`; the typed JPA implementation belongs to Core
+`providerbinding.persistence`. App no longer declares these shared beans. Provider selection
+remains organization runtime state, independent of build-time domain selection.
+
+Feature-specific replacement guards are extracted from the shared binding adapter into
+Files, Calendar and Chat `domain` policies, explicitly registered by their owning configuration.
+Files/Calendar still require identity carry-forward when mappings exist; Chat still requires
+provider reconciliation for every replacement. Core rejects activation without an installed
+policy, and duplicate policy identities fail construction. Domain bootstrap/use cases remain
+with their features. These internal package/type changes do not change the public API or
+accepted corpus pin; no provider migration functionality is added.
+
+Verification for this checkpoint: `:server:core:check :server:core:model:check
+:server:app:test --tests '*ProviderRegistry*Test' --tests '*AdminControlPlaneServiceTest'
+--tests '*ServerArchitectureBoundaryTest'` passed (Core 75, model 3, App 70, zero skips).
+`:server:app:postgresJpaTest --tests '*JpaProviderSelectionRepositoryTest'
+--tests '*JpaProviderBindingRepositoryPostgresTest' --tests '*JpaOperationIntentRepositoryPostgresTest'
+--tests '*FilesMutationIntentServicePostgresTest' --tests '*CalendarBindingBootstrapPersistenceTest'`
+passed against disposable PostgreSQL (19 tests, zero skips). Java standard, provider boundary,
+Gradle structure and documentation static checks pass. The additional missing/duplicate-policy
+ownership cases passed in a subsequent Core check (77 tests total, zero skips). These checks prove this bounded
+extraction; selected-domain packaging, full runtime extraction and release acceptance remain open.

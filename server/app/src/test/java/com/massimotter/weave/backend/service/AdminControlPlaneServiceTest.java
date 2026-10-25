@@ -16,7 +16,7 @@ import com.massimotter.weave.backend.model.admin.EffectivePolicySimulationReques
 import com.massimotter.weave.backend.audit.persistence.AuditEventJpaRepository;
 import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
 import com.massimotter.weave.backend.provider.ProviderRegistry;
-import com.massimotter.weave.backend.provider.ProviderSelection;
+import com.massimotter.weave.backend.providerbinding.selection.ProviderSelection;
 import com.massimotter.weave.backend.providerbinding.domain.ProviderBinding;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
 import com.massimotter.weave.backend.service.migration.InMemoryMigrationRunEvidenceRepository;

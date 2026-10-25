@@ -18,6 +18,9 @@ public final class ProviderBindingJpaTestFactory {
                         ProviderBindingJpaRepository.class),
                 JpaTestDatabase.repository(
                         dataSource,
-                        ProviderObjectMappingJpaRepository.class)));
+                        ProviderObjectMappingJpaRepository.class),
+                java.util.List.of(new com.massimotter.weave.backend.files.domain.FilesProviderBindingPolicy(),
+                        new com.massimotter.weave.backend.calendar.domain.CalendarProviderBindingPolicy(),
+                        new com.massimotter.weave.backend.chat.domain.ChatProviderBindingPolicy())));
     }
 }

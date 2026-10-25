@@ -16,8 +16,8 @@ import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepositor
 import com.massimotter.weave.backend.discovery.provider.ProviderModule;
 import com.massimotter.weave.backend.discovery.provider.ProviderPort;
 import com.massimotter.weave.backend.provider.ProviderRegistry;
-import com.massimotter.weave.backend.provider.ProviderSelection;
-import com.massimotter.weave.backend.provider.ProviderSelectionRepository;
+import com.massimotter.weave.backend.providerbinding.selection.ProviderSelection;
+import com.massimotter.weave.backend.providerbinding.selection.ProviderSelectionRepository;
 import com.massimotter.weave.backend.discovery.provider.ProviderState;
 import com.massimotter.weave.backend.discovery.provider.ProviderStatusResponse;
 import com.massimotter.weave.backend.discovery.provider.StaticProviderPort;

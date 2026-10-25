@@ -94,11 +94,11 @@ class JpaProviderBindingRepositoryPostgresTest {
         assertThatThrownBy(() -> repository.activate(
                 "org:example", "files", nextcloud.revision(), "nextcloud-webdav",
                 "secretref:files:rotated-credential", now.plusSeconds(1)))
-                .isInstanceOf(JpaProviderBindingRepository.FilesBindingIdentityTransitionBlockedException.class);
+                .isInstanceOf(com.massimotter.weave.backend.files.domain.FilesProviderBindingPolicy.BindingTransitionBlockedException.class);
         assertThatThrownBy(() -> repository.activate(
                 "org:example", "files", nextcloud.revision(), "weave-s3-minio", "secretref:files:minio",
                 now.plusSeconds(1)))
-                .isInstanceOf(JpaProviderBindingRepository.FilesBindingIdentityTransitionBlockedException.class);
+                .isInstanceOf(com.massimotter.weave.backend.files.domain.FilesProviderBindingPolicy.BindingTransitionBlockedException.class);
 
         assertThat(nextcloud.revision()).isEqualTo(1);
         assertThat(repository.revision("org:example", "files", 1)).get()
@@ -137,10 +137,10 @@ class JpaProviderBindingRepositoryPostgresTest {
                 "calendar:workspace.external-event", "calendar-user-api", now, now));
         assertThatThrownBy(() -> repository.activate("org:calendar", "calendar", nativeCalendar.revision(),
                 "weave-native", "configuration:calendar:rotated", now.plusSeconds(1)))
-                .isInstanceOf(JpaProviderBindingRepository.CalendarBindingIdentityTransitionBlockedException.class);
+                .isInstanceOf(com.massimotter.weave.backend.calendar.domain.CalendarProviderBindingPolicy.BindingTransitionBlockedException.class);
         assertThatThrownBy(() -> repository.activate("org:calendar", "calendar", nativeCalendar.revision(),
                 "nextcloud-caldav", "configuration:calendar:replacement", now.plusSeconds(1)))
-                .isInstanceOf(JpaProviderBindingRepository.CalendarBindingIdentityTransitionBlockedException.class);
+                .isInstanceOf(com.massimotter.weave.backend.calendar.domain.CalendarProviderBindingPolicy.BindingTransitionBlockedException.class);
 
         DriverManagerDataSource restartedDataSource = new DriverManagerDataSource();
         restartedDataSource.setDriverClassName(POSTGRES.getDriverClassName());
@@ -168,10 +168,10 @@ class JpaProviderBindingRepositoryPostgresTest {
 
         assertThatThrownBy(() -> repository.activate("org:chat-a", "chat", first.revision(),
                 "matrix-synapse", "profile:matrix-synapse", now.plusSeconds(1)))
-                .isInstanceOf(JpaProviderBindingRepository.ChatBindingTransitionBlockedException.class);
+                .isInstanceOf(com.massimotter.weave.backend.chat.domain.ChatProviderBindingPolicy.BindingTransitionBlockedException.class);
         assertThatThrownBy(() -> repository.activate("org:chat-a", "chat", first.revision(),
                 "weave-native", "profile:weave-native", now.plusSeconds(2)))
-                .isInstanceOf(JpaProviderBindingRepository.ChatBindingTransitionBlockedException.class);
+                .isInstanceOf(com.massimotter.weave.backend.chat.domain.ChatProviderBindingPolicy.BindingTransitionBlockedException.class);
 
         DriverManagerDataSource restartedDataSource = new DriverManagerDataSource();
         restartedDataSource.setDriverClassName(POSTGRES.getDriverClassName());

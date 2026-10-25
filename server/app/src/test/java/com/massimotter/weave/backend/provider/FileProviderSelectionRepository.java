@@ -1,5 +1,9 @@
 package com.massimotter.weave.backend.provider;
 
+import com.massimotter.weave.backend.providerbinding.selection.ProviderSelection;
+import com.massimotter.weave.backend.providerbinding.selection.ProviderSelectionRepository;
+import com.massimotter.weave.backend.providerbinding.selection.ProviderSelectionStoreException;
+
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;

@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.domainfacade;
 
 import com.massimotter.weave.backend.provider.ProviderRegistry;
-import com.massimotter.weave.backend.provider.ProviderSelectionRepository;
+import com.massimotter.weave.backend.providerbinding.selection.ProviderSelectionRepository;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import java.time.Clock;
 import org.springframework.beans.factory.annotation.Autowired;

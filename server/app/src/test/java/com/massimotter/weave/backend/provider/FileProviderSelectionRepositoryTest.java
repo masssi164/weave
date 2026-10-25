@@ -1,5 +1,8 @@
 package com.massimotter.weave.backend.provider;
 
+import com.massimotter.weave.backend.providerbinding.selection.ProviderSelection;
+import com.massimotter.weave.backend.providerbinding.selection.ProviderSelectionStoreException;
+
 import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.file.Files;

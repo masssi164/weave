@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -24,7 +23,6 @@ import static java.util.Objects.requireNonNull;
  * <p>Create, state transition, and outbox append share one transaction. Unique-key races are
  * reconciled in a fresh transaction so an idempotent retry returns the committed winner.
  */
-@Repository
 public class JpaOperationIntentRepository
         implements OperationIntentRepository {
 

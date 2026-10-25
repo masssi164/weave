@@ -5,16 +5,13 @@ import com.massimotter.weave.backend.files.adapter.JpaFilesAuthorityRepository;
 import com.massimotter.weave.backend.files.application.FilesLockService;
 import com.massimotter.weave.backend.files.application.FilesMutationIntentService;
 import com.massimotter.weave.backend.identity.invitation.JpaProvisioningIntentRepository;
-import com.massimotter.weave.backend.operation.adapter.JpaOperationIntentRepository;
 import com.massimotter.weave.backend.operation.application.OperationIntentService;
 import com.massimotter.weave.backend.identity.persistence.ProvisioningIntentJpaRepository;
 import com.massimotter.weave.backend.portability.persistence.MigrationRunEvidenceJpaRepository;
 import com.massimotter.weave.backend.identity.profile.persistence.ProductProfileOverrideJpaRepository;
-import com.massimotter.weave.backend.providerbinding.persistence.ProviderSelectionJpaRepository;
 import com.massimotter.weave.backend.readiness.persistence.JpaPersistenceReadinessProbe;
 import com.massimotter.weave.backend.security.persistence.DeviceCredentialJpaRepository;
 import com.massimotter.weave.backend.schema.persistence.SchemaAuthorityJpaRepository;
-import com.massimotter.weave.backend.provider.JpaProviderSelectionRepository;
 import com.massimotter.weave.backend.providerbinding.adapter.JpaProviderBindingRepository;
 import com.massimotter.weave.backend.providerbinding.application.FilesProviderBindingBootstrap;
 import com.massimotter.weave.backend.providerbinding.application.ProviderBindingBootstrapProperties;
@@ -58,12 +55,6 @@ public class WeavePersistenceConfiguration {
   }
 
   @Bean
-  JpaProviderSelectionRepository jpaProviderSelectionRepository(
-      ProviderSelectionJpaRepository repository) {
-    return new JpaProviderSelectionRepository(repository);
-  }
-
-  @Bean
   JpaProductProfileOverrideRepository jpaProductProfileOverrideRepository(
       ProductProfileOverrideJpaRepository repository, ObjectMapper objectMapper) {
     return new JpaProductProfileOverrideRepository(repository, objectMapper);
@@ -85,11 +76,6 @@ public class WeavePersistenceConfiguration {
   JpaProvisioningIntentRepository jpaProvisioningIntentRepository(
       ProvisioningIntentJpaRepository intents) {
     return new JpaProvisioningIntentRepository(intents);
-  }
-
-  @Bean
-  OperationIntentService operationIntentService(JpaOperationIntentRepository repository) {
-    return new OperationIntentService(repository, Clock.systemUTC());
   }
 
   @Bean

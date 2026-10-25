@@ -1,5 +1,8 @@
 package com.massimotter.weave.backend.provider;
 
+import com.massimotter.weave.backend.providerbinding.selection.ProviderSelection;
+import com.massimotter.weave.backend.providerbinding.selection.ProviderSelectionRepository;
+
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;

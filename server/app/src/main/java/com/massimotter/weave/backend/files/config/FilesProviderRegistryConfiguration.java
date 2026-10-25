@@ -1,5 +1,8 @@
 package com.massimotter.weave.backend.files.config;
 
+import com.massimotter.weave.backend.files.domain.FilesProviderBindingPolicy;
+import org.springframework.context.annotation.Import;
+
 import com.massimotter.weave.backend.config.FilesRuntimeProperties;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.discovery.provider.ProviderModule;
@@ -14,6 +17,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration(proxyBeanMethods = false)
+@Import(FilesProviderBindingPolicy.class)
 public class FilesProviderRegistryConfiguration {
 
     @Bean

@@ -1,4 +1,6 @@
 package com.massimotter.weave.backend.provider;
+
+import com.massimotter.weave.backend.providerbinding.selection.ProviderSelectionRepository;
 import com.massimotter.weave.backend.discovery.provider.ProviderRealityLevel;
 import com.massimotter.weave.backend.discovery.provider.ProviderState;
 import com.massimotter.weave.backend.discovery.provider.ProviderModule;

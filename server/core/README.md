@@ -30,6 +30,13 @@ Shared Audit owns the cross-domain envelope/redaction/publication contracts and 
 sink. Connector and Consent event construction belongs to future Integrations. Serving sink
 wiring is module-local; non-web preparation composes its explicit audit sink.
 
+Core also owns durable operation intents/outbox and provider-binding/selection storage.
+Serving wiring discovers the actual adapters through module-local imports. Domain-owned
+transition policies preserve each feature's identity/reconciliation requirements; Core
+rejects unknown or duplicate policy ownership rather than choosing a provider for a domain.
+The pure selection contract is in `providerbinding.selection`, with JPA infrastructure in
+`providerbinding.persistence`. Domain bootstrap and migration workflows remain outside Core.
+
 Shared revocation retains the existing durable table and hashed key format, permanent member
 cutoffs, session expiry retention, transaction/retry boundaries and fail-closed behavior.
 The Keycloak organization claim parser and tenant precedence have one owner; product domains

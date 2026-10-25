@@ -6,25 +6,31 @@ import com.massimotter.weave.backend.providerbinding.port.ProviderBindingReposit
 import java.time.Instant;
 import java.util.Optional;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import com.massimotter.weave.backend.providerbinding.port.ProviderBindingTransitionPolicy;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import static java.util.Objects.requireNonNull;
 
 /** Typed JPA adapter for versioned provider authority and private provider-ID mappings. */
-@Repository
 @Transactional(readOnly = true)
 public class JpaProviderBindingRepository implements ProviderBindingRepository {
 
     private final ProviderBindingJpaRepository bindings;
     private final ProviderObjectMappingJpaRepository mappings;
+    private final Map<String, ProviderBindingTransitionPolicy> transitionPolicies;
 
     public JpaProviderBindingRepository(
             ProviderBindingJpaRepository bindings,
-            ProviderObjectMappingJpaRepository mappings) {
+            ProviderObjectMappingJpaRepository mappings,
+            List<ProviderBindingTransitionPolicy> transitionPolicies) {
         this.bindings = requireNonNull(bindings, "bindings");
         this.mappings = requireNonNull(mappings, "mappings");
+        this.transitionPolicies = transitionPolicies.stream().collect(
+                Collectors.toUnmodifiableMap(ProviderBindingTransitionPolicy::domain, Function.identity()));
     }
 
     @Override
@@ -75,19 +81,14 @@ public class JpaProviderBindingRepository implements ProviderBindingRepository {
                     expectedRevision,
                     actual);
         }
-        // A new Chat projection cannot receive member traffic until #1498 proves its
-        // canonical history and authorization have been reconciled with the new target.
-        if (current != null && "chat".equals(domain)) {
-            throw new ChatBindingTransitionBlockedException();
+        ProviderBindingTransitionPolicy transitionPolicy = transitionPolicies.get(domain);
+        if (transitionPolicy == null) {
+            throw new IllegalStateException("No provider binding policy installed for domain: " + domain);
         }
-        // Credential rotation and replacement need verified identity carry-forward before
-        // the active revision changes. Until then, keep mapped Files and Calendar identities
-        // on their current authority rather than making public IDs disappear.
-        if (current != null && ("files".equals(domain) || "calendar".equals(domain))
-                && mappings.existsByIdOrganizationRefAndIdDomainAndIdBindingRevision(
-                        organizationRef, domain, current.revision())) {
-            if ("files".equals(domain)) throw new FilesBindingIdentityTransitionBlockedException();
-            throw new CalendarBindingIdentityTransitionBlockedException();
+        if (current != null) {
+            transitionPolicy.validateReplacement(
+                    mappings.existsByIdOrganizationRefAndIdDomainAndIdBindingRevision(
+                            organizationRef, domain, current.revision()));
         }
         if (current != null) {
             current.retire();
@@ -168,21 +169,4 @@ public class JpaProviderBindingRepository implements ProviderBindingRepository {
         }
     }
 
-    public static final class FilesBindingIdentityTransitionBlockedException extends RuntimeException {
-        public FilesBindingIdentityTransitionBlockedException() {
-            super("Files binding transition requires verified mapping and resource identity carry-forward");
-        }
-    }
-
-    public static final class CalendarBindingIdentityTransitionBlockedException extends RuntimeException {
-        public CalendarBindingIdentityTransitionBlockedException() {
-            super("Calendar binding transition requires verified Event identity carry-forward");
-        }
-    }
-
-    public static final class ChatBindingTransitionBlockedException extends RuntimeException {
-        public ChatBindingTransitionBlockedException() {
-            super("Chat binding transition requires verified provider reconciliation");
-        }
-    }
 }

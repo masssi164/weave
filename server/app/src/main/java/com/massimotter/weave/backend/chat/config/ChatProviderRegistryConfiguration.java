@@ -1,5 +1,8 @@
 package com.massimotter.weave.backend.chat.config;
 
+import com.massimotter.weave.backend.chat.domain.ChatProviderBindingPolicy;
+import org.springframework.context.annotation.Import;
+
 import com.massimotter.weave.backend.chat.port.ChatProviderPort;
 import com.massimotter.weave.backend.discovery.provider.ProviderModule;
 import com.massimotter.weave.backend.discovery.provider.ProviderPort;
@@ -13,6 +16,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration(proxyBeanMethods = false)
+@Import(ChatProviderBindingPolicy.class)
 public class ChatProviderRegistryConfiguration {
 
     @Bean
