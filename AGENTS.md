@@ -27,6 +27,7 @@ A bounded task is not a request to finish the whole sprint. Completion means its
 Apply the relevant standards:
 
 - `docs/developer-handbook.md` for coding conventions, Gradle gates, generated code, accessibility/i18n, and evidence expectations.
+- `docs/java-spring-standard.md` for Java/Spring coding, bean/configuration ownership, declarative HTTP, runtime providers and native/AOT acceptance. Use the matching repository-local workflows in `.agents/skills/`; `docs/agent-skills.md` explains discovery and verified examples. Do not copy legacy startup provider selection into new code.
 - `docs/gitflow-pr-workflow.md` for lane-based DevOps flow, protected `main`/`dev`, PR readiness, merge rules, and release-notes labels.
 - `docs/weave-operating-model.md` for delivery lifecycle and governance.
 - `specs/weave-specs.lock.json`, the pinned spec corpus files, `specs/spec-inventory.yaml`, `.specify/memory/constitution.md`, `docs/spec-driven-development.md`, and transitional repo-local `specs/` for conformance context.

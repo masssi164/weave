@@ -1,8 +1,19 @@
+// Shared architecture gates live here; domain dependencies remain in their owning projects.
+registerRootCommandTask('javaAgentContractCheck', ['bash', '-lc',
+        'python3 -m unittest tools.test_java_agent_contract_check && python3 tools/java_agent_contract_check.py'],
+        'Verify Java agent skills and reject new startup-selected provider wiring.')
+
+// verification.gradle registers these tasks later in the root build; configure lazily.
+tasks.matching { it.name in ['docsStructureCheck', 'serverCi'] }.configureEach {
+    dependsOn 'javaAgentContractCheck'
+}
+
 tasks.register('coreArchitectureCi') {
     group = 'verification'
     description = 'Enforce canonical core, extracted domain-library and MCP dependency boundaries.'
 
-    dependsOn ':weave-application-core:test',
+    dependsOn 'javaAgentContractCheck',
+            ':weave-application-core:test',
             ':server:domains:files:check',
             ':server:domains:calendar:check',
             ':server:entitySchemaCheck',
