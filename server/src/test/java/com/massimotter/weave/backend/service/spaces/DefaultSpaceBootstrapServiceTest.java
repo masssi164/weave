@@ -1,6 +1,8 @@
 package com.massimotter.weave.backend.service.spaces;
 
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
+import com.massimotter.weave.backend.calendar.spaces.CalendarDefaultSpacePreparationContribution;
+import com.massimotter.weave.backend.files.spaces.FilesDefaultSpacePreparationContribution;
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
 import com.massimotter.weave.backend.providerbinding.domain.ProviderBinding;
@@ -20,6 +22,7 @@ import com.massimotter.weave.backend.service.OrganizationIdentityContext;
 import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.spaces.port.DefaultSpacePreparationPort;
+import com.massimotter.weave.backend.spaces.preparation.DefaultSpacePreparationContribution;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,7 +55,8 @@ class DefaultSpaceBootstrapServiceTest {
                 ProviderBinding.State.ACTIVE, Instant.EPOCH)));
         service = new DefaultSpaceBootstrapService(keycloak, identities, capabilities, spaces, audit, properties,
                 new DeploymentOrganizationProperties("provider-org", "weave"),
-                new CalendarProviderBindingReadiness(calendarBindings, List.of(calendarProvider)));
+                List.of(new FilesDefaultSpacePreparationContribution(), new CalendarDefaultSpacePreparationContribution(
+                        new CalendarProviderBindingReadiness(calendarBindings, List.of(calendarProvider)))));
         when(keycloak.configuredOrganizationId()).thenReturn("provider-org");
         when(identities.configuredOrganizationId()).thenReturn("org:configured");
         when(keycloak.members("provider-org")).thenReturn(List.of(member("actual-owner", List.of("owner"), true)));
@@ -169,6 +173,51 @@ class DefaultSpaceBootstrapServiceTest {
         when(spaces.prepare(anyString(), anyString())).thenThrow(new DefaultSpacePreparationPort.Conflict());
         assertThatThrownBy(service::prepare).isInstanceOfSatisfying(ApiErrorException.class,
                 error -> assertThat(error.code()).isEqualTo("default-space-owner-access-conflict"));
+    }
+
+    @Test void noInstalledDomainDoesNotRequireDomainCapabilitiesOrReadiness() {
+        service = withDomains(List.of());
+        assertThat(service.prepare().outcome()).isEqualTo("CREATED");
+        verify(capabilities, never()).snapshotForVerifiedMember(any());
+        verify(capabilities, never()).requireCapabilityForVerifiedMember(any(), eq("files.read"), anyString(), anyString());
+        verify(capabilities, never()).requireCapabilityForVerifiedMember(any(), eq("calendar.read"), anyString(), anyString());
+        verify(calendarBindings, never()).current(anyString(), anyString());
+        verify(spaces).prepare("org:configured", IdentityReferences.accountId(ISSUER, "actual-owner"));
+    }
+
+    @Test void filesOnlyPreparationIgnoresOmittedCalendarStateAndBinding() {
+        service = withDomains(List.of(new FilesDefaultSpacePreparationContribution()));
+        when(capabilities.snapshotForVerifiedMember(any())).thenReturn(snapshot(ready(), null));
+        assertThat(service.prepare().outcome()).isEqualTo("CREATED");
+        verify(capabilities).requireCapabilityForVerifiedMember(any(), eq("files.upload"), eq("spaces"), eq("prepare-human-test"));
+        verify(capabilities, never()).requireCapabilityForVerifiedMember(any(), eq("calendar.manage_events"), anyString(), anyString());
+        verify(calendarBindings, never()).current(anyString(), anyString());
+    }
+
+    @Test void calendarOnlyPreparationIgnoresOmittedFilesStateAndCapabilities() {
+        service = withDomains(List.of(new CalendarDefaultSpacePreparationContribution(
+                new CalendarProviderBindingReadiness(calendarBindings, List.of(calendarProvider)))));
+        when(capabilities.snapshotForVerifiedMember(any())).thenReturn(snapshot(null, ready()));
+        assertThat(service.prepare().outcome()).isEqualTo("CREATED");
+        verify(capabilities, never()).requireCapabilityForVerifiedMember(any(), eq("files.read"), anyString(), anyString());
+        verify(calendarBindings, times(2)).current("org:configured", "calendar");
+    }
+
+    @Test void allReadinessChecksPrecedeSpaceMutationAndRevisionRecheckPrecedesAudit() {
+        service.prepare();
+        var sequence = inOrder(capabilities, calendarBindings, spaces, audit);
+        sequence.verify(capabilities).snapshotForVerifiedMember(any());
+        sequence.verify(calendarBindings).current("org:configured", "calendar");
+        sequence.verify(spaces).prepare("org:configured", IdentityReferences.accountId(ISSUER, "actual-owner"));
+        sequence.verify(calendarBindings).current("org:configured", "calendar");
+        sequence.verify(audit).publish(any());
+    }
+
+    private DefaultSpaceBootstrapService withDomains(List<DefaultSpacePreparationContribution> contributions) {
+        var properties = new OAuth2ResourceServerProperties();
+        properties.getJwt().setIssuerUri(ISSUER);
+        return new DefaultSpaceBootstrapService(keycloak, identities, capabilities, spaces, audit, properties,
+                new DeploymentOrganizationProperties("provider-org", "weave"), contributions);
     }
 
     private static ProviderMember member(String subject, List<String> roles, boolean enabled) {

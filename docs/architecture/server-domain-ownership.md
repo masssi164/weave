@@ -213,3 +213,20 @@ also removed. Source architecture inspection now walks every real Server product
   human-token claim aliases; the executable still cannot declare entities/repositories.
 - Corpus proposal #172 hosted Specification conformance succeeded; normal review/acceptance
   and the resulting implementation pin update remain pending.
+
+### Shared Space contribution checkpoint
+
+Shared relationship listing now consumes installed Calendar/Files/Chat contributions. Each domain
+owns bounded candidate selection, current access readback, ID validation and protocol projection.
+Shared member/Space admission, event/file/room cursor ordering, pagination and support-safe
+errors remain centralized. Omitted-domain cursors fail explicitly; missing domains do not
+create synthetic results or unsatisfied dependencies.
+
+Default Space preparation likewise consumes installed-domain guards. Files retains existing
+capability/snapshot checks; Calendar captures/rechecks its binding. The exact order is shared
+authorization, all snapshot checks, authority capture, unchanged membership primitive, authority
+recheck and audit. Zero-domain and single-domain compositions preserve the shared primitive.
+
+Focused service/contribution/controller/bootstrap checks: 48 passed; authoritative Space and
+Dogfood preparation PostgreSQL checks: 13 passed. Existing incidental Cucumber discovery also
+ran its 12 scenarios. These are bounded backend checks, not two-member native acceptance.

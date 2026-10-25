@@ -8,15 +8,12 @@ import com.massimotter.weave.backend.config.DeploymentOrganizationProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.identity.IdentityReferences;
 import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
 import com.massimotter.weave.backend.model.spaces.DefaultSpaceBootstrapResponse;
 import com.massimotter.weave.backend.service.OrganizationIdentityContext;
 import com.massimotter.weave.backend.service.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
-import com.massimotter.weave.backend.service.calendar.CalendarProviderBindingReadiness;
 import com.massimotter.weave.backend.spaces.port.DefaultSpacePreparationPort;
+import com.massimotter.weave.backend.spaces.preparation.DefaultSpacePreparationContribution;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -37,13 +34,13 @@ public class DefaultSpaceBootstrapService {
     private final AuditEventPublisher audit;
     private final OAuth2ResourceServerProperties resourceServer;
     private final DeploymentOrganizationProperties primaryOrganization;
-    private final CalendarProviderBindingReadiness calendarReadiness;
+    private final List<DefaultSpacePreparationContribution> domainPreparation;
 
     public DefaultSpaceBootstrapService(KeycloakIdentityAdminClient keycloak,
             OrganizationIdentityContextResolver identities, WorkspaceCapabilityService capabilities,
             DefaultSpacePreparationPort spaces, AuditEventPublisher audit,
             OAuth2ResourceServerProperties resourceServer, DeploymentOrganizationProperties primaryOrganization,
-            CalendarProviderBindingReadiness calendarReadiness) {
+            List<DefaultSpacePreparationContribution> domainPreparation) {
         this.keycloak = keycloak;
         this.identities = identities;
         this.capabilities = capabilities;
@@ -51,29 +48,36 @@ public class DefaultSpaceBootstrapService {
         this.audit = audit;
         this.resourceServer = resourceServer;
         this.primaryOrganization = primaryOrganization;
-        this.calendarReadiness = calendarReadiness;
+        if (domainPreparation.stream().map(DefaultSpacePreparationContribution::domain).distinct().count() != domainPreparation.size()) {
+            throw new IllegalArgumentException("Default Space preparation contribution is duplicated");
+        }
+        this.domainPreparation = List.copyOf(domainPreparation);
     }
 
     @Transactional
     public DefaultSpaceBootstrapResponse prepare() {
         OrganizationIdentityContext owner = currentOwner();
         capabilities.requireCapabilityForVerifiedMember(owner, "admin.policy.edit", "spaces", "bootstrap");
-        for (String capability : List.of("files.read", "files.upload", "calendar.read", "calendar.manage_events")) {
-            capabilities.requireCapabilityForVerifiedMember(owner, capability, "spaces", "prepare-human-test");
+        for (var contribution : domainPreparation) {
+            for (String capability : contribution.requiredCapabilities()) {
+                capabilities.requireCapabilityForVerifiedMember(owner, capability, "spaces", "prepare-human-test");
+            }
         }
-        var snapshot = capabilities.snapshotForVerifiedMember(owner);
-        if (!ready(snapshot.files()) || !ready(snapshot.calendar())) {
-            throw error(HttpStatus.CONFLICT, "default-space-capabilities-not-ready");
+        if (!domainPreparation.isEmpty()) {
+            var snapshot = capabilities.snapshotForVerifiedMember(owner);
+            if (domainPreparation.stream().anyMatch(contribution -> !contribution.ready(snapshot))) {
+                throw error(HttpStatus.CONFLICT, "default-space-capabilities-not-ready");
+            }
         }
-        // Configuration/health alone cannot prove that the selected organization has a Calendar authority.
-        var calendarBinding = calendarReadiness.require(owner.organizationId());
+        var authorityRechecks = domainPreparation.stream()
+                .flatMap(contribution -> contribution.captureAuthorityRecheck(owner).stream()).toList();
         DefaultSpacePreparationPort.Result result;
         try {
             result = spaces.prepare(owner.organizationId(), owner.accountId());
         } catch (DefaultSpacePreparationPort.Conflict conflict) {
             throw error(HttpStatus.CONFLICT, "default-space-owner-access-conflict");
         }
-        calendarReadiness.requireUnchanged(owner.organizationId(), calendarBinding);
+        authorityRechecks.forEach(Runnable::run);
         audit.publish(new AuditEvent(owner.organizationId(), "workspace-default",
                 "operator:default-space-bootstrap", "default-space-bootstrap", AuditAction.SPACE_PROVISIONED,
                 Instant.now(), "default-space-bootstrap-" + UUID.randomUUID(), AuditRedactionLevel.SUPPORT_SAFE,
@@ -109,11 +113,6 @@ public class DefaultSpaceBootstrapService {
         } catch (RuntimeException failure) {
             throw error(HttpStatus.SERVICE_UNAVAILABLE, "default-space-owner-verification-unavailable");
         }
-    }
-
-    private static boolean ready(WorkspaceCapabilityStatusResponse status) {
-        return status != null && status.enabled() && status.policyState() == WorkspaceCapabilityPolicyState.ALLOWED
-                && status.readiness() == WorkspaceCapabilityReadiness.READY;
     }
 
     private static ApiErrorException error(HttpStatus status, String code) {
