@@ -19,3 +19,21 @@ tasks.withType(Test).configureEach {
 tasks.withType(JavaCompile).configureEach {
     options.compilerArgs.add('-parameters')
 }
+
+// Libraries with real context suites opt in locally; model-only projects retain plain unit tasks.
+if (project.ext.has('weaveContextTests') && project.ext.get('weaveContextTests') == true) {
+    tasks.named('test', Test) {
+        useJUnitPlatform { excludeTags 'context' }
+    }
+
+    def contextTest = tasks.register('contextTest', Test) {
+        group = 'verification'
+        description = 'Run actual application-context and module imports-discovery tests.'
+        testClassesDirs = sourceSets.test.output.classesDirs
+        classpath = sourceSets.test.runtimeClasspath
+        useJUnitPlatform { includeTags 'context' }
+        shouldRunAfter tasks.named('test')
+    }
+
+    tasks.named('check') { dependsOn contextTest }
+}

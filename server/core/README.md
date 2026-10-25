@@ -71,6 +71,9 @@ It is test-only and is absent from the production artifact. Module tests cover a
 imports discovery, singleton beans and non-web isolation; policy/session/identity unit tests
 run without the complete application or optional domains.
 
+`test` runs direct unit cases; `contextTest` runs the tagged application-context cases
+with separate reports. Owning `check` requires both through the shared library mechanics.
+
 From the repository root:
 
 ```sh

@@ -12,6 +12,7 @@ import com.massimotter.weave.backend.files.provider.WeaveNativeFilesAdapter;
 import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -23,6 +24,7 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 import static org.assertj.core.api.Assertions.assertThat;
 
 /** Uses the published imports resources, without App or manually imported runtime configurations. */
+@Tag("context")
 class FilesRuntimeDiscoveryTest {
     @TempDir
     Path temporary;

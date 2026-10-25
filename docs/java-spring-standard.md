@@ -98,6 +98,17 @@ Read versions from `gradle/libs.versions.toml` and the owning module. At this st
 
 ## Verification and reference sources
 
+Actual libraries with application-context suites opt into the shared
+`server/gradle/scripts/domain-library.gradle` mechanics with the local
+`weaveContextTests` declaration. Their ordinary `test` task excludes the JUnit `context`
+tag; `contextTest` runs only that tag with separate XML/HTML reports, and `check` requires
+both. Tag a whole class only when every case constructs a context; tag individual methods
+in mixed classes so direct unit cases remain in the unit lane. Spring types alone do not
+make a direct-object test an application-context test. Pure models remain framework-free
+and have no artificial context task. Selected domain checks retain both owning lanes and
+genuine shared prerequisites; PostgreSQL and expensive integrated product evidence remain
+separate from these lightweight context checks.
+
 ```sh
 ./gradlew javaAgentContractCheck :server:app:javaAgentReferenceTest
 ./gradlew coreArchitectureCi

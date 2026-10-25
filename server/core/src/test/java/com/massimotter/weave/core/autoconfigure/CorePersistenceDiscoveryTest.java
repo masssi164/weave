@@ -32,12 +32,14 @@ import com.massimotter.weave.backend.security.http.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.security.http.ProtocolSecurityErrorHandler;
 import com.massimotter.weave.backend.security.device.DeviceCredentialAuthenticationFilter;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
 
+@Tag("context")
 class CorePersistenceDiscoveryTest {
     @Test
     void discoversTheModuleImportsResourceAndCreatesItsRealRepositories() {

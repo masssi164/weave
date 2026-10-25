@@ -2,6 +2,7 @@ package com.massimotter.weave.core.autoconfigure;
 
 import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.capability.readiness.WorkspaceReleaseReadinessService;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -9,6 +10,7 @@ import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
 import static org.assertj.core.api.Assertions.assertThat;
 
+@Tag("context")
 class CoreWorkspaceCapabilityDiscoveryTest {
     @Test
     void importsDiscoverOnePolicyWithoutOptionalDomains() {

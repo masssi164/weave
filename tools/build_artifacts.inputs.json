@@ -95,7 +95,10 @@
         "server/domains/portability/persistence/src/main/**",
         "server/domains/portability/persistence/build.gradle",
         "server/domains/chat/persistence/src/main/**",
-        "server/domains/chat/persistence/build.gradle"
+        "server/domains/chat/persistence/build.gradle",
+        "specs/weave-specs.lock.json",
+        "server/domains/catalog.json",
+        "tools/domain_selection_resolver.py"
       ]
     },
     "ios-simulator": {

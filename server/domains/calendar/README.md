@@ -63,6 +63,9 @@ Entity-first cutover; schema export remains a separate non-serving task.
 
 ## Verification
 
+`test` runs direct unit cases; `contextTest` runs the tagged application-context cases
+with separate reports. Owning `check` requires both through the shared library mechanics.
+
 From repository root:
 
 ```sh

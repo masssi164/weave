@@ -6,11 +6,13 @@ import jakarta.persistence.EntityManagerFactory;
 import com.massimotter.weave.backend.chat.persistence.MatrixE2eeRelationalStore;
 import com.massimotter.weave.backend.matrix.MatrixE2eePersistence;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
 
+@Tag("context")
 class ChatPersistenceDiscoveryTest {
     @Test
     void discoversTheModuleImportsResourceAndCreatesItsRealRepositories() {

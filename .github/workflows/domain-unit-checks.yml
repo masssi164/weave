@@ -78,6 +78,8 @@ jobs:
             server/app/build/test-results/domain*UnitTest/
             server/app/build/reports/tests/domain*UnitTest/
             server/**/build/test-results/test/
+            server/**/build/test-results/contextTest/
             server/**/build/reports/tests/test/
+            server/**/build/reports/tests/contextTest/
           if-no-files-found: ignore
           retention-days: 7

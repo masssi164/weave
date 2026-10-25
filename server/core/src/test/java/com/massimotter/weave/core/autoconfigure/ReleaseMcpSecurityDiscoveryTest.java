@@ -8,6 +8,7 @@ import com.massimotter.weave.backend.security.workload.jwt.McpExchangedTokenPoli
 import com.massimotter.weave.backend.security.workload.port.McpWorkloadAuthorization;
 import com.massimotter.weave.backend.security.workload.port.ReleaseMcpBindingRepository;
 import com.massimotter.weave.backend.security.workload.port.WorkloadEntitlementAuthority;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -15,6 +16,7 @@ import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.util.ClassUtils;
 
+@Tag("context")
 class ReleaseMcpSecurityDiscoveryTest {
     private static final String[] RELEASE_SETTINGS = {
             "weave.mcp.release-binding-file=/run/secrets/agent-runtime/workloads/release-mcp.json",

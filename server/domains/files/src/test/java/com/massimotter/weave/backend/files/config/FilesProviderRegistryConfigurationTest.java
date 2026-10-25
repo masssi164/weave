@@ -11,6 +11,7 @@ import com.massimotter.weave.backend.discovery.provider.ProviderStatusResponse;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 
@@ -71,6 +72,7 @@ class FilesProviderRegistryConfigurationTest {
         org.mockito.Mockito.verify(other, org.mockito.Mockito.never()).configured();
     }
     @Test
+    @Tag("context")
     void filesRegistryConfigurationComposesWithoutOtherDomainClasses() {
         new org.springframework.boot.test.context.runner.ApplicationContextRunner()
                 .withClassLoader(new org.springframework.boot.test.context.FilteredClassLoader(

@@ -722,3 +722,33 @@ in seven seconds. Acceptance mappings cover 270 scenarios; runtime evidence was 
 The legacy structure helper's optional sibling-path manifest comparison is unavailable in this
 isolated layout; the separate exact-pin conformance check ran and passed for all 159 entries.
 Static Java selector/skill links and provider boundary invariants passed without budget changes.
+
+### Owning context lanes and provider-selection policy checkpoint
+
+Eight actual Core/domain runtime or persistence libraries now separate ordinary unit tests
+from tagged Spring context discovery. `check` schedules both; reports remain separate under
+`test` and `contextTest`. Pure model/provider/security libraries have no synthetic context task.
+Mixed unit/context suites tag only the methods that construct contexts. The selected-domain
+aggregate executes these owning tasks and CI collects both report sets. App's broader context
+and expensive integration classification remains a later task.
+
+The owning checks passed 369 unit and 23 context tests with no overlap, skips, errors or
+failures. App provider-registry/Chat regressions passed 43 tests; fresh full OpenAPI export
+passed 14 tests plus five normalization tests. Selected Files/Calendar checks, six real Gradle
+wiring regressions, 32 resolver cases and `coreArchitectureCi` passed. Wiring regressions now
+expect the actual Files/Calendar tasks and retain the explicit partial-runtime/API/schema
+rejections until composition is complete.
+
+Core's small `ProviderSelectionStatus` policy now owns generic admin-selection status
+projection. App's transitional feature catalog delegates to it; no optional feature metadata
+or registry moved into Core. Five direct unit cases preserve pending selection, aliases,
+wrong-adapter rejection and category ownership. A selection no longer upgrades an unsafe
+provider diagnostic to support-safe. Chat can consume this policy without importing App's
+feature catalog.
+
+The runtime artifact input closure includes its embedded specification lock and the canonical
+domain catalog/resolver. Cache regressions distinguish those build-affecting inputs from
+composition-only documentation and unrelated client inputs. `python3 tools/build_artifacts_test.py`
+passed 41 tests. Its first local run exposed an existing macOS `/var` versus `/private/var`
+fixture assertion; the fixture now resolves the path exactly as the production Xcode command
+already does. This changes no signing or build behavior. No ARM64/GHCR contract was activated.

@@ -1,5 +1,8 @@
 plugins { id 'java-library' }
 
+// This library owns real application-context tests in addition to its unit tests.
+ext.weaveContextTests = true
+
 apply from: rootProject.file('server/gradle/scripts/domain-library.gradle')
 
 group = 'com.massimotter.weave.files'

@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.HexFormat;
 import java.util.List;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.context.FilteredClassLoader;
@@ -31,6 +32,7 @@ class MemberSessionRevocationServiceTest {
             new ContextAuthorizationProperties(null, null, null, null, null, null, null, null));
 
     @Test
+    @Tag("context")
     void sharedSecurityContextStartsAndChecksSessionsWithoutChatClasses() {
         when(store.isSessionRevoked(any(), any())).thenReturn(true);
         new ApplicationContextRunner()

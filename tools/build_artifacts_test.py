@@ -78,12 +78,31 @@ class Repository(unittest.TestCase):
                 "jobName": "Build component (ios-simulator)"}}
         return manifest, archive
 
-    def test_docs_and_corpus_revision_do_not_rebuild_unchanged_binaries(self):
+    def test_docs_do_not_rebuild_unchanged_binaries(self):
         before = self.inputs()
         self.write("docs/example.md", "Changed explanatory prose\n")
-        self.write("specs/weave-specs.lock.json", json.dumps({"specCorpus": {"gitCommit": "b" * 40}}))
         self.commit()
         self.assertEqual(before, self.inputs())
+
+    def test_runtime_specification_labels_invalidate_only_the_runtime(self):
+        before = self.inputs()
+        self.write("specs/weave-specs.lock.json", json.dumps({"specCorpus": {"gitCommit": "b" * 40}}))
+        self.commit()
+        after = self.inputs()
+        self.assertNotEqual(before["runtime-linux-amd64"], after["runtime-linux-amd64"])
+        self.assertEqual(before["ios-simulator"], after["ios-simulator"])
+        self.assertEqual(before["ios-device"], after["ios-device"])
+
+    def test_actual_domain_composition_inputs_invalidate_the_runtime(self):
+        before = self.inputs()
+        for name in ("server/domains/catalog.json", "tools/domain_selection_resolver.py"):
+            self.write(name, "changed composition input\n")
+            self.commit()
+            after = self.inputs()
+            self.assertNotEqual(before["runtime-linux-amd64"], after["runtime-linux-amd64"])
+            self.assertEqual(before["ios-simulator"], after["ios-simulator"])
+            self.assertEqual(before["ios-device"], after["ios-device"])
+            before = after
 
     def test_client_change_does_not_rebuild_server(self):
         before = self.inputs()
@@ -541,7 +560,7 @@ class SimulatorSigning(unittest.TestCase):
                 raise subprocess.CalledProcessError(1, arguments)
             return ""
         if "-showBuildSettings" in arguments:
-            self.assertIn("BUILD_DIR=" + str(self.client / "build/ios"), arguments)
+            self.assertIn("BUILD_DIR=" + str((self.client / "build/ios").resolve()), arguments)
             return json.dumps([{"target": "Runner", "buildSettings": self.settings}])
         pins = self.definitions["ios-simulator"]["toolchain"]
         if arguments == ["xcodebuild", "-version"]:

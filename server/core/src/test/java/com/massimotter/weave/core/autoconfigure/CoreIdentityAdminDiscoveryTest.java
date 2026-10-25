@@ -3,6 +3,7 @@ package com.massimotter.weave.core.autoconfigure;
 import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient;
 import com.massimotter.weave.backend.identity.keycloak.KeycloakAdminClient;
 import com.massimotter.weave.backend.security.keycloak.port.KeycloakAdminAccessTokenProvider;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -10,6 +11,7 @@ import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
 import static org.assertj.core.api.Assertions.assertThat;
 
+@Tag("context")
 class CoreIdentityAdminDiscoveryTest {
     @Test
     void servingImportsDiscoverOneProtectedTransportWithoutReadingCredentials() {

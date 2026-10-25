@@ -25,7 +25,14 @@ class DomainGradleWiringTest(unittest.TestCase):
 
     def test_subset_check_uses_only_selected_inventory(self):
         output = self.gradle(':server:domains:check', '-Pdomains=files,chat', '--dry-run')
-        self.assertEqual(self.unit_tasks(output), {':server:app:domainFilesUnitTest', ':server:app:domainChatUnitTest'})
+        self.assertEqual(self.unit_tasks(output), {':server:app:domainChatUnitTest'})
+        self.assertIn(':server:domains:files:test SKIPPED', output)
+        self.assertIn(':server:domains:files:contextTest SKIPPED', output)
+        self.assertIn(':server:domains:files:persistence:contextTest SKIPPED', output)
+        self.assertIn(':server:core:contextTest SKIPPED', output)
+        self.assertNotIn(':server:domains:calendar:contextTest', output)
+        self.assertNotIn(':server:core:model:contextTest', output)
+        self.assertNotIn(':server:domains:files:model:contextTest', output)
         self.assertIn(':server:domains:files:model:test SKIPPED', output)
         self.assertNotIn(':server:app:test SKIPPED', output)
         self.assertNotIn(':server:app:postgresJpaTest', output)
@@ -33,19 +40,31 @@ class DomainGradleWiringTest(unittest.TestCase):
 
     def test_test_alias_is_scoped_to_the_requested_domain(self):
         output = self.gradle(':server:domains:test', '-Pdomains=calendar', '--dry-run')
-        self.assertEqual(self.unit_tasks(output), {':server:app:domainCalendarUnitTest'})
+        self.assertEqual(self.unit_tasks(output), set())
+        self.assertIn(':server:domains:calendar:test SKIPPED', output)
+        self.assertNotIn(':server:domains:calendar:contextTest', output)
         self.assertNotIn(':server:domains:files:model:test SKIPPED', output)
 
     def test_default_and_explicit_all_have_the_same_domain_graph(self):
         default = self.gradle(':server:domains:check', '--dry-run')
         explicit = self.gradle(':server:domains:check', '-Pdomains=all', '--dry-run')
-        expected = {':server:app:domainCalendarUnitTest', ':server:app:domainChatUnitTest', ':server:app:domainFilesUnitTest'}
+        expected = {':server:app:domainChatUnitTest'}
         self.assertEqual(self.unit_tasks(default), expected)
         self.assertEqual(self.unit_tasks(explicit), expected)
+        for output in (default, explicit):
+            for domain in ('files', 'calendar'):
+                self.assertIn(f':server:domains:{domain}:test SKIPPED', output)
+                self.assertIn(f':server:domains:{domain}:contextTest SKIPPED', output)
+                self.assertNotIn(f':server:domains:{domain}:model:contextTest', output)
 
     def test_boot_jar_has_an_independent_packaging_guard(self):
         output = self.gradle(':server:app:bootJar', '-Pdomains=files', '--dry-run')
         self.assertIn(':server:app:verifyFullDomainPackaging SKIPPED', output)
+
+    def test_reduced_exports_schedule_the_same_packaging_guard(self):
+        for task in ('openApiContractExport', 'entitySchemaExport'):
+            output = self.gradle(f':server:app:{task}', '-Pdomains=files', '--dry-run')
+            self.assertIn(':server:app:verifyFullDomainPackaging SKIPPED', output)
 
     def test_guard_runs_even_when_its_packaging_consumer_is_up_to_date(self):
         with tempfile.TemporaryDirectory(prefix='weave-domain-gradle-') as tmp:
@@ -68,7 +87,7 @@ class DomainGradleWiringTest(unittest.TestCase):
             self.assertIn('> Task :server:app:verifyFullDomainPackaging', repeat)
             self.assertNotIn(':server:app:verifyFullDomainPackaging UP-TO-DATE', repeat)
             refused = self.gradle(*args, '-Pdomains=files', success=False)
-            self.assertIn('production domain packaging is not implemented', refused)
+            self.assertIn('selected App runtime/API/schema composition is not implemented', refused)
             self.assertEqual(marker.read_text(), 'test-only packaging probe')
 
 

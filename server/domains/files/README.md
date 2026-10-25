@@ -71,6 +71,9 @@ From repository root:
 ./gradlew checkOpenApiContractFresh coreArchitectureCi
 ```
 
+`test` runs direct unit cases; `contextTest` runs the tagged application-context cases
+with separate reports. Owning `check` requires both through the shared library mechanics.
+
 Files checks execute real owning unit tests plus Core/model/persistence prerequisites.
 The Files verification bridge and its hand-maintained App unit inventory are retired.
 Independent provider, resolver, User-use-case and security tests move with the runtime.

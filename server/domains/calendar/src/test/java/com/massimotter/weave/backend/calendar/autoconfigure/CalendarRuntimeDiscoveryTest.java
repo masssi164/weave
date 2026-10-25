@@ -10,6 +10,7 @@ import com.massimotter.weave.backend.calendar.persistence.NativeCalendarRelation
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
 import com.massimotter.weave.backend.calendar.provider.caldav.CalDavCalendarAdapter;
 import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -20,6 +21,7 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 import static org.assertj.core.api.Assertions.assertThat;
 
 /** Discovers published imports without App, manual runtime imports or live provider calls. */
+@Tag("context")
 class CalendarRuntimeDiscoveryTest {
     @Test
     void discoversActualCalendarHandlersAndNativeAdapterWithoutOtherDomains() {

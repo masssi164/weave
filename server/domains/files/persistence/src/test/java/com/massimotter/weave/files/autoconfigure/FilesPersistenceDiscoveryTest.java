@@ -3,11 +3,13 @@ package com.massimotter.weave.files.autoconfigure;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import jakarta.persistence.EntityManagerFactory;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
 
+@Tag("context")
 class FilesPersistenceDiscoveryTest {
     @Test
     void discoversTheModuleImportsResourceAndCreatesItsRealRepositories() {
