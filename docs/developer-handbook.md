@@ -85,6 +85,15 @@ The root `./gradlew` is the monorepo build/delivery source of truth. GitHub Acti
 
 Each task requires the same tools and dependency setup as the underlying ecosystem command; for example docs tasks need pinned dependencies installed in `build/docs-venv` or the active Python environment from `docs/requirements.txt`, server checks need Java 21+, client checks need Flutter/Dart, and admin checks need Node/npm dependencies. `./gradlew ci` writes sanitized evidence to `build/evidence/ci-summary.json`; CI uploads `build/evidence/**` and deterministic docs outputs as artifacts. If local `./gradlew doctor` reports JDK 17, point `JAVA_HOME` at JDK 21+ rather than weakening the gate.
 
+## Focused Server domain checks
+
+For focused Server feedback, use
+`./gradlew :server:domains:check -Pdomains=files,chat`.
+The selected-domain JVM lane defaults to `all` after any matching branch pin;
+it does not replace the complete Server/PostgreSQL/JNI gates or make production
+packaging domain-selectable. See [Selected domain JVM verification](development/domain-verification.md)
+for selection rules, CI dispatch and the current bounded test inventory.
+
 ## Everyday Flutter workflow
 
 Use the existing generated-code workflow before analysis or tests:

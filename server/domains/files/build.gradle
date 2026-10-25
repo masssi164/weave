@@ -1,4 +1,3 @@
-plugins { id 'base' }
+apply from: "${rootDir}/server/domains/domain-project.gradle"
 
-// Files owns its JVM model. Its API, persistence and provider adapters migrate in subsequent slices.
 tasks.named('check') { dependsOn ':server:domains:files:model:check', ':server:domains:files:persistence:check' }
