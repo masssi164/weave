@@ -1,23 +1,43 @@
-# Files domain ownership
+# Files domain
 
-Files is a compile-time selectable product domain. It owns Files business semantics, adapters, persistence, API handlers and Spring Boot auto-configuration when the extraction is complete. Core must depend only on public shared contracts, never on Files implementation.
+Files owns its file metadata, locks, user-resource visibility and storage behavior. Build-time domain inclusion and runtime provider selection are separate decisions.
 
-## Extracted today
+## Current ownership
 
-- `:server:domains:files:model` owns the pure Java Files domain model and existing tests.
-- `:server:domains:files:persistence` owns Files JPA entities and Spring Data repositories for objects, locks and user resources, with unchanged physical SQL mappings.
+| Project | Owns | Must not depend on |
+| --- | --- | --- |
+| `:server:domains:files:model` | Framework-free values, application contracts and persistence ports | Spring, JPA, Server, provider SDKs |
+| `:server:domains:files:persistence` | Files JPA entities, IDs, Spring Data repositories and both transactional JPA adapters | Server, controllers, provider implementations or other domains |
 
-## Still to extract
+`JpaFilesAuthorityRepository` and `JpaFilesUserResourceRepository` are now compiled beside their package-private JPA types. Their existing transactions, lock fences, conflict translation and SQL mappings are unchanged. There is no second copy in the executable Server.
 
-- JPA entities and repositories have moved into `:server:domains:files:persistence`, preserving the existing table names and mapped types. Files service-layer transaction adapters are still in the transitional Server and will move with Files use cases.
-- The provider adapters (native Files/OpenDAL, Nextcloud and S3), their own dependencies, API controller/DTO projection, and explicit module-local `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`.
-- Real `:server:app` composition, OpenAPI-after-controller generation, and optional-domain release qualification.
+Shared Java/toolchain/test mechanics live in `server/gradle/scripts/domain-library.gradle`. Each library keeps its own dependencies. Domain-qualified Gradle groups and archive names avoid collisions when other domains also have `model` and `persistence` children.
 
-Run from repository root:
+## Still transitional
+
+The Files HTTP controllers, authenticated use cases, storage/provider adapters and runtime Spring composition still live in the legacy executable `server`. Their extraction, module-local `AutoConfiguration.imports`, selected `server/app` packaging and reduced-domain discovery remain open in #1745. Do not advertise a complete Files-only runtime from these library checks.
+
+Existing application-level PostgreSQL tests continue exercising the moved implementations through the unchanged Java package and type names. Historical Flyway migrations and retained data are not removed or rewritten.
+
+## Checks
+
+Run from the repository root:
 
 ```sh
-./gradlew :server:domains:files:model:test
+./gradlew :server:domains:files:check
 ./gradlew coreArchitectureCi
 ```
 
-Provider choices remain runtime bindings independent of the Gradle domain selection. Do not move historical Flyway scripts out of the canonical catalog or delete retained data.
+The domain checks cover model boundaries, entity mappings, adapter ownership and forbidden cross-domain dependencies. Full Server/PostgreSQL and API contract gates remain required for integration.
+
+## Cleanup record
+
+| Removed location | Replacement and reason |
+| --- | --- |
+| `weave-files-core/` | `server/domains/files/model/`; one physical Files-model owner |
+| `server/src/main/java/.../files/adapter/JpaFilesAuthorityRepository.java` | Files persistence library; eliminate the split package between Server and JPA library |
+| `server/src/main/java/.../files/adapter/JpaFilesUserResourceRepository.java` | Files persistence library; keep transactions with the entities they operate on |
+| `model/gradle/scripts/java-and-dependencies.gradle` | Model dependencies stay in its small build file; common mechanics use the shared domain-library script |
+| `model/gradle/tasks/verification.gradle` | JUnit Platform setup is shared, not copied for every domain library |
+
+These are source/build cleanups, not deletion of planned product features, database migrations or stored state. Keep removal rationale here and in commits; do not retain commented-out implementations.

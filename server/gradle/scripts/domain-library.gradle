@@ -1,0 +1,16 @@
+// Shared mechanics only: every domain library owns its dependencies and beans.
+// Domain-specific coordinates prevent Files:model and Calendar:model from claiming the same capability.
+group = "com.massimotter.weave.${project.parent.name}"
+version = '0.1.0'
+
+base {
+    archivesName = "weave-${project.parent.name}-${project.name}"
+}
+
+java {
+    toolchain { languageVersion = JavaLanguageVersion.of(21) }
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+}

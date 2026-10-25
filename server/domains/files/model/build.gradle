@@ -1,6 +1,11 @@
-plugins {
-    id 'java-library'
-}
+plugins { id 'java-library' }
 
-apply from: "${projectDir}/gradle/scripts/java-and-dependencies.gradle"
-apply from: "${projectDir}/gradle/tasks/verification.gradle"
+apply from: rootProject.file('server/gradle/scripts/domain-library.gradle')
+
+dependencies {
+    // The production model remains Java-only; the BOM applies to tests, not runtime code.
+    testImplementation platform(libs.spring.boot.bom)
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation libs.archunit.junit5
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
