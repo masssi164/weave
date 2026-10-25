@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.identity.bootstrap;
 
-import com.massimotter.weave.backend.config.IdentityInvitationProperties;
+import com.massimotter.weave.backend.identity.keycloak.IdentityInvitationProperties;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;

@@ -10,7 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
-import com.massimotter.weave.backend.config.IdentityInvitationProperties;
+import com.massimotter.weave.backend.identity.keycloak.IdentityInvitationProperties;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.identity.invitation.InMemoryProvisioningIntentRepository;
 import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient;

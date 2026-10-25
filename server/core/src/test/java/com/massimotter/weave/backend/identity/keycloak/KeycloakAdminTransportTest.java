@@ -1,4 +1,4 @@
-package com.massimotter.weave.backend.config;
+package com.massimotter.weave.backend.identity.keycloak;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -15,7 +15,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestClient;
 
-class KeycloakAdminClientConfigurationTest {
+class KeycloakAdminTransportTest {
   private HttpServer server;
 
   @AfterEach
@@ -47,7 +47,7 @@ class KeycloakAdminClientConfigurationTest {
         .keycloak()
         .setBaseUrl(URI.create("http://127.0.0.1:" + server.getAddress().getPort()));
     RestClient client =
-        new KeycloakAdminClientConfiguration()
+        new KeycloakAuthConfig()
             .keycloakIdentityAdminRestClient(RestClient.builder(), tokens, properties);
 
     int status =
@@ -79,7 +79,7 @@ class KeycloakAdminClientConfigurationTest {
         .keycloak()
         .setBaseUrl(URI.create("http://127.0.0.1:" + server.getAddress().getPort()));
     RestClient client =
-        new KeycloakAdminClientConfiguration()
+        new KeycloakAuthConfig()
             .keycloakIdentityAdminRestClient(RestClient.builder(), tokens, properties);
 
     client.get().uri("/admin/realms/weave/organizations").retrieve().toBodilessEntity();

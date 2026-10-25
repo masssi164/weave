@@ -19,6 +19,14 @@ services and provider health are servlet-only. Their explicit beans consume requ
 contracts; health consumes deferred domain probes and does not contact providers during
 construction. No domain component scan or optional feature implementation is required.
 
+Core Identity also owns the actual human Keycloak administration client, named HTTP
+interface, operation allowlist and invitation settings. The protected transport preserves
+private-key JWT, exact SecretRefs, timeouts, URL context paths, expected statuses and 401
+invalidation. Module-local servlet imports register it once; construction needs no mounted
+secret or live provider. Non-web operator tooling imports its required transport explicitly.
+Owning Core tests exercise real imports discovery and protected stub transports. Workload
+client registration remains a separate narrowly authorized flow.
+
 Release MCP authorization depends on protected member bindings, exact exchanged-token shape
 and current Keycloak entitlement. Its narrow authorization contract is shared; future runtime
 cells/profiles/governance remain outside Core. Existing configuration keys/defaults retain

@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.dogfood;
 
+import com.massimotter.weave.backend.identity.keycloak.IdentityInvitationProperties;
 import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.security.config.DeploymentOrganizationProperties;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;

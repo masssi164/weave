@@ -9,7 +9,7 @@ import com.massimotter.weave.backend.config.ConnectorRuntimeProperties;
 import com.massimotter.weave.backend.security.config.DeploymentOrganizationProperties;
 import com.massimotter.weave.backend.config.DefaultSpaceBootstrapProperties;
 import com.massimotter.weave.backend.config.GuestAccessProperties;
-import com.massimotter.weave.backend.config.IdentityInvitationProperties;
+import com.massimotter.weave.backend.identity.keycloak.IdentityInvitationProperties;
 import com.massimotter.weave.backend.config.InteropGatewayProperties;
 import com.massimotter.weave.backend.config.LiveKitSfuProviderProperties;
 import com.massimotter.weave.backend.config.MatrixChatProperties;

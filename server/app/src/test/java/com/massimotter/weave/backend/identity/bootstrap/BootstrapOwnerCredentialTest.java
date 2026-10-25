@@ -3,7 +3,7 @@ package com.massimotter.weave.backend.identity.bootstrap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.massimotter.weave.backend.config.IdentityInvitationProperties;
+import com.massimotter.weave.backend.identity.keycloak.IdentityInvitationProperties;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

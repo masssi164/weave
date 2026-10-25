@@ -10,3 +10,4 @@ com.massimotter.weave.core.autoconfigure.CoreDeviceSecurityAutoConfiguration
 com.massimotter.weave.core.autoconfigure.CoreWorkspaceCapabilityAutoConfiguration
 com.massimotter.weave.core.autoconfigure.CoreSpaceAutoConfiguration
 com.massimotter.weave.core.autoconfigure.CoreHttpSecurityAutoConfiguration
+com.massimotter.weave.core.autoconfigure.CoreIdentityAdminAutoConfiguration

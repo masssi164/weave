@@ -1,7 +1,6 @@
 package com.massimotter.weave.core.autoconfigure;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
 
 import com.massimotter.weave.backend.security.keycloak.port.KeycloakAdminAccessTokenProvider;
 import com.massimotter.weave.backend.security.workload.application.ReleaseMcpWorkloadAuthorizationService;
@@ -61,9 +60,7 @@ class ReleaseMcpSecurityDiscoveryTest {
 
     private WebApplicationContextRunner runner() {
         return new WebApplicationContextRunner().withUserConfiguration(Discovery.class)
-                .withPropertyValues("spring.jpa.hibernate.ddl-auto=none", "spring.flyway.enabled=false")
-                .withBean("keycloakIdentityAdminAccessTokenProvider", KeycloakAdminAccessTokenProvider.class,
-                        () -> mock(KeycloakAdminAccessTokenProvider.class));
+                .withPropertyValues("spring.jpa.hibernate.ddl-auto=none", "spring.flyway.enabled=false");
     }
 
     @Configuration(proxyBeanMethods = false)

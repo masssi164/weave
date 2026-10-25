@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.files.provider;
 
+import com.massimotter.weave.backend.files.config.http.NextcloudHttpConfig;
 import com.massimotter.weave.backend.files.application.FilePathCodec;
 import com.massimotter.weave.backend.files.config.NextcloudFilesProperties;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
@@ -45,7 +46,6 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
-import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.util.StreamUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.ResourceAccessException;
@@ -103,15 +103,11 @@ public class NextcloudFilesAdapter implements FilesProviderPort {
             NextcloudFilesProperties properties,
             NextcloudFilesAccountResolver accounts,
             RestClient.Builder restClientBuilder) {
-        this(properties, accounts, restClientBuilder
-                .requestFactory(new JdkClientHttpRequestFactory())
-                .build());
+        this(properties, accounts, NextcloudHttpConfig.client(restClientBuilder));
     }
 
     public NextcloudFilesAdapter(NextcloudFilesProperties properties, RestClient.Builder restClientBuilder) {
-        this(properties, null, restClientBuilder
-                .requestFactory(new JdkClientHttpRequestFactory())
-                .build());
+        this(properties, null, NextcloudHttpConfig.client(restClientBuilder));
     }
 
     NextcloudFilesAdapter(NextcloudFilesProperties properties, RestClient restClient) {

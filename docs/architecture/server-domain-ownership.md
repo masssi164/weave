@@ -599,3 +599,71 @@ actual OpenAPI export runs 14 tests and normalization runs five. The separate fu
 `:server:app:postgresJpaTest -Pdomains=all` with scoped disposable OrbStack PostgreSQL passed
 200 tests with no skips/failures/errors in 2m59s. Selected Files aggregate checks also pass.
 No persistent operator database, owner data or migration history was reset.
+
+### Existing provider HTTP work reconciliation checkpoint
+
+The normal merge of existing HTTP PR #1732 retains the current Files ownership and Core
+Security token/SecretRef implementations. Named Keycloak HTTP operations, exact operation
+and successful-status admission, fixture-only request attributes, URL context paths,
+private-key JWT authentication, bounded timeouts and 401 invalidation are preserved. Core
+Identity now physically owns the admin client, policy, original invitation settings and
+protected HTTP binding. The redundant incoming settings snapshot and production test-only
+RestClient constructor were removed; independent client/policy/fixture tests and their
+explicit protected-proxy helper now belong to Core. Actual module-local Boot discovery
+proves singleton serving beans and non-web absence without reading credentials.
+
+The incoming Nextcloud factory belongs to Files; CalDAV, Synapse and OpenProject factories
+belong to their existing Calendar, Chat and Boards business namespaces (the latter three
+remain physically under App until their runtime extraction). Specialized DAV/Matrix
+protocol behavior remains in its provider. No second Keycloak transport/token cache,
+Core-to-optional-domain dependency, new public setting or dependency upgrade was added.
+The required existing pinned Boot RestClient module is declared by its actual Core consumer.
+Implementation provenance is recorded in `server/docs/keycloak-admin-http-client-refactor.md`,
+which points back to the authoritative Java standard rather than defining parallel rules.
+
+Final combined JVM validation passed in 1m57s: Core/model and Files owning checks, whole
+App tests, fresh User/Admin OpenAPI and `coreArchitectureCi`. Core ran 157 tests, Core model
+3, Files runtime 94/model 21/persistence 11, App 1,262 with 24 existing lane skips, OpenAPI
+14 and normalization 5; zero failures/errors. The prior Files checkpoint's PostgreSQL
+qualification is not relabeled as qualification of this later HTTP source revision. No
+runtime/persistence contract or accepted corpus pin changed; Linux ARM64/native/AOT and
+integrated product qualification remain separate. Calendar runtime extraction is next.
+
+
+### Protected HTTP client integration checkpoint
+
+The existing HTTP-client implementation from PR #1732 is incorporated by normal branch merge,
+with relocation conflicts resolved at actual owners. Core Identity now owns the human Keycloak
+administration client, named HTTP interface, exact operation admission/status policy and the
+original invitation settings binder. Existing Core Security token and SecretRef implementations
+remain unchanged; no duplicate OAuth2 stack or Core-to-Agent Runtime dependency is introduced.
+The redundant incoming settings snapshot and production test-only constructor are removed.
+Independent client, policy and managed-fixture tests moved physically to Core.
+
+Actual servlet auto-configuration discovers the protected beans once without App or optional
+domains, with no credential read or remote call during construction; non-web discovery omits
+them and the operator composes its explicit transport. Authentication, timeouts, URL context
+paths, request-local fixture admission, exact successful statuses and 401 invalidation remain
+covered. Files owns its specialized Nextcloud transport factory. Calendar/Chat/Boards factories
+have their business packages; their remaining App runtime location stays transitional. DAV and
+Matrix retain their specialized transport semantics. The existing HTTP implementation record
+links to the canonical Java standard instead of defining a second rule set.
+
+`./gradlew :server:core:check :server:core:model:check :server:domains:files:check
+:server:app:test checkOpenApiContractFresh coreArchitectureCi -Pdomains=all --console=plain`
+passed in 1m57s: Core 157/model 3, Files 94/model 21/persistence 11, App 1,262 with 24 explicit
+PostgreSQL/MinIO lane skips, OpenAPI export 14 plus normalization five; zero failures/errors.
+`WEAVE_SPEC_CORPUS_ROOT=<exact-accepted-checkout> ./gradlew canonicalDataCi
+specCorpusConformance acceptanceContract --console=plain` passed in five seconds. No persistence
+mapping changed; the prior Files checkpoint's 200 real PostgreSQL cases are historical evidence,
+not a new database run for this HTTP-only source. Production inventory: 909 file FQNs, no duplicates.
+
+The proposed corpus PR #172 now also reconciles the old AMD64 component partition with the
+owner's automatic Linux ARM64 target and explicitly describes digest-bound private GHCR
+transport from related PR #1733. Proposal revision `e38e9ba` passed manifest generation, pinned
+corpus lint/contract examples and links; implementation still pins accepted `f049c0b18794`.
+No delivery contract was activated. Read-only registry inspection verified the pinned Keycloak
+index's ARM64 manifest `sha256:89d56312ace1d9b0bf8168f1a92ea135ba185d2844285f7651cb50774e47c1d8`;
+a disposable ARM64 container produced the existing required services-JAR SHA-256
+`b295c806047aea4b3ca31352c1664bff698106013902cb2b66f0cd1a61c2ad83`. This is dependency validation,
+not a Weave ARM64 image, native executable or release qualification.

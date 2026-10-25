@@ -9,6 +9,7 @@ group = 'com.massimotter.weave.core'
 base { archivesName = 'weave-core' }
 
 dependencies {
+    implementation 'org.springframework.boot:spring-boot-restclient'
     api 'org.springframework:spring-web'
     api 'org.springframework.security:spring-security-web'
     compileOnly 'jakarta.servlet:jakarta.servlet-api'

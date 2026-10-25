@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.identity.keycloak.KeycloakAuthConfig;
 import com.massimotter.weave.backend.security.keycloak.provider.SpringSecurityKeycloakAdminAccessTokenProvider;
 
 import com.massimotter.weave.backend.discovery.config.PlatformContractProperties;
@@ -89,7 +90,7 @@ public class AgentRuntimeWorkloadIdentityConfiguration {
   KeycloakRuntimeIdentityAuthority runtimeIdentityAuthority(
       AgentRuntimeWorkloadIdentityProperties properties,
       WorkloadEntitlementProperties entitlement,
-      @Qualifier(KeycloakAdminClientConfiguration.KEYCLOAK_ADMIN_ACCESS_TOKENS)
+      @Qualifier(KeycloakAuthConfig.KEYCLOAK_ADMIN_ACCESS_TOKENS)
           KeycloakAdminAccessTokenProvider accessTokens,
       ObjectMapper objectMapper) {
     return new KeycloakRuntimeIdentityAuthority(

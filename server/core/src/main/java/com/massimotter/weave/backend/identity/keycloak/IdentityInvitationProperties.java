@@ -1,4 +1,4 @@
-package com.massimotter.weave.backend.config;
+package com.massimotter.weave.backend.identity.keycloak;
 
 import java.net.URI;
 import java.nio.file.Path;
