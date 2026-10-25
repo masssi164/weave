@@ -1,21 +1,22 @@
 package com.massimotter.weave.backend.service;
 
 import com.massimotter.weave.backend.config.ProviderHealthProperties;
-import com.massimotter.weave.backend.chat.port.ChatProviderPort;
+import com.massimotter.weave.backend.health.ProviderHealthContribution;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.portability.ProviderCapabilityProbeResult;
-import com.massimotter.weave.backend.portability.ProviderReadiness;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -25,23 +26,42 @@ import static org.mockito.Mockito.when;
 class ProviderCapabilityHealthServiceTest {
 
     @Test
-    void chatHealthUsesTheActiveCanonicalProvider() {
-        ChatProviderPort chat = mock(ChatProviderPort.class);
-        when(chat.configured()).thenReturn(true);
-        when(chat.readiness()).thenReturn(ProviderReadiness.ready("chat-native-canonical-jpa-ready"));
+    void absentDomainsAreNotAdvertisedOrRegisteredAsUnavailable() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
         ProviderCapabilityHealthService service = new ProviderCapabilityHealthService(
-                null, null, chat,
-                new ProviderHealthProperties(Duration.ofSeconds(60), Duration.ZERO,
-                        Duration.ofMinutes(5), Duration.ofMinutes(15)),
-                new SimpleMeterRegistry(), clock(), () -> 0);
+                List.of(), new ProviderHealthProperties(null, null, null, null), registry, clock(), () -> 0);
 
         service.refreshDueProviders();
 
-        assertThat(service.cached("chat")).hasValueSatisfying(capability -> {
-            assertThat(capability.state()).isEqualTo("available");
-            assertThat(capability.supportSafeCode()).isEqualTo("chat-native-canonical-jpa-ready");
-        });
-        verify(chat).readiness();
+        assertThat(service.supportSafeSnapshot().capabilities()).isEmpty();
+        assertThat(service.cached("chat")).isEmpty();
+        assertThat(registry.getMeters()).isEmpty();
+    }
+
+    @Test
+    void duplicateDomainContributionsFailBeforeMetricsRegistration() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        var contribution = new ProviderHealthContribution("files", () -> true,
+                () -> ProviderCapabilityProbeResult.available("files-storage-ready"));
+        assertThatThrownBy(() -> new ProviderCapabilityHealthService(
+                List.of(contribution, contribution), new ProviderHealthProperties(null, null, null, null), registry, clock(), () -> 0))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("duplicate provider health contribution: files");
+        assertThat(registry.getMeters()).isEmpty();
+    }
+
+    @Test
+    void unavailableConfiguredStatusAndProbeExceptionsStaySupportSafe() {
+        var contribution = new ProviderHealthContribution("calendar",
+                () -> { throw new IllegalStateException("https://provider.test secret=token"); },
+                () -> { throw new IllegalStateException("https://provider.test secret=token"); });
+        MutableClock clock = clock();
+        ProviderCapabilityHealthService service = new ProviderCapabilityHealthService(
+                List.of(contribution), new ProviderHealthProperties(null, null, null, null), new SimpleMeterRegistry(), clock, () -> 0);
+        assertThat(service.cached("calendar").orElseThrow().supportSafeCode()).isEqualTo("calendar-storage-not-configured");
+        clock.advance(Duration.ofSeconds(60));
+        service.refreshDueProviders();
+        assertThat(service.cached("calendar").orElseThrow().supportSafeCode()).isEqualTo("calendar-health-probe-failed");
+        assertThat(service.supportSafeSnapshot().toString()).doesNotContain("provider.test", "secret", "token");
     }
 
     @Test
@@ -203,9 +223,7 @@ class ProviderCapabilityHealthServiceTest {
             MutableClock clock,
             SimpleMeterRegistry registry) {
         return new ProviderCapabilityHealthService(
-                files,
-                null,
-                null,
+                List.of(new ProviderHealthContribution("files", files::configured, files::healthProbe)),
                 new ProviderHealthProperties(
                         Duration.ofSeconds(60),
                         Duration.ZERO,
