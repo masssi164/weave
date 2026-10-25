@@ -2,13 +2,16 @@ package com.massimotter.weave.backend.files.adapter;
 
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.domain.FilesUserResource;
+import jakarta.persistence.CheckConstraint;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
 import java.io.Serial;
 import java.io.Serializable;
@@ -22,8 +25,16 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+// These invariants previously existed only in V9 SQL; generated schemas must preserve them.
 @Entity
-@Table(name = "weave_files_user_resources")
+@Table(name = "weave_files_user_resources",
+        uniqueConstraints = @UniqueConstraint(name = "uq_weave_files_user_resources_active_path",
+                columnNames = {"organization_ref", "binding_revision", "active_path_key"}),
+        indexes = @Index(name = "ix_weave_files_user_resources_parent",
+                columnList = "organization_ref,parent_file_id,lifecycle_state"),
+        check = @CheckConstraint(name = "ck_weave_files_user_resources_active_path",
+                constraint = "(lifecycle_state = 'ACTIVE' AND active_path_key = canonical_path)"
+                        + " OR (lifecycle_state = 'TOMBSTONED' AND active_path_key IS NULL)"))
 class FilesUserResourceJpaEntity {
     @EmbeddedId
     private FilesUserResourceId id;
