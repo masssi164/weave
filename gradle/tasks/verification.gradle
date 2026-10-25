@@ -13,7 +13,7 @@ tasks.register('serverCi') {
     group = 'verification'
     description = 'Run core and adapter architecture tests plus the authoritative PostgreSQL JPA contract gate.'
     dependsOn ':weave-application-core:test',
-            ':server:domains:files:model:test',
+            ':server:domains:files:check',
             ':weave-persistence-jpa:test',
             ':server:test',
             ':server:postgresJpaTest'

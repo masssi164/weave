@@ -1,5 +1,7 @@
 pluginManagement { repositories { gradlePluginPortal(); mavenCentral() } }
 dependencyResolutionManagement { repositories { mavenCentral() } }
 rootProject.name = 'weave-backend'
-include 'domains:files:model'
+include 'domains:files:model', 'domains:files:persistence'
 project(':domains:files:model').projectDir = file('domains/files/model')
+
+project(':domains:files:persistence').projectDir = file('domains/files/persistence')

@@ -58,7 +58,7 @@ The repository is intentionally being migrated in vertical slices rather than th
 
 - `weave-application-core`: framework-free domain/application/port code. Calendar canonical domain currently lives here. Historical Agent Runtime code remains present but is not part of the Files/Calendar/Chat target core.
 - `server/domains/files/model`: framework-free canonical Files domain.
-- `weave-persistence-jpa`: JPA/Flyway persistence implementations.
+- `weave-persistence-jpa`: **transitional** shared JPA module; Files-specific JPA entities and repositories now belong to `server/domains/files/persistence`. Shared and remaining feature-specific persistence must be separated by owner.
 - `weave-runtime-provider-adapters`: southbound provider implementations.
 - `weave-runtime-security-adapters`: security/IAM infrastructure adapters.
 - `weave-mcp-server`: separate MCP process; it must not depend on persistence or provider modules.

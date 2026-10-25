@@ -4,7 +4,8 @@ Files is a compile-time selectable product domain. It owns Files business semant
 
 ## Extracted today
 
-- `:server:domains:files:model` contains the original pure Java Files model and its existing tests, moved without changing behavior.
+- `:server:domains:files:model` owns the pure Java Files domain model and existing tests.
+- `:server:domains:files:persistence` owns Files JPA entities and Spring Data repositories for objects, locks and user resources, with unchanged physical SQL mappings.
 
 ## Still to extract
 

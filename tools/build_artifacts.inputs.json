@@ -31,6 +31,8 @@
         "weave-application-core/build.gradle",
         "server/domains/files/model/src/main/**",
         "server/domains/files/model/build.gradle",
+        "server/domains/files/persistence/src/main/**",
+        "server/domains/files/persistence/build.gradle",
         "weave-persistence-jpa/src/main/**",
         "weave-persistence-jpa/build.gradle",
         "weave-runtime-provider-adapters/src/main/**",

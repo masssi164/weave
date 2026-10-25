@@ -12,11 +12,12 @@ The server owns Weave product facades, authorization, audit, provider boundaries
 
 Validation from the repository root (single Gradle wrapper authority):
 
-- `./gradlew :server:domains:files:model:test` verifies the relocated framework-free Files model.
+- `./gradlew :server:domains:files:check` verifies both the framework-free Files model and Files-owned JPA model.
+- `./gradlew :server:domains:files:persistence:test` checks unchanged JPA table and mapping contracts.
 - `./gradlew coreArchitectureCi` runs the canonical architecture gate.
 - `./gradlew :server:test` keeps the complete legacy Server integration tests while extraction continues.
 
-**Current status:** Files model is now owned by `server/domains/files/model`. Files JPA entities, provider adapters, controllers and the executable App remain in transitional modules until the following extraction steps. The standalone `weave-files-core` root was retired; never recreate a duplicate.
+**Current status:** Files model is now owned by `server/domains/files/model`. Files service-layer persistence adapters, provider adapters, controllers and the executable App remain in transitional modules until the following extraction steps. The standalone `weave-files-core` root was retired; never recreate a duplicate.
 
 For each future source move, update Gradle coordinates, image input closures, CI source filters, documentation and architecture tests in the **same PR**. Do not claim a reduced runtime or successful AOT qualification until the actual executable composition is proven.
 
