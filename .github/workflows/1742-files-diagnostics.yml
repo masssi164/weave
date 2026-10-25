@@ -1,0 +1,82 @@
+name: Temporary Files diagnostics
+on:
+  push:
+    branches: [feat/1742-collaboration-files-root]
+    paths: [.github/workflows/1742-files-diagnostics.yml]
+permissions:
+  contents: read
+concurrency:
+  group: files-diagnostics-1742
+  cancel-in-progress: false
+jobs:
+  files:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/feat/1742-collaboration-files-root'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: 5a06e9b13e9221264cfc8e137da8f6992f04e3cb
+          persist-credentials: false
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: '3.41.6'
+          channel: stable
+          cache: true
+      - name: Install the existing pinned dependencies
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.95.0 --profile minimal
+          cd client
+          flutter pub get --enforce-lockfile
+      - name: Reproduce the full Files regression suite without changing sources
+        env:
+          RUSTUP_TOOLCHAIN: 1.95.0
+        run: |
+          set -uo pipefail
+          mkdir -p build/files-diagnostics
+          git rev-parse HEAD > build/files-diagnostics/source.txt
+          cd client
+          flutter test test/features/files/presentation/files_locations_screen_test.dart test/features/files/files_screen_test.dart --reporter json > ../build/files-diagnostics/results.jsonl 2>&1
+          result=$?
+          cd ..
+          printf '%s\n' "$result" > build/files-diagnostics/exit-code.txt
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          tests = {}
+          failures = []
+          finished = None
+          for line in Path('build/files-diagnostics/results.jsonl').read_text().splitlines():
+              try:
+                  event = json.loads(line)
+              except json.JSONDecodeError:
+                  continue
+              kind = event.get('type')
+              if kind == 'testStart':
+                  tests[event['test']['id']] = event['test']['name']
+              elif kind == 'error':
+                  failures.append({'test': tests.get(event.get('testID'), 'unknown'), 'error': event.get('error'), 'stack': event.get('stackTrace')})
+              elif kind == 'testDone' and event.get('result') != 'success':
+                  failures.append({'test': tests.get(event.get('testID'), 'unknown'), 'result': event.get('result'), 'skipped': event.get('skipped')})
+              elif kind == 'done':
+                  finished = event
+          report = {'source': Path('build/files-diagnostics/source.txt').read_text().strip(), 'registeredTests': len(tests), 'finished': finished, 'failures': failures}
+          text = json.dumps(report, indent=2)
+          Path('build/files-diagnostics/summary.json').write_text(text + '\n')
+          print(text)
+          PY
+          git diff --exit-code
+          exit "$result"
+      - name: Preserve diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: files-diagnostics-${{ github.run_id }}
+          path: build/files-diagnostics/
+          if-no-files-found: error
+          retention-days: 3
