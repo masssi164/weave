@@ -9,6 +9,8 @@ abstract final class AppRoutes {
   static const chat = '/chat';
   static const chatRoomRelative = 'rooms/:roomId';
   static const files = '/files';
+  static const filesPrivateRelative = 'private';
+  static const filesSpaceRelative = 'spaces/:spaceRef';
   static const filesFolderRelative = 'folders/:folderId';
   static const calendar = '/calendar';
   static const profile = '/profile';
@@ -22,29 +24,25 @@ abstract final class AppRoutes {
     return '$chat/rooms/${Uri.encodeComponent(roomId)}';
   }
 
+  static List<String> _filesLocationSegments(String? spaceRef) => [
+    '',
+    'files',
+    if (spaceRef == null) 'private' else ...['spaces', spaceRef],
+  ];
+
+  /// The location is part of the route, never a mutable Files-wide scope mode.
   static String filesFolder(String folderId, String path, {String? spaceRef}) =>
       Uri(
-        pathSegments: ['', 'files', 'folders', folderId],
-        queryParameters: {
-          // A nested route's query survives native pop. Keep the folder path
-          // distinct from the legacy root deep-link parameter.
-          'folderPath': path,
-          if (spaceRef != null) 'space': spaceRef,
-        },
+        pathSegments: [..._filesLocationSegments(spaceRef), 'folders', folderId],
+        queryParameters: {'folderPath': path},
       ).toString();
 
+  /// A location root is a child of the Files overview, including private files.
   static String filesLocation(String path, {String? spaceRef}) {
     final normalizedPath = path.startsWith('/') ? path : '/$path';
-    if (normalizedPath == '/' && spaceRef == null) {
-      return files;
-    }
-
     return Uri(
-      path: files,
-      queryParameters: {
-        'path': normalizedPath,
-        if (spaceRef != null) 'space': spaceRef,
-      },
+      pathSegments: _filesLocationSegments(spaceRef),
+      queryParameters: normalizedPath == '/' ? null : {'path': normalizedPath},
     ).toString();
   }
 }

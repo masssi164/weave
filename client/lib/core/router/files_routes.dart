@@ -1,16 +1,25 @@
 import 'package:go_router/go_router.dart';
 import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/features/files/presentation/files_folder_route.dart';
-import 'package:weave/features/files/presentation/files_screen.dart';
+import 'package:weave/features/files/presentation/files_locations_screen.dart';
 
-/// The Files branch uses ordinary platform pages for folder history and Back.
+/// Files overview -> selected location -> folder, using native page history.
 GoRoute filesRoute() => GoRoute(
   path: AppRoutes.files,
-  builder: (context, state) => FilesScreen(
-    initialPath: state.uri.path == AppRoutes.files
-        ? state.uri.queryParameters['path'] ?? '/'
-        : '/',
-    initialRootSpaceRef: state.uri.queryParameters['space'],
+  builder: (context, state) => const FilesLocationsScreen(),
+  routes: [
+    _locationRoute(AppRoutes.filesPrivateRelative),
+    _locationRoute(AppRoutes.filesSpaceRelative),
+  ],
+);
+
+GoRoute _locationRoute(String path) => GoRoute(
+  path: path,
+  builder: (context, state) => FilesFolderRoute(
+    // A nested folder's folderPath must not change its parent location page.
+    path: state.uri.queryParameters['path'] ?? '/',
+    spaceRef: state.pathParameters['spaceRef'],
+    ownerKey: state.extra is String ? state.extra as String : null,
   ),
   routes: [
     GoRoute(
@@ -18,7 +27,7 @@ GoRoute filesRoute() => GoRoute(
       builder: (context, state) => FilesFolderRoute(
         folderId: state.pathParameters['folderId']!,
         path: state.uri.queryParameters['folderPath'] ?? '/',
-        spaceRef: state.uri.queryParameters['space'],
+        spaceRef: state.pathParameters['spaceRef'],
         ownerKey: state.extra is String ? state.extra as String : null,
       ),
     ),
