@@ -1,5 +1,8 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation;
+import com.massimotter.weave.backend.identity.profile.port.ProductProfileOverrideRepository;
+
 import com.massimotter.weave.backend.security.NativeOrganizationClaims;
 import com.massimotter.weave.backend.chat.config.ChatProviderRegistryConfiguration;
 import com.massimotter.weave.backend.files.config.FilesProviderRegistryConfiguration;
@@ -12,20 +15,20 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
-import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
-import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
-import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
+import com.massimotter.weave.backend.security.http.ApiAccessDeniedHandler;
+import com.massimotter.weave.backend.security.http.ApiAuthenticationEntryPoint;
+import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.DevopsProviderConfiguration;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
-import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyResponse;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
-import com.massimotter.weave.backend.model.admin.EffectivePolicyDenyResponse;
-import com.massimotter.weave.backend.model.admin.EffectivePolicyResponse;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilitiesResponse;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityPolicyResponse;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityPolicyState;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityReadiness;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityStatusResponse;
+import com.massimotter.weave.backend.capability.api.EffectivePolicyDenyResponse;
+import com.massimotter.weave.backend.capability.api.EffectivePolicyResponse;
 import com.massimotter.weave.backend.model.admin.ProviderSelectionRequest;
 import com.massimotter.weave.backend.office.port.DisabledOfficeProvider;
 import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
@@ -39,8 +42,8 @@ import com.massimotter.weave.backend.service.AdminControlPlaneService;
 import com.massimotter.weave.backend.service.InMemoryOrganizationBootstrapRepository;
 import com.massimotter.weave.backend.service.OrganizationBootstrapRepository;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
-import com.massimotter.weave.backend.service.ProductProfileOverrideRepository;
-import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.identity.profile.port.ProductProfileOverrideRepository;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.service.migration.MigrationRunEvidenceRepository;
 import java.util.List;
 import java.util.Map;
@@ -139,7 +142,7 @@ class AdminControlPlaneControllerTest {
     void setUpWorkspaceCapabilitySnapshot() {
         selectDefaultProviders();
         enforceEffectiveCapabilityPolicy();
-        WorkspaceCapabilitiesResponse capabilities = new WorkspaceCapabilitiesResponse(
+        WorkspaceCapabilitiesResponse capabilities = WorkspaceCapabilityTestInstallation.snapshot(
                 capability(WorkspaceCapabilityReadiness.READY, WorkspaceCapabilityPolicyState.ALLOWED, "SSO ready."),
                 capability(WorkspaceCapabilityReadiness.READY, WorkspaceCapabilityPolicyState.ALLOWED, "Chat ready."),
                 capability(WorkspaceCapabilityReadiness.READY, WorkspaceCapabilityPolicyState.ALLOWED, "Files ready."),

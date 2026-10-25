@@ -24,6 +24,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+@org.junit.jupiter.api.Tag("postgres")
 @Testcontainers
 class JpaProviderBindingRepositoryPostgresTest {
 

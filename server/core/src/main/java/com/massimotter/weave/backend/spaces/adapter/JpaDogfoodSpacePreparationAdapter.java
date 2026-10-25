@@ -4,11 +4,9 @@ import com.massimotter.weave.backend.spaces.port.DogfoodSpacePreparationPort;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 /** Two-target absent-first change using the existing Space aggregate lock and version authority. */
-@Repository
 public class JpaDogfoodSpacePreparationAdapter implements DogfoodSpacePreparationPort {
     private static final String SPACE = "workspace-default";
     private final SpaceJpaRepository spaces;

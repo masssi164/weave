@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.chat;
 
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -32,10 +33,10 @@ import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDe
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
 import com.massimotter.weave.backend.identity.IdentityReferences;
 import com.massimotter.weave.backend.identity.CurrentOrganizationMemberQuery;
-import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilitiesResponse;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityPolicyState;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityReadiness;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityStatusResponse;
 import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
 import com.massimotter.weave.backend.discovery.provider.ProviderModule;
 import com.massimotter.weave.backend.provider.ProviderRegistry;
@@ -45,7 +46,7 @@ import com.massimotter.weave.backend.discovery.provider.ProviderState;
 import com.massimotter.weave.backend.discovery.provider.ProviderStatusResponse;
 import com.massimotter.weave.backend.discovery.provider.StaticProviderPort;
 import com.massimotter.weave.backend.providerbinding.contract.ProviderReadiness;
-import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.spaces.port.SpaceAccessPort;
 import java.time.Clock;
@@ -98,7 +99,7 @@ class ChatDomainFacadeServiceTest {
         InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
         selections.save(selection("chat", "synapse-homeserver", false, List.of()));
         WorkspaceCapabilityService capabilities = Mockito.mock(WorkspaceCapabilityService.class);
-        WorkspaceCapabilitiesResponse snapshot = new WorkspaceCapabilitiesResponse(
+        WorkspaceCapabilitiesResponse snapshot = WorkspaceCapabilityTestInstallation.snapshot(
                 capability(), capability(), capability(), capability(), capability(), capability());
         when(capabilities.snapshot()).thenReturn(snapshot);
         when(capabilities.snapshot(any())).thenReturn(snapshot);
@@ -133,7 +134,7 @@ class ChatDomainFacadeServiceTest {
         InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
         selections.save(selection("chat", "synapse-homeserver", false, List.of()));
         WorkspaceCapabilityService capabilities = Mockito.mock(WorkspaceCapabilityService.class);
-        WorkspaceCapabilitiesResponse snapshot = new WorkspaceCapabilitiesResponse(
+        WorkspaceCapabilitiesResponse snapshot = WorkspaceCapabilityTestInstallation.snapshot(
                 capability(), capability(), capability(), capability(), capability(), capability());
         when(capabilities.snapshot()).thenReturn(snapshot);
         when(capabilities.snapshot(any())).thenReturn(snapshot);
@@ -168,7 +169,7 @@ class ChatDomainFacadeServiceTest {
         InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
         selections.save(selection("chat", "synapse-homeserver", false, List.of()));
         WorkspaceCapabilityService capabilities = Mockito.mock(WorkspaceCapabilityService.class);
-        WorkspaceCapabilitiesResponse snapshot = new WorkspaceCapabilitiesResponse(
+        WorkspaceCapabilitiesResponse snapshot = WorkspaceCapabilityTestInstallation.snapshot(
                 capability(), capability(), capability(), capability(), capability(), capability());
         when(capabilities.snapshot()).thenReturn(snapshot);
         when(capabilities.snapshot(any())).thenReturn(snapshot);
@@ -284,7 +285,7 @@ class ChatDomainFacadeServiceTest {
         InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
         selections.save(selection("chat", "synapse-homeserver", false, List.of()));
         WorkspaceCapabilityService capabilities = Mockito.mock(WorkspaceCapabilityService.class);
-        WorkspaceCapabilitiesResponse snapshot = new WorkspaceCapabilitiesResponse(
+        WorkspaceCapabilitiesResponse snapshot = WorkspaceCapabilityTestInstallation.snapshot(
                 capability(), capability(), capability(), capability(), capability(), capability());
         when(capabilities.snapshot()).thenReturn(snapshot);
         when(capabilities.snapshot(any())).thenReturn(snapshot);
@@ -317,7 +318,7 @@ class ChatDomainFacadeServiceTest {
         InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
         selections.save(selection("chat", "synapse-homeserver", false, List.of()));
         WorkspaceCapabilityService capabilities = Mockito.mock(WorkspaceCapabilityService.class);
-        WorkspaceCapabilitiesResponse snapshot = new WorkspaceCapabilitiesResponse(
+        WorkspaceCapabilitiesResponse snapshot = WorkspaceCapabilityTestInstallation.snapshot(
                 capability(), capability(), capability(), capability(), capability(), capability());
         when(capabilities.snapshot()).thenReturn(snapshot);
         when(capabilities.snapshot(any())).thenReturn(snapshot);
@@ -350,7 +351,7 @@ class ChatDomainFacadeServiceTest {
         InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
         selections.save(selection("chat", "synapse-homeserver", false, List.of()));
         WorkspaceCapabilityService capabilities = Mockito.mock(WorkspaceCapabilityService.class);
-        WorkspaceCapabilitiesResponse snapshot = new WorkspaceCapabilitiesResponse(
+        WorkspaceCapabilitiesResponse snapshot = WorkspaceCapabilityTestInstallation.snapshot(
                 capability(), capability(), capability(), capability(), capability(), capability());
         when(capabilities.snapshot()).thenReturn(snapshot);
         when(capabilities.snapshot(any())).thenReturn(snapshot);
@@ -389,7 +390,7 @@ class ChatDomainFacadeServiceTest {
         InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
         selections.save(selection("chat", "synapse-homeserver", false, List.of()));
         WorkspaceCapabilityService capabilities = Mockito.mock(WorkspaceCapabilityService.class);
-        WorkspaceCapabilitiesResponse snapshot = new WorkspaceCapabilitiesResponse(
+        WorkspaceCapabilitiesResponse snapshot = WorkspaceCapabilityTestInstallation.snapshot(
                 capability(), capability(), capability(), capability(), capability(), capability());
         when(capabilities.snapshot()).thenReturn(snapshot);
         when(capabilities.snapshot(any())).thenReturn(snapshot);
@@ -440,7 +441,7 @@ class ChatDomainFacadeServiceTest {
         InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
         selections.save(selection("chat", "synapse-homeserver", false, List.of()));
         WorkspaceCapabilityService capabilities = Mockito.mock(WorkspaceCapabilityService.class);
-        WorkspaceCapabilitiesResponse snapshot = new WorkspaceCapabilitiesResponse(
+        WorkspaceCapabilitiesResponse snapshot = WorkspaceCapabilityTestInstallation.snapshot(
                 capability(), capability(), capability(), capability(), capability(), capability());
         when(capabilities.snapshot()).thenReturn(snapshot);
         when(capabilities.snapshot(any())).thenReturn(snapshot);
@@ -517,7 +518,7 @@ class ChatDomainFacadeServiceTest {
         InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
         selections.save(selection("chat", "synapse-homeserver", false, List.of()));
         WorkspaceCapabilityService capabilities = Mockito.mock(WorkspaceCapabilityService.class);
-        WorkspaceCapabilitiesResponse snapshot = new WorkspaceCapabilitiesResponse(
+        WorkspaceCapabilitiesResponse snapshot = WorkspaceCapabilityTestInstallation.snapshot(
                 capability(), capability(), capability(), capability(), capability(), capability());
         when(capabilities.snapshot()).thenReturn(snapshot);
         when(capabilities.snapshot(any())).thenReturn(snapshot);
@@ -556,7 +557,7 @@ class ChatDomainFacadeServiceTest {
         InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
         selections.save(selection("chat", "synapse-homeserver", false, List.of()));
         WorkspaceCapabilityService capabilities = Mockito.mock(WorkspaceCapabilityService.class);
-        WorkspaceCapabilitiesResponse snapshot = new WorkspaceCapabilitiesResponse(
+        WorkspaceCapabilitiesResponse snapshot = WorkspaceCapabilityTestInstallation.snapshot(
                 capability(), capability(), capability(), capability(), capability(), capability());
         when(capabilities.snapshot()).thenReturn(snapshot);
         when(capabilities.snapshot(any())).thenReturn(snapshot);
@@ -705,7 +706,7 @@ class ChatDomainFacadeServiceTest {
         var selections = new InMemoryProviderSelectionRepository();
         selections.save(selection("chat", "synapse-homeserver", false, List.of()));
         var capabilities = Mockito.mock(WorkspaceCapabilityService.class);
-        var snapshot = new WorkspaceCapabilitiesResponse(capability(), capability(), capability(), capability(), capability(), capability());
+        var snapshot = WorkspaceCapabilityTestInstallation.snapshot(capability(), capability(), capability(), capability(), capability(), capability());
         when(capabilities.snapshot()).thenReturn(snapshot);
         when(capabilities.snapshot(any())).thenReturn(snapshot);
         var provider = Mockito.mock(ChatProviderPort.class);
@@ -890,7 +891,7 @@ class ChatDomainFacadeServiceTest {
         var selections = new InMemoryProviderSelectionRepository();
         selections.save(selection("chat", "in-memory-test", false, List.of()));
         var capabilities = Mockito.mock(WorkspaceCapabilityService.class);
-        var snapshot = new WorkspaceCapabilitiesResponse(capability(), capability(), capability(), capability(), capability(), capability());
+        var snapshot = WorkspaceCapabilityTestInstallation.snapshot(capability(), capability(), capability(), capability(), capability(), capability());
         when(capabilities.snapshot()).thenReturn(snapshot);
         when(capabilities.snapshot(any())).thenReturn(snapshot);
         var spaces = Mockito.mock(SpaceAccessPort.class);
@@ -938,7 +939,7 @@ class ChatDomainFacadeServiceTest {
             WorkspaceCapabilityStatusResponse chatCapability,
             InMemoryAuditEventPublisher audit) {
         WorkspaceCapabilityService capabilities = Mockito.mock(WorkspaceCapabilityService.class);
-        WorkspaceCapabilitiesResponse snapshot = new WorkspaceCapabilitiesResponse(
+        WorkspaceCapabilitiesResponse snapshot = WorkspaceCapabilityTestInstallation.snapshot(
                 capability(), chatCapability, capability(), capability(), capability(), capability());
         when(capabilities.snapshot()).thenReturn(snapshot);
         when(capabilities.snapshot(any())).thenReturn(snapshot);

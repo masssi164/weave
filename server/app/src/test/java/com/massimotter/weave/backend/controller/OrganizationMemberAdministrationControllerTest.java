@@ -11,9 +11,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
-import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
-import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
+import com.massimotter.weave.backend.security.http.ApiAccessDeniedHandler;
+import com.massimotter.weave.backend.security.http.ApiAuthenticationEntryPoint;
+import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.model.identity.OrganizationMemberPageResponse;

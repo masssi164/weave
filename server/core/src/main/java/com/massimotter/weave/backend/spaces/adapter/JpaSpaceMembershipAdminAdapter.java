@@ -9,11 +9,9 @@ import java.util.List;
 import java.util.Set;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 /** Applies one current member change under optimistic version fencing. */
-@Repository
 public class JpaSpaceMembershipAdminAdapter implements SpaceMembershipAdministrationPort {
     private static final String ADMIN_SET = "VIEW,EDIT,ADMIN";
     private final SpaceJpaRepository spaces;

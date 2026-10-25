@@ -1,5 +1,10 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.identity.profile.api.ModuleSyncStatusResponse;
+import com.massimotter.weave.backend.identity.profile.api.ProfileReadinessResponse;
+import com.massimotter.weave.backend.identity.profile.api.ProductProfileResponse;
+import com.massimotter.weave.backend.api.error.ApiErrorResponse;
+
 import com.massimotter.weave.backend.matrix.MatrixProtocolCoreService;
 import java.nio.file.Files;
 import java.nio.file.Path;

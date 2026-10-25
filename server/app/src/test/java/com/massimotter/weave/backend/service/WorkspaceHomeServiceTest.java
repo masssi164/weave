@@ -1,9 +1,11 @@
 package com.massimotter.weave.backend.service;
 
-import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilitiesResponse;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityPolicyState;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityReadiness;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityStatusResponse;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -24,7 +26,7 @@ class WorkspaceHomeServiceTest {
     @Test
     void readyCapabilitiesDoNotInventCountsOrCopyDiagnosticStrings() {
         var ready = capability(WorkspaceCapabilityReadiness.READY);
-        when(capabilities.snapshot(member)).thenReturn(new WorkspaceCapabilitiesResponse(
+        when(capabilities.snapshot(member)).thenReturn(WorkspaceCapabilityTestInstallation.snapshot(
                 ready, ready, ready, ready, ready, ready));
         when(activity.recentActivity(member)).thenReturn(List.of());
 
@@ -45,7 +47,7 @@ class WorkspaceHomeServiceTest {
     void blockedCapabilityDoesNotBlockAuthorizedHomeAndHasOnlyMemberRemediation() {
         var ready = capability(WorkspaceCapabilityReadiness.READY);
         var blocked = capability(WorkspaceCapabilityReadiness.BLOCKED);
-        when(capabilities.snapshot(member)).thenReturn(new WorkspaceCapabilitiesResponse(
+        when(capabilities.snapshot(member)).thenReturn(WorkspaceCapabilityTestInstallation.snapshot(
                 ready, blocked, ready, ready, ready, ready));
         when(activity.recentActivity(member)).thenReturn(List.of());
 
@@ -67,7 +69,7 @@ class WorkspaceHomeServiceTest {
     void readyChatAndFilesCannotPromoteAnUnauthorizedDecisionCapability() {
         var ready = capability(WorkspaceCapabilityReadiness.READY);
         var blocked = capability(WorkspaceCapabilityReadiness.BLOCKED);
-        when(capabilities.snapshot(member)).thenReturn(new WorkspaceCapabilitiesResponse(
+        when(capabilities.snapshot(member)).thenReturn(WorkspaceCapabilityTestInstallation.snapshot(
                 ready, ready, ready, ready, ready, ready, ready, blocked, ready, ready, ready, ready));
         when(activity.recentActivity(member)).thenReturn(List.of());
 
@@ -81,7 +83,7 @@ class WorkspaceHomeServiceTest {
     @Test
     void unavailableShellIsNotPromotedByReadyCapabilities() {
         var ready = capability(WorkspaceCapabilityReadiness.READY);
-        when(capabilities.snapshot(member)).thenReturn(new WorkspaceCapabilitiesResponse(
+        when(capabilities.snapshot(member)).thenReturn(WorkspaceCapabilityTestInstallation.snapshot(
                 capability(WorkspaceCapabilityReadiness.BLOCKED), ready, ready, ready, ready, ready));
         when(activity.recentActivity(member)).thenReturn(List.of());
 

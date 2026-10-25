@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.AuditEvent;
@@ -9,12 +10,12 @@ import com.massimotter.weave.backend.audit.AuditWriteGate;
 import com.massimotter.weave.backend.chat.ChatDomainFacadeService;
 import com.massimotter.weave.backend.chat.domain.ChatAccessDeniedException;
 import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
-import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
+import com.massimotter.weave.backend.chat.capability.ChatWorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationRequest;
 import com.massimotter.weave.backend.spaces.authorization.ContextPermission;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityReadiness;
 import com.massimotter.weave.backend.model.chat.ChatProviderReplacementDryRunRequest;
 import com.massimotter.weave.backend.model.chat.ChatProviderReplacementDryRunResponse;
 import com.massimotter.weave.backend.model.chat.DecisionLedgerCreateRequest;
@@ -47,7 +48,7 @@ public class ChatFacadeService {
     private static final String DEFAULT_CONTEXT_ID = "workspace-default";
     private static final String DOMAIN = "chat";
 
-    private final WorkspaceCapabilityProperties workspaceCapabilityProperties;
+    private final ChatWorkspaceCapabilityProperties workspaceCapabilityProperties;
     private final WorkspaceCapabilityService workspaceCapabilityService;
     private final ContextAuthorizationPort contextAuthorizationPort;
     private final ContextAuthorizationProperties contextAuthorizationProperties;
@@ -60,7 +61,7 @@ public class ChatFacadeService {
 
     @Autowired
     public ChatFacadeService(
-            WorkspaceCapabilityProperties workspaceCapabilityProperties,
+            ChatWorkspaceCapabilityProperties workspaceCapabilityProperties,
             WorkspaceCapabilityService workspaceCapabilityService,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties,
@@ -78,7 +79,7 @@ public class ChatFacadeService {
     }
 
     public ChatFacadeService(
-            WorkspaceCapabilityProperties workspaceCapabilityProperties,
+            ChatWorkspaceCapabilityProperties workspaceCapabilityProperties,
             WorkspaceCapabilityService workspaceCapabilityService,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties,
@@ -267,7 +268,7 @@ public class ChatFacadeService {
     private void requireChatReady(Jwt jwt, String capability, String operation) {
         requireOrganizationIdentity(jwt);
         workspaceCapabilityService.requireCapability(jwt, capability, DOMAIN, operation);
-        WorkspaceCapabilityProperties.Capability chat = workspaceCapabilityProperties.chat();
+        com.massimotter.weave.backend.capability.config.CapabilitySettings chat = workspaceCapabilityProperties.chat();
         if (!chat.enabled()) {
             throw chatUnavailable("disabled_by_policy", "Chat is disabled by workspace policy.", operation);
         }

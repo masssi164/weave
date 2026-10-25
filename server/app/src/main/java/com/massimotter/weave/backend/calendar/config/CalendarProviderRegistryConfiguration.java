@@ -20,6 +20,11 @@ import org.springframework.context.annotation.Configuration;
 public class CalendarProviderRegistryConfiguration {
 
     @Bean
+    com.massimotter.weave.backend.security.device.DeviceCredentialDomain calendarDeviceCredentialDomain() {
+        return new com.massimotter.weave.backend.security.device.DeviceCredentialDomain("calendar");
+    }
+
+    @Bean
     ProviderPort calendarProviderRegistrySeam(ObjectProvider<CalendarProviderPort> calendarProviderPort) {
         CalendarProviderPort runtime = calendarProviderPort.getIfAvailable();
         if (runtime == null) {

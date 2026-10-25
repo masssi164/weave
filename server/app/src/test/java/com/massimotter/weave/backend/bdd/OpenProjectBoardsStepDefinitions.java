@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.bdd;
 
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -20,13 +21,13 @@ import com.massimotter.weave.backend.boards.port.CreateTaskCommand;
 import com.massimotter.weave.backend.boards.support.BoardsErrorCode;
 import com.massimotter.weave.backend.boards.support.BoardsException;
 import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
-import com.massimotter.weave.backend.config.WeaveSecurityProperties;
-import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
+import com.massimotter.weave.backend.security.config.WeaveSecurityProperties;
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation.Settings;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.model.boards.BoardsWorkspaceResponse;
 import com.massimotter.weave.backend.service.BoardsFacadeService;
-import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import io.cucumber.java.Before;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
@@ -307,11 +308,11 @@ public class OpenProjectBoardsStepDefinitions {
     private WorkspaceCapabilityService workspaceCapabilityService() {
         OAuth2ResourceServerProperties properties = new OAuth2ResourceServerProperties();
         properties.getJwt().setIssuerUri("https://auth.weave.test/realms/weave");
-        return new WorkspaceCapabilityService(
+        return WorkspaceCapabilityTestInstallation.service(
                 properties,
                 new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(null, null, null, null,
-                        new WorkspaceCapabilityProperties.Capability(true, null, null), null));
+                new Settings(null, null, null, null,
+                        new Settings.Capability(true, null, null), null));
     }
 
     private Jwt jwt() {

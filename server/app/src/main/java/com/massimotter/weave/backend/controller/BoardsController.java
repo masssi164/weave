@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
 import com.massimotter.weave.backend.boards.domain.TaskItem;
-import com.massimotter.weave.backend.model.ApiErrorResponse;
+import com.massimotter.weave.backend.api.error.ApiErrorResponse;
 import com.massimotter.weave.backend.model.boards.BoardsCreateTaskRequest;
 import com.massimotter.weave.backend.model.boards.BoardsLinkDecisionRequest;
 import com.massimotter.weave.backend.model.boards.BoardsMoveTaskRequest;

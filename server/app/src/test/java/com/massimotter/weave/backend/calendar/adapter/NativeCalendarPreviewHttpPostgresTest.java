@@ -18,7 +18,7 @@ import com.massimotter.weave.backend.calendar.domain.CalendarDomain.EventVersion
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.TemporalValue;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.WriteIntent;
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
-import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
+import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
@@ -27,7 +27,7 @@ import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.providerbinding.adapter.ProviderBindingJpaTestFactory;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
-import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.service.calendar.CalendarOccurrenceEngine;
 import com.massimotter.weave.backend.service.calendar.CalendarUserApiService;
 import com.massimotter.weave.backend.service.calendar.Ical4jRecurrenceEngine;

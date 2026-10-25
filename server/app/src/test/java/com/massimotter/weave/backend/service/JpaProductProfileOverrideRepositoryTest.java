@@ -1,5 +1,8 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.identity.profile.domain.ProductProfileOverride;
+import com.massimotter.weave.backend.identity.profile.persistence.JpaProductProfileOverrideRepository;
+
 import com.massimotter.weave.backend.identity.profile.persistence.ProductProfileOverrideJpaRepository;
 import java.util.Map;
 import org.junit.jupiter.api.Test;

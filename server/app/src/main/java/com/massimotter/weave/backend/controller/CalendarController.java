@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.controller;
 
-import com.massimotter.weave.backend.model.ApiErrorResponse;
+import com.massimotter.weave.backend.api.error.ApiErrorResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarAccessPolicyResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarScopesResponse;
 import com.massimotter.weave.backend.service.CalendarFacadeService;

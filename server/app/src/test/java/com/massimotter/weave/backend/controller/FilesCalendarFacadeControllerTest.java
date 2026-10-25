@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation;
 import com.massimotter.weave.backend.security.workload.jwt.McpExchangedTokenPolicy;
 
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
@@ -16,14 +17,14 @@ import com.massimotter.weave.backend.calendar.domain.CalendarDomain.ScopeType;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.WriteIntent;
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
-import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
-import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
-import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
+import com.massimotter.weave.backend.security.http.ApiAccessDeniedHandler;
+import com.massimotter.weave.backend.security.http.ApiAuthenticationEntryPoint;
+import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.SecurityConfig;
-import com.massimotter.weave.backend.config.WeaveSecurityProperties;
+import com.massimotter.weave.backend.security.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.security.workload.config.WorkloadEntitlementProperties;
-import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation.Settings;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
@@ -31,7 +32,7 @@ import com.massimotter.weave.backend.service.CalendarFacadeService;
 import com.massimotter.weave.backend.service.FilesFacadeService;
 import com.massimotter.weave.backend.service.files.FilesUserApiService;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
-import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.files.application.FilesLockService;
 import com.massimotter.weave.backend.files.application.FilesMutationIntentService;
 import com.massimotter.weave.backend.service.calendar.CalendarAdapterException;
@@ -95,7 +96,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
                 CalendarDavSetupController.class,
                 CalDavCalendarController.class},
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
-@Import({
+@Import({com.massimotter.weave.backend.chat.api.security.MatrixClientSecurityErrorWriter.class,
+        com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation.Configuration.class,
         OrganizationIdentityContextResolver.class,
         SecurityConfig.class,
         ApiAuthenticationEntryPoint.class,
@@ -111,7 +113,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @EnableConfigurationProperties({
         WeaveSecurityProperties.class,
         WorkloadEntitlementProperties.class,
-        WorkspaceCapabilityProperties.class,
+        Settings.class,
         OAuth2ResourceServerProperties.class
 })
 @TestPropertySource(properties = {
@@ -132,7 +134,7 @@ class FilesCalendarFacadeControllerTest {
 
         @Bean
         DeviceCredentialService deviceCredentialService(DeviceCredentialRepository repository) {
-            return new DeviceCredentialService(repository);
+            return com.massimotter.weave.backend.security.device.DeviceCredentialTestSupport.service(repository);
         }
     }
 
@@ -208,9 +210,9 @@ class FilesCalendarFacadeControllerTest {
     void realGuestUserFilesReadAndMutationStopAtCapabilityPolicyBeforeProviderAccess() throws Exception {
         var properties = new OAuth2ResourceServerProperties();
         properties.getJwt().setIssuerUri("https://auth.example.invalid/realms/acme");
-        var policy = new WorkspaceCapabilityService(properties,
+        var policy = WorkspaceCapabilityTestInstallation.service(properties,
                 new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(null, null, null, null, null, null));
+                new Settings(null, null, null, null, null, null));
         var guest = org.springframework.security.oauth2.jwt.Jwt.withTokenValue("guest-fixture")
                 .header("alg", "none").subject("guest")
                 .claim("iss", "https://auth.example.invalid/realms/acme")

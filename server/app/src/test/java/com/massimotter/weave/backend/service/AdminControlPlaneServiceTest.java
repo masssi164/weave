@@ -1,5 +1,10 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.identity.profile.domain.ProductProfileOverride;
+import com.massimotter.weave.backend.identity.profile.port.ProductProfileOverrideRepository;
+
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import tools.jackson.databind.JsonNode;
@@ -8,11 +13,11 @@ import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.audit.persistence.JpaAuditEventPublisher;
-import com.massimotter.weave.backend.config.WeaveSecurityProperties;
-import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
+import com.massimotter.weave.backend.security.config.WeaveSecurityProperties;
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation.Settings;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.model.admin.CapabilityWhitelistUpdateRequest;
-import com.massimotter.weave.backend.model.admin.EffectivePolicySimulationRequest;
+import com.massimotter.weave.backend.capability.api.EffectivePolicySimulationRequest;
 import com.massimotter.weave.backend.audit.persistence.AuditEventJpaRepository;
 import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
 import com.massimotter.weave.backend.provider.ProviderRegistry;
@@ -565,10 +570,10 @@ class AdminControlPlaneServiceTest {
     private WorkspaceCapabilityService workspaceCapabilityService() {
         OAuth2ResourceServerProperties properties = new OAuth2ResourceServerProperties();
         properties.getJwt().setIssuerUri("https://auth.weave.test/realms/weave");
-        return new WorkspaceCapabilityService(
+        return WorkspaceCapabilityTestInstallation.service(
                 properties,
                 new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(null, null, null, null, null, null));
+                new Settings(null, null, null, null, null, null));
     }
 
     private ProductProfileOverrideRepository profileOverrideRepository() {

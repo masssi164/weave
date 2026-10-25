@@ -2,12 +2,14 @@ package com.massimotter.weave.backend.service;
 
 import com.massimotter.weave.backend.config.MatrixChatProperties;
 import com.massimotter.weave.backend.discovery.config.PlatformContractProperties;
-import com.massimotter.weave.backend.config.WeaveSecurityProperties;
-import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
+import com.massimotter.weave.backend.security.config.WeaveSecurityProperties;
+import com.massimotter.weave.backend.capability.config.WorkspaceCapabilityProperties;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.capability.config.CapabilitySettings;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.model.OrgManifestResponse;
 import com.massimotter.weave.backend.model.PlatformStatusResponse;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityReadiness;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
@@ -26,6 +28,7 @@ public class PlatformContractService {
     private final MatrixChatProperties matrixProperties;
     private final WeaveSecurityProperties securityProperties;
     private final WorkspaceCapabilityProperties workspaceProperties;
+    private final WorkspaceCapabilityService capabilities;
     private final String matrixFacadeBaseUrl;
     private final String matrixFacadeServerName;
 
@@ -38,6 +41,7 @@ public class PlatformContractService {
             MatrixChatProperties matrixProperties,
             WeaveSecurityProperties securityProperties,
             WorkspaceCapabilityProperties workspaceProperties,
+            WorkspaceCapabilityService capabilities,
             @Value("${weave.matrix.facade.base-url:https://api.weave.test}") String matrixFacadeBaseUrl,
             @Value("${weave.matrix.facade.server-name:api.weave.test}") String matrixFacadeServerName) {
         this.resourceServerProperties = resourceServerProperties;
@@ -45,6 +49,7 @@ public class PlatformContractService {
         this.matrixProperties = matrixProperties;
         this.securityProperties = securityProperties;
         this.workspaceProperties = workspaceProperties;
+        this.capabilities = capabilities;
         this.matrixFacadeBaseUrl = matrixFacadeBaseUrl;
         this.matrixFacadeServerName = matrixFacadeServerName;
     }
@@ -58,22 +63,20 @@ public class PlatformContractService {
                 new OrgManifestResponse.Protocols(
                         advertisedMatrixFacadeUrl()),
                 releasePosture(),
-                List.of(
-                        domain("identity", true, List.of(
-                                "identity.sign_in", "identity.groups", "identity.roles",
-                                "policy.read", "policy.manage")),
-                        domain("chat", workspaceProperties.chat().enabled(), List.of(
-                                "chat.read", "chat.send", "chat.channels", "chat.moderate")),
-                        domain("files", workspaceProperties.files().enabled(), List.of(
-                                "files.read", "files.upload", "files.download", "files.delete", "files.share")),
-                        domain("calendar", workspaceProperties.calendar().enabled(), List.of(
-                                "calendar.read", "calendar.manage_events", "calendar.thread_refs")),
-                        domain("boards", workspaceProperties.boards().enabled(), List.of(
-                                "boards.read", "boards.update_task", "boards.sync_workspace", "boards.link_decision")),
-                        domain("health", true, List.of(
-                                "health.read", "health.run_diagnostic", "health.export_support_bundle",
-                                "backup.restore.verify"))),
+                manifestDomains(),
                 List.of());
+    }
+
+    private List<OrgManifestResponse.DomainCapability> manifestDomains() {
+        List<OrgManifestResponse.DomainCapability> domains = new ArrayList<>();
+        domains.add(domain("identity", true, List.of("identity.sign_in", "identity.groups", "identity.roles", "policy.read", "policy.manage")));
+        for (var definition : capabilities.installedDefinitions()) {
+            if (!definition.manifestCapabilities().isEmpty()) {
+                domains.add(domain(definition.domainId(), definition.settings().enabled(), definition.manifestCapabilities()));
+            }
+        }
+        domains.add(domain("health", true, List.of("health.read", "health.run_diagnostic", "health.export_support_bundle", "backup.restore.verify")));
+        return List.copyOf(domains);
     }
 
     private String releasePosture() {
@@ -154,14 +157,14 @@ public class PlatformContractService {
         PlatformStatusResponse.DiagnosticStatus files = moduleStatus(
                 "files",
                 "Files",
-                workspaceProperties.files(),
+                capabilities.settings("files").orElse(null),
                 auth,
                 "Set WEAVE_NEXTCLOUD_BASE_URL to the canonical Nextcloud URL, for example https://files.weave.test.",
                 "Enable WEAVE_WORKSPACE_FILES_ENABLED when files should be available.");
         PlatformStatusResponse.DiagnosticStatus calendar = moduleStatus(
                 "calendar",
                 "Calendar",
-                workspaceProperties.calendar(),
+                capabilities.settings("calendar").orElse(null),
                 auth,
                 "Set WEAVE_CALDAV_BASE_URL or WEAVE_NEXTCLOUD_BASE_URL so calendar can reach Nextcloud CalDAV.",
                 "Enable WEAVE_WORKSPACE_CALENDAR_ENABLED when calendar should be available.");
@@ -226,11 +229,11 @@ public class PlatformContractService {
         PlatformStatusResponse.DiagnosticStatus status = moduleStatus(
                 "matrix",
                 "Matrix chat",
-                workspaceProperties.chat(),
+                capabilities.settings("chat").orElse(null),
                 auth,
                 "Set WEAVE_MATRIX_BASE_URL to the southbound Matrix provider URL; clients receive the Weave facade from the API origin.",
                 "Enable WEAVE_WORKSPACE_CHAT_ENABLED when chat should be available.");
-        if (workspaceProperties.chat().enabled() && !matrixFacadeAuthorityMatches()) {
+        if (capabilities.settings("chat").map(CapabilitySettings::enabled).orElse(false) && !matrixFacadeAuthorityMatches()) {
             status = new PlatformStatusResponse.DiagnosticStatus(
                     "blocked",
                     "blocked",
@@ -314,10 +317,11 @@ public class PlatformContractService {
     private PlatformStatusResponse.DiagnosticStatus moduleStatus(
             String key,
             String label,
-            WorkspaceCapabilityProperties.Capability capability,
+            CapabilitySettings capability,
             PlatformStatusResponse.DiagnosticStatus auth,
             String missingRouteAction,
             String disabledAction) {
+        if (capability == null) return null;
         if (!capability.enabled()) {
             return new PlatformStatusResponse.DiagnosticStatus(
                     "disabled",

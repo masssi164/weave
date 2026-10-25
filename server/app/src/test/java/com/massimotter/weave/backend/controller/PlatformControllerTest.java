@@ -1,20 +1,20 @@
 package com.massimotter.weave.backend.controller;
 
-import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
+import com.massimotter.weave.backend.security.http.ApiAccessDeniedHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
-import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
+import com.massimotter.weave.backend.security.http.ApiAuthenticationEntryPoint;
+import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.MatrixChatProperties;
 import com.massimotter.weave.backend.discovery.config.PlatformContractProperties;
 import com.massimotter.weave.backend.config.SecurityConfig;
-import com.massimotter.weave.backend.config.WeaveSecurityProperties;
-import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
+import com.massimotter.weave.backend.security.config.WeaveSecurityProperties;
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation.Settings;
 import com.massimotter.weave.backend.readiness.persistence.JpaPersistenceReadinessProbe;
 import com.massimotter.weave.backend.service.LocalDependencyReadinessService;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.service.PlatformContractService;
 import com.massimotter.weave.backend.health.ProviderCapabilityHealthService;
-import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import java.util.HashSet;
@@ -39,7 +39,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @WebMvcTest(
         controllers = {PlatformController.class, HealthController.class, MemberEntryController.class},
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
-@Import({
+@Import({com.massimotter.weave.backend.http.request.RequestIdFilter.class,
+        com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation.Configuration.class,
         OrganizationIdentityContextResolver.class,
         SecurityConfig.class,
         LocalDependencyReadinessService.class,
@@ -53,7 +54,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         MatrixChatProperties.class,
         PlatformContractProperties.class,
         WeaveSecurityProperties.class,
-        WorkspaceCapabilityProperties.class,
+        Settings.class,
         OAuth2ResourceServerProperties.class
 })
 @TestPropertySource(properties = {

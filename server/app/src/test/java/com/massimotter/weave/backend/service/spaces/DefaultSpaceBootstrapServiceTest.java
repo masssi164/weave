@@ -1,5 +1,10 @@
 package com.massimotter.weave.backend.service.spaces;
 
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityPolicyState;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityReadiness;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilitiesResponse;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityStatusResponse;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.calendar.spaces.CalendarDefaultSpacePreparationContribution;
 import com.massimotter.weave.backend.files.spaces.FilesDefaultSpacePreparationContribution;
@@ -20,7 +25,7 @@ import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminCl
 import com.massimotter.weave.backend.model.*;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContext;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
-import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.spaces.port.DefaultSpacePreparationPort;
 import com.massimotter.weave.backend.spaces.preparation.DefaultSpacePreparationContribution;
 import java.util.List;
@@ -229,6 +234,6 @@ class DefaultSpaceBootstrapServiceTest {
     }
     private static WorkspaceCapabilitiesResponse snapshot(WorkspaceCapabilityStatusResponse files,
             WorkspaceCapabilityStatusResponse calendar) {
-        return new WorkspaceCapabilitiesResponse(ready(), ready(), files, calendar, ready(), ready());
+        return WorkspaceCapabilityTestInstallation.snapshot(ready(), ready(), files, calendar, ready(), ready());
     }
 }

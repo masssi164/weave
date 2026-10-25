@@ -37,6 +37,20 @@ rejects unknown or duplicate policy ownership rather than choosing a provider fo
 The pure selection contract is in `providerbinding.selection`, with JPA infrastructure in
 `providerbinding.persistence`. Domain bootstrap and migration workflows remain outside Core.
 
+Identity's product profile owns its values/ports, JPA adapter, use cases and transport DTOs
+under `identity.profile`. Configured identity resolution is mandatory in production wiring.
+The generic HTTP error envelope belongs to `api.error`. Device credential values, hashing,
+expiry, revocation and storage belong to Security; installed domains declare the permitted
+credential scopes. No installed scope means no issuance. Credential string output is redacted.
+The file-profile and in-memory credential fixtures are test-only artifacts.
+
+Foundational Spaces owns its access/membership/provisioning JPA adapters and shared user/
+relationship projections. Serving imports construct these actual adapters; non-web Dogfood
+preparation imports its own adapter explicitly. Domains implement resource contribution
+contracts. Request correlation and shared HTTP security/error adapters also register locally;
+Chat owns the Matrix denial envelope behind the narrow protocol error contract. Shared
+handlers operate without any installed protocol or optional domain.
+
 Shared revocation retains the existing durable table and hashed key format, permanent member
 cutoffs, session expiry retention, transaction/retry boundaries and fail-closed behavior.
 The Keycloak organization claim parser and tenant precedence have one owner; product domains
@@ -58,3 +72,13 @@ PostgreSQL behavior uses the existing isolated App PostgreSQL lane until the own
 harnesses have been extracted. Current remaining runtime extraction and its single execution
 plan are documented in `docs/architecture/server-domain-ownership.md`. No reduced-runtime
 or complete schema cutover qualification is implied by these library checks.
+
+Workspace capability authorization lives in `capability`, with shared wire values in
+`capability.api` and shared shell/admin settings in `capability.config`. Domain owners supply
+small typed declarations and readiness projections; Core owns Keycloak grants and denial
+policy. Domain configuration keys/defaults, capability lists and feature readiness copy stay
+with their owners. Missing owners produce no installed state or grants; disabled installed
+owners retain explicit disabled states. Duplicate ownership or undeclared grants is rejected.
+Actual serving policy/readiness beans register through Core's imports resource and remain
+absent from non-web schema/operator discovery. The accepted full twelve-field API projection
+is preserved while reduced-runtime publication awaits the reviewed contract/composition work.

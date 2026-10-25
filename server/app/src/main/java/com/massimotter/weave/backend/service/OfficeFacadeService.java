@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.model.office.OfficeCapabilitiesResponse;
 import com.massimotter.weave.backend.model.office.OfficeLaunchRequest;
 import com.massimotter.weave.backend.model.office.OfficeLaunchResponse;

@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.controller;
 
-import com.massimotter.weave.backend.model.ApiErrorResponse;
+import com.massimotter.weave.backend.api.error.ApiErrorResponse;
 import com.massimotter.weave.backend.model.identity.MemberLifecycleOperationResponse;
 import com.massimotter.weave.backend.model.identity.MemberOffboardingRequest;
 import com.massimotter.weave.backend.model.identity.OrganizationMemberPageResponse;

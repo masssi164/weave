@@ -5,3 +5,8 @@ com.massimotter.weave.core.autoconfigure.CoreAuditAutoConfiguration
 com.massimotter.weave.core.autoconfigure.ReleaseMcpSecurityAutoConfiguration
 com.massimotter.weave.core.autoconfigure.CoreOperationAutoConfiguration
 com.massimotter.weave.core.autoconfigure.CoreProviderBindingAutoConfiguration
+com.massimotter.weave.core.autoconfigure.CoreProfileAutoConfiguration
+com.massimotter.weave.core.autoconfigure.CoreDeviceSecurityAutoConfiguration
+com.massimotter.weave.core.autoconfigure.CoreWorkspaceCapabilityAutoConfiguration
+com.massimotter.weave.core.autoconfigure.CoreSpaceAutoConfiguration
+com.massimotter.weave.core.autoconfigure.CoreHttpSecurityAutoConfiguration

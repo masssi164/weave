@@ -1,5 +1,9 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
+import com.massimotter.weave.backend.security.http.ApiAuthenticationEntryPoint;
+import com.massimotter.weave.backend.security.http.ApiAccessDeniedHandler;
+
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -8,9 +12,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.massimotter.weave.backend.config.*;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
-import com.massimotter.weave.backend.model.spaces.SpaceRelationshipListResponse;
-import com.massimotter.weave.backend.model.spaces.SpaceRelationshipResponse;
-import com.massimotter.weave.backend.service.spaces.SpaceRelationshipUserService;
+import com.massimotter.weave.backend.spaces.api.SpaceRelationshipListResponse;
+import com.massimotter.weave.backend.spaces.api.SpaceRelationshipResponse;
+import com.massimotter.weave.backend.spaces.application.SpaceRelationshipUserService;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import java.util.List;
 import java.util.Map;

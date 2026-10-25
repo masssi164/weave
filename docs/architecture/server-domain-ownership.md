@@ -405,3 +405,122 @@ passed against disposable PostgreSQL (19 tests, zero skips). Java standard, prov
 Gradle structure and documentation static checks pass. The additional missing/duplicate-policy
 ownership cases passed in a subsequent Core check (77 tests total, zero skips). These checks prove this bounded
 extraction; selected-domain packaging, full runtime extraction and release acceptance remain open.
+
+### Core profile and device credential ownership
+
+Product-profile values and storage ports move from App's generic `service` package to Core
+model `identity.profile.domain` / `identity.profile.port`. The existing JPA adapter, use cases
+and transport DTOs move into Core `identity.profile.persistence`, `application` and `api`.
+The shared error envelope now belongs beside `api.error.ApiErrorException`. Core's servlet
+imports register the actual profile repository/service, always using configured identity
+resolution; production no longer supplies a constructor that silently creates default policy.
+App's existing HTTP controller composition remains until its broad component scan is retired.
+Serialized profile/error shapes and endpoint behavior remain unchanged.
+
+Security owns device credential values, repository, adaptive hashing, expiry/revocation and
+JPA implementation. Files and Calendar contribute their installed credential scopes; Core
+contains no hardcoded feature list. Empty installation permits no scope, duplicate ownership
+fails, and schema/non-web entry points do not construct serving credential services. Existing
+PBKDF2 parameters, credential lifetime and authorization rules are preserved. Credential and
+issuance records explicitly redact string output so logging cannot reveal a hash or issued
+secret. Test installation helpers and the old file-profile fixture live only in Core test
+artifacts, outside serving artifacts; owning profile/security unit tests no longer need App.
+
+Remaining shared prerequisites for Files runtime include Space contribution contracts and
+serving security/error adapters still under App. The current error handlers contain a Matrix
+protocol branch that must become Chat-owned before Core can own the handlers. This is an
+actual source dependency, not a reason to add a Core-to-Chat implementation dependency.
+
+### Foundational Spaces and shared HTTP security
+
+Core now owns the actual Space contribution contracts, API values (`spaces.api`), independent
+user/relationship projections (`spaces.application`) and explicit serving wiring for its
+membership/access/provisioning JPA adapters. Old component stereotypes are removed; App's
+component scan is no longer their registration mechanism. The Dogfood adapter remains
+explicitly imported by the non-web preparation graph. Default preparation and administrative
+use cases still have pending Identity/runtime dependencies in App; feature-specific resource
+checks remain domain contributions. The independent Space user unit test moves with its
+implementation; cross-domain integration remains in the existing App lane.
+
+Shared request correlation is in Core `http.request`; the error writer is in `api.error`, and
+API authentication/access-denied adapters are in `security.http`. Their module-local serving
+imports construct actual beans, with a narrow protocol error-envelope contribution. Chat owns
+the concrete Matrix Client-Server denial writer and registration. Shared handlers have no
+Matrix path/JSON knowledge. The same Keycloak token validation, authorities, safe request IDs,
+HTTP statuses, Matrix error codes and JSON envelopes are preserved. Tests exercise shared
+401/403 without optional protocols, actual Core imports discovery and the existing Matrix
+filter/controller behavior. This is error transport ownership, not a new permission system.
+
+Whole-App validation exposed HTTP slice fixtures that had relied on App scanning the moved
+shared correlation/Matrix writers. Their explicit imports now install the real owning
+components; assertions and authorization are retained. Eight existing PostgreSQL-only
+Testcontainers classes lacked the tag already excluded by the ordinary unit task. They now
+use `postgres`; the missing migration-evidence class is added to the existing PostgreSQL
+lane filter. No test is deleted or weakened. The unit lane is rerun without Docker access,
+and the real PostgreSQL lane remains required separately; unavailable Docker is not a pass.
+
+### Workspace capability policy and installed declarations
+
+Core now owns the actual shared `capability.WorkspaceCapabilityService`, shared typed shell/
+administration settings, capability/readiness wire contracts and effective-policy DTOs.
+`CoreWorkspaceCapabilityAutoConfiguration` registers serving policy and release readiness
+through Core's imports resource. Non-web schema/operator discovery does not construct them;
+the operator explicitly composes its required shared policy. Core requires no optional-domain
+implementation or provider to construct this graph.
+
+Domain-owned `*WorkspaceCapabilities` classes declare their capability keys, administrator/
+member/group grants, configured policy, readiness projection and support-safe copy. Their
+small configuration classes only wire typed settings and required dependencies. Chat, Files
+and Calendar consume the shared cached-health contract; Chat and Files own their existing
+release-readiness diagnostics. Boards, Meetings, Office, Decisions, Manuals, DevOps and Agent
+Runtime retain existing declarations under their business namespaces until their actual
+runtime modules move. This preserves existing feature behavior without declaring future
+features production-ready or adding placeholder projects.
+
+The former global Workspace settings record is replaced by shared shell/admin settings and
+ten owning domain settings records, preserving existing `weave.workspace.*` keys, defaults
+and configured readiness semantics. Core retains Keycloak identity/role/group authorization,
+deny behavior and the accepted closed twelve-field snapshot projection. An absent domain has
+no installed declaration, settings, state, release diagnostic or grants; an installed disabled
+domain retains its explicit disabled state. Duplicate domain/capability ownership and grants
+outside a domain's declared keys fail immediately. Device token claims cannot restore an
+absent domain. Existing production compatibility constructors and the six-field snapshot
+constructor are removed; explicit full-installation helpers exist only in test sources.
+
+Public full-runtime User/Admin serialization and required schema fields remain unchanged.
+Reduced-runtime publication and optional wire metadata still require accepted specification
+changes and actual selected-runtime composition; this internal absence support does not
+activate that pending public behavior. Platform manifest capability lists now derive from
+the owning declarations rather than another App-owned feature list.
+
+The combined checkpoint command is `./gradlew :server:core:check :server:core:model:check
+:server:app:test checkOpenApiContractFresh`: 96 Core tests, 3 Core model tests, 1,389 App tests
+(24 skipped), and 14 actual OpenAPI export tests, with no failures/errors; five OpenAPI
+normalization tests also pass. The App skips are 23 PostgreSQL-lane checks and one unavailable
+MinIO fixture. Real PostgreSQL qualification remains a separate required lane. New ownership
+checks cover absent versus disabled installation, role denial despite provider readiness,
+duplicate ownership, undeclared grants, absent-domain device claims, actual Boot discovery/
+non-web exclusion, and independent binding of existing domain settings keys/defaults.
+
+Combined checkpoint validation after capability/profile/device/Space/HTTP extraction:
+
+```sh
+./gradlew :server:core:check :server:core:model:check :server:app:test checkOpenApiContractFresh
+DOCKER_HOST=<disposable-local-engine> ./gradlew :server:app:postgresJpaTest
+```
+
+Both passed. Core: 96 tests, model: 3, App: 1,389 (24 skips), actual full User/Admin export:
+14, API normalization: 5; zero failures/errors. The ordinary lane runs without Docker access;
+its skips are 23 PostgreSQL-gated cases plus the unavailable MinIO fixture. The separate
+PostgreSQL lane passed all 200 tests with zero skips. MinIO is not qualified by PostgreSQL.
+Existing architecture/provider/Java/Gradle/docs checks pass. These are whole-App/persistence
+checks of the current extraction, not proof of selected runtime packaging or release delivery.
+
+`coreArchitectureCi canonicalDataCi specCorpusConformance acceptanceContract` also passed
+against the exact accepted corpus checkout. The acceptance mapping guard first identified
+four stale retired-JPA source references and an obsolete App factory-test marker. Mapping
+now points at the actual owning entities and real Core imports-discovery singleton assertion,
+while retaining the Boards no-fallback assertion and unchanged behavior tests. This repairs
+existing evidence references rather than substituting planned evidence. The legacy E2E
+structure helper's optional local manifest-path cross-check is unavailable in this isolated
+worktree layout; the separate pinned corpus conformance gate ran and passed.

@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.files.spaces;
 
-import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilitiesResponse;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContext;
 import com.massimotter.weave.backend.spaces.preparation.DefaultSpacePreparationContribution;
 import java.util.List;

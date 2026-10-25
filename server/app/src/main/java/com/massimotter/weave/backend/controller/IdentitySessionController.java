@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.controller;
 
-import com.massimotter.weave.backend.model.ApiErrorResponse;
+import com.massimotter.weave.backend.api.error.ApiErrorResponse;
 import com.massimotter.weave.backend.model.identity.IdentitySessionReconcileResponse;
 import com.massimotter.weave.backend.service.MemberInvitationService;
 import io.swagger.v3.oas.annotations.Operation;

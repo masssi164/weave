@@ -1,5 +1,8 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.security.http.ApiAuthenticationEntryPoint;
+import com.massimotter.weave.backend.security.http.ApiAccessDeniedHandler;
+
 import com.massimotter.weave.backend.security.AdminApiAuthorizationManager;
 import com.massimotter.weave.backend.security.DeploymentOrganizationAdmission;
 import org.springframework.beans.factory.annotation.Qualifier;

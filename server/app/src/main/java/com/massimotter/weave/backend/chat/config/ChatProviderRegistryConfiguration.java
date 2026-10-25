@@ -16,7 +16,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration(proxyBeanMethods = false)
-@Import(ChatProviderBindingPolicy.class)
+@Import({ChatProviderBindingPolicy.class, com.massimotter.weave.backend.chat.api.security.MatrixClientSecurityErrorWriter.class})
 public class ChatProviderRegistryConfiguration {
 
     @Bean

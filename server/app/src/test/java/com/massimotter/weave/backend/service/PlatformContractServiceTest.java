@@ -1,10 +1,11 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.config.MatrixChatProperties;
 import com.massimotter.weave.backend.discovery.config.PlatformContractProperties;
-import com.massimotter.weave.backend.config.WeaveSecurityProperties;
-import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
+import com.massimotter.weave.backend.security.config.WeaveSecurityProperties;
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation.Settings;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -233,20 +234,32 @@ class PlatformContractServiceTest {
             PlatformContractProperties platformProperties,
             String facadeBaseUrl,
             String facadeServerName) {
-        return new PlatformContractService(
-                resourceServerProperties(),
-                platformProperties,
-                matrixProperties,
-                new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(
-                        new WorkspaceCapabilityProperties.Capability(true, null, null),
-                        new WorkspaceCapabilityProperties.Capability(chatEnabled, "https://matrix.weave.test", null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", null),
+        return new PlatformContractService(resourceServerProperties(),
+platformProperties,
+matrixProperties,
+new WeaveSecurityProperties("weave-app", "weave-app"),
+new com.massimotter.weave.backend.capability.config.WorkspaceCapabilityProperties(WorkspaceCapabilityTestInstallation.convert((new Settings(
+                        new Settings.Capability(true, null, null),
+                        new Settings.Capability(chatEnabled, "https://matrix.weave.test", null),
+                        new Settings.Capability(true, "https://files.weave.test", null),
+                        new Settings.Capability(true, "https://files.weave.test", null),
                         null,
-                        null),
-                facadeBaseUrl,
-                facadeServerName);
+                        null)).shellAccess()), WorkspaceCapabilityTestInstallation.convert((new Settings(
+                        new Settings.Capability(true, null, null),
+                        new Settings.Capability(chatEnabled, "https://matrix.weave.test", null),
+                        new Settings.Capability(true, "https://files.weave.test", null),
+                        new Settings.Capability(true, "https://files.weave.test", null),
+                        null,
+                        null)).adminControlPlane())),
+WorkspaceCapabilityTestInstallation.service(resourceServerProperties(),new WeaveSecurityProperties("weave-app", "weave-app"),new Settings(
+                        new Settings.Capability(true, null, null),
+                        new Settings.Capability(chatEnabled, "https://matrix.weave.test", null),
+                        new Settings.Capability(true, "https://files.weave.test", null),
+                        new Settings.Capability(true, "https://files.weave.test", null),
+                        null,
+                        null)),
+facadeBaseUrl,
+facadeServerName);
     }
 
     private OAuth2ResourceServerProperties resourceServerProperties() {

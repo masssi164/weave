@@ -4,7 +4,7 @@ import com.massimotter.weave.backend.chat.ChatDomainFacadeService;
 import com.massimotter.weave.backend.chat.domain.ChatMigrationPreflightReport;
 import com.massimotter.weave.backend.chat.domain.ChatMigrationPreflightRequest;
 import com.massimotter.weave.backend.chat.domain.ChatReadiness;
-import com.massimotter.weave.backend.model.ApiErrorResponse;
+import com.massimotter.weave.backend.api.error.ApiErrorResponse;
 import com.massimotter.weave.backend.model.chat.ChatProviderReplacementDryRunRequest;
 import com.massimotter.weave.backend.model.chat.ChatProviderReplacementDryRunResponse;
 import com.massimotter.weave.backend.model.chat.DecisionLedgerCreateRequest;

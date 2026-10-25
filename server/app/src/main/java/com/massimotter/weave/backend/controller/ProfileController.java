@@ -1,11 +1,11 @@
 package com.massimotter.weave.backend.controller;
 
-import com.massimotter.weave.backend.model.ApiErrorResponse;
-import com.massimotter.weave.backend.model.ModuleSyncStatusResponse;
-import com.massimotter.weave.backend.model.ProfileReadinessResponse;
-import com.massimotter.weave.backend.model.ProductProfileResponse;
-import com.massimotter.weave.backend.model.UpdateProductProfileRequest;
-import com.massimotter.weave.backend.service.ProductProfileService;
+import com.massimotter.weave.backend.api.error.ApiErrorResponse;
+import com.massimotter.weave.backend.identity.profile.api.ModuleSyncStatusResponse;
+import com.massimotter.weave.backend.identity.profile.api.ProfileReadinessResponse;
+import com.massimotter.weave.backend.identity.profile.api.ProductProfileResponse;
+import com.massimotter.weave.backend.identity.profile.api.UpdateProductProfileRequest;
+import com.massimotter.weave.backend.identity.profile.application.ProductProfileService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;

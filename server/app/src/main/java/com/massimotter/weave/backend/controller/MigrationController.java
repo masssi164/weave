@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.controller;
 
-import com.massimotter.weave.backend.model.ApiErrorResponse;
+import com.massimotter.weave.backend.api.error.ApiErrorResponse;
 import com.massimotter.weave.backend.model.migration.MigrationApplyGateRequest;
 import com.massimotter.weave.backend.model.migration.MigrationApplyGateResponse;
 import com.massimotter.weave.backend.model.migration.MigrationDryRunRequest;

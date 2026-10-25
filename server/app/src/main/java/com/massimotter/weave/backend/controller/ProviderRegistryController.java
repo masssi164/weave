@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.controller;
 
-import com.massimotter.weave.backend.model.ApiErrorResponse;
+import com.massimotter.weave.backend.api.error.ApiErrorResponse;
 import com.massimotter.weave.backend.provider.ProviderRegistryResponse;
 import com.massimotter.weave.backend.service.AdminProviderRegistryService;
 import io.swagger.v3.oas.annotations.Operation;

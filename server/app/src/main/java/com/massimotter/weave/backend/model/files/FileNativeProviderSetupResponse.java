@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.model.files;
 
-import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityStatusResponse;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 

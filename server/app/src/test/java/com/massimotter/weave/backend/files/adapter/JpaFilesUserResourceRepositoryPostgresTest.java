@@ -14,6 +14,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+@org.junit.jupiter.api.Tag("postgres")
 @Testcontainers
 class JpaFilesUserResourceRepositoryPostgresTest {
     @Container private static final PostgreSQLContainer<?> POSTGRES =

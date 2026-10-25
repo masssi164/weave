@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.domainfacade;
 
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -8,10 +9,10 @@ import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
 import com.massimotter.weave.backend.spaces.authorization.ContextPermission;
-import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilitiesResponse;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityPolicyState;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityReadiness;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityStatusResponse;
 import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
 import com.massimotter.weave.backend.discovery.provider.ProviderModule;
 import com.massimotter.weave.backend.discovery.provider.ProviderPort;
@@ -21,7 +22,7 @@ import com.massimotter.weave.backend.providerbinding.selection.ProviderSelection
 import com.massimotter.weave.backend.discovery.provider.ProviderState;
 import com.massimotter.weave.backend.discovery.provider.ProviderStatusResponse;
 import com.massimotter.weave.backend.discovery.provider.StaticProviderPort;
-import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -336,7 +337,7 @@ class CanonicalDomainFacadeServicesTest {
     }
 
     private WorkspaceCapabilitiesResponse allowedCapabilities() {
-        return new WorkspaceCapabilitiesResponse(
+        return WorkspaceCapabilityTestInstallation.snapshot(
                 capability("platform-identity", List.of("identity.sign_in", "identity.groups", "identity.roles", "policy.read"), WorkspaceCapabilityPolicyState.ALLOWED),
                 capability("chat", List.of("chat.read"), WorkspaceCapabilityPolicyState.ALLOWED),
                 capability("files", List.of("files.read", "files.upload", "documents.view", "documents.edit"), WorkspaceCapabilityPolicyState.ALLOWED),
@@ -346,7 +347,7 @@ class CanonicalDomainFacadeServicesTest {
     }
 
     private WorkspaceCapabilitiesResponse blockedCapabilities() {
-        return new WorkspaceCapabilitiesResponse(
+        return WorkspaceCapabilityTestInstallation.snapshot(
                 capability("platform-identity", List.of(), WorkspaceCapabilityPolicyState.POLICY_BLOCKED),
                 capability("chat", List.of(), WorkspaceCapabilityPolicyState.POLICY_BLOCKED),
                 capability("files", List.of(), WorkspaceCapabilityPolicyState.POLICY_BLOCKED),

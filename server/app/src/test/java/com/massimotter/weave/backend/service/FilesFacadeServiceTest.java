@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
@@ -10,8 +12,8 @@ import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBind
 import com.massimotter.weave.backend.security.workload.domain.WeaverWorkloadPrincipal;
 import com.massimotter.weave.backend.security.config.ContextAuthorizationConfiguration;
 import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
-import com.massimotter.weave.backend.config.WeaveSecurityProperties;
-import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
+import com.massimotter.weave.backend.security.config.WeaveSecurityProperties;
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation.Settings;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
@@ -260,7 +262,7 @@ class FilesFacadeServiceTest {
                 },
                 defaultContextAuthorizationProperties(),
                 workspaceCapabilityService(),
-                new com.massimotter.weave.backend.security.device.DeviceCredentialService(
+                com.massimotter.weave.backend.security.device.DeviceCredentialTestSupport.service(
                         new com.massimotter.weave.backend.security.device.InMemoryDeviceCredentialRepository()),
                 audit,
                 authorization,
@@ -829,7 +831,7 @@ class FilesFacadeServiceTest {
                 contextAuthorizationPort,
                 contextAuthorizationProperties,
                 workspaceCapabilityService(),
-                new com.massimotter.weave.backend.security.device.DeviceCredentialService(
+                com.massimotter.weave.backend.security.device.DeviceCredentialTestSupport.service(
                         new com.massimotter.weave.backend.security.device.InMemoryDeviceCredentialRepository()),
                 auditEventPublisher,
                 filesLockService,
@@ -845,10 +847,10 @@ class FilesFacadeServiceTest {
     private WorkspaceCapabilityService workspaceCapabilityService() {
         OAuth2ResourceServerProperties properties = new OAuth2ResourceServerProperties();
         properties.getJwt().setIssuerUri("https://auth.weave.test/realms/weave");
-        return new WorkspaceCapabilityService(
+        return WorkspaceCapabilityTestInstallation.service(
                 properties,
                 new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(null, null, null, null, null, null));
+                new Settings(null, null, null, null, null, null));
     }
 
     private Jwt jwt() {

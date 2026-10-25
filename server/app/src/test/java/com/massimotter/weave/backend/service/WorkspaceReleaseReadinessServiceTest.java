@@ -1,10 +1,13 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation;
+import com.massimotter.weave.backend.capability.readiness.WorkspaceReleaseReadinessService;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 
-import com.massimotter.weave.backend.config.WeaveSecurityProperties;
-import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
+import com.massimotter.weave.backend.security.config.WeaveSecurityProperties;
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation.Settings;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityReadiness;
 import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
@@ -17,28 +20,20 @@ class WorkspaceReleaseReadinessServiceTest {
 
     @Test
     void reportsConfigurationWithoutClaimingLiveProvidersOrReleaseReadiness() {
-        WorkspaceCapabilityService capabilityService = new WorkspaceCapabilityService(
+        WorkspaceCapabilityService capabilityService = WorkspaceCapabilityTestInstallation.service(
                 resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(
-                        new WorkspaceCapabilityProperties.Capability(true, null, null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://matrix.weave.test", null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", null),
+                new Settings(
+                        new Settings.Capability(true, null, null),
+                        new Settings.Capability(true, "https://matrix.weave.test", null),
+                        new Settings.Capability(true, "https://files.weave.test", null),
                         null,
                         null,
                         null));
 
-        WorkspaceReleaseReadinessService service = new WorkspaceReleaseReadinessService(
-                resourceServerProperties("https://auth.weave.test/realms/weave"),
-                new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(
-                        new WorkspaceCapabilityProperties.Capability(true, null, null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://matrix.weave.test", null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", null),
-                        null,
-                        null,
-                        null),
-                capabilityService);
+        WorkspaceReleaseReadinessService service = new WorkspaceReleaseReadinessService(resourceServerProperties("https://auth.weave.test/realms/weave"),
+new WeaveSecurityProperties("weave-app", "weave-app"),
+capabilityService);
 
         var snapshot = service.snapshot(jwt("admin"));
 
@@ -54,22 +49,20 @@ class WorkspaceReleaseReadinessServiceTest {
 
     @Test
     void returnsBlockedWhenAuthContractIsMissing() {
-        WorkspaceCapabilityProperties properties = new WorkspaceCapabilityProperties(
-                new WorkspaceCapabilityProperties.Capability(true, null, null),
-                new WorkspaceCapabilityProperties.Capability(true, null, null),
-                new WorkspaceCapabilityProperties.Capability(true, null, null),
+        Settings properties = new Settings(
+                new Settings.Capability(true, null, null),
+                new Settings.Capability(true, null, null),
+                new Settings.Capability(true, null, null),
                 null,
                 null,
                 null);
-        WorkspaceCapabilityService capabilityService = new WorkspaceCapabilityService(
+        WorkspaceCapabilityService capabilityService = WorkspaceCapabilityTestInstallation.service(
                 resourceServerProperties(null),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
                 properties);
-        WorkspaceReleaseReadinessService service = new WorkspaceReleaseReadinessService(
-                resourceServerProperties(null),
-                new WeaveSecurityProperties("weave-app", "weave-app"),
-                properties,
-                capabilityService);
+        WorkspaceReleaseReadinessService service = new WorkspaceReleaseReadinessService(resourceServerProperties(null),
+new WeaveSecurityProperties("weave-app", "weave-app"),
+capabilityService);
 
         var snapshot = service.snapshot(jwt("admin"));
 
@@ -82,22 +75,20 @@ class WorkspaceReleaseReadinessServiceTest {
 
     @Test
     void returnsDegradedWhenRoutesAreStillMissing() {
-        WorkspaceCapabilityProperties properties = new WorkspaceCapabilityProperties(
-                new WorkspaceCapabilityProperties.Capability(true, null, null),
-                new WorkspaceCapabilityProperties.Capability(true, null, null),
-                new WorkspaceCapabilityProperties.Capability(true, null, null),
+        Settings properties = new Settings(
+                new Settings.Capability(true, null, null),
+                new Settings.Capability(true, null, null),
+                new Settings.Capability(true, null, null),
                 null,
                 null,
                 null);
-        WorkspaceCapabilityService capabilityService = new WorkspaceCapabilityService(
+        WorkspaceCapabilityService capabilityService = WorkspaceCapabilityTestInstallation.service(
                 resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
                 properties);
-        WorkspaceReleaseReadinessService service = new WorkspaceReleaseReadinessService(
-                resourceServerProperties("https://auth.weave.test/realms/weave"),
-                new WeaveSecurityProperties("weave-app", "weave-app"),
-                properties,
-                capabilityService);
+        WorkspaceReleaseReadinessService service = new WorkspaceReleaseReadinessService(resourceServerProperties("https://auth.weave.test/realms/weave"),
+new WeaveSecurityProperties("weave-app", "weave-app"),
+capabilityService);
 
         var snapshot = service.snapshot(jwt("admin"));
 

@@ -1,5 +1,12 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
+import com.massimotter.weave.backend.security.http.ApiAuthenticationEntryPoint;
+import com.massimotter.weave.backend.security.http.ApiAccessDeniedHandler;
+
+import com.massimotter.weave.backend.security.config.WeaveSecurityProperties;
+import com.massimotter.weave.backend.identity.profile.port.ProductProfileOverrideRepository;
+
 import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -16,8 +23,8 @@ import com.massimotter.weave.backend.model.admin.AdminControlPlaneResponse;
 import com.massimotter.weave.backend.model.admin.AdminCurrentActorResponse;
 import com.massimotter.weave.backend.service.AdminControlPlaneService;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
-import com.massimotter.weave.backend.service.ProductProfileOverrideRepository;
-import com.massimotter.weave.backend.service.ProductProfileService;
+import com.massimotter.weave.backend.identity.profile.port.ProductProfileOverrideRepository;
+import com.massimotter.weave.backend.identity.profile.application.ProductProfileService;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
@@ -85,7 +92,7 @@ class AdminUserHttpAdmissionTest {
           false, true, true, true, false, Instant.EPOCH, List.of(), List.of(),
           null, null, List.of(), null, List.of(), List.of(), Map.of());
     });
-    var productProfiles = new ProductProfileService(mock(ProductProfileOverrideRepository.class));
+    var productProfiles = new ProductProfileService(mock(ProductProfileOverrideRepository.class), OrganizationIdentityContextResolver.defaults());
     when(profiles.authenticatedUser(any())).thenAnswer(invocation ->
         productProfiles.authenticatedUser(invocation.getArgument(0)));
   }

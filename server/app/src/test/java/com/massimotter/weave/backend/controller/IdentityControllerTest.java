@@ -1,12 +1,14 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.identity.profile.port.ProductProfileOverrideRepository;
+
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
-import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
-import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
-import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
+import com.massimotter.weave.backend.security.http.ApiAccessDeniedHandler;
+import com.massimotter.weave.backend.security.http.ApiAuthenticationEntryPoint;
+import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.SecurityConfig;
-import com.massimotter.weave.backend.service.ProductProfileOverrideRepository;
-import com.massimotter.weave.backend.service.ProductProfileService;
+import com.massimotter.weave.backend.identity.profile.port.ProductProfileOverrideRepository;
+import com.massimotter.weave.backend.identity.profile.application.ProductProfileService;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import java.util.List;
 import java.util.Map;

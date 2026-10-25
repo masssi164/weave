@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.dogfood;
 
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContext;
 import static com.massimotter.weave.backend.dogfood.DogfoodPreparationProtocol.*;

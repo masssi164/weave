@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.controller;
 
-import com.massimotter.weave.backend.model.ApiErrorResponse;
+import com.massimotter.weave.backend.api.error.ApiErrorResponse;
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.model.interop.CanonicalBridgeEventResponse;
 import com.massimotter.weave.backend.model.interop.InteropStatusResponse;

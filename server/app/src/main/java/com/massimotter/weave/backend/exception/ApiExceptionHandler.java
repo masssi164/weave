@@ -1,8 +1,8 @@
 package com.massimotter.weave.backend.exception;
 
 import com.massimotter.weave.backend.api.error.ApiErrorException;
-import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
-import com.massimotter.weave.backend.config.RequestIdFilter;
+import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
+import com.massimotter.weave.backend.http.request.RequestIdFilter;
 import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient.KeycloakAdminException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

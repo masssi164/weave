@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.architecture;
 
+import com.massimotter.weave.backend.identity.profile.persistence.FileProductProfileOverrideRepository;
+
 
 
 import static org.assertj.core.api.Assertions.assertThat;

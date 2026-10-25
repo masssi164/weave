@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.provider;
 
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation;
 import com.massimotter.weave.backend.providerbinding.selection.ProviderSelection;
 import com.massimotter.weave.backend.discovery.provider.RuntimeProviderStatus;
 import com.massimotter.weave.backend.discovery.provider.StaticProviderPort;
@@ -10,11 +11,11 @@ import com.massimotter.weave.backend.discovery.provider.ProviderStatusResponse;
 import com.massimotter.weave.backend.discovery.provider.ProviderPort;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
-import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
-import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilitiesResponse;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityPolicyState;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityReadiness;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityStatusResponse;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -215,7 +216,7 @@ class ProviderRegistryTest {
 
     private WorkspaceCapabilityService capabilityService() {
         WorkspaceCapabilityService service = Mockito.mock(WorkspaceCapabilityService.class);
-        when(service.snapshot()).thenReturn(new WorkspaceCapabilitiesResponse(
+        when(service.snapshot()).thenReturn(WorkspaceCapabilityTestInstallation.snapshot(
                 capability(), capability(), capability(), capability(), capability(),
                 new WorkspaceCapabilityStatusResponse(
                         false,

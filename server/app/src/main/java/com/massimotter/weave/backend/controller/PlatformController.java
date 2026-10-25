@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.controller;
 
-import com.massimotter.weave.backend.config.RequestIdFilter;
+import com.massimotter.weave.backend.http.request.RequestIdFilter;
 import com.massimotter.weave.backend.model.OrgManifestResponse;
 import com.massimotter.weave.backend.model.PlatformStatusResponse;
 import com.massimotter.weave.backend.service.PlatformContractService;

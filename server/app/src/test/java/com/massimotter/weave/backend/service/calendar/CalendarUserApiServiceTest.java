@@ -1,5 +1,9 @@
 package com.massimotter.weave.backend.service.calendar;
 
+import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
+
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
@@ -16,12 +20,12 @@ import com.massimotter.weave.backend.security.workload.domain.WeaverWorkloadPrin
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.*;
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
 import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
-import com.massimotter.weave.backend.config.WeaveSecurityProperties;
-import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
+import com.massimotter.weave.backend.security.config.WeaveSecurityProperties;
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation.Settings;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.model.calendar.CalendarUserModels.*;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityPolicyState;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityReadiness;
 import com.massimotter.weave.backend.providerbinding.contract.ProviderConformanceProfile;
 import com.massimotter.weave.backend.providerbinding.domain.*;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
@@ -305,7 +309,7 @@ class CalendarUserApiServiceTest {
 
     @Test
     void httpGeneratedUtcSerializationRoundTripsAndNonzeroFractionsCannotWrite() throws Exception {
-        var errors = new com.massimotter.weave.backend.config.ApiErrorResponseWriter(tools.jackson.databind.json.JsonMapper.builder().build());
+        var errors = new com.massimotter.weave.backend.api.error.ApiErrorResponseWriter(tools.jackson.databind.json.JsonMapper.builder().build());
         var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(
                 new com.massimotter.weave.backend.controller.CalendarUserController(service, errors))
                 .setControllerAdvice(new com.massimotter.weave.backend.exception.ApiExceptionHandler(errors))
@@ -559,9 +563,9 @@ class CalendarUserApiServiceTest {
     private WorkspaceCapabilityService calendarPolicy(boolean enabled, WorkspaceCapabilityReadiness readiness) {
         var resourceServer = new OAuth2ResourceServerProperties();
         resourceServer.getJwt().setIssuerUri("https://auth.weave.test/realms/weave");
-        return new WorkspaceCapabilityService(resourceServer, new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(null, null, null,
-                        new WorkspaceCapabilityProperties.Capability(enabled, null, readiness), null, null));
+        return WorkspaceCapabilityTestInstallation.service(resourceServer, new WeaveSecurityProperties("weave-app", "weave-app"),
+                new Settings(null, null, null,
+                        new Settings.Capability(enabled, null, readiness), null, null));
     }
 
     private CalendarUserApiService withDomainPolicy(WorkspaceCapabilityService domainPolicy) {

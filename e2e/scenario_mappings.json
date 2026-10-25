@@ -4224,14 +4224,14 @@
           ]
         },
         {
-          "path": "weave-persistence-jpa/src/main/java/com/massimotter/weave/backend/persistence/jpa/provider/ProviderSelectionJpaEntity.java",
+          "path": "server/core/src/main/java/com/massimotter/weave/backend/providerbinding/persistence/ProviderSelectionJpaEntity.java",
           "fragments": [
             "weave_provider_selections",
             "ProviderSelectionJpaEntity"
           ]
         },
         {
-          "path": "weave-persistence-jpa/src/main/java/com/massimotter/weave/backend/persistence/jpa/profile/ProductProfileOverrideJpaEntity.java",
+          "path": "server/core/src/main/java/com/massimotter/weave/backend/identity/profile/persistence/ProductProfileOverrideJpaEntity.java",
           "fragments": [
             "weave_product_profile_overrides",
             "accessibility_preferences_json"
@@ -4271,7 +4271,7 @@
           ]
         },
         {
-          "path": "weave-persistence-jpa/src/main/java/com/massimotter/weave/backend/persistence/jpa/audit/AuditEventJpaEntity.java",
+          "path": "server/core/src/main/java/com/massimotter/weave/backend/audit/persistence/AuditEventJpaEntity.java",
           "fragments": [
             "weave_audit_events",
             "uq_weave_audit_events_idempotency"
@@ -4287,8 +4287,14 @@
         {
           "path": "server/app/src/test/java/com/massimotter/weave/backend/config/BoardsRuntimeConfigurationTest.java",
           "fragments": [
-            "boardsConfigurationDoesNotCreateAPersistenceFallback",
-            "persistenceCompositionPublishesOnlyTheJpaAuditAuthority"
+            "boardsConfigurationDoesNotCreateAPersistenceFallback"
+          ]
+        },
+        {
+          "path": "server/core/src/test/java/com/massimotter/weave/core/autoconfigure/CorePersistenceDiscoveryTest.java",
+          "fragments": [
+            "CoreAuditAutoConfiguration.class",
+            "hasSingleBean(AuditEventPublisher.class)"
           ]
         }
       ]
@@ -4312,7 +4318,7 @@
           ]
         },
         {
-          "path": "weave-persistence-jpa/src/main/java/com/massimotter/weave/backend/persistence/jpa/migration/MigrationRunEvidenceJpaEntity.java",
+          "path": "server/domains/portability/persistence/src/main/java/com/massimotter/weave/backend/portability/persistence/MigrationRunEvidenceJpaEntity.java",
           "fragments": [
             "weave_migration_run_evidence",
             "@EmbeddedId"
@@ -4427,7 +4433,7 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/app/src/main/java/com/massimotter/weave/backend/service/WorkspaceCapabilityService.java",
+          "path": "server/core/src/main/java/com/massimotter/weave/backend/capability/WorkspaceCapabilityService.java",
           "fragments": [
             "WorkspaceCapabilityPolicyState.DISABLED",
             "WorkspaceCapabilityPolicyState.POLICY_BLOCKED",
@@ -6223,7 +6229,7 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/service/spaces/SpaceUserApiServiceTest.java",
+          "path": "server/core/src/test/java/com/massimotter/weave/backend/spaces/application/SpaceUserApiServiceTest.java",
           "fragments": [
             "singleReadReturnsCurrentAuthorizedDisplayName",
             "listsOnlyDurableVisibleSpacesInBoundedKeysetOrder",

@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.service.spaces;
 
+import com.massimotter.weave.backend.spaces.application.SpaceRelationshipUserService;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
@@ -8,7 +10,7 @@ import com.massimotter.weave.backend.security.config.DeploymentOrganizationPrope
 import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient;
 import com.massimotter.weave.backend.security.DeploymentOrganizationAdmission;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
-import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.spaces.port.DefaultSpacePreparationPort;
 import com.massimotter.weave.backend.spaces.port.SpaceAccessPort;
 import org.junit.jupiter.api.Test;

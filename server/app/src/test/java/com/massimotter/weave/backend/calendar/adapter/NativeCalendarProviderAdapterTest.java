@@ -33,7 +33,7 @@ import com.massimotter.weave.backend.providerbinding.domain.ProviderBinding;
 import com.massimotter.weave.backend.providerbinding.domain.ProviderObjectMapping;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
-import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.service.calendar.CalendarOccurrenceEngine;
 import com.massimotter.weave.backend.service.calendar.CalendarUserApiService;
 import com.massimotter.weave.backend.service.calendar.Ical4jRecurrenceEngine;

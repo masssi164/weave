@@ -9,7 +9,7 @@ import com.massimotter.weave.backend.security.config.ContextAuthorizationPropert
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationRequest;
 import com.massimotter.weave.backend.spaces.authorization.ContextPermission;
-import com.massimotter.weave.backend.model.WorkspaceHomeRecentActivityResponse;
+import com.massimotter.weave.backend.capability.api.WorkspaceHomeRecentActivityResponse;
 import com.massimotter.weave.backend.spaces.port.SpaceAccessPort;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;

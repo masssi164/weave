@@ -5,11 +5,9 @@ import java.util.List;
 import java.util.Optional;
 import com.massimotter.weave.backend.spaces.port.SpaceReadPort;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 /** Reads only persisted active Space and membership state; bootstrap config is not an authority. */
-@Repository
 @Transactional(readOnly = true)
 public class JpaSpaceAccessAdapter implements SpaceAccessPort, SpaceReadPort {
     private final SpaceJpaRepository spaces;

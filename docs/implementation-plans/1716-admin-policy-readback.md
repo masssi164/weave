@@ -46,7 +46,7 @@ silently enroll all members, expose private resources, replace roles or change p
 
 - `server/app/src/main/java/com/massimotter/weave/backend/service/AdminControlPlaneService.java`:
   `whitelist`, `updateWhitelist` and `enforceLastAdminGuard`.
-- `server/app/src/main/java/com/massimotter/weave/backend/service/WorkspaceCapabilityService.java`:
+- `server/core/src/main/java/com/massimotter/weave/backend/capability/WorkspaceCapabilityService.java`:
   effective policy, member projection and operation admission.
 - `admin-console/src/api.ts`: `normalizeWhitelist` and the read-only role-capability projection.
 - `admin-console/src/App.tsx`: the accessible read-only capability list.

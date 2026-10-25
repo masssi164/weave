@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.controller;
 
-import com.massimotter.weave.backend.model.ApiErrorResponse;
+import com.massimotter.weave.backend.api.error.ApiErrorResponse;
 import com.massimotter.weave.backend.model.guest.GuestAccessContractResponse;
 import com.massimotter.weave.backend.model.guest.GuestInvitationRequest;
 import com.massimotter.weave.backend.model.guest.GuestInvitationResponse;

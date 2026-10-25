@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.domainfacade;
 
-import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilitiesResponse;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityStatusResponse;
 import java.util.List;
 import java.util.Set;
 

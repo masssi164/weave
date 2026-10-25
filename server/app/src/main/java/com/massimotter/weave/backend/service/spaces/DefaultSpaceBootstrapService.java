@@ -8,10 +8,10 @@ import com.massimotter.weave.backend.security.config.DeploymentOrganizationPrope
 import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.identity.IdentityReferences;
 import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient;
-import com.massimotter.weave.backend.model.spaces.DefaultSpaceBootstrapResponse;
+import com.massimotter.weave.backend.spaces.api.DefaultSpaceBootstrapResponse;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContext;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
-import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.spaces.port.DefaultSpacePreparationPort;
 import com.massimotter.weave.backend.spaces.preparation.DefaultSpacePreparationContribution;
 import java.time.Instant;

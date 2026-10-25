@@ -1,8 +1,8 @@
 package com.massimotter.weave.backend.controller;
 
-import com.massimotter.weave.backend.model.ApiErrorResponse;
-import com.massimotter.weave.backend.model.spaces.SpaceRelationshipListResponse;
-import com.massimotter.weave.backend.service.spaces.SpaceRelationshipUserService;
+import com.massimotter.weave.backend.api.error.ApiErrorResponse;
+import com.massimotter.weave.backend.spaces.api.SpaceRelationshipListResponse;
+import com.massimotter.weave.backend.spaces.application.SpaceRelationshipUserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;

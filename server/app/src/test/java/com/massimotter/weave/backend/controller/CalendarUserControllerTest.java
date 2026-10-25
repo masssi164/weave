@@ -1,5 +1,12 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
+import com.massimotter.weave.backend.security.http.ApiAuthenticationEntryPoint;
+import com.massimotter.weave.backend.security.http.ApiAccessDeniedHandler;
+
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation;
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation.Settings;
+import com.massimotter.weave.backend.security.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
 import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
@@ -44,9 +51,9 @@ class CalendarUserControllerTest {
     void realGuestUserCalendarReadAndMutationStopAtCapabilityPolicyBeforeProviderAccess() throws Exception {
         var properties = new org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties();
         properties.getJwt().setIssuerUri("https://auth.example.invalid/realms/acme");
-        var policy = new com.massimotter.weave.backend.service.WorkspaceCapabilityService(properties,
+        var policy = WorkspaceCapabilityTestInstallation.service(properties,
                 new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(null, null, null, null, null, null));
+                new Settings(null, null, null, null, null, null));
         var guest = org.springframework.security.oauth2.jwt.Jwt.withTokenValue("guest-fixture")
                 .header("alg", "none").subject("guest").claim("iss", "https://auth.example.invalid/realms/acme")
                 .claim("aud", List.of("weave-app")).claim("weave_tenant_id", "tenant-default")

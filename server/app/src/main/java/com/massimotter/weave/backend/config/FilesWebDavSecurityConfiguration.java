@@ -1,5 +1,8 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.security.http.ApiAuthenticationEntryPoint;
+import com.massimotter.weave.backend.security.http.ApiAccessDeniedHandler;
+
 import com.massimotter.weave.backend.security.device.DeviceCredentialAuthenticationFilter;
 import com.massimotter.weave.backend.security.DeploymentOrganizationAdmission;
 import org.springframework.beans.factory.ObjectProvider;

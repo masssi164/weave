@@ -1,10 +1,10 @@
 package com.massimotter.weave.backend.controller;
 
-import com.massimotter.weave.backend.model.ApiErrorResponse;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyResponse;
-import com.massimotter.weave.backend.model.WorkspaceReleaseReadinessResponse;
-import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
-import com.massimotter.weave.backend.service.WorkspaceReleaseReadinessService;
+import com.massimotter.weave.backend.api.error.ApiErrorResponse;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityPolicyResponse;
+import com.massimotter.weave.backend.capability.api.WorkspaceReleaseReadinessResponse;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.capability.readiness.WorkspaceReleaseReadinessService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;

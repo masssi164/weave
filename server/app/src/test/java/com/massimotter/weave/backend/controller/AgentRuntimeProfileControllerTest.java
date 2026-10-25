@@ -16,7 +16,7 @@ import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadPrincipa
 import com.massimotter.weave.backend.agentruntime.domain.SignedRuntimeProfile;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileTrustBundlePublisher;
 import com.massimotter.weave.backend.config.AgentRuntimeProfileSecurityConfiguration;
-import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
+import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.discovery.config.PlatformContractProperties;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import java.time.Instant;

@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationRequest;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import com.massimotter.weave.backend.audit.AuditRequiredException;
@@ -10,12 +12,12 @@ import com.massimotter.weave.backend.chat.domain.ChatEncryptionState;
 import com.massimotter.weave.backend.chat.domain.ChatHistoryPolicy;
 import com.massimotter.weave.backend.chat.domain.ChatMemberState;
 import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
-import com.massimotter.weave.backend.config.WeaveSecurityProperties;
+import com.massimotter.weave.backend.security.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.security.workload.config.WorkloadEntitlementProperties;
-import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation.Settings;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityReadiness;
 import com.massimotter.weave.backend.model.chat.DecisionLedgerCreateRequest;
 import com.massimotter.weave.backend.model.chat.DecisionLedgerReferenceRequest;
 import com.massimotter.weave.backend.model.chat.MeetingCapsuleCreateRequest;
@@ -38,17 +40,15 @@ class ChatFacadeServiceTest {
     void decisionsAcceptNativeOrganizationTokenWithoutLegacyTenantAliases() {
         java.util.concurrent.atomic.AtomicReference<com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationRequest> captured =
                 new java.util.concurrent.atomic.AtomicReference<>();
-        WorkspaceCapabilityProperties properties = workspaceCapabilityProperties();
-        ChatFacadeService service = new ChatFacadeService(
-                properties,
-                workspaceCapabilityService(properties, runtimeEntitlementProperties(true)),
-                request -> {
+        Settings properties = workspaceCapabilityProperties();
+        ChatFacadeService service = new ChatFacadeService(new com.massimotter.weave.backend.chat.capability.ChatWorkspaceCapabilityProperties(WorkspaceCapabilityTestInstallation.convert(properties.chat())), workspaceCapabilityService(properties, runtimeEntitlementProperties(true)),
+request -> {
                     captured.set(request);
                     return ContextAuthorizationDecision.allow("native organization identity matched");
                 },
-                new ContextAuthorizationProperties(null, null, null, null, null, null, null, null),
-                mock(ChatDomainFacadeService.class),
-                new InMemoryAuditEventPublisher());
+new ContextAuthorizationProperties(null, null, null, null, null, null, null, null),
+mock(ChatDomainFacadeService.class),
+new InMemoryAuditEventPublisher());
 
         service.decisions(nativeOrganizationJwt(), "channel-general");
 
@@ -141,14 +141,12 @@ class ChatFacadeServiceTest {
     }
 
     private ChatFacadeService serviceWithMissingAuditPublisher() {
-        WorkspaceCapabilityProperties properties = workspaceCapabilityProperties();
-        return new ChatFacadeService(
-                properties,
-                workspaceCapabilityService(properties, runtimeEntitlementProperties(true)),
-                request -> ContextAuthorizationDecision.allow("test allow"),
-                new ContextAuthorizationProperties(null, null, null, null, null, null, null, null),
-                mock(ChatDomainFacadeService.class),
-                null);
+        Settings properties = workspaceCapabilityProperties();
+        return new ChatFacadeService(new com.massimotter.weave.backend.chat.capability.ChatWorkspaceCapabilityProperties(WorkspaceCapabilityTestInstallation.convert(properties.chat())), workspaceCapabilityService(properties, runtimeEntitlementProperties(true)),
+request -> ContextAuthorizationDecision.allow("test allow"),
+new ContextAuthorizationProperties(null, null, null, null, null, null, null, null),
+mock(ChatDomainFacadeService.class),
+null);
     }
 
     private ChatFacadeService service(InMemoryAuditEventPublisher auditPublisher) {
@@ -158,20 +156,18 @@ class ChatFacadeServiceTest {
     private ChatFacadeService service(
             InMemoryAuditEventPublisher auditPublisher,
             ChatDomainFacadeService chatDomainFacadeService) {
-        WorkspaceCapabilityProperties properties = workspaceCapabilityProperties();
-        return new ChatFacadeService(
-                properties,
-                workspaceCapabilityService(properties, runtimeEntitlementProperties(true)),
-                request -> ContextAuthorizationDecision.allow("test allow"),
-                new ContextAuthorizationProperties(null, null, null, null, null, null, null, null),
-                chatDomainFacadeService,
-                auditPublisher);
+        Settings properties = workspaceCapabilityProperties();
+        return new ChatFacadeService(new com.massimotter.weave.backend.chat.capability.ChatWorkspaceCapabilityProperties(WorkspaceCapabilityTestInstallation.convert(properties.chat())), workspaceCapabilityService(properties, runtimeEntitlementProperties(true)),
+request -> ContextAuthorizationDecision.allow("test allow"),
+new ContextAuthorizationProperties(null, null, null, null, null, null, null, null),
+chatDomainFacadeService,
+auditPublisher);
     }
 
-    private WorkspaceCapabilityProperties workspaceCapabilityProperties() {
-        return new WorkspaceCapabilityProperties(
+    private Settings workspaceCapabilityProperties() {
+        return new Settings(
                 null,
-                new WorkspaceCapabilityProperties.Capability(true, null, WorkspaceCapabilityReadiness.READY),
+                new Settings.Capability(true, null, WorkspaceCapabilityReadiness.READY),
                 null,
                 null,
                 null,
@@ -186,11 +182,11 @@ class ChatFacadeServiceTest {
     }
 
     private WorkspaceCapabilityService workspaceCapabilityService(
-            WorkspaceCapabilityProperties properties,
+            Settings properties,
             WorkloadEntitlementProperties runtimeEntitlementProperties) {
         OAuth2ResourceServerProperties resourceServerProperties = new OAuth2ResourceServerProperties();
         resourceServerProperties.getJwt().setIssuerUri("https://auth.example.invalid/realms/acme");
-        return new WorkspaceCapabilityService(
+        return WorkspaceCapabilityTestInstallation.service(
                 resourceServerProperties,
                 new WeaveSecurityProperties("weave-app", "weave-app"),
                 properties,

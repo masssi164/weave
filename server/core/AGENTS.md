@@ -11,3 +11,14 @@ audit, operation intents, provider-binding/discovery and shared schema/readiness
 - Runtime wiring registers through module-local Boot imports. Do not add fake configuration to
   the model or broad scanning across optional domains.
 - Run `:server:core:check`, `:server:core:model:check`, architecture and relevant PostgreSQL gates.
+
+Platform capability policy evaluates installed domain declarations; each domain owns its grants,
+readiness and configuration defaults. Absent contributions are absent internally, not synthetic
+unavailable features. Preserve the accepted full-runtime wire projection until coordinated
+reduced-runtime contracts are accepted and composed. Configuration classes construct beans;
+substantive capability rules/readiness belong in concrete owning capability classes.
+
+Profile values/ports, JPA and use cases belong to Identity; device hashing/revocation/storage
+belongs to Security with domain-owned scope declarations. Shared Space adapters and HTTP error/
+authentication adapters require actual imports discovery, including omitted-protocol tests.
+Never add a Matrix error/path branch back into shared HTTP security.

@@ -1,5 +1,8 @@
 package com.massimotter.weave.backend.dogfood;
 
+import com.massimotter.weave.backend.capability.config.WorkspaceCapabilityProperties;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.security.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.security.workload.config.WorkloadEntitlementProperties;
 
 import com.massimotter.weave.backend.security.config.DeploymentOrganizationProperties;

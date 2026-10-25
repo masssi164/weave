@@ -1,17 +1,19 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.health.ProviderCapabilityHealthService;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import com.massimotter.weave.backend.security.workload.config.WorkloadEntitlementProperties;
-import com.massimotter.weave.backend.config.WeaveSecurityProperties;
-import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
+import com.massimotter.weave.backend.security.config.WeaveSecurityProperties;
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation.Settings;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
-import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilitiesResponse;
 import com.massimotter.weave.backend.health.api.ProviderCapabilityHealthResponse;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityPolicyState;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityReadiness;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityStatusResponse;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -28,9 +30,9 @@ class WorkspaceCapabilityServiceTest {
 
     @Test
     void verifiedLiveMemberContextUsesTheSamePolicyAsNormalHumanTokens() {
-        var service = new WorkspaceCapabilityService(resourceServerProperties("https://auth.weave.test/realms/weave"),
+        var service = WorkspaceCapabilityTestInstallation.service(resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(null, null, null, null, null, null));
+                new Settings(null, null, null, null, null, null));
         for (String role : List.of("owner", "admin", "member", "guest", "unmapped-role")) {
             var token = jwt(List.of(role), List.of("/" + role + "s"));
             var context = OrganizationIdentityContextResolver.defaults().resolve(token);
@@ -51,10 +53,10 @@ class WorkspaceCapabilityServiceTest {
 
     @Test
     void delegatedMcpTokenRetainsMemberCapabilitiesThroughTheWeaveAppClientRole() {
-        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
+        WorkspaceCapabilityService service = WorkspaceCapabilityTestInstallation.service(
                 resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-backend", "weave-app"),
-                new WorkspaceCapabilityProperties(null, null, null, null, null, null));
+                new Settings(null, null, null, null, null, null));
         Jwt delegated = Jwt.withTokenValue("delegated")
                 .header("alg", "none")
                 .subject("user-1")
@@ -75,10 +77,10 @@ class WorkspaceCapabilityServiceTest {
 
     @Test
     void legacyRealmGroupsCannotGrantCanonicalHumanRoles() {
-        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
+        WorkspaceCapabilityService service = WorkspaceCapabilityTestInstallation.service(
                 resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-backend", "weave-app"),
-                new WorkspaceCapabilityProperties(null, null, null, null, null, null));
+                new Settings(null, null, null, null, null, null));
         Jwt delegated = Jwt.withTokenValue("delegated")
                 .header("alg", "none")
                 .subject("user-1")
@@ -92,10 +94,10 @@ class WorkspaceCapabilityServiceTest {
 
     @Test
     void projectsOnlyTheNativeWeaverOrganizationCapabilityForMemberUx() {
-        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
+        WorkspaceCapabilityService service = WorkspaceCapabilityTestInstallation.service(
                 resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(null, null, null, null, null, null),
+                new Settings(null, null, null, null, null, null),
                 new WorkloadEntitlementProperties(true, null, List.of("calendar.read")));
 
         assertThat(service.grantedCapabilities(
@@ -108,10 +110,10 @@ class WorkspaceCapabilityServiceTest {
 
     @Test
     void marksChatAndFilesDegradedUntilTheirRoutesAreConfigured() {
-        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
+        WorkspaceCapabilityService service = WorkspaceCapabilityTestInstallation.service(
                 resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(null, null, null, null, null, null));
+                new Settings(null, null, null, null, null, null));
 
         var snapshot = service.snapshot(jwt(List.of("member"), List.of("workspace-default")));
 
@@ -128,13 +130,13 @@ class WorkspaceCapabilityServiceTest {
 
     @Test
     void blocksDependentCapabilitiesWhenShellAccessCannotValidateTokens() {
-        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
+        WorkspaceCapabilityService service = WorkspaceCapabilityTestInstallation.service(
                 resourceServerProperties(null),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(
-                        new WorkspaceCapabilityProperties.Capability(true, null, null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://matrix.weave.test", null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", null),
+                new Settings(
+                        new Settings.Capability(true, null, null),
+                        new Settings.Capability(true, "https://matrix.weave.test", null),
+                        new Settings.Capability(true, "https://files.weave.test", null),
                         null,
                         null,
                         null));
@@ -148,15 +150,15 @@ class WorkspaceCapabilityServiceTest {
 
     @Test
     void usesConfiguredReadinessOverridesForEnabledCapabilities() {
-        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
+        WorkspaceCapabilityService service = WorkspaceCapabilityTestInstallation.service(
                 resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(
-                        new WorkspaceCapabilityProperties.Capability(true, null, null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://matrix.weave.test", WorkspaceCapabilityReadiness.DEGRADED),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", WorkspaceCapabilityReadiness.BLOCKED),
-                        new WorkspaceCapabilityProperties.Capability(true, null, WorkspaceCapabilityReadiness.READY),
-                        new WorkspaceCapabilityProperties.Capability(false, null, WorkspaceCapabilityReadiness.READY),
+                new Settings(
+                        new Settings.Capability(true, null, null),
+                        new Settings.Capability(true, "https://matrix.weave.test", WorkspaceCapabilityReadiness.DEGRADED),
+                        new Settings.Capability(true, "https://files.weave.test", WorkspaceCapabilityReadiness.BLOCKED),
+                        new Settings.Capability(true, null, WorkspaceCapabilityReadiness.READY),
+                        new Settings.Capability(false, null, WorkspaceCapabilityReadiness.READY),
                         null));
 
         var snapshot = service.snapshot(jwt(List.of("member"), List.of("workspace-default")));
@@ -169,13 +171,13 @@ class WorkspaceCapabilityServiceTest {
 
     @Test
     void degradesOnlyFilesWhenTheCachedProviderObservationIsDegraded() {
-        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
+        WorkspaceCapabilityService service = WorkspaceCapabilityTestInstallation.service(
                 resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(
-                        new WorkspaceCapabilityProperties.Capability(true, null, null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://matrix.weave.test", null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", null),
+                new Settings(
+                        new Settings.Capability(true, null, null),
+                        new Settings.Capability(true, "https://matrix.weave.test", null),
+                        new Settings.Capability(true, "https://files.weave.test", null),
                         null,
                         null,
                         null),
@@ -198,16 +200,16 @@ class WorkspaceCapabilityServiceTest {
 
     @Test
     void aConfiguredChatRouteCannotOverrideDegradedProviderEvidence() {
-        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
+        WorkspaceCapabilityService service = WorkspaceCapabilityTestInstallation.service(
                 resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(
-                        new WorkspaceCapabilityProperties.Capability(true, null, null),
-                        new WorkspaceCapabilityProperties.Capability(
+                new Settings(
+                        new Settings.Capability(true, null, null),
+                        new Settings.Capability(
                                 true,
                                 "https://matrix.weave.test",
                                 WorkspaceCapabilityReadiness.READY),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", null),
+                        new Settings.Capability(true, "https://files.weave.test", null),
                         null,
                         null,
                         null),
@@ -228,13 +230,13 @@ class WorkspaceCapabilityServiceTest {
 
     @Test
     void treatsAStaleProviderObservationAsDomainLocalDegradation() {
-        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
+        WorkspaceCapabilityService service = WorkspaceCapabilityTestInstallation.service(
                 resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(
-                        new WorkspaceCapabilityProperties.Capability(true, null, null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://matrix.weave.test", null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", null),
+                new Settings(
+                        new Settings.Capability(true, null, null),
+                        new Settings.Capability(true, "https://matrix.weave.test", null),
+                        new Settings.Capability(true, "https://files.weave.test", null),
                         null,
                         null,
                         null),
@@ -257,14 +259,14 @@ class WorkspaceCapabilityServiceTest {
                 "files", "available", "files-storage-ready", false)));
         when(providerHealth.cached("calendar")).thenReturn(Optional.of(observation(
                 "calendar", "unavailable", "calendar-storage-auth-failed", false)));
-        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
+        WorkspaceCapabilityService service = WorkspaceCapabilityTestInstallation.service(
                 resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(
-                        new WorkspaceCapabilityProperties.Capability(true, null, null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://matrix.weave.test", null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", null),
+                new Settings(
+                        new Settings.Capability(true, null, null),
+                        new Settings.Capability(true, "https://matrix.weave.test", null),
+                        new Settings.Capability(true, "https://files.weave.test", null),
+                        new Settings.Capability(true, "https://files.weave.test", null),
                         null,
                         null),
                 providerHealth);
@@ -288,14 +290,14 @@ class WorkspaceCapabilityServiceTest {
                 "files", "degraded", "files-storage-backend-unavailable", false)));
         when(providerHealth.cached("calendar")).thenReturn(Optional.of(observation(
                 "calendar", "unavailable", "calendar-storage-auth-failed", false)));
-        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
+        WorkspaceCapabilityService service = WorkspaceCapabilityTestInstallation.service(
                 resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(
-                        new WorkspaceCapabilityProperties.Capability(true, null, null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://matrix.weave.test", null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", WorkspaceCapabilityReadiness.READY),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", WorkspaceCapabilityReadiness.READY),
+                new Settings(
+                        new Settings.Capability(true, null, null),
+                        new Settings.Capability(true, "https://matrix.weave.test", null),
+                        new Settings.Capability(true, "https://files.weave.test", WorkspaceCapabilityReadiness.READY),
+                        new Settings.Capability(true, "https://files.weave.test", WorkspaceCapabilityReadiness.READY),
                         null,
                         null),
                 providerHealth);
@@ -315,14 +317,14 @@ class WorkspaceCapabilityServiceTest {
         ProviderCapabilityHealthService providerHealth = mock(ProviderCapabilityHealthService.class);
         when(providerHealth.cached("calendar")).thenReturn(Optional.of(observation(
                 "calendar", "available", "calendar-storage-ready", false)));
-        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
+        WorkspaceCapabilityService service = WorkspaceCapabilityTestInstallation.service(
                 resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(
-                        new WorkspaceCapabilityProperties.Capability(true, null, null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://matrix.weave.test", null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", WorkspaceCapabilityReadiness.DEGRADED),
+                new Settings(
+                        new Settings.Capability(true, null, null),
+                        new Settings.Capability(true, "https://matrix.weave.test", null),
+                        new Settings.Capability(true, "https://files.weave.test", null),
+                        new Settings.Capability(true, "https://files.weave.test", WorkspaceCapabilityReadiness.DEGRADED),
                         null,
                         null),
                 providerHealth);
@@ -334,13 +336,13 @@ class WorkspaceCapabilityServiceTest {
 
     @Test
     void marksShellAccessUnavailableWhenTheCapabilityIsDisabled() {
-        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
+        WorkspaceCapabilityService service = WorkspaceCapabilityTestInstallation.service(
                 resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(
-                        new WorkspaceCapabilityProperties.Capability(false, null, null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://matrix.weave.test", null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", null),
+                new Settings(
+                        new Settings.Capability(false, null, null),
+                        new Settings.Capability(true, "https://matrix.weave.test", null),
+                        new Settings.Capability(true, "https://files.weave.test", null),
                         null,
                         null,
                         null));
@@ -355,13 +357,13 @@ class WorkspaceCapabilityServiceTest {
 
     @Test
     void deniesCapabilitiesByDefaultWhenNoIdmRoleOrGroupMapsToAProfile() {
-        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
+        WorkspaceCapabilityService service = WorkspaceCapabilityTestInstallation.service(
                 resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(
-                        new WorkspaceCapabilityProperties.Capability(true, null, null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://matrix.weave.test", null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", null),
+                new Settings(
+                        new Settings.Capability(true, null, null),
+                        new Settings.Capability(true, "https://matrix.weave.test", null),
+                        new Settings.Capability(true, "https://files.weave.test", null),
                         null,
                         null,
                         null));
@@ -376,10 +378,10 @@ class WorkspaceCapabilityServiceTest {
 
     @Test
     void exposesSupportSafeAdminPolicySnapshotFromIdmRolesAndGroups() {
-        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
+        WorkspaceCapabilityService service = WorkspaceCapabilityTestInstallation.service(
                 resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(null, null, null, null, null, null));
+                new Settings(null, null, null, null, null, null));
 
         var policy = service.policySnapshot(jwt(List.of("admin"), List.of("/capabilities/weaver")));
 
@@ -453,12 +455,12 @@ class WorkspaceCapabilityServiceTest {
 
     @Test
     void disabledFilesDoesNotBlockShellOtherDomainsOrSetupAuthority() {
-        var ready = new WorkspaceCapabilityProperties.Capability(true, null, WorkspaceCapabilityReadiness.READY);
-        var service = new WorkspaceCapabilityService(
+        var ready = new Settings.Capability(true, null, WorkspaceCapabilityReadiness.READY);
+        var service = WorkspaceCapabilityTestInstallation.service(
                 resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(null, ready,
-                        new WorkspaceCapabilityProperties.Capability(false, null, null), ready, null, null));
+                new Settings(null, ready,
+                        new Settings.Capability(false, null, null), ready, null, null));
         Jwt owner = jwt(List.of("owner"), List.of());
         var snapshot = service.snapshot(owner);
 
@@ -475,10 +477,10 @@ class WorkspaceCapabilityServiceTest {
 
     @Test
     void ownerAndAdminCanConfigureProvidersAndPolicyButOperatorCannotMutate() {
-        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
+        WorkspaceCapabilityService service = WorkspaceCapabilityTestInstallation.service(
                 resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(null, null, null, null, null, null));
+                new Settings(null, null, null, null, null, null));
 
         service.requireCapability(jwt(List.of("owner"), List.of()), "admin.provider.configure", "admin-control-plane", "select-provider");
         service.requireCapability(jwt(List.of("admin"), List.of()), "admin.policy.edit", "admin-control-plane", "update-capability-whitelist");
@@ -498,10 +500,10 @@ class WorkspaceCapabilityServiceTest {
 
     @Test
     void guestsUnknownRolesAndUnmappedGroupsFailClosedForRepresentativeAdminReads() {
-        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
+        WorkspaceCapabilityService service = WorkspaceCapabilityTestInstallation.service(
                 resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(null, null, null, null, null, null));
+                new Settings(null, null, null, null, null, null));
 
         List<Jwt> deniedIdentities = List.of(
                 jwt(List.of("guest"), List.of()),
@@ -525,10 +527,10 @@ class WorkspaceCapabilityServiceTest {
 
     @Test
     void legacyRealmGroupCannotGrantAProductCapability() {
-        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
+        WorkspaceCapabilityService service = WorkspaceCapabilityTestInstallation.service(
                 resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(null, null, null, null, null, null));
+                new Settings(null, null, null, null, null, null));
 
         assertThatThrownBy(() -> service.requireCapability(
                 jwt(List.of("member"), List.of("/weave-calendar-editors")),
@@ -540,16 +542,16 @@ class WorkspaceCapabilityServiceTest {
 
     @Test
     void keepsAgentRuntimeControlDisabledWithoutConfiguredEntitlement() {
-        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
+        WorkspaceCapabilityService service = WorkspaceCapabilityTestInstallation.service(
                 resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(
+                new Settings(
                         null,
                         null,
                         null,
                         null,
                         null,
-                        new WorkspaceCapabilityProperties.Capability(false, null, null)));
+                        new Settings.Capability(false, null, null)));
 
         var snapshot = service.snapshot(jwt(List.of("admin"), List.of("/capabilities/weaver")));
 
@@ -566,11 +568,11 @@ class WorkspaceCapabilityServiceTest {
     }
 
     private WorkspaceCapabilityService domainPolicyService(boolean enabled, WorkspaceCapabilityReadiness readiness) {
-        var domain = new WorkspaceCapabilityProperties.Capability(enabled, null, readiness);
-        return new WorkspaceCapabilityService(
+        var domain = new Settings.Capability(enabled, null, readiness);
+        return WorkspaceCapabilityTestInstallation.service(
                 resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(null, domain, domain, domain, domain, domain,
+                new Settings(null, domain, domain, domain, domain, domain,
                         domain, domain, domain, domain, null, domain),
                 new WorkloadEntitlementProperties(true, null, List.of("calendar.read")));
     }

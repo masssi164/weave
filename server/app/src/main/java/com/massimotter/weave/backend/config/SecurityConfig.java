@@ -1,5 +1,8 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.security.http.ApiAuthenticationEntryPoint;
+import com.massimotter.weave.backend.security.http.ApiAccessDeniedHandler;
+
 import com.massimotter.weave.backend.security.config.OrganizationAdmissionConfiguration;
 import com.massimotter.weave.backend.controller.BootstrapOwnerInvitationController;
 import com.massimotter.weave.backend.controller.DefaultSpaceBootstrapController;

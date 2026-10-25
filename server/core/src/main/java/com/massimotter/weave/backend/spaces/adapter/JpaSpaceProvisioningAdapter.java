@@ -9,11 +9,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 /** Serializes explicit Space setup to the persisted aggregate and membership rows. */
-@Repository
 public class JpaSpaceProvisioningAdapter implements SpaceProvisioningPort, DefaultSpacePreparationPort {
     private final SpaceJpaRepository spaces;
     private final SpaceMembershipJpaRepository memberships;

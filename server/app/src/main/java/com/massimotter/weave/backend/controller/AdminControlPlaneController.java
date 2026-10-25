@@ -1,13 +1,13 @@
 package com.massimotter.weave.backend.controller;
 
-import com.massimotter.weave.backend.model.ApiErrorResponse;
+import com.massimotter.weave.backend.api.error.ApiErrorResponse;
 import com.massimotter.weave.backend.model.admin.AdminAuditEventResponse;
 import com.massimotter.weave.backend.model.admin.AdminControlPlaneResponse;
 import com.massimotter.weave.backend.model.admin.CapabilityWhitelistResponse;
 import com.massimotter.weave.backend.model.admin.CapabilityWhitelistUpdateRequest;
-import com.massimotter.weave.backend.model.admin.EffectivePolicyResponse;
-import com.massimotter.weave.backend.model.admin.EffectivePolicySimulationRequest;
-import com.massimotter.weave.backend.model.admin.EffectivePolicySimulationResponse;
+import com.massimotter.weave.backend.capability.api.EffectivePolicyResponse;
+import com.massimotter.weave.backend.capability.api.EffectivePolicySimulationRequest;
+import com.massimotter.weave.backend.capability.api.EffectivePolicySimulationResponse;
 import com.massimotter.weave.backend.model.admin.PlatformIdentityReadinessResponse;
 import com.massimotter.weave.backend.model.admin.OrganizationBootstrapRequest;
 import com.massimotter.weave.backend.model.admin.OrganizationBootstrapResponse;

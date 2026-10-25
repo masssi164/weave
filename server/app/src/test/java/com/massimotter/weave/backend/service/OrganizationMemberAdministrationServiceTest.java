@@ -1,5 +1,8 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.identity.profile.port.ProductProfileOverrideRepository;
+import com.massimotter.weave.backend.identity.profile.application.ProductProfileService;
+
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -116,7 +119,7 @@ class OrganizationMemberAdministrationServiceTest {
         .claim("organization", HumanJwtTestSupport.organizationWithRole("member"))
         .build();
     var profile = new ProductProfileService(
-        org.mockito.Mockito.mock(ProductProfileOverrideRepository.class));
+        org.mockito.Mockito.mock(ProductProfileOverrideRepository.class), OrganizationIdentityContextResolver.defaults());
     String userAccount = profile.authenticatedUser(targetSession).accountId();
     assertThat(projection.accountRef()).isEqualTo(userAccount)
         .isEqualTo(OrganizationIdentityContextResolver.defaults().resolve(targetSession).accountId())

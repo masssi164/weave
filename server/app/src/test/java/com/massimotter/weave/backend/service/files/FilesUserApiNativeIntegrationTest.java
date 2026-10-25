@@ -8,7 +8,7 @@ import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDe
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.identity.IdentityReferences;
-import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.spaces.port.SpaceAccessPort.Permission;
 import com.massimotter.weave.backend.spaces.port.SpaceMembershipAdministrationPort;
 import com.massimotter.weave.backend.spaces.port.SpaceProvisioningPort;

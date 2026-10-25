@@ -2,7 +2,7 @@ package com.massimotter.weave.backend.domainfacade;
 
 import com.massimotter.weave.backend.provider.ProviderRegistry;
 import com.massimotter.weave.backend.providerbinding.selection.ProviderSelectionRepository;
-import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import java.time.Clock;
 import org.springframework.security.oauth2.jwt.Jwt;
 

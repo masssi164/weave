@@ -9,13 +9,13 @@ import com.massimotter.weave.backend.security.config.ContextAuthorizationPropert
 import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.exception.SpaceMemberRevokedException;
 import com.massimotter.weave.backend.identity.IdentityReferences;
-import com.massimotter.weave.backend.model.spaces.SpaceProvisionRequest;
-import com.massimotter.weave.backend.model.spaces.SpaceMemberChangeRequest;
+import com.massimotter.weave.backend.spaces.api.SpaceProvisionRequest;
+import com.massimotter.weave.backend.spaces.api.SpaceMemberChangeRequest;
 import com.massimotter.weave.backend.spaces.port.SpaceAccessPort.Permission;
 import com.massimotter.weave.backend.spaces.port.SpaceMembershipAdministrationPort;
 import com.massimotter.weave.backend.security.DeploymentOrganizationAdmission;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
-import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.spaces.port.SpaceProvisioningPort;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import java.util.List;

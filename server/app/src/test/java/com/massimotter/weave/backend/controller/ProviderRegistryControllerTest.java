@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation;
 import com.massimotter.weave.backend.security.NativeOrganizationClaims;
 import com.massimotter.weave.backend.chat.config.ChatProviderRegistryConfiguration;
 import com.massimotter.weave.backend.files.config.FilesProviderRegistryConfiguration;
@@ -8,9 +9,9 @@ import com.massimotter.weave.backend.integrations.config.IntegrationProviderRegi
 import com.massimotter.weave.backend.boards.config.BoardsProviderRegistryConfiguration;
 import com.massimotter.weave.backend.meetings.config.MeetingsProviderRegistryConfiguration;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
-import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
-import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
-import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
+import com.massimotter.weave.backend.security.http.ApiAccessDeniedHandler;
+import com.massimotter.weave.backend.security.http.ApiAuthenticationEntryPoint;
+import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.DevopsProviderConfiguration;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.config.AdminApiSecurityConfiguration;
@@ -19,17 +20,17 @@ import com.massimotter.weave.backend.providerbinding.port.ProviderBindingReposit
 import com.massimotter.weave.backend.service.files.FilesProviderResolver;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
-import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilitiesResponse;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityPolicyState;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityReadiness;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityStatusResponse;
 import com.massimotter.weave.backend.office.port.DisabledOfficeProvider;
 import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
 import com.massimotter.weave.backend.provider.ProviderRegistry;
 import com.massimotter.weave.backend.providerbinding.selection.ProviderSelection;
 import com.massimotter.weave.backend.providerbinding.selection.ProviderSelectionRepository;
 import java.time.Instant;
-import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -125,7 +126,7 @@ class ProviderRegistryControllerTest {
     void setUpWorkspaceCapabilitySnapshot() {
         selectDefaultProviders();
         enforceEffectiveCapabilityPolicy();
-        when(workspaceCapabilityService.snapshot()).thenReturn(new WorkspaceCapabilitiesResponse(
+        when(workspaceCapabilityService.snapshot()).thenReturn(WorkspaceCapabilityTestInstallation.snapshot(
                 capability(WorkspaceCapabilityReadiness.READY, WorkspaceCapabilityPolicyState.ALLOWED, "Weave SSO shell access is available."),
                 capability(WorkspaceCapabilityReadiness.READY, WorkspaceCapabilityPolicyState.ALLOWED, "Chat is available through Weave."),
                 capability(WorkspaceCapabilityReadiness.READY, WorkspaceCapabilityPolicyState.ALLOWED, "Files are available through Weave."),

@@ -1,11 +1,12 @@
 package com.massimotter.weave.backend.service;
 
-import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
-import com.massimotter.weave.backend.model.WorkspaceHomeActionResponse;
-import com.massimotter.weave.backend.model.WorkspaceHomeResponse;
-import com.massimotter.weave.backend.model.WorkspaceHomeSectionResponse;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilitiesResponse;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityReadiness;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityStatusResponse;
+import com.massimotter.weave.backend.capability.api.WorkspaceHomeActionResponse;
+import com.massimotter.weave.backend.capability.api.WorkspaceHomeResponse;
+import com.massimotter.weave.backend.capability.api.WorkspaceHomeSectionResponse;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.security.oauth2.jwt.Jwt;

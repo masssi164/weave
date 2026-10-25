@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import com.massimotter.weave.backend.audit.AuditAction;
@@ -16,8 +18,8 @@ import com.massimotter.weave.backend.calendar.domain.CalendarDomain.FreeBusyWind
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.ScopeType;
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
 import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
-import com.massimotter.weave.backend.config.WeaveSecurityProperties;
-import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
+import com.massimotter.weave.backend.security.config.WeaveSecurityProperties;
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation.Settings;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationRequest;
@@ -569,7 +571,7 @@ class CalendarFacadeServiceTest {
                 contextAuthorizationPort,
                 contextAuthorizationProperties(),
                 OrganizationIdentityContextResolver.configured(contextAuthorizationProperties()),
-                new DeviceCredentialService(new InMemoryDeviceCredentialRepository()),
+                com.massimotter.weave.backend.security.device.DeviceCredentialTestSupport.service(new InMemoryDeviceCredentialRepository()),
                 workspaceCapabilityService(),
                 auditEventPublisher);
     }
@@ -675,11 +677,11 @@ class CalendarFacadeServiceTest {
     private WorkspaceCapabilityService workspaceCapabilityService() {
         OAuth2ResourceServerProperties resourceServer = new OAuth2ResourceServerProperties();
         resourceServer.getJwt().setIssuerUri("https://auth.weave.test/realms/weave");
-        return new WorkspaceCapabilityService(
+        return WorkspaceCapabilityTestInstallation.service(
                 resourceServer,
                 new WeaveSecurityProperties("weave-app", "weave-app"),
-                new WorkspaceCapabilityProperties(null, null, null,
-                        new WorkspaceCapabilityProperties.Capability(true, null, null), null, null));
+                new Settings(null, null, null,
+                        new Settings.Capability(true, null, null), null, null));
     }
 
     private static class StubCalendarProvider implements CalendarProviderPort {

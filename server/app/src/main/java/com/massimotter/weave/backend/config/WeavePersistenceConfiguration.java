@@ -8,15 +8,11 @@ import com.massimotter.weave.backend.identity.invitation.JpaProvisioningIntentRe
 import com.massimotter.weave.backend.operation.application.OperationIntentService;
 import com.massimotter.weave.backend.identity.persistence.ProvisioningIntentJpaRepository;
 import com.massimotter.weave.backend.portability.persistence.MigrationRunEvidenceJpaRepository;
-import com.massimotter.weave.backend.identity.profile.persistence.ProductProfileOverrideJpaRepository;
 import com.massimotter.weave.backend.readiness.persistence.JpaPersistenceReadinessProbe;
-import com.massimotter.weave.backend.security.persistence.DeviceCredentialJpaRepository;
 import com.massimotter.weave.backend.schema.persistence.SchemaAuthorityJpaRepository;
 import com.massimotter.weave.backend.providerbinding.adapter.JpaProviderBindingRepository;
 import com.massimotter.weave.backend.providerbinding.application.FilesProviderBindingBootstrap;
 import com.massimotter.weave.backend.providerbinding.application.ProviderBindingBootstrapProperties;
-import com.massimotter.weave.backend.security.device.JpaDeviceCredentialRepository;
-import com.massimotter.weave.backend.service.JpaProductProfileOverrideRepository;
 import com.massimotter.weave.backend.service.migration.JpaMigrationRunEvidenceRepository;
 import jakarta.persistence.EntityManagerFactory;
 import java.time.Clock;
@@ -52,18 +48,6 @@ public class WeavePersistenceConfiguration {
     String candidate = environment.getProperty("weave.candidate.commit", "");
     return new JpaPersistenceReadinessProbe(
         entityManagerFactory, schemaAuthority, markerRequired, candidate);
-  }
-
-  @Bean
-  JpaProductProfileOverrideRepository jpaProductProfileOverrideRepository(
-      ProductProfileOverrideJpaRepository repository, ObjectMapper objectMapper) {
-    return new JpaProductProfileOverrideRepository(repository, objectMapper);
-  }
-
-  @Bean
-  JpaDeviceCredentialRepository jpaDeviceCredentialRepository(
-      DeviceCredentialJpaRepository repository, ObjectMapper objectMapper) {
-    return new JpaDeviceCredentialRepository(repository, objectMapper);
   }
 
   @Bean

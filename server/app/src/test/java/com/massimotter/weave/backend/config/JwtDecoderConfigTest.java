@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.security.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.security.MemberSessionRevocationService;
 import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
 import com.nimbusds.jose.JWSAlgorithm;

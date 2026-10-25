@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.http.request.RequestIdFilter;
+
 import com.massimotter.weave.backend.security.workload.domain.WorkloadReferences;
 
 import tools.jackson.databind.ObjectMapper;

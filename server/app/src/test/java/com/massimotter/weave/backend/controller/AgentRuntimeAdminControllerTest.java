@@ -20,7 +20,7 @@ import com.massimotter.weave.backend.agentruntime.port.RuntimePersonNotFoundExce
 import com.massimotter.weave.backend.agentruntime.port.RuntimePolicyException;
 import com.massimotter.weave.backend.config.AgentRuntimeAdminSecurityConfiguration;
 import com.massimotter.weave.backend.config.AgentRuntimeErrorResponseWriter;
-import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
+import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.exception.AgentRuntimeAdminExceptionHandler;
 import com.massimotter.weave.backend.model.agentruntime.AgentRuntimeProjectionResponse;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
@@ -39,6 +39,9 @@ import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OA
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.security.config.DeploymentOrganizationProperties;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -57,6 +60,7 @@ import org.springframework.test.web.servlet.MockMvc;
         ApiErrorResponseWriter.class,
         AgentRuntimeAdminExceptionHandler.class
 })
+@EnableConfigurationProperties({ContextAuthorizationProperties.class, DeploymentOrganizationProperties.class})
 @TestPropertySource(properties = {
         "weave.agent-runtime.workload-identity.enabled=true",
         "weave.agent-runtime.policy.enabled=true",

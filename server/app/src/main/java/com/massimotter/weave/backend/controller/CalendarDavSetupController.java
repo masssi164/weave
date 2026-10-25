@@ -6,7 +6,7 @@ import com.massimotter.weave.backend.model.calendar.CalendarSetupCredentialListR
 import com.massimotter.weave.backend.model.calendar.CalendarSetupCredentialRequest;
 import com.massimotter.weave.backend.model.calendar.CalendarSetupCredentialResponse;
 import com.massimotter.weave.backend.service.CalendarFacadeService;
-import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.service.calendar.AppleMobileConfigProfile;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.validation.Valid;

@@ -6,7 +6,7 @@ import com.massimotter.weave.backend.discovery.provider.ProviderState;
 import com.massimotter.weave.backend.discovery.provider.ProviderStatusResponse;
 import com.massimotter.weave.backend.discovery.provider.ProviderPort;
 import com.massimotter.weave.backend.domainregistry.CanonicalDomainRegistry;
-import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.LinkedHashMap;

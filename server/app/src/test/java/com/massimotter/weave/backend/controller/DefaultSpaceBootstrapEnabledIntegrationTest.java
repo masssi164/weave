@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.controller;
 
-import com.massimotter.weave.backend.model.spaces.DefaultSpaceBootstrapResponse;
+import com.massimotter.weave.backend.spaces.api.DefaultSpaceBootstrapResponse;
 import com.massimotter.weave.backend.service.spaces.DefaultSpaceBootstrapService;
 import java.io.IOException;
 import java.nio.file.Files;

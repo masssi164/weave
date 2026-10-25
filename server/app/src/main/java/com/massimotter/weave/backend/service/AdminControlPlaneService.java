@@ -1,5 +1,9 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.identity.profile.domain.ProductProfileOverride;
+import com.massimotter.weave.backend.identity.profile.port.ProductProfileOverrideRepository;
+
 
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContext;
@@ -8,15 +12,15 @@ import com.massimotter.weave.backend.audit.AuditEvent;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditRedactionLevel;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
-import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyResponse;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityPolicyResponse;
 import com.massimotter.weave.backend.model.admin.AdminAuditEventResponse;
 import com.massimotter.weave.backend.model.admin.AdminControlPlaneResponse;
 import com.massimotter.weave.backend.model.admin.AdminCurrentActorResponse;
 import com.massimotter.weave.backend.model.admin.CapabilityWhitelistResponse;
 import com.massimotter.weave.backend.model.admin.CapabilityWhitelistUpdateRequest;
-import com.massimotter.weave.backend.model.admin.EffectivePolicyResponse;
-import com.massimotter.weave.backend.model.admin.EffectivePolicySimulationRequest;
-import com.massimotter.weave.backend.model.admin.EffectivePolicySimulationResponse;
+import com.massimotter.weave.backend.capability.api.EffectivePolicyResponse;
+import com.massimotter.weave.backend.capability.api.EffectivePolicySimulationRequest;
+import com.massimotter.weave.backend.capability.api.EffectivePolicySimulationResponse;
 import com.massimotter.weave.backend.model.admin.GoLiveReadinessResponse;
 import com.massimotter.weave.backend.model.admin.PlatformIdentityReadinessCardResponse;
 import com.massimotter.weave.backend.model.admin.PlatformIdentityReadinessResponse;
