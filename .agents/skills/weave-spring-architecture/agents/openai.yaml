@@ -1,0 +1,4 @@
+interface:
+  display_name: "Weave Spring Architecture"
+  short_description: "Keep Weave Java boundaries small and declarative"
+  default_prompt: "Use $weave-spring-architecture to implement this bounded Java change with Weave architecture tests."
