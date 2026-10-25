@@ -51,12 +51,12 @@ GoRouter _router() => GoRouter(
   routes: [
     GoRoute(
       path: AppRoutes.files,
-      builder: (context, state) =>
-          const Scaffold(body: FilesLocationsScreen()),
+      builder: (context, state) => const Scaffold(body: FilesLocationsScreen()),
       routes: [
         GoRoute(
           path: AppRoutes.filesPrivateRelative,
-          builder: (context, state) => const Scaffold(body: Text('private-root')),
+          builder: (context, state) =>
+              const Scaffold(body: Text('private-root')),
         ),
         GoRoute(
           path: AppRoutes.filesSpaceRelative,
@@ -71,7 +71,9 @@ GoRouter _router() => GoRouter(
 Future<GoRouter> _pump(
   WidgetTester tester, {
   Future<MemberSpaceAccessSnapshot?> Function()? loadSpaces,
-  AsyncValue<WorkspaceCapabilitySnapshot> capabilities = const AsyncData(_ready),
+  AsyncValue<WorkspaceCapabilitySnapshot> capabilities = const AsyncData(
+    _ready,
+  ),
 }) async {
   final router = _router();
   addTearDown(router.dispose);
@@ -111,35 +113,40 @@ void main() {
     expect(find.textContaining('space-z'), findsNothing);
   });
 
-  testWidgets('a group folder opens its own stable route and Back returns home', (
-    tester,
-  ) async {
-    final router = await _pump(tester);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Garden'));
-    await tester.pumpAndSettle();
-    expect(router.routeInformationProvider.value.uri.path, '/files/spaces/space-z');
-    expect(find.text('root:space-z'), findsOneWidget);
-    router.pop();
-    await tester.pumpAndSettle();
-    expect(router.routeInformationProvider.value.uri.path, AppRoutes.files);
-    expect(find.text('Garden'), findsOneWidget);
-  });
+  testWidgets(
+    'a group folder opens its own stable route and Back returns home',
+    (tester) async {
+      final router = await _pump(tester);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Garden'));
+      await tester.pumpAndSettle();
+      expect(
+        router.routeInformationProvider.value.uri.path,
+        '/files/spaces/space-z',
+      );
+      expect(find.text('root:space-z'), findsOneWidget);
+      router.pop();
+      await tester.pumpAndSettle();
+      expect(router.routeInformationProvider.value.uri.path, AppRoutes.files);
+      expect(find.text('Garden'), findsOneWidget);
+    },
+  );
 
-  testWidgets('private navigation is explicit after visiting a shared location', (
-    tester,
-  ) async {
-    final router = await _pump(tester);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Garden'));
-    await tester.pumpAndSettle();
-    router.pop();
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey(('files-location', null))));
-    await tester.pumpAndSettle();
-    expect(router.routeInformationProvider.value.uri.path, '/files/private');
-    expect(find.text('private-root'), findsOneWidget);
-  });
+  testWidgets(
+    'private navigation is explicit after visiting a shared location',
+    (tester) async {
+      final router = await _pump(tester);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Garden'));
+      await tester.pumpAndSettle();
+      router.pop();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey(('files-location', null))));
+      await tester.pumpAndSettle();
+      expect(router.routeInformationProvider.value.uri.path, '/files/private');
+      expect(find.text('private-root'), findsOneWidget);
+    },
+  );
 
   testWidgets('unknown member state exposes no location names', (tester) async {
     await _pump(tester, loadSpaces: () async => null);
@@ -148,34 +155,35 @@ void main() {
     expect(find.text('Garden'), findsNothing);
   });
 
-  testWidgets('refresh hides retained names and revoked locations stay absent', (
-    tester,
-  ) async {
-    final refresh = Completer<MemberSpaceAccessSnapshot?>();
-    var calls = 0;
-    await _pump(
-      tester,
-      loadSpaces: () => calls++ == 0 ? Future.value(_access) : refresh.future,
-    );
-    await tester.pumpAndSettle();
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(FilesLocationsScreen)),
-    );
-    container.invalidate(weaveApiMemberSpacesProvider);
-    await tester.pump();
-    expect(find.text('Garden'), findsNothing);
-    refresh.complete(
-      const MemberSpaceAccessSnapshot(
-        visibleSpaceRefs: {'space-a'},
-        defaultSpaceReadable: false,
-        displayNames: {'space-a': 'Planning'},
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('Garden'), findsNothing);
-    expect(find.text('Planning'), findsOneWidget);
-    expect(find.byType(ListTile), findsNWidgets(2));
-  });
+  testWidgets(
+    'refresh hides retained names and revoked locations stay absent',
+    (tester) async {
+      final refresh = Completer<MemberSpaceAccessSnapshot?>();
+      var calls = 0;
+      await _pump(
+        tester,
+        loadSpaces: () => calls++ == 0 ? Future.value(_access) : refresh.future,
+      );
+      await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(FilesLocationsScreen)),
+      );
+      container.invalidate(weaveApiMemberSpacesProvider);
+      await tester.pump();
+      expect(find.text('Garden'), findsNothing);
+      refresh.complete(
+        const MemberSpaceAccessSnapshot(
+          visibleSpaceRefs: {'space-a'},
+          defaultSpaceReadable: false,
+          displayNames: {'space-a': 'Planning'},
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Garden'), findsNothing);
+      expect(find.text('Planning'), findsOneWidget);
+      expect(find.byType(ListTile), findsNWidgets(2));
+    },
+  );
 
   testWidgets('failed capability admission does not fetch Space names', (
     tester,
@@ -214,15 +222,18 @@ void main() {
     expect(find.textContaining('space-a'), findsNothing);
   });
 
-  test('folder routes carry immutable location identity separately from names', () {
-    final private = Uri.parse(AppRoutes.filesFolder('file-id', '/Documents'));
-    final shared = Uri.parse(
-      AppRoutes.filesFolder('file-id', '/Documents', spaceRef: 'space-a'),
-    );
-    expect(private.path, '/files/private/folders/file-id');
-    expect(shared.path, '/files/spaces/space-a/folders/file-id');
-    expect(shared.queryParameters, {'folderPath': '/Documents'});
-    expect(AppRoutes.filesLocation('/'), '/files/private');
-    expect(AppRoutes.files, '/files');
-  });
+  test(
+    'folder routes carry immutable location identity separately from names',
+    () {
+      final private = Uri.parse(AppRoutes.filesFolder('file-id', '/Documents'));
+      final shared = Uri.parse(
+        AppRoutes.filesFolder('file-id', '/Documents', spaceRef: 'space-a'),
+      );
+      expect(private.path, '/files/private/folders/file-id');
+      expect(shared.path, '/files/spaces/space-a/folders/file-id');
+      expect(shared.queryParameters, {'folderPath': '/Documents'});
+      expect(AppRoutes.filesLocation('/'), '/files/private');
+      expect(AppRoutes.files, '/files');
+    },
+  );
 }

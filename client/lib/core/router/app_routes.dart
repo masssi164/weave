@@ -33,7 +33,11 @@ abstract final class AppRoutes {
   /// The location is part of the route, never a mutable Files-wide scope mode.
   static String filesFolder(String folderId, String path, {String? spaceRef}) =>
       Uri(
-        pathSegments: [..._filesLocationSegments(spaceRef), 'folders', folderId],
+        pathSegments: [
+          ..._filesLocationSegments(spaceRef),
+          'folders',
+          folderId,
+        ],
         queryParameters: {'folderPath': path},
       ).toString();
 

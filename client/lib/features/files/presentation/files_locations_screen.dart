@@ -75,9 +75,9 @@ class FilesLocationsScreen extends ConsumerWidget {
   ) {
     final spaces = access.visibleSpaceRefs.toList()
       ..sort((left, right) {
-        final order = (access.displayNameFor(left) ?? '').toLowerCase().compareTo(
-          (access.displayNameFor(right) ?? '').toLowerCase(),
-        );
+        final order = (access.displayNameFor(left) ?? '')
+            .toLowerCase()
+            .compareTo((access.displayNameFor(right) ?? '').toLowerCase());
         return order == 0 ? left.compareTo(right) : order;
       });
     return SliverList.builder(
@@ -102,11 +102,17 @@ class FilesLocationsScreen extends ConsumerWidget {
               current.hasError ||
               current.asData?.value == null ||
               ref.read(workspaceCapabilitySnapshotProvider).isLoading ||
-              ref.read(workspaceCapabilitySnapshotProvider).asData?.value.files
+              ref
+                      .read(workspaceCapabilitySnapshotProvider)
+                      .asData
+                      ?.value
+                      .files
                       .isReady !=
                   true ||
               (spaceRef != null &&
-                  !current.asData!.value!.visibleSpaceRefs.contains(spaceRef))) {
+                  !current.asData!.value!.visibleSpaceRefs.contains(
+                    spaceRef,
+                  ))) {
             return;
           }
           context.push(AppRoutes.filesLocation('/', spaceRef: spaceRef));
