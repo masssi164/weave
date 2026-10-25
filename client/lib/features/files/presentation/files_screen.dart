@@ -299,12 +299,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
       slivers.add(
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-          sliver: SliverToBoxAdapter(
-            child: _DirectoryToolbar(
-              state: state,
-              canSelectRoot: !widget.isFolderRoute,
-            ),
-          ),
+          sliver: SliverToBoxAdapter(child: _DirectoryToolbar(state: state)),
         ),
       );
       if (state.uploadStatus.phase != FilesUploadPhase.idle) {
@@ -665,71 +660,19 @@ class _StaleDirectoryNotice extends StatelessWidget {
 }
 
 class _DirectoryToolbar extends ConsumerWidget {
-  const _DirectoryToolbar({required this.state, required this.canSelectRoot});
+  const _DirectoryToolbar({required this.state});
 
   final FilesViewState state;
-  final bool canSelectRoot;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final listing = state.directoryListing;
     final access = ref.watch(weaveApiMemberSpacesProvider).asData?.value;
-    final spaces = access?.visibleSpaceRefs ?? const <String>{};
-    final selectedSpace = state.rootSpaceRef;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (canSelectRoot) ...[
-          InputDecorator(
-            decoration: InputDecoration(labelText: l10n.filesSpaceLabel),
-            child: Semantics(
-              identifier: 'files-space-selector',
-              child: DropdownButton<String>(
-                key: const Key('files-space-selector'),
-                value: selectedSpace ?? '',
-                isExpanded: true,
-                selectedItemBuilder: (context) => [
-                  Text(l10n.filesPrivateSpace),
-                  for (final space in spaces.toList()..sort())
-                    Text(_filesScopeLabel(l10n, space, access)),
-                  if (selectedSpace != null && !spaces.contains(selectedSpace))
-                    Text(l10n.filesUnavailableSpace),
-                ],
-                items: [
-                  DropdownMenuItem(
-                    value: '',
-                    child: Semantics(
-                      identifier: 'files-space-option-private',
-                      child: Text(l10n.filesPrivateSpace),
-                    ),
-                  ),
-                  for (final space in spaces.toList()..sort())
-                    DropdownMenuItem(
-                      value: space,
-                      child: Semantics(
-                        identifier: 'files-space-option-$space',
-                        child: Text(_filesScopeLabel(l10n, space, access)),
-                      ),
-                    ),
-                  if (selectedSpace != null && !spaces.contains(selectedSpace))
-                    DropdownMenuItem(
-                      value: selectedSpace,
-                      enabled: false,
-                      child: Text(l10n.filesUnavailableSpace),
-                    ),
-                ],
-                onChanged: state.isBusy
-                    ? null
-                    : (value) => ref
-                          .read(filesProvider.notifier)
-                          .selectRootSpace(value == '' ? null : value),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-        ],
         _PathBreadcrumbs(
           path: state.currentPath,
           isBusy: state.isBusy,

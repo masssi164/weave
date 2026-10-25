@@ -130,7 +130,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Garden'), findsOneWidget);
       expect(
-        GoRouterState.of(tester.element(find.byType(FilesLocationsScreen))).uri.path,
+        GoRouterState.of(
+          tester.element(find.byType(FilesLocationsScreen)),
+        ).uri.path,
         AppRoutes.files,
       );
       expect(router.canPop(), isFalse);
@@ -147,9 +149,11 @@ void main() {
       expect(find.text('root:space-z'), findsOneWidget);
       router.pop();
       await tester.pumpAndSettle();
-      final private = find.byWidgetPredicate((widget) =>
-          widget is Semantics &&
-          widget.properties.identifier == 'files-location-private');
+      final private = find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics &&
+            widget.properties.identifier == 'files-location-private',
+      );
       expect(private, findsOneWidget);
       await tester.tap(private);
       await tester.pumpAndSettle();

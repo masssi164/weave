@@ -33,6 +33,11 @@ class FilesFolderRoute extends StatelessWidget {
         ),
       ),
     ],
-    child: Scaffold(body: FilesScreen(initialPath: path, isFolderRoute: true)),
+    child: Scaffold(
+      body: FilesScreen(
+        initialPath: path,
+        isFolderRoute: folderId != null || path == '/',
+      ),
+    ),
   );
 }
