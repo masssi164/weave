@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
+import 'package:weave/features/shell/domain/entities/shell_destination.dart';
 
 /// The main application shell rendered by [StatefulShellRoute].
 ///
@@ -10,10 +11,15 @@ import 'package:weave/l10n/generated/app_localizations.dart';
 /// The [navigationShell] is provided by GoRouter and manages the active
 /// branch's widget tree via an [IndexedStack] internally.
 class AppShell extends ConsumerWidget {
-  const AppShell({super.key, required this.navigationShell});
+  const AppShell({
+    super.key,
+    required this.navigationShell,
+    this.destinations = ShellDestination.values,
+  });
 
   /// The navigation shell created by [StatefulShellRoute.indexedStack].
   final StatefulNavigationShell navigationShell;
+  final List<ShellDestination> destinations;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -24,7 +30,7 @@ class AppShell extends ConsumerWidget {
       bottomNavigationBar: _ResponsiveShellNavigation(
         selectedIndex: navigationShell.currentIndex,
         onDestinationSelected: (index) {
-          if (index == 1 || index == 2 || index == 3) {
+          if (destinations[index].requiresMemberSpaces) {
             // Revalidate durable grants before reopening retained branch views.
             ref.invalidate(weaveApiMemberSpacesProvider);
           }
@@ -34,61 +40,11 @@ class AppShell extends ConsumerWidget {
           );
         },
         destinations: [
-          NavigationDestination(
-            icon: Icon(
-              Icons.home_outlined,
-              semanticLabel: l10n.semanticHomeIcon,
+          for (final destination in destinations)
+            (
+              destination: destination,
+              view: _navigationDestination(l10n, destination),
             ),
-            selectedIcon: Icon(
-              Icons.home,
-              semanticLabel: l10n.semanticHomeIcon,
-            ),
-            label: l10n.navHome,
-          ),
-          NavigationDestination(
-            icon: Icon(
-              Icons.chat_bubble_outline,
-              semanticLabel: l10n.semanticChatIcon,
-            ),
-            selectedIcon: Icon(
-              Icons.chat_bubble,
-              semanticLabel: l10n.semanticChatIcon,
-            ),
-            label: l10n.navChat,
-          ),
-          NavigationDestination(
-            icon: Icon(
-              Icons.folder_outlined,
-              semanticLabel: l10n.semanticFilesIcon,
-            ),
-            selectedIcon: Icon(
-              Icons.folder,
-              semanticLabel: l10n.semanticFilesIcon,
-            ),
-            label: l10n.navFiles,
-          ),
-          NavigationDestination(
-            icon: Icon(
-              Icons.calendar_month_outlined,
-              semanticLabel: l10n.semanticCalendarIcon,
-            ),
-            selectedIcon: Icon(
-              Icons.calendar_month,
-              semanticLabel: l10n.semanticCalendarIcon,
-            ),
-            label: l10n.navCalendar,
-          ),
-          NavigationDestination(
-            icon: Icon(
-              Icons.settings_outlined,
-              semanticLabel: l10n.semanticSettingsIcon,
-            ),
-            selectedIcon: Icon(
-              Icons.settings,
-              semanticLabel: l10n.semanticSettingsIcon,
-            ),
-            label: l10n.navSettings,
-          ),
         ],
       ),
     );
@@ -104,7 +60,7 @@ class _ResponsiveShellNavigation extends StatelessWidget {
   });
   final int selectedIndex;
   final ValueChanged<int> onDestinationSelected;
-  final List<NavigationDestination> destinations;
+  final List<_ShellDestinationView> destinations;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -114,7 +70,7 @@ class _ResponsiveShellNavigation extends StatelessWidget {
       final widths = [
         for (final destination in destinations)
           (TextPainter(
-                text: TextSpan(text: destination.label, style: style),
+                text: TextSpan(text: destination.view.label, style: style),
                 textDirection: Directionality.of(context),
                 textScaler: scaler,
               )..layout()).width +
@@ -132,9 +88,8 @@ class _ResponsiveShellNavigation extends StatelessWidget {
           destinations: [
             for (var i = 0; i < destinations.length; i++)
               Semantics(
-                identifier:
-                    'nav-${['home', 'chat', 'files', 'calendar', 'settings'][i]}',
-                child: destinations[i],
+                identifier: 'nav-${destinations[i].destination.id}',
+                child: destinations[i].view,
               ),
           ],
         );
@@ -156,11 +111,10 @@ class _ResponsiveShellNavigation extends StatelessWidget {
                         .clamp(72, constraints.maxWidth - 8)
                         .toDouble(),
                     child: Semantics(
-                      identifier:
-                          'nav-${const ['home', 'chat', 'files', 'calendar', 'settings'][index]}',
+                      identifier: 'nav-${destinations[index].destination.id}',
                       button: true,
                       selected: selectedIndex == index,
-                      label: destinations[index].label,
+                      label: destinations[index].view.label,
                       excludeSemantics: true,
                       child: InkWell(
                         onTap: () => onDestinationSelected(index),
@@ -179,12 +133,12 @@ class _ResponsiveShellNavigation extends StatelessWidget {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 selectedIndex == index
-                                    ? destinations[index].selectedIcon ??
-                                          destinations[index].icon
-                                    : destinations[index].icon,
+                                    ? destinations[index].view.selectedIcon ??
+                                          destinations[index].view.icon
+                                    : destinations[index].view.icon,
                                 const SizedBox(height: 4),
                                 Text(
-                                  destinations[index].label,
+                                  destinations[index].view.label,
                                   style: style,
                                   textAlign: TextAlign.center,
                                 ),
@@ -203,3 +157,51 @@ class _ResponsiveShellNavigation extends StatelessWidget {
     },
   );
 }
+
+typedef _ShellDestinationView = ({
+  ShellDestination destination,
+  NavigationDestination view,
+});
+
+NavigationDestination _navigationDestination(
+  AppLocalizations l10n,
+  ShellDestination destination,
+) => switch (destination) {
+  ShellDestination.home => NavigationDestination(
+    icon: Icon(Icons.home_outlined, semanticLabel: l10n.semanticHomeIcon),
+    selectedIcon: Icon(Icons.home, semanticLabel: l10n.semanticHomeIcon),
+    label: l10n.navHome,
+  ),
+  ShellDestination.chat => NavigationDestination(
+    icon: Icon(Icons.chat_bubble_outline, semanticLabel: l10n.semanticChatIcon),
+    selectedIcon: Icon(Icons.chat_bubble, semanticLabel: l10n.semanticChatIcon),
+    label: l10n.navChat,
+  ),
+  ShellDestination.files => NavigationDestination(
+    icon: Icon(Icons.folder_outlined, semanticLabel: l10n.semanticFilesIcon),
+    selectedIcon: Icon(Icons.folder, semanticLabel: l10n.semanticFilesIcon),
+    label: l10n.navFiles,
+  ),
+  ShellDestination.calendar => NavigationDestination(
+    icon: Icon(
+      Icons.calendar_month_outlined,
+      semanticLabel: l10n.semanticCalendarIcon,
+    ),
+    selectedIcon: Icon(
+      Icons.calendar_month,
+      semanticLabel: l10n.semanticCalendarIcon,
+    ),
+    label: l10n.navCalendar,
+  ),
+  ShellDestination.settings => NavigationDestination(
+    icon: Icon(
+      Icons.settings_outlined,
+      semanticLabel: l10n.semanticSettingsIcon,
+    ),
+    selectedIcon: Icon(
+      Icons.settings,
+      semanticLabel: l10n.semanticSettingsIcon,
+    ),
+    label: l10n.navSettings,
+  ),
+};

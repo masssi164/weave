@@ -18,6 +18,7 @@ import 'package:weave/features/onboarding/presentation/organization_access_scree
 import 'package:weave/features/profile/presentation/profile_screen.dart';
 import 'package:weave/features/settings/presentation/settings_screen.dart';
 import 'package:weave/features/shell/presentation/app_shell.dart';
+import 'package:weave/features/shell/domain/entities/shell_destination.dart';
 
 part 'app_router.g.dart';
 
@@ -42,6 +43,7 @@ void setStartupInitialLocation(String? location) {
 /// the router can read the resolved bootstrap state for redirects.
 @riverpod
 GoRouter appRouter(Ref ref) {
+  const destinations = ShellDestination.values;
   final refresh = ValueNotifier(0);
   ref.listen(appBootstrapProvider, (_, next) => refresh.value++);
   final initialLocation =
@@ -115,75 +117,12 @@ GoRouter appRouter(Ref ref) {
         builder: (context, state) => const HelpScreen(),
       ),
       StatefulShellRoute.indexedStack(
-        builder: (context, state, navigationShell) =>
-            AppShell(navigationShell: navigationShell),
+        builder: (context, state, navigationShell) => AppShell(
+          navigationShell: navigationShell,
+          destinations: destinations,
+        ),
         branches: [
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: AppRoutes.home,
-                builder: (context, state) => const HomeScreen(),
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: AppRoutes.chat,
-                builder: (context, state) => const ChatScreen(),
-                routes: [
-                  GoRoute(
-                    path: AppRoutes.chatRoomRelative,
-                    builder: (context, state) {
-                      final conversation = state.extra;
-                      if (conversation is ChatConversation) {
-                        return ChatAdmissionGate(
-                          child: ChatRoomScreen(conversation: conversation),
-                        );
-                      }
-
-                      return const ChatScreen();
-                    },
-                  ),
-                ],
-              ),
-            ],
-          ),
-          StatefulShellBranch(routes: [filesRoute()]),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: AppRoutes.calendar,
-                builder: (context, state) => const CalendarScreen(),
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: AppRoutes.settings,
-                builder: (context, state) => const SettingsScreen(),
-              ),
-              GoRoute(
-                path: AppRoutes.profile,
-                builder: (context, state) => const ProfileScreen(),
-              ),
-              GoRoute(
-                path: AppRoutes.settingsPreferences,
-                builder: (context, state) => SettingsPreferencesScreen(
-                  section: state.uri.queryParameters['section'],
-                ),
-              ),
-              GoRoute(
-                path: AppRoutes.settingsSupport,
-                builder: (context, state) => const SettingsSupportScreen(),
-              ),
-              GoRoute(
-                path: AppRoutes.workspaceHealth,
-                builder: (context, state) => const WorkspaceHealthScreen(),
-              ),
-            ],
-          ),
+          for (final destination in destinations) _shellBranch(destination),
         ],
       ),
     ],
@@ -212,3 +151,73 @@ String initialLocationForDefaultRoute(String defaultRouteName) {
 
   return AppRoutes.organizationAccess;
 }
+
+StatefulShellBranch _shellBranch(ShellDestination destination) =>
+    switch (destination) {
+      ShellDestination.home => StatefulShellBranch(
+        routes: [
+          GoRoute(
+            path: AppRoutes.home,
+            builder: (context, state) => const HomeScreen(),
+          ),
+        ],
+      ),
+      ShellDestination.chat => StatefulShellBranch(
+        routes: [
+          GoRoute(
+            path: AppRoutes.chat,
+            builder: (context, state) => const ChatScreen(),
+            routes: [
+              GoRoute(
+                path: AppRoutes.chatRoomRelative,
+                builder: (context, state) {
+                  final conversation = state.extra;
+                  if (conversation is ChatConversation) {
+                    return ChatAdmissionGate(
+                      child: ChatRoomScreen(conversation: conversation),
+                    );
+                  }
+
+                  return const ChatScreen();
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+      ShellDestination.files => StatefulShellBranch(routes: [filesRoute()]),
+      ShellDestination.calendar => StatefulShellBranch(
+        routes: [
+          GoRoute(
+            path: AppRoutes.calendar,
+            builder: (context, state) => const CalendarScreen(),
+          ),
+        ],
+      ),
+      ShellDestination.settings => StatefulShellBranch(
+        routes: [
+          GoRoute(
+            path: AppRoutes.settings,
+            builder: (context, state) => const SettingsScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.profile,
+            builder: (context, state) => const ProfileScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.settingsPreferences,
+            builder: (context, state) => SettingsPreferencesScreen(
+              section: state.uri.queryParameters['section'],
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.settingsSupport,
+            builder: (context, state) => const SettingsSupportScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.workspaceHealth,
+            builder: (context, state) => const WorkspaceHealthScreen(),
+          ),
+        ],
+      ),
+    };

@@ -715,3 +715,10 @@ passed 80 tests. Final `flutter analyze --no-pub --fatal-infos` passed and
 `dart format --output=none --set-exit-if-changed .` checked 482 files with zero changes.
 The first widget run built the pinned local Matrix bridge; this is not server Linux ARM64,
 GraalVM native or two-member product acceptance. Full application/native/HIL lanes remain separate.
+
+The final checkpoint also passed `WEAVE_SPEC_CORPUS_ROOT=<exact-accepted-checkout> ./gradlew
+coreArchitectureCi canonicalDataCi specCorpusConformance acceptanceContract --console=plain`
+in seven seconds. Acceptance mappings cover 270 scenarios; runtime evidence was not collected.
+The legacy structure helper's optional sibling-path manifest comparison is unavailable in this
+isolated layout; the separate exact-pin conformance check ran and passed for all 159 entries.
+Static Java selector/skill links and provider boundary invariants passed without budget changes.
