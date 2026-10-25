@@ -1062,18 +1062,15 @@ void _openAncestor(BuildContext context, String path, String? spaceRef) {
   final router = GoRouter.of(context);
   var found = false;
   Navigator.of(context).popUntil((route) {
-    final arguments = route.settings.arguments;
-    final isRoot = route.settings.name == AppRoutes.files;
-    final routePath = isRoot
-        ? '/'
-        : arguments is Map
-        ? arguments['folderPath']
-        : null;
-    if (routePath == path) {
+    final location = route.settings.arguments;
+    if (location is FilesRouteLocation &&
+        location.path == path &&
+        location.spaceRef == spaceRef) {
       found = true;
       return true;
     }
-    return isRoot || route.isFirst;
+    // The overview contains locations; it is not their directory root.
+    return route.settings.name == AppRoutes.files || route.isFirst;
   });
   if (!found) router.go(AppRoutes.filesLocation(path, spaceRef: spaceRef));
 }

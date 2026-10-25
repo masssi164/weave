@@ -32,7 +32,9 @@ GoRoute _locationRoute(String path) => GoRoute(
 
 MaterialPage<void> _directoryPage(GoRouterState state, {String? folderId}) {
   // Child query/extra data must not rebuild or retarget the retained root page.
-  final path = state.uri.queryParameters[folderId == null ? 'path' : 'folderPath'] ?? '/';
+  final path =
+      state.uri.queryParameters[folderId == null ? 'path' : 'folderPath'] ??
+      '/';
   final spaceRef = state.pathParameters['spaceRef'];
   return MaterialPage<void>(
     key: state.pageKey,
@@ -42,7 +44,9 @@ MaterialPage<void> _directoryPage(GoRouterState state, {String? folderId}) {
       folderId: folderId,
       path: path,
       spaceRef: spaceRef,
-      ownerKey: folderId != null && state.extra is String ? state.extra as String : null,
+      ownerKey: folderId != null && state.extra is String
+          ? state.extra as String
+          : null,
     ),
   );
 }

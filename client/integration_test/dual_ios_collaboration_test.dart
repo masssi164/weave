@@ -2235,6 +2235,14 @@ Future<void> selectNativeDualFilesScope(
     );
   }
   expect(overview, findsOneWidget);
+  // An iOS pop can reveal the previous page before its transition finishes.
+  // Wait for its actual interactive route rather than tapping through a modal.
+  await _wait(tester, () {
+    final route = ModalRoute.of(tester.element(overview));
+    return route?.isCurrent == true &&
+        route?.animation?.isCompleted != false &&
+        route?.secondaryAnimation?.isDismissed != false;
+  }, const Duration(seconds: 15));
   final owner = ProviderScope.containerOf(tester.element(overview));
   await _wait(tester, () {
     final capability = owner.read(workspaceCapabilitySnapshotProvider);

@@ -31,6 +31,8 @@ import 'package:weave/features/files/domain/entities/files_failure.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/domain/services/files_import_picker.dart';
 import 'package:weave/features/files/presentation/files_screen.dart';
+import 'package:weave/features/files/presentation/files_locations_screen.dart';
+import 'package:weave/features/files/presentation/files_folder_route.dart';
 import 'package:weave/features/files/presentation/providers/files_provider.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
@@ -91,6 +93,7 @@ Widget _filesNavigationApp(
   GoRouter router, {
   List<dynamic> overrides = const [],
   TargetPlatform? platform,
+  double? textScale,
 }) => ProviderScope(
   overrides: [
     workspaceCapabilitySnapshotProvider.overrideWithValue(
@@ -103,6 +106,14 @@ Widget _filesNavigationApp(
     localizationsDelegates: AppLocalizations.localizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
     routerConfig: router,
+    builder: (context, child) => textScale == null
+        ? child!
+        : MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(textScale)),
+            child: child!,
+          ),
   ),
 );
 
@@ -1958,7 +1969,10 @@ void main() {
       ).read(filesProvider).requireValue.rootSpaceRef,
       isNull,
     );
-    expect(router.routeInformationProvider.value.uri.path, '/files/private');
+    expect(
+      GoRouterState.of(tester.element(find.byType(FilesScreen))).uri.path,
+      '/files/private',
+    );
     await tester.pageBack();
     await tester.pumpAndSettle();
     expect(router.canPop(), isFalse);
@@ -3379,16 +3393,40 @@ void main() {
                   ),
                 ),
               );
-              await tester.pumpWidget(
-                _filesTestApp(
-                  Builder(
-                    builder: (context) => MediaQuery(
-                      data: MediaQuery.of(
-                        context,
-                      ).copyWith(textScaler: TextScaler.linear(scale)),
-                      child: const SizedBox(height: 700, child: FilesScreen()),
-                    ),
+              final router = GoRouter(
+                initialLocation: AppRoutes.filesLocation(
+                  '/',
+                  spaceRef: 'workspace-default',
+                ),
+                routes: [
+                  GoRoute(
+                    path: AppRoutes.files,
+                    builder: (context, state) =>
+                        const Scaffold(body: FilesLocationsScreen()),
+                    routes: [
+                      GoRoute(
+                        path: AppRoutes.filesPrivateRelative,
+                        builder: (context, state) =>
+                            const FilesFolderRoute(path: '/'),
+                      ),
+                      GoRoute(
+                        path: AppRoutes.filesSpaceRelative,
+                        builder: (context, state) => const Scaffold(
+                          body: SizedBox(
+                            height: 700,
+                            child: FilesScreen(isFolderRoute: true),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
+                ],
+              );
+              addTearDown(router.dispose);
+              await tester.pumpWidget(
+                _filesNavigationApp(
+                  router,
+                  textScale: scale,
                   overrides: [
                     filesProvider.overrideWith(_PostReplaceFilesController.new),
                     weaveApiMemberSpacesProvider.overrideWith(
@@ -3434,8 +3472,8 @@ void main() {
               );
               await tester.pumpAndSettle();
 
-              // Stop mid-scroll, where a pinned large title clipped the selector's
-              // semantics despite its rendered 48px height.
+              // Stop mid-scroll, where a pinned large title previously clipped
+              // interactive toolbar semantics despite their rendered height.
               final gesture = await tester.startGesture(
                 tester.getCenter(find.byType(CustomScrollView)),
               );
@@ -3453,14 +3491,37 @@ void main() {
               // top; a scrolling title must not hide or disable them.
               tester.state<ScrollableState>(scrollable).position.jumpTo(0);
               await tester.pumpAndSettle();
-              final selector = find.byKey(const Key('files-space-selector'));
-              expect(tester.getSize(selector).height, greaterThanOrEqualTo(48));
-              await tester.tap(selector);
+              expect(
+                find.byKey(const Key('files-space-selector')),
+                findsNothing,
+              );
+              expect(find.text('Organization workspace'), findsWidgets);
+              await tester.pageBack();
               await tester.pumpAndSettle();
-              await tester.tap(find.text(l10n.filesPrivateSpace).last);
+              expect(find.byType(FilesLocationsScreen), findsOneWidget);
+              final privateLocation = find.byWidgetPredicate(
+                (widget) =>
+                    widget is Semantics &&
+                    widget.properties.identifier == 'files-location-private',
+              );
+              expect(privateLocation.hitTestable(), findsOneWidget);
+              expect(
+                tester.getSize(privateLocation).height,
+                greaterThanOrEqualTo(48),
+              );
+              expect(
+                tester.getSemantics(privateLocation).getSemanticsData().label,
+                contains(l10n.filesPrivateSpace),
+              );
+              await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
+              await expectLater(
+                tester,
+                meetsGuideline(labeledTapTargetGuideline),
+              );
+              await tester.tap(privateLocation);
               await tester.pumpAndSettle();
               final container = ProviderScope.containerOf(
-                tester.element(selector),
+                tester.element(find.byType(FilesScreen)),
               );
               expect(
                 container.read(filesProvider).requireValue.rootSpaceRef,
