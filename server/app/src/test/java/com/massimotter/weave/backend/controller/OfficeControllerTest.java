@@ -7,7 +7,7 @@ import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.security.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation.Settings;
-import com.massimotter.weave.backend.exception.ApiExceptionHandler;
+import com.massimotter.weave.backend.api.error.ApiExceptionHandler;
 import com.massimotter.weave.backend.office.port.DisabledOfficeProvider;
 import com.massimotter.weave.backend.service.OfficeFacadeService;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;

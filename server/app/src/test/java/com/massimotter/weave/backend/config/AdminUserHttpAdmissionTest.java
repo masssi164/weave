@@ -17,7 +17,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import com.massimotter.weave.backend.controller.AdminControlPlaneController;
 import com.massimotter.weave.backend.identity.profile.api.IdentityController;
-import com.massimotter.weave.backend.exception.ApiExceptionHandler;
+import com.massimotter.weave.backend.api.error.ApiExceptionHandler;
 import com.massimotter.weave.backend.identity.IdentityReferences;
 import com.massimotter.weave.backend.model.admin.AdminControlPlaneResponse;
 import com.massimotter.weave.backend.model.admin.AdminCurrentActorResponse;

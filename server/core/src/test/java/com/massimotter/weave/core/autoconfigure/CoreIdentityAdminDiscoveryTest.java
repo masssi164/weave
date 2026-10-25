@@ -26,6 +26,14 @@ class CoreIdentityAdminDiscoveryTest {
                         .hasSingleBean(com.massimotter.weave.backend.identity.profile.api.IdentityController.class)
                         .hasSingleBean(com.massimotter.weave.backend.identity.profile.api.ProfileController.class)
                         .doesNotHaveBean(com.massimotter.weave.backend.identity.bootstrap.BootstrapOwnerCredential.class)
+                        .hasSingleBean(com.massimotter.weave.backend.spaces.application.SpaceAdminApiService.class)
+                        .hasSingleBean(com.massimotter.weave.backend.spaces.application.DefaultSpaceBootstrapService.class)
+                        .hasSingleBean(com.massimotter.weave.backend.spaces.api.SpacesAdminController.class)
+                        .hasSingleBean(com.massimotter.weave.backend.spaces.api.SpacesUserController.class)
+                        .hasSingleBean(com.massimotter.weave.backend.spaces.api.SpacesRelationshipsUserController.class)
+                        .hasSingleBean(com.massimotter.weave.backend.api.error.ApiExceptionHandler.class)
+                        .doesNotHaveBean(com.massimotter.weave.backend.spaces.api.DefaultSpaceBootstrapController.class)
+                        .doesNotHaveBean(com.massimotter.weave.backend.spaces.bootstrap.DefaultSpaceBootstrapCredential.class)
                         .hasSingleBean(KeycloakIdentityAdminClient.class)
                         .hasSingleBean(KeycloakAdminClient.class)
                         .hasSingleBean(KeycloakAdminAccessTokenProvider.class));
@@ -51,9 +59,23 @@ class CoreIdentityAdminDiscoveryTest {
                         .doesNotHaveBean(com.massimotter.weave.backend.identity.application.MemberDisplayNameQuery.class)
                         .doesNotHaveBean(com.massimotter.weave.backend.identity.invitation.application.MemberInvitationService.class)
                         .doesNotHaveBean(com.massimotter.weave.backend.identity.profile.api.ProfileController.class)
+                        .doesNotHaveBean(com.massimotter.weave.backend.spaces.application.SpaceAdminApiService.class)
+                        .doesNotHaveBean(com.massimotter.weave.backend.spaces.api.SpacesAdminController.class)
+                        .doesNotHaveBean(com.massimotter.weave.backend.api.error.ApiExceptionHandler.class)
                         .doesNotHaveBean(KeycloakIdentityAdminClient.class)
                         .doesNotHaveBean(KeycloakAdminClient.class)
                         .doesNotHaveBean(KeycloakAdminAccessTokenProvider.class));
+    }
+
+    @Test
+    void exceptionalSpaceSetupIsDiscoveredOnlyWhenExplicitlyEnabled() {
+        new WebApplicationContextRunner().withUserConfiguration(Discovery.class)
+                .withPropertyValues("spring.jpa.hibernate.ddl-auto=none", "spring.flyway.enabled=false",
+                        "weave.spaces.bootstrap.enabled=true", "weave.spaces.bootstrap.environment=e2e",
+                        "weave.spaces.bootstrap.token-file=/not-mounted-during-context-construction")
+                .run(context -> assertThat(context).hasNotFailed()
+                        .hasSingleBean(com.massimotter.weave.backend.spaces.api.DefaultSpaceBootstrapController.class)
+                        .hasSingleBean(com.massimotter.weave.backend.spaces.bootstrap.DefaultSpaceBootstrapCredential.class));
     }
 
     @Configuration(proxyBeanMethods = false)

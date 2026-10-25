@@ -1,4 +1,4 @@
-package com.massimotter.weave.backend.agentruntime.adapter;
+package com.massimotter.weave.backend.identity.migration.provider;
 
 import com.massimotter.weave.backend.security.keycloak.port.KeycloakAdminAccessTokenProvider;
 
@@ -20,7 +20,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Objects;
 
-/** Client-credentials token provider whose long-lived Keycloak admin secret stays behind a SecretRef. */
+/** Explicit migration/recovery token provider; never a fallback for serving authentication. */
 public final class ClientSecretKeycloakAdminAccessTokenProvider implements KeycloakAdminAccessTokenProvider {
     private static final byte[] TOKEN_REQUEST = "grant_type=client_credentials".getBytes(StandardCharsets.US_ASCII);
 
@@ -173,5 +173,9 @@ public final class ClientSecretKeycloakAdminAccessTokenProvider implements Keycl
         }
     }
 
-    private record CachedToken(String value, Instant refreshAfter) {}
+    private record CachedToken(String value, Instant refreshAfter) {
+        @Override public String toString() {
+            return "CachedToken[value=[REDACTED], refreshAfter=" + refreshAfter + "]";
+        }
+    }
 }

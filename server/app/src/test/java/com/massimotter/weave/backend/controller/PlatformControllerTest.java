@@ -4,6 +4,7 @@ import com.massimotter.weave.backend.security.http.ApiAccessDeniedHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.security.http.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
+import com.massimotter.weave.backend.api.error.ApiExceptionHandler;
 import com.massimotter.weave.backend.config.MatrixChatProperties;
 import com.massimotter.weave.backend.discovery.config.PlatformContractProperties;
 import com.massimotter.weave.backend.config.SecurityConfig;
@@ -48,7 +49,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         WorkspaceCapabilityService.class,
         ApiAuthenticationEntryPoint.class,
         ApiAccessDeniedHandler.class,
-        ApiErrorResponseWriter.class
+        ApiErrorResponseWriter.class, ApiExceptionHandler.class
 })
 @EnableConfigurationProperties({
         MatrixChatProperties.class,

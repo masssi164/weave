@@ -313,7 +313,7 @@ class CalendarUserApiServiceTest {
         var errors = new com.massimotter.weave.backend.api.error.ApiErrorResponseWriter(tools.jackson.databind.json.JsonMapper.builder().build());
         var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(
                 new com.massimotter.weave.backend.calendar.api.CalendarUserController(service, errors))
-                .setControllerAdvice(new com.massimotter.weave.backend.exception.ApiExceptionHandler(errors))
+                .setControllerAdvice(new com.massimotter.weave.backend.api.error.ApiExceptionHandler(errors))
                 .setCustomArgumentResolvers(new org.springframework.web.method.support.HandlerMethodArgumentResolver() {
                     @java.lang.Override public boolean supportsParameter(org.springframework.core.MethodParameter parameter) { return parameter.getParameterType() == Jwt.class; }
                     @java.lang.Override public Object resolveArgument(org.springframework.core.MethodParameter parameter,

@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.identity.migration;
 
-import com.massimotter.weave.backend.agentruntime.adapter.ClientSecretKeycloakAdminAccessTokenProvider;
+import com.massimotter.weave.backend.identity.migration.provider.ClientSecretKeycloakAdminAccessTokenProvider;
 import com.massimotter.weave.backend.security.keycloak.port.KeycloakAdminAccessTokenProvider;
 import com.massimotter.weave.backend.security.workload.port.WorkloadIdentityException;
 import java.io.PrintStream;

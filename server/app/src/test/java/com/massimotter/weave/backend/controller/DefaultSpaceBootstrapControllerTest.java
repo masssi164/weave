@@ -1,9 +1,11 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.spaces.api.DefaultSpaceBootstrapController;
+
 import com.massimotter.weave.backend.api.error.ApiErrorException;
-import com.massimotter.weave.backend.identity.bootstrap.DefaultSpaceBootstrapCredential;
+import com.massimotter.weave.backend.spaces.bootstrap.DefaultSpaceBootstrapCredential;
 import com.massimotter.weave.backend.spaces.api.DefaultSpaceBootstrapResponse;
-import com.massimotter.weave.backend.service.spaces.DefaultSpaceBootstrapService;
+import com.massimotter.weave.backend.spaces.application.DefaultSpaceBootstrapService;
 import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;

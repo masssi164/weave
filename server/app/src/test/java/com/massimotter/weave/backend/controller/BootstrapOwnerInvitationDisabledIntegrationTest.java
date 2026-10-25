@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.spaces.api.DefaultSpaceBootstrapController;
+
 import com.massimotter.weave.backend.identity.invitation.api.BootstrapOwnerInvitationController;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;

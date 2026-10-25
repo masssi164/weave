@@ -6,7 +6,6 @@ import com.massimotter.weave.backend.security.workload.config.WorkloadEntitlemen
 import com.massimotter.weave.backend.config.ChatRuntimeProperties;
 import com.massimotter.weave.backend.config.ConnectorRuntimeProperties;
 import com.massimotter.weave.backend.security.config.DeploymentOrganizationProperties;
-import com.massimotter.weave.backend.config.DefaultSpaceBootstrapProperties;
 import com.massimotter.weave.backend.config.GuestAccessProperties;
 import com.massimotter.weave.backend.identity.keycloak.IdentityInvitationProperties;
 import com.massimotter.weave.backend.config.InteropGatewayProperties;
@@ -39,7 +38,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
                         classes = org.springframework.boot.autoconfigure.AutoConfigurationExcludeFilter.class),
                 @org.springframework.context.annotation.ComponentScan.Filter(
                         type = org.springframework.context.annotation.FilterType.REGEX,
-                        pattern = "com\\.massimotter\\.weave\\.backend\\.(files|calendar|identity\\.invitation\\.api|identity\\.profile\\.api)\\..*")
+                        pattern = "com\\.massimotter\\.weave\\.backend\\.(files|calendar|spaces\\.api|spaces\\.bootstrap|api\\.error|identity\\.invitation\\.api|identity\\.profile\\.api)\\..*")
         })
 @EnableScheduling
 @EnableConfigurationProperties({
@@ -47,7 +46,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         ChatRuntimeProperties.class,
         ConnectorRuntimeProperties.class,
         DeploymentOrganizationProperties.class,
-        DefaultSpaceBootstrapProperties.class,
         GuestAccessProperties.class,
         InteropGatewayProperties.class,
         IdentityInvitationProperties.class,

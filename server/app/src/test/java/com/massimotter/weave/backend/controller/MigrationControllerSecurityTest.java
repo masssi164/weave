@@ -6,7 +6,7 @@ import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.AdminApiSecurityConfiguration;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
-import com.massimotter.weave.backend.exception.ApiExceptionHandler;
+import com.massimotter.weave.backend.api.error.ApiExceptionHandler;
 import com.massimotter.weave.backend.model.migration.MigrationApplyGateResponse;
 import com.massimotter.weave.backend.model.migration.MigrationDryRunResponse;
 import com.massimotter.weave.backend.service.migration.MigrationApplyGateService;

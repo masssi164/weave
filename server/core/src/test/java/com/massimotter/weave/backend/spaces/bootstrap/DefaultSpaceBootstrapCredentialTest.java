@@ -1,9 +1,9 @@
-package com.massimotter.weave.backend.identity.bootstrap;
+package com.massimotter.weave.backend.spaces.bootstrap;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.massimotter.weave.backend.config.DefaultSpaceBootstrapProperties;
+import com.massimotter.weave.backend.spaces.config.DefaultSpaceBootstrapProperties;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

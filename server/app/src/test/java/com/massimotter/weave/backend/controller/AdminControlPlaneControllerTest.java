@@ -21,7 +21,7 @@ import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.DevopsProviderConfiguration;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
-import com.massimotter.weave.backend.exception.ApiExceptionHandler;
+import com.massimotter.weave.backend.api.error.ApiExceptionHandler;
 import com.massimotter.weave.backend.capability.api.WorkspaceCapabilitiesResponse;
 import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityPolicyResponse;
 import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityPolicyState;

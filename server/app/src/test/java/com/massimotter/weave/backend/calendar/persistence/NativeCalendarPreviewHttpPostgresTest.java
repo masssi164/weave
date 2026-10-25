@@ -23,7 +23,7 @@ import com.massimotter.weave.backend.security.config.ContextAuthorizationPropert
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
 import com.massimotter.weave.backend.calendar.api.CalendarUserController;
-import com.massimotter.weave.backend.exception.ApiExceptionHandler;
+import com.massimotter.weave.backend.api.error.ApiExceptionHandler;
 import com.massimotter.weave.backend.providerbinding.adapter.ProviderBindingJpaTestFactory;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;

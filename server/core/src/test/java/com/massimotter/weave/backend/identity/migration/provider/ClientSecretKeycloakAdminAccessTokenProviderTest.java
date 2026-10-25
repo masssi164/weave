@@ -1,8 +1,9 @@
-package com.massimotter.weave.backend.agentruntime.adapter;
+package com.massimotter.weave.backend.identity.migration.provider;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import tools.jackson.databind.ObjectMapper;
+import com.massimotter.weave.backend.security.secret.adapter.ExactFileSecretRefAccess;
 import com.massimotter.weave.backend.security.workload.port.WorkloadIdentityException;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -98,8 +99,8 @@ class ClientSecretKeycloakAdminAccessTokenProviderTest {
     }
 
     private ClientSecretKeycloakAdminAccessTokenProvider provider() {
-        FileRuntimeWorkloadCredentialStore secrets =
-                new FileRuntimeWorkloadCredentialStore(temporary, new ObjectMapper());
+        var secrets = new ExactFileSecretRefAccess(CREDENTIAL_REF,
+                temporary.resolve("weave/agent-runtime/admin/keycloak"));
         URI base = URI.create("http://127.0.0.1:" + server.getAddress().getPort());
         ClientSecretKeycloakAdminAccessTokenProvider.Settings settings =
                 new ClientSecretKeycloakAdminAccessTokenProvider.Settings(

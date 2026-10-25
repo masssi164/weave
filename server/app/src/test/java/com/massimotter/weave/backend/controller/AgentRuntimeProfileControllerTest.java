@@ -18,7 +18,7 @@ import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileTrustBundle
 import com.massimotter.weave.backend.config.AgentRuntimeProfileSecurityConfiguration;
 import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.discovery.config.PlatformContractProperties;
-import com.massimotter.weave.backend.exception.ApiExceptionHandler;
+import com.massimotter.weave.backend.api.error.ApiExceptionHandler;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;

@@ -6237,7 +6237,7 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/service/spaces/SpaceAdminApiServiceTest.java",
+          "path": "server/core/src/test/java/com/massimotter/weave/backend/spaces/application/SpaceAdminApiServiceTest.java",
           "fragments": [
             "changedRequestConflictsWithoutAuditOrMembershipOverwrite"
           ]

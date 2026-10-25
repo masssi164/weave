@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.spaces.api.SpacesUserController;
+
 import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.security.http.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.security.http.ApiAccessDeniedHandler;
@@ -11,7 +13,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.massimotter.weave.backend.config.*;
-import com.massimotter.weave.backend.exception.ApiExceptionHandler;
+import com.massimotter.weave.backend.api.error.ApiExceptionHandler;
 import com.massimotter.weave.backend.spaces.api.SpaceUserListResponse;
 import com.massimotter.weave.backend.spaces.api.SpaceUserResponse;
 import com.massimotter.weave.backend.spaces.application.SpaceUserApiService;
@@ -30,7 +32,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(controllers = SpacesUserController.class,
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
-@Import({SecurityConfig.class, ApiAuthenticationEntryPoint.class,
+@Import({SpacesUserController.class, SecurityConfig.class, ApiAuthenticationEntryPoint.class,
         ApiAccessDeniedHandler.class, ApiErrorResponseWriter.class, ApiExceptionHandler.class})
 class SpacesUserControllerTest {
     @Autowired MockMvc mvc;

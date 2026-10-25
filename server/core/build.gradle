@@ -14,6 +14,7 @@ base { archivesName = 'weave-core' }
 dependencies {
     implementation 'org.springframework.boot:spring-boot-restclient'
     api 'org.springframework:spring-web'
+    implementation 'org.springframework:spring-webmvc'
     api 'org.springframework.security:spring-security-web'
     compileOnly 'jakarta.servlet:jakarta.servlet-api'
     implementation 'org.slf4j:slf4j-api'

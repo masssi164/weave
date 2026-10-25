@@ -19,7 +19,7 @@ import com.massimotter.weave.backend.service.AdminProviderRegistryService;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
 import com.massimotter.weave.backend.files.application.FilesProviderResolver;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
-import com.massimotter.weave.backend.exception.ApiExceptionHandler;
+import com.massimotter.weave.backend.api.error.ApiExceptionHandler;
 import com.massimotter.weave.backend.capability.api.WorkspaceCapabilitiesResponse;
 import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityPolicyState;
 import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityReadiness;

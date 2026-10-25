@@ -34,7 +34,7 @@ import com.massimotter.weave.backend.security.workload.config.WorkloadEntitlemen
 import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation.Settings;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
-import com.massimotter.weave.backend.exception.ApiExceptionHandler;
+import com.massimotter.weave.backend.api.error.ApiExceptionHandler;
 import com.massimotter.weave.backend.calendar.application.CalendarFacadeService;
 import com.massimotter.weave.backend.files.application.FilesFacadeService;
 import com.massimotter.weave.backend.files.application.FilesUserApiService;

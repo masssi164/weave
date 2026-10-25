@@ -7,7 +7,7 @@ import com.massimotter.weave.backend.security.http.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
-import com.massimotter.weave.backend.exception.ApiExceptionHandler;
+import com.massimotter.weave.backend.api.error.ApiExceptionHandler;
 import com.massimotter.weave.backend.health.api.ProviderCapabilityHealthResponse;
 import com.massimotter.weave.backend.health.ProviderCapabilityHealthService;
 import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;

@@ -1,11 +1,11 @@
-package com.massimotter.weave.backend.service.spaces;
+package com.massimotter.weave.backend.spaces.application;
 
 import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.AuditEvent;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditRedactionLevel;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
-import com.massimotter.weave.backend.exception.SpaceMemberRevokedException;
+import com.massimotter.weave.backend.spaces.api.SpaceMemberRevokedException;
 import com.massimotter.weave.backend.spaces.api.SpaceProvisionRequest;
 import com.massimotter.weave.backend.spaces.api.SpaceProvisionResponse;
 import com.massimotter.weave.backend.spaces.api.SpaceMemberChangeRequest;

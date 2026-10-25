@@ -27,3 +27,9 @@ Identity owns current-member queries, invitation values/ports/persistence/use ca
 profile/identity/invitation HTTP adapters. Mounted HMAC reference material loads at real serving
 readiness or first use; the ordered readiness hook must still fail startup before serving or
 startup workflows when the exact SecretRef is invalid. Construction for AOT never reads it.
+
+Foundational Space User/Admin and exceptional setup adapters are in `spaces`; their actual
+serving imports must stay unique with bootstrap disabled by default. Shared HTTP advice in
+`api.error` must preserve support-safe diagnostics and Space revocation ETags without optional
+feature imports. Identity migration/recovery helpers are operator-only plain classes: never
+register them, run them at startup or use their client-secret provider as a serving fallback.

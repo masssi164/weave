@@ -5,7 +5,7 @@ import com.massimotter.weave.backend.security.http.ApiAccessDeniedHandler;
 
 import com.massimotter.weave.backend.security.config.OrganizationAdmissionConfiguration;
 import com.massimotter.weave.backend.identity.invitation.api.BootstrapOwnerInvitationController;
-import com.massimotter.weave.backend.controller.DefaultSpaceBootstrapController;
+import com.massimotter.weave.backend.spaces.api.DefaultSpaceBootstrapController;
 import com.massimotter.weave.backend.identity.invitation.api.IdentitySessionController;
 import com.massimotter.weave.backend.security.NativeOrganizationClaims;
 import com.massimotter.weave.backend.security.DeploymentOrganizationAdmission;

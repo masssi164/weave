@@ -1,6 +1,6 @@
-package com.massimotter.weave.backend.identity.bootstrap;
+package com.massimotter.weave.backend.spaces.bootstrap;
 
-import com.massimotter.weave.backend.config.DefaultSpaceBootstrapProperties;
+import com.massimotter.weave.backend.spaces.config.DefaultSpaceBootstrapProperties;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;

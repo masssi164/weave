@@ -124,7 +124,7 @@ workflow is removed as its own instructions required, resolving both current CI 
 | 1. Ownership and contracts | Inventory source/resources/dependencies and assign actual owners; prepare Entity-first and selected-domain discovery corpus changes; retain this plan as the single execution record | Corpus lint/examples, resolver tests, source inspection | In progress; accepted pin remains unchanged pending normal corpus review |
 | 2. Domain composition | App is the sole executable; Core owns justified platform responsibilities; runtime modules own imports registration and scoped persistence; separate non-web tooling | Compile, dependency graph, real imports discovery and bean uniqueness | App executable split, Core shared wiring and actual Files/Calendar runtime/imports implemented; Chat and future runtime extraction pending |
 | 3. Vertical extraction and ORM | Files/Calendar/Chat own services/controllers/providers/persistence; future domains remain buildable outside release; convert ordinary Calendar/Matrix JDBC CRUD | Domain units, PostgreSQL writes/isolation/constraints/transactions, no legacy copies | Files/Calendar vertical runtimes and Calendar/Matrix ORM extraction implemented; remaining Chat/future runtime/API ownership open |
-| 4. Core and build finalization | Remove feature dependencies from Core; one selection drives real checks, runtime, schema/API and identity; preserve data-safe initializer until qualified cutover | Architecture rules, selected JAR/SDK inspection, offline deterministic schema | Shared session/identity/policy and health implementations extracted into Core; runtime selection remains pending; schema cutover requires accepted corpus and integrity/recovery evidence |
+| 4. Core and build finalization | Remove feature dependencies from Core; one selection drives real checks, runtime, schema/API and identity; preserve data-safe initializer until qualified cutover | Architecture rules, selected JAR/SDK inspection, offline deterministic schema | Shared session/identity/Spaces/HTTP/policy and health implementations extracted into Core; runtime selection remains pending; schema cutover requires accepted corpus and integrity/recovery evidence |
 | 5. Runtime and clients | Release and three single-domain variants start with honest capabilities/endpoints; generated User/Admin contracts follow registered handlers; Flutter uses stable destinations | API/auth/client freshness, variants, Compose/two-member acceptance, ARM64/AOT/JNI where available | Pending; no live or native qualification claimed |
 | 6. Review and delivery | Consolidate docs/Skills/instructions; review combined diff; coherent commits/push and exact-revision PR evidence | Applicable combined CI, diff review, protected checks | Pending; no protected merge/deployment/data reset authorized |
 
@@ -752,3 +752,40 @@ composition-only documentation and unrelated client inputs. `python3 tools/build
 passed 41 tests. Its first local run exposed an existing macOS `/var` versus `/private/var`
 fixture assertion; the fixture now resolves the path exactly as the production Xcode command
 already does. This changes no signing or build behavior. No ARM64/GHCR contract was activated.
+
+### Foundational Spaces, HTTP errors and Identity operator checkpoint
+
+Core now owns the actual Space administration/bootstrap use cases, User/Admin/relationship
+controllers, exceptional setup settings/credential and revocation-ETag exception. Their former
+App `service.spaces`, `controller`, `config`, `exception` and `identity.bootstrap` copies are
+deleted. Explicit servlet imports discover the actual shared graph once; App scanning excludes
+the owning HTTP/credential namespaces. Setup remains disabled by default, admits only the
+reviewed Dogfood/E2E environments and does not read its mounted token during construction.
+Domains retain their preparation/resource contributions. No Files/Calendar/Chat implementation
+is needed for the shared Space primitive.
+
+Shared `api.error.ApiExceptionHandler` also moved physically to Core. Support-safe exception
+categorization, validation/status handling and strong Space-revocation ETags are unchanged.
+MVC fixtures explicitly import the relocated handler/controllers; actual runtime discovery
+uses Core's module-local imports. A complete first App run found PlatformControllerTest's
+reliance on old App scanning; its fixture import was corrected and the full rerun passed.
+
+Thirteen plain Keycloak realm-migration operator helpers and the client-secret recovery token
+provider move to Core Identity. Its sole production consumer is the explicit migration CLI;
+its former Agent Runtime adapter location was misleading and made identity recovery depend
+on a future feature. App retains CLI dispatch only. No migration auto-configuration, serving
+authentication fallback, provider call or persistent mutation is introduced. Backup proof,
+exact SecretRef, operation allowlist, receipt and idempotency guards remain. Recovery token
+cache diagnostics now redact the bearer. Independent tests move with their production owners;
+the transport fixture uses Core's actual exact-file SecretRef adapter. Future integration
+fixtures stay in App's owning business namespaces.
+
+Final main-source command `./gradlew :server:core:check :server:app:test
+checkOpenApiContractFresh coreArchitectureCi :server:app:bootJar -Pdomains=all --console=plain`
+passed in 1m49s. Core 263 unit/13 context tests; App 1,085 with 24 explicit PostgreSQL/MinIO lane
+skips; zero failures/errors. Fresh full API export 14 plus normalization five passed. Existing
+owning Files/Calendar checks and architecture prerequisites also passed. JAR inspection proves
+all 24 moved production implementations in Core with zero App class copies. No persistence
+mapping changed; the earlier 200-case PostgreSQL run remains historical, not a new database
+qualification of this source. Reduced runtime composition, Chat/future extraction and final
+platform/integration qualification remain open.

@@ -7,7 +7,7 @@ import com.massimotter.weave.backend.security.http.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
-import com.massimotter.weave.backend.exception.ApiExceptionHandler;
+import com.massimotter.weave.backend.api.error.ApiExceptionHandler;
 import com.massimotter.weave.backend.files.api.FileItemResponse;
 import com.massimotter.weave.backend.security.device.DeviceCredentialService;
 import com.massimotter.weave.backend.files.application.FilesFacadeService;

@@ -27,7 +27,11 @@ private-key JWT, exact SecretRefs, timeouts, URL context paths, expected statuse
 invalidation. Module-local servlet imports register it once; construction needs no mounted
 secret or live provider. Non-web operator tooling imports its required transport explicitly.
 Owning Core tests exercise real imports discovery and protected stub transports. Workload
-client registration remains a separate narrowly authorized flow.
+client registration remains a separate narrowly authorized flow. Plain `identity.migration`
+operator helpers and their explicit recovery token provider also belong here. App only dispatches
+the CLI; module discovery never registers or runs a migration. Backup proof, operation allowlist,
+exact SecretRef and receipt guards are unchanged. The recovery provider has no serving fallback
+registration; normal serving administration retains private-key JWT authentication.
 
 Release MCP authorization depends on protected member bindings, exact exchanged-token shape
 and current Keycloak entitlement. Its narrow authorization contract is shared; future runtime
@@ -54,12 +58,18 @@ expiry, revocation and storage belong to Security; installed domains declare the
 credential scopes. No installed scope means no issuance. Credential string output is redacted.
 The file-profile and in-memory credential fixtures are test-only artifacts.
 
-Foundational Spaces owns its access/membership/provisioning JPA adapters and shared user/
-relationship projections. Serving imports construct these actual adapters; non-web Dogfood
+Foundational Spaces owns its access/membership/provisioning JPA adapters, authorization-aware
+administration and shared User/Admin/relationship HTTP adapters under `spaces`. Explicit
+exceptional default-Space setup also belongs here: its typed settings admit only reviewed
+Dogfood/E2E environments, and module-local imports discover the credential/handler only when
+explicitly enabled. Domain preparation remains a list of narrow installed contributions;
+Space administration does not import domain implementations. Serving imports construct these actual adapters; non-web Dogfood
 preparation imports its own adapter explicitly. Domains implement resource contribution
 contracts. Request correlation and shared HTTP security/error adapters also register locally;
 Chat owns the Matrix denial envelope behind the narrow protocol error contract. Shared
-handlers operate without any installed protocol or optional domain.
+handlers operate without any installed protocol or optional domain. `api.error.ApiExceptionHandler`
+owns validation, support-safe failures and retired-route errors; the strong revocation ETag
+exception remains with Spaces.
 
 Shared revocation retains the existing durable table and hashed key format, permanent member
 cutoffs, session expiry retention, transaction/retry boundaries and fail-closed behavior.

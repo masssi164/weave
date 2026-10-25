@@ -1,4 +1,4 @@
-package com.massimotter.weave.backend.controller;
+package com.massimotter.weave.backend.spaces.api;
 
 import com.massimotter.weave.backend.api.error.ApiErrorResponse;
 import com.massimotter.weave.backend.spaces.api.SpaceProvisionRequest;
@@ -6,7 +6,7 @@ import com.massimotter.weave.backend.spaces.api.SpaceProvisionResponse;
 import com.massimotter.weave.backend.spaces.api.SpaceMemberChangeRequest;
 import com.massimotter.weave.backend.spaces.api.SpaceMemberResponse;
 import com.massimotter.weave.backend.spaces.api.SpaceMemberListResponse;
-import com.massimotter.weave.backend.service.spaces.SpaceAdminApiService;
+import com.massimotter.weave.backend.spaces.application.SpaceAdminApiService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;

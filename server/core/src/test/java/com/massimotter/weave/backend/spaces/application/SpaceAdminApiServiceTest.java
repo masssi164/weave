@@ -1,4 +1,4 @@
-package com.massimotter.weave.backend.service.spaces;
+package com.massimotter.weave.backend.spaces.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -7,7 +7,7 @@ import com.massimotter.weave.backend.audit.AuditEvent;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
-import com.massimotter.weave.backend.exception.SpaceMemberRevokedException;
+import com.massimotter.weave.backend.spaces.api.SpaceMemberRevokedException;
 import com.massimotter.weave.backend.identity.IdentityReferences;
 import com.massimotter.weave.backend.spaces.api.SpaceProvisionRequest;
 import com.massimotter.weave.backend.spaces.api.SpaceMemberChangeRequest;

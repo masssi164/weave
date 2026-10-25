@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.spaces.api.SpacesAdminController;
+
 import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.security.http.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.security.http.ApiAccessDeniedHandler;
@@ -14,13 +16,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.massimotter.weave.backend.config.*;
-import com.massimotter.weave.backend.exception.ApiExceptionHandler;
+import com.massimotter.weave.backend.api.error.ApiExceptionHandler;
 import com.massimotter.weave.backend.spaces.api.SpaceProvisionResponse;
-import com.massimotter.weave.backend.exception.SpaceMemberRevokedException;
+import com.massimotter.weave.backend.spaces.api.SpaceMemberRevokedException;
 import com.massimotter.weave.backend.spaces.port.SpaceAccessPort.Permission;
 import com.massimotter.weave.backend.spaces.port.SpaceMembershipAdministrationPort;
 import java.util.Set;
-import com.massimotter.weave.backend.service.spaces.SpaceAdminApiService;
+import com.massimotter.weave.backend.spaces.application.SpaceAdminApiService;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -36,7 +38,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(controllers = SpacesAdminController.class,
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
-@Import({SecurityConfig.class, ApiAuthenticationEntryPoint.class,
+@Import({SpacesAdminController.class, SecurityConfig.class, ApiAuthenticationEntryPoint.class,
         ApiAccessDeniedHandler.class, ApiErrorResponseWriter.class, ApiExceptionHandler.class})
 class SpacesAdminControllerTest {
     @Autowired MockMvc mvc;

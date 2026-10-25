@@ -1,9 +1,8 @@
-package com.massimotter.weave.backend.controller;
+package com.massimotter.weave.backend.spaces.api;
 
 import com.massimotter.weave.backend.api.error.ApiErrorResponse;
-import com.massimotter.weave.backend.spaces.api.SpaceUserListResponse;
-import com.massimotter.weave.backend.spaces.api.SpaceUserResponse;
-import com.massimotter.weave.backend.spaces.application.SpaceUserApiService;
+import com.massimotter.weave.backend.spaces.api.SpaceRelationshipListResponse;
+import com.massimotter.weave.backend.spaces.application.SpaceRelationshipUserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -31,38 +30,33 @@ import org.springframework.web.bind.annotation.RestController;
                         schema = @Schema(implementation = ApiErrorResponse.class))),
         @ApiResponse(responseCode = "404", description = "Space absent or not visible.",
                 content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                        schema = @Schema(implementation = ApiErrorResponse.class))),
+        @ApiResponse(responseCode = "503", description = "Current resource rights cannot be verified.",
+                content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                         schema = @Schema(implementation = ApiErrorResponse.class)))
 })
-public class SpacesUserController {
-    private final SpaceUserApiService spaces;
+public class SpacesRelationshipsUserController {
+    private final SpaceRelationshipUserService relationships;
 
-    public SpacesUserController(SpaceUserApiService spaces) {
-        this.spaces = spaces;
+    public SpacesRelationshipsUserController(SpaceRelationshipUserService relationships) {
+        this.relationships = relationships;
     }
 
-    @GetMapping(value = "/api/spaces", produces = MediaType.APPLICATION_JSON_VALUE)
-    @Operation(operationId = "listSpaces", summary = "List current member Spaces")
+    @GetMapping(value = "/api/spaces/{spaceRef}/relationships", produces = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(operationId = "listSpaceRelationships",
+            summary = "List direct materialized resource references visible to the current member")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Visible Spaces in stable order.",
+            @ApiResponse(responseCode = "200", description = "Current direct relationships in stable order.",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = SpaceUserListResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid page request.",
+                            schema = @Schema(implementation = SpaceRelationshipListResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid relation page request.",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ApiErrorResponse.class)))
     })
-    public SpaceUserListResponse list(
-            @AuthenticationPrincipal Jwt jwt,
-            @RequestParam(required = false) String afterSpaceRef,
+    public SpaceRelationshipListResponse list(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable String spaceRef,
+            @RequestParam(required = false) String afterRelationRef,
             @RequestParam(defaultValue = "25") int limit) {
-        return spaces.list(jwt, afterSpaceRef, limit);
-    }
-
-    @GetMapping(value = "/api/spaces/{spaceRef}", produces = MediaType.APPLICATION_JSON_VALUE)
-    @Operation(operationId = "getSpace", summary = "Read one current member Space")
-    @ApiResponse(responseCode = "200", description = "Visible Space.",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                    schema = @Schema(implementation = SpaceUserResponse.class)))
-    public SpaceUserResponse inspect(@AuthenticationPrincipal Jwt jwt, @PathVariable String spaceRef) {
-        return spaces.inspect(jwt, spaceRef);
+        return relationships.list(jwt, spaceRef, afterRelationRef, limit);
     }
 }

@@ -1,4 +1,4 @@
-package com.massimotter.weave.backend.config;
+package com.massimotter.weave.backend.spaces.config;
 
 import java.util.Set;
 import org.springframework.boot.context.properties.ConfigurationProperties;

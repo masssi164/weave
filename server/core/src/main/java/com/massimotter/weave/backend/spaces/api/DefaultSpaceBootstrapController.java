@@ -1,9 +1,9 @@
-package com.massimotter.weave.backend.controller;
+package com.massimotter.weave.backend.spaces.api;
 
 import com.massimotter.weave.backend.api.error.ApiErrorException;
-import com.massimotter.weave.backend.identity.bootstrap.DefaultSpaceBootstrapCredential;
+import com.massimotter.weave.backend.spaces.bootstrap.DefaultSpaceBootstrapCredential;
 import com.massimotter.weave.backend.spaces.api.DefaultSpaceBootstrapResponse;
-import com.massimotter.weave.backend.service.spaces.DefaultSpaceBootstrapService;
+import com.massimotter.weave.backend.spaces.application.DefaultSpaceBootstrapService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import java.util.Map;

@@ -1,4 +1,4 @@
-package com.massimotter.weave.backend.exception;
+package com.massimotter.weave.backend.spaces.api;
 
 /** Exposes only an administrator-authorized tombstone version for explicit regrant. */
 public final class SpaceMemberRevokedException extends RuntimeException {

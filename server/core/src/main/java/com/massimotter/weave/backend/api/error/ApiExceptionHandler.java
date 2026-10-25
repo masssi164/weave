@@ -1,4 +1,6 @@
-package com.massimotter.weave.backend.exception;
+package com.massimotter.weave.backend.api.error;
+
+import com.massimotter.weave.backend.spaces.api.SpaceMemberRevokedException;
 
 import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;

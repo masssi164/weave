@@ -1,4 +1,4 @@
-package com.massimotter.weave.backend.service.spaces;
+package com.massimotter.weave.backend.spaces.application;
 
 import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation;
 import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityPolicyState;

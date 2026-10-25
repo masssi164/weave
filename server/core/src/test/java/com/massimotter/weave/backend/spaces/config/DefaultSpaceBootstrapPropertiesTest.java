@@ -1,4 +1,4 @@
-package com.massimotter.weave.backend.config;
+package com.massimotter.weave.backend.spaces.config;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -18,6 +18,7 @@ class DefaultSpaceBootstrapPropertiesTest {
                     new DefaultSpaceBootstrapProperties(true, environment, "/private/token"));
         }
     }
+    @org.junit.jupiter.api.Tag("context")
     @Test void productionEnablingCannotStartAnExceptionalServer() {
         new ApplicationContextRunner().withUserConfiguration(PropertiesConfiguration.class)
                 .withPropertyValues("weave.spaces.bootstrap.enabled=true", "weave.spaces.bootstrap.environment=prod")
