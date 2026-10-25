@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.identity.member.api.OrganizationMemberAdministrationController;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
@@ -16,9 +18,9 @@ import com.massimotter.weave.backend.security.http.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.api.error.ApiExceptionHandler;
-import com.massimotter.weave.backend.model.identity.OrganizationMemberPageResponse;
-import com.massimotter.weave.backend.model.identity.OrganizationMemberResponse;
-import com.massimotter.weave.backend.service.OrganizationMemberAdministrationService;
+import com.massimotter.weave.backend.identity.member.api.OrganizationMemberPageResponse;
+import com.massimotter.weave.backend.identity.member.api.OrganizationMemberResponse;
+import com.massimotter.weave.backend.identity.member.application.OrganizationMemberAdministrationService;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -33,7 +35,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(controllers = OrganizationMemberAdministrationController.class,
     excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
-@Import({SecurityConfig.class, ApiAuthenticationEntryPoint.class,
+@Import({OrganizationMemberAdministrationController.class,SecurityConfig.class, ApiAuthenticationEntryPoint.class,
     ApiAccessDeniedHandler.class, ApiErrorResponseWriter.class, ApiExceptionHandler.class})
 class OrganizationMemberAdministrationControllerTest {
   private static final String PATH = "/api/admin/organizations/acme/members";

@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.chat.api.ChatController;
+
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.everyItem;
@@ -17,7 +19,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
-import com.massimotter.weave.backend.chat.ChatDomainFacadeService;
+import com.massimotter.weave.backend.chat.application.ChatDomainFacadeService;
 import com.massimotter.weave.backend.chat.domain.ChatHistoryPolicy;
 import com.massimotter.weave.backend.chat.domain.ChatMemberState;
 import com.massimotter.weave.backend.chat.domain.ChatMigrationPreflightReport;
@@ -34,7 +36,7 @@ import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDe
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
 import com.massimotter.weave.backend.spaces.authorization.ContextPermission;
 import com.massimotter.weave.backend.api.error.ApiExceptionHandler;
-import com.massimotter.weave.backend.service.ChatFacadeService;
+
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import java.time.Instant;
@@ -56,9 +58,12 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(
-        controllers = ChatController.class,
+        controllers = {ChatController.class, com.massimotter.weave.backend.decisions.api.DecisionLedgerController.class, com.massimotter.weave.backend.meetings.api.MeetingCapsuleController.class},
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
+        ChatController.class,
+        com.massimotter.weave.backend.decisions.api.DecisionLedgerController.class,
+        com.massimotter.weave.backend.meetings.api.MeetingCapsuleController.class,
         com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation.Configuration.class,
         OrganizationIdentityContextResolver.class,
         SecurityConfig.class,
@@ -67,7 +72,10 @@ import org.springframework.test.web.servlet.MockMvc;
         ApiErrorResponseWriter.class,
         ApiExceptionHandler.class,
         WorkspaceCapabilityService.class,
-        ChatFacadeService.class
+        com.massimotter.weave.backend.chat.application.ChatConversationAdmissionService.class,
+        com.massimotter.weave.backend.chat.application.ChatProviderReplacementService.class,
+        com.massimotter.weave.backend.decisions.application.DecisionLedgerService.class,
+        com.massimotter.weave.backend.meetings.application.MeetingCapsuleService.class
 })
 @TestPropertySource(properties = {
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.invalid/realms/weave",

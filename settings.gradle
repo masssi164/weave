@@ -34,7 +34,7 @@ include 'server:app',
         'weave-mcp-server',
         'weave-product-e2e'
 
-// Verification bridges remain IDE-visible; selected tests do not imply extracted production modules.
+// The canonical catalog makes each selectable owning domain project IDE-visible.
 def domainCatalog = new groovy.json.JsonSlurper().parse(file('server/domains/catalog.json'))
 include 'server:domains'
 domainCatalog.domains.keySet().sort().each { domain -> include "server:domains:${domain}" }

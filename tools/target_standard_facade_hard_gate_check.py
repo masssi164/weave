@@ -96,7 +96,7 @@ def check_matrix_boundary() -> None:
         "joinedRoomsAndMessagesUseCanonicalIdentifiers",
     )
     require(
-        "server/app/src/main/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionController.java",
+        "server/domains/chat/src/main/java/com/massimotter/weave/backend/chat/api/matrix/MatrixClientServerProjectionController.java",
         '"/_matrix/client/**"',
         "MatrixProtocolCoreService",
         "ChatDomainFacadeService",

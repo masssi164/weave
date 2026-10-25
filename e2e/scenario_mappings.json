@@ -974,7 +974,7 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/chat/ChatDomainFacadeServiceTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/chat/application/ChatDomainFacadeServiceTest.java",
           "fragments": [
             "matrixSendUsesCanonicalProviderAndPublishesSupportSafeAudit",
             "CHAT_MESSAGE_SENT",
@@ -1057,7 +1057,7 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/service/ChatFacadeServiceTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/service/ConversationAttachedFeaturesTest.java",
           "fragments": [
             "createMeetingCapsuleFailsClosedBeforeMutationWhenAuditPublisherIsMissing"
           ]
@@ -1091,7 +1091,7 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/service/ChatFacadeServiceTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/service/ConversationAttachedFeaturesTest.java",
           "fragments": [
             "createDecisionFailsClosedBeforeMutationWhenAuditPublisherIsMissing"
           ]
@@ -3881,7 +3881,7 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/service/ChatFacadeServiceTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/service/ConversationAttachedFeaturesTest.java",
           "fragments": [
             "decisionsExposeSupportSafeProvenanceAuditAndExportPosture",
             "raw provider secrets stay backend-only"
@@ -5046,7 +5046,7 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/chat/ChatDomainFacadeServiceTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/chat/application/ChatDomainFacadeServiceTest.java",
           "fragments": [
             "selectedEmptySpaceSupportsDiscoveryFirstRoomAndSendWithoutDefaultSpaceAccess",
             "selectedSpaceRechecksCallerAndRecipientAccessInsteadOfFallingBack",
@@ -5057,7 +5057,7 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/chat/store/JpaCanonicalChatStoreTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/chat/persistence/JpaCanonicalChatStoreTest.java",
           "fragments": [
             "spaceReferenceWideningPreservesExistingChatAndPersistsMaximumLengthScope"
           ]
@@ -5129,7 +5129,7 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/chat/adapter/WeaveCanonicalChatAdapterTest.java",
+          "path": "server/domains/chat/src/test/java/com/massimotter/weave/backend/chat/adapter/WeaveCanonicalChatAdapterTest.java",
           "fragments": [
             "readReceiptsAndTypingRemainCanonicalUserState",
             "markRead",
@@ -5269,7 +5269,7 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/chat/adapter/WeaveCanonicalChatAdapterTest.java",
+          "path": "server/domains/chat/src/test/java/com/massimotter/weave/backend/chat/adapter/WeaveCanonicalChatAdapterTest.java",
           "fragments": [
             "repeatedTransactionReturnsSameCanonicalMessageAndSingleChange",
             "ChatTransactionId",
@@ -5289,7 +5289,7 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/chat/adapter/WeaveCanonicalChatAdapterTest.java",
+          "path": "server/domains/chat/src/test/java/com/massimotter/weave/backend/chat/adapter/WeaveCanonicalChatAdapterTest.java",
           "fragments": [
             "northboundIdentifiersRemainCanonicalAndProviderNeutral",
             "conformanceAccountsForPortableLossyAndUnsupportedChatSemantics",
@@ -5919,7 +5919,7 @@
       "tag": "@matrix-e2ee-provider-switch",
       "scenario": "Provider replacement accounts for encrypted history",
       "feature": "e2e/features/chat_matrix_e2ee.feature",
-      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/chat/adapter/WeaveCanonicalChatAdapterTest.java",
+      "executableTest": "server/domains/chat/src/test/java/com/massimotter/weave/backend/chat/adapter/WeaveCanonicalChatAdapterTest.java",
       "evidenceMarkers": [
         "MATRIX_E2EE_PROVIDER_SWITCH_BLOCKED"
       ],
@@ -6430,7 +6430,7 @@
       "tag": "@admin-member-canonical-account-reference",
       "scenario": "Authorized administration links a current member to canonical Space identity",
       "feature": "e2e/features/admin_member_identity.feature",
-      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/service/OrganizationMemberAdministrationServiceTest.java",
+      "executableTest": "server/core/src/test/java/com/massimotter/weave/backend/identity/member/application/OrganizationMemberAdministrationServiceTest.java",
       "evidenceMarkers": [
         "liveMemberAccountReferenceMatchesUserMeAndSpaceIdentityAcrossAttributeChanges"
       ],

@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import patch
 
 from tools.domain_selection_resolver import (
-    DomainSelectionError, load_catalog, resolve, resolve_checkout, source_branch,
+    DomainSelectionError, load_catalog, matrix, resolve, resolve_checkout, source_branch,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -80,6 +80,77 @@ class DomainSelectionTest(unittest.TestCase):
         catalog = copy.deepcopy(CATALOG)
         catalog['domains']['new-domain'] = {}
         self.assertEqual(resolve(catalog, 'all', 'dev')['domains'], ['calendar', 'chat', 'files', 'new-domain'])
+
+
+class MatrixTest(unittest.TestCase):
+    def setUp(self):
+        self.catalog = {'domains': {
+            'chat': {}, 'files': {}, 'decisions': {'required_domains': ['chat']},
+            'meeting-archives': {'required_domains': ['decisions']}}}
+
+    def test_default_selected_mode_is_exactly_one_normalized_resolved_row(self):
+        selection = resolve(self.catalog, ' files,chat,files ', None)
+        self.assertEqual(matrix(self.catalog, selection), {'include': [{
+            'domain': 'selected', 'domains': 'chat,files', 'selection': 'chat,files',
+            'selectionSource': 'explicit'}]})
+
+    def test_individual_mode_includes_transitive_dependencies_but_never_unrelated_domains(self):
+        selection = resolve(self.catalog, 'all', None)
+        rows = matrix(self.catalog, selection, 'individual')['include']
+        self.assertEqual([(row['domain'], row['domains']) for row in rows], [
+            ('chat', 'chat'), ('decisions', 'chat,decisions'), ('files', 'files'),
+            ('meeting-archives', 'chat,decisions,meeting-archives')])
+        self.assertTrue(all(set(row['domains'].split(',')) <= set(selection['domains']) for row in rows))
+        self.assertTrue(all(row['selection'] == 'chat,decisions,files,meeting-archives' for row in rows))
+
+    def test_explicit_invalid_selection_fails_before_individual_scheduling(self):
+        with self.assertRaisesRegex(DomainSelectionError, 'requires explicit selection'):
+            resolve(self.catalog, 'meeting-archives', None)
+
+    def test_matrix_does_not_widen_a_malformed_previously_resolved_selection(self):
+        with self.assertRaisesRegex(DomainSelectionError, 'outside the resolved selection'):
+            matrix(self.catalog, {'domains': ['decisions'], 'selectionSource': 'explicit'}, 'individual')
+
+    def test_unknown_iteration_never_defaults_to_aggregate(self):
+        with self.assertRaisesRegex(DomainSelectionError, 'iteration must be'):
+            matrix(self.catalog, resolve(self.catalog, 'chat', None), 'unsupported')
+
+    def test_checkout_matrix_loads_catalog_and_resolves_selection_once(self):
+        with patch('tools.domain_selection_resolver.load_catalog', wraps=load_catalog) as load, \
+                patch('tools.domain_selection_resolver.resolve', wraps=resolve) as resolver:
+            result = resolve_checkout(ROOT, 'chat,decisions', iteration='individual')
+        self.assertEqual(load.call_count, 1)
+        self.assertEqual(resolver.call_count, 1)
+        self.assertEqual([row['domains'] for row in result['include']], ['chat', 'chat,decisions'])
+
+    def test_catalog_rejects_indirect_dependency_cycles(self):
+        with tempfile.TemporaryDirectory(prefix='weave-domain-cycle-') as tmp:
+            root = Path(tmp)
+            (root / 'server/domains').mkdir(parents=True)
+            domains = {name: {'unit_tasks': [f':server:domains:{name}:test'], 'required_domains': [dependency]}
+                       for name, dependency in [('chat', 'decisions'), ('decisions', 'meeting-archives'),
+                                                ('meeting-archives', 'chat')]}
+            (root / 'server/domains/catalog.json').write_text(json.dumps({'domains': domains}))
+            with self.assertRaisesRegex(DomainSelectionError,
+                                        'dependency cycle: chat -> decisions -> meeting-archives -> chat'):
+                load_catalog(root)
+
+    def test_cli_matrix_and_iteration_validation(self):
+        script = ROOT / 'tools/domain_selection_resolver.py'
+        result = subprocess.run(['python3', str(script), '--root', str(ROOT), '--domains', 'chat,decisions',
+                                 '--format', 'matrix', '--iteration', 'individual'],
+                                text=True, capture_output=True, check=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual([row['domains'] for row in json.loads(result.stdout)['include']],
+                         ['chat', 'chat,decisions'])
+        for arguments in [('--domains', 'decisions', '--format', 'matrix', '--iteration', 'individual'),
+                          ('--domains', 'chat', '--format', 'csv', '--iteration', 'individual'),
+                          ('--domains', 'chat', '--format', 'matrix', '--iteration', 'unsupported')]:
+            with self.subTest(arguments=arguments):
+                result = subprocess.run(['python3', str(script), '--root', str(ROOT), *arguments],
+                                        text=True, capture_output=True, check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, '')
 
 
 class SourceIdentityTest(unittest.TestCase):
@@ -163,48 +234,57 @@ class SourceIdentityTest(unittest.TestCase):
 
 
 class InventoryTest(unittest.TestCase):
-    def test_each_declared_unit_class_exists_and_is_not_an_obvious_integration_suite(self):
-        catalog = load_catalog(ROOT)
-        for domain, inventory in catalog['domains'].items():
-            self.assertTrue(inventory['server_unit_tests'] or inventory['additional_unit_tasks'], domain)
-            self.assertEqual(len(inventory['server_unit_tests']), len(set(inventory['server_unit_tests'])))
-            for name in inventory['server_unit_tests']:
-                with self.subTest(domain=domain, name=name):
-                    path = ROOT / 'server/app/src/test/java' / (name.replace('.', '/') + '.java')
-                    source = path.read_text()
-                    self.assertNotIn('@Testcontainers', source)
-                    self.assertNotIn('@SpringBootTest', source)
-                    self.assertNotIn('PostgresTest', name)
-
-    def test_domain_bridge_projects_exist_for_the_catalog(self):
+    def test_real_domain_projects_own_actual_unit_and_context_suites(self):
         for domain, inventory in load_catalog(ROOT)['domains'].items():
             source = (ROOT / 'server/domains' / domain / 'build.gradle').read_text()
-            if inventory['server_unit_tests']:
-                self.assertIn('domain-project.gradle', source)
-            else:
-                self.assertIn("id 'java-library'", source)
-                self.assertIn('domain-library.gradle', source)
-                self.assertNotIn('domain-project.gradle', source)
-                self.assertNotIn('server:app', source)
-                self.assertIn(f':server:domains:{domain}:test', inventory['additional_unit_tasks'])
-                self.assertTrue((ROOT / 'server/domains' / domain / 'src/test/java').is_dir())
+            self.assertIn("id 'java-library'", source)
+            self.assertIn('domain-library.gradle', source)
+            self.assertNotIn('domain-project.gradle', source)
+            self.assertNotIn('server:app', source)
+            self.assertIn(f':server:domains:{domain}:test', inventory['unit_tasks'])
+            units = list((ROOT / 'server/domains' / domain / 'src/test/java').rglob('*Test.java'))
+            self.assertTrue(units, domain)
+            self.assertTrue(any('Tag("context")' not in test.read_text() for test in units), domain)
 
     def test_extracted_domains_include_their_framework_free_unit_suites(self):
         for domain in ('files', 'calendar'):
-            self.assertIn(f':server:domains:{domain}:model:test', load_catalog(ROOT)['domains'][domain]['additional_unit_tasks'])
+            self.assertIn(f':server:domains:{domain}:model:test', load_catalog(ROOT)['domains'][domain]['unit_tasks'])
 
     def test_real_owning_test_tasks_replace_extracted_app_bridges(self):
-        for domain in ('files', 'calendar'):
+        for domain in ('files', 'calendar', 'chat', 'decisions', 'meetings'):
             inventory = load_catalog(ROOT)['domains'][domain]
-            self.assertEqual(inventory['server_unit_tests'], [])
-            self.assertIn(f':server:domains:{domain}:test', inventory['additional_unit_tasks'])
+            self.assertIn(f':server:domains:{domain}:test', inventory['unit_tasks'])
         source = (ROOT / 'server/gradle/tasks/domain-verification.gradle').read_text()
-        self.assertIn('inventory.server_unit_tests }.each', source)
+        self.assertNotIn('domain${domain.capitalize()}UnitTest', source)
+        self.assertNotIn('server_unit_tests', source)
+        self.assertFalse((ROOT / 'server/domains/domain-project.gradle').exists())
+
+    def test_required_domains_are_never_silently_included(self):
+        catalog = copy.deepcopy(CATALOG)
+        catalog['domains']['decisions'] = {'required_domains': ['chat']}
+        with self.assertRaisesRegex(DomainSelectionError, 'decisions requires explicit selection of: chat'):
+            resolve(catalog, 'decisions', None)
+        self.assertEqual(resolve(catalog, 'decisions,chat', None)['domains'], ['chat', 'decisions'])
+        self.assertIn('decisions', resolve(catalog, 'all', 'dev')['domains'])
+        catalog['selection']['pinned_domains'] = ['decisions']
+        with self.assertRaisesRegex(DomainSelectionError, 'requires explicit selection'):
+            resolve(catalog, None, 'dev')
+
+    def test_unknown_and_self_required_domains_are_rejected(self):
+        for dependency in ('unknown', 'files'):
+            with tempfile.TemporaryDirectory(prefix='weave-domain-dependency-') as tmp:
+                root = Path(tmp)
+                (root / 'server/domains').mkdir(parents=True)
+                (root / 'server/domains/catalog.json').write_text(json.dumps({'domains': {
+                    'files': {'unit_tasks': [':server:domains:files:test'],
+                              'required_domains': [dependency]}}}))
+                with self.assertRaisesRegex(DomainSelectionError, 'domain dependencies'):
+                    load_catalog(root)
 
     def test_invalid_catalog_is_rejected(self):
         for payload in [{}, {'domains': {}}, {'domains': {'all': {}}}, {'domains': {'../files': {}}},
-                        {'domains': {'files': {'server_unit_tests': [], 'additional_unit_tasks': []}}},
-                        {'domains': {'files': {'server_unit_tests': ['*Test'], 'additional_unit_tasks': []}}}]:
+                        {'domains': {'files': {'unit_tasks': []}}},
+                        {'domains': {'files': {'server_unit_tests': ['*Test'], 'unit_tasks': []}}}]:
             with self.subTest(payload=payload), tempfile.TemporaryDirectory(prefix='weave-domain-catalog-') as tmp:
                 root = Path(tmp)
                 (root / 'server/domains').mkdir(parents=True)

@@ -19,6 +19,15 @@ services and provider health are servlet-only. Their explicit beans consume requ
 contracts; health consumes deferred domain probes and does not contact providers during
 construction. No domain component scan or optional feature implementation is required.
 
+Core Identity owns member lifecycle administration under `identity.member`: opaque references,
+organization-bound listing/role changes, last-owner protection, session revocation and offboarding.
+Its protected Weaver/MCP entitlement assignment is shared access policy used independently of
+Agent Runtime execution. It reuses the accepted Keycloak organization authority; no separate
+permission system or Agent Runtime SDK/runtime is required. Wire values/HTTP adapters belong to
+`identity.member.api`; durable side-effect claims live with Identity persistence. Remote Keycloak
+writes are never treated as rolled back by a local transaction. Claim/completion transactions
+commit independently; a losing unique insert finishes before reading a concurrent winner.
+
 Core Identity also owns invitation values/ports, transactional adapters and use cases, current
 member display-name queries and the shared identity/profile/invitation HTTP adapters. Human
 Keycloak administration uses the named HTTP

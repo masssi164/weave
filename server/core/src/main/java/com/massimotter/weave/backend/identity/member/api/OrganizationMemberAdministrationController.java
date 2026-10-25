@@ -1,0 +1,181 @@
+package com.massimotter.weave.backend.identity.member.api;
+
+import com.massimotter.weave.backend.api.error.ApiErrorResponse;
+import com.massimotter.weave.backend.identity.member.api.MemberLifecycleOperationResponse;
+import com.massimotter.weave.backend.identity.member.api.MemberOffboardingRequest;
+import com.massimotter.weave.backend.identity.member.api.OrganizationMemberPageResponse;
+import com.massimotter.weave.backend.identity.member.api.OrganizationMemberResponse;
+import com.massimotter.weave.backend.identity.member.api.OrganizationMemberUpdateRequest;
+import com.massimotter.weave.backend.identity.member.api.WeaverEntitlementUpdateRequest;
+import com.massimotter.weave.backend.identity.member.application.OrganizationMemberAdministrationService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/admin/organizations/{organizationId}/members")
+@PreAuthorize(
+    "hasAuthority('SCOPE_weave:workspace') and (hasRole('OWNER') or hasRole('ADMIN'))")
+@Tag(
+    name = "Organization members",
+    description = "Keycloak-backed member lifecycle through opaque Weave references.")
+@SecurityRequirement(name = "bearer-jwt")
+@ApiResponses({
+  @ApiResponse(
+      responseCode = "401",
+      description = "Missing or invalid bearer token.",
+      content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
+  @ApiResponse(
+      responseCode = "403",
+      description = "The caller cannot administer the configured organization.",
+      content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class)))
+})
+public class OrganizationMemberAdministrationController {
+  private final OrganizationMemberAdministrationService service;
+
+  public OrganizationMemberAdministrationController(
+      OrganizationMemberAdministrationService service) {
+    this.service = service;
+  }
+
+  @GetMapping
+  @Operation(operationId = "listOrganizationMembers")
+  @ApiResponse(
+      responseCode = "200",
+      description = "Paged organization members visible to the administrator.",
+      content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = OrganizationMemberPageResponse.class)))
+  public OrganizationMemberPageResponse list(
+      @PathVariable String organizationId,
+      @RequestParam(required = false) String cursor,
+      @RequestParam(defaultValue = "50") int size,
+      @AuthenticationPrincipal Jwt jwt) {
+    return service.list(organizationId, cursor, size, jwt);
+  }
+
+  @GetMapping("/{memberHandle}")
+  @Operation(operationId = "getOrganizationMember")
+  @ApiResponse(
+      responseCode = "200",
+      description = "Current organization member and version.",
+      content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = OrganizationMemberResponse.class)))
+  public OrganizationMemberResponse get(
+      @PathVariable String organizationId,
+      @PathVariable String memberHandle,
+      @AuthenticationPrincipal Jwt jwt) {
+    return service.get(organizationId, memberHandle, jwt);
+  }
+
+  @PatchMapping("/{memberHandle}")
+  @Operation(operationId = "updateOrganizationMemberAccess")
+  @ApiResponse(
+      responseCode = "200",
+      description = "Updated organization member and version.",
+      content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = OrganizationMemberResponse.class)))
+  public OrganizationMemberResponse update(
+      @PathVariable String organizationId,
+      @PathVariable String memberHandle,
+      @Valid @RequestBody OrganizationMemberUpdateRequest request,
+      @RequestHeader("If-Match") String expectedVersion,
+      @RequestHeader("Idempotency-Key") String idempotencyKey,
+      @AuthenticationPrincipal Jwt jwt) {
+    return service.update(
+        organizationId, memberHandle, request, expectedVersion, idempotencyKey, jwt);
+  }
+
+  @PutMapping("/{memberHandle}/capabilities/weaver")
+  @Operation(operationId = "updateOrganizationMemberWeaverEntitlement")
+  @ApiResponse(
+      responseCode = "200",
+      description = "Organization member after Weaver entitlement update.",
+      content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = OrganizationMemberResponse.class)))
+  public OrganizationMemberResponse updateWeaverEntitlement(
+      @PathVariable String organizationId,
+      @PathVariable String memberHandle,
+      @Valid @RequestBody WeaverEntitlementUpdateRequest request,
+      @RequestHeader("If-Match") String expectedVersion,
+      @RequestHeader("Idempotency-Key") String idempotencyKey,
+      @AuthenticationPrincipal Jwt jwt) {
+    return service.updateWeaverEntitlement(
+        organizationId, memberHandle, request, expectedVersion, idempotencyKey, jwt);
+  }
+
+  @PostMapping("/{memberHandle}/session-revocations")
+  @Operation(operationId = "revokeOrganizationMemberSessions")
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "Support-safe session revocation result.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = MemberLifecycleOperationResponse.class))),
+    @ApiResponse(responseCode = "400", description = "Invalid required request header.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
+    @ApiResponse(responseCode = "404", description = "The organization member is unavailable.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
+    @ApiResponse(responseCode = "409", description = "The idempotency claim conflicts with an earlier operation.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
+    @ApiResponse(responseCode = "412", description = "The member version changed.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
+    @ApiResponse(responseCode = "428", description = "A member version precondition is required.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
+    @ApiResponse(responseCode = "502", description = "Identity provider administration failed.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
+    @ApiResponse(responseCode = "503", description = "Durable session revocation is unavailable.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class)))
+  })
+  public MemberLifecycleOperationResponse revokeSessions(
+      @PathVariable String organizationId,
+      @PathVariable String memberHandle,
+      @RequestHeader("If-Match") String expectedVersion,
+      @RequestHeader("Idempotency-Key") String idempotencyKey,
+      @AuthenticationPrincipal Jwt jwt) {
+    return service.revokeSessions(
+        organizationId, memberHandle, expectedVersion, idempotencyKey, jwt);
+  }
+
+  @PostMapping("/{memberHandle}/offboarding")
+  @Operation(operationId = "offboardOrganizationMember")
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "Support-safe member offboarding result.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = MemberLifecycleOperationResponse.class))),
+    @ApiResponse(responseCode = "400", description = "Invalid required request header.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
+    @ApiResponse(responseCode = "404", description = "The organization member is unavailable.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
+    @ApiResponse(responseCode = "409", description = "The idempotency claim or owner protection conflicts with this operation.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
+    @ApiResponse(responseCode = "412", description = "The member version changed.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
+    @ApiResponse(responseCode = "428", description = "A member version precondition is required.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
+    @ApiResponse(responseCode = "502", description = "Identity provider administration failed.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
+    @ApiResponse(responseCode = "503", description = "Durable session revocation is unavailable.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class)))
+  })
+  public MemberLifecycleOperationResponse offboard(
+      @PathVariable String organizationId,
+      @PathVariable String memberHandle,
+      @Valid @RequestBody MemberOffboardingRequest request,
+      @RequestHeader("If-Match") String expectedVersion,
+      @RequestHeader("Idempotency-Key") String idempotencyKey,
+      @AuthenticationPrincipal Jwt jwt) {
+    return service.offboard(
+        organizationId, memberHandle, expectedVersion, idempotencyKey, jwt);
+  }
+}

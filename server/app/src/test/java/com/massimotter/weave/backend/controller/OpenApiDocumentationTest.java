@@ -5,7 +5,7 @@ import com.massimotter.weave.backend.identity.profile.api.ProfileReadinessRespon
 import com.massimotter.weave.backend.identity.profile.api.ProductProfileResponse;
 import com.massimotter.weave.backend.api.error.ApiErrorResponse;
 
-import com.massimotter.weave.backend.matrix.MatrixProtocolCoreService;
+import com.massimotter.weave.backend.chat.provider.matrix.MatrixProtocolCoreService;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;

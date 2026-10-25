@@ -51,7 +51,7 @@ class FilesRuntimeDiscoveryTest {
                     assertThat(paths).noneMatch(path -> path.startsWith("/api/calendar") || path.startsWith("/_matrix"));
                     assertThat(ClassUtils.isPresent("com.massimotter.weave.backend.WeaveBackendApplication", context.getClassLoader())).isFalse();
                     assertThat(ClassUtils.isPresent("com.massimotter.weave.backend.calendar.domain.CalendarDomain", context.getClassLoader())).isFalse();
-                    assertThat(ClassUtils.isPresent("com.massimotter.weave.backend.matrix.MatrixProtocolCoreService", context.getClassLoader())).isFalse();
+                    assertThat(ClassUtils.isPresent("com.massimotter.weave.backend.chat.provider.matrix.MatrixProtocolCoreService", context.getClassLoader())).isFalse();
                 });
     }
 

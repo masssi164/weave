@@ -9,31 +9,39 @@
   },
   "domains": {
     "calendar": {
-      "server_unit_tests": [],
-      "additional_unit_tasks": [
+      "unit_tasks": [
         ":server:domains:calendar:test",
         ":server:domains:calendar:model:test",
         ":server:domains:calendar:persistence:test"
       ]
     },
     "chat": {
-      "server_unit_tests": [
-        "com.massimotter.weave.backend.chat.ChatDomainFacadeServiceTest",
-        "com.massimotter.weave.backend.chat.ChatProviderBindingGateTest",
-        "com.massimotter.weave.backend.chat.DurableChatSpaceAccessTest",
-        "com.massimotter.weave.backend.chat.provider.synapse.MatrixSynapseCompatibilityProfileTest",
-        "com.massimotter.weave.backend.chat.provider.synapse.SynapseApplicationServiceClientTest",
-        "com.massimotter.weave.backend.config.ChatRuntimeContractTest",
-        "com.massimotter.weave.backend.service.ChatFacadeServiceTest"
-      ],
-      "additional_unit_tasks": []
+      "unit_tasks": [
+        ":server:domains:chat:test",
+        ":server:domains:chat:persistence:test"
+      ]
     },
     "files": {
-      "server_unit_tests": [],
-      "additional_unit_tasks": [
+      "unit_tasks": [
         ":server:domains:files:test",
         ":server:domains:files:model:test",
         ":server:domains:files:persistence:test"
+      ]
+    },
+    "decisions": {
+      "required_domains": [
+        "chat"
+      ],
+      "unit_tasks": [
+        ":server:domains:decisions:test"
+      ]
+    },
+    "meetings": {
+      "required_domains": [
+        "chat"
+      ],
+      "unit_tasks": [
+        ":server:domains:meetings:test"
       ]
     }
   }

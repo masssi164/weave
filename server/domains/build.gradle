@@ -2,13 +2,13 @@ plugins {
     id 'base'
 }
 
-description = 'Selected owning domain checks and remaining transitional unit bridges.'
+description = 'Selected owning domain checks.'
 
 def selectedDomains = project(':server').ext.weaveDomainSelection.domains
 
 tasks.register('test') {
     group = 'verification'
-    description = 'Run selected owning domain tasks and remaining transitional unit inventories.'
+    description = 'Run selected owning domain unit tasks.'
     dependsOn selectedDomains.collect { ":server:domains:${it}:test" }
 }
 
@@ -20,7 +20,7 @@ tasks.register('selectionContractTest', Exec) {
 }
 
 tasks.named('check') {
-    description = 'Check the selected JVM unit inventories without replacing serverCi.'
+    description = 'Check the actual selected domain units and contexts without replacing serverCi.'
     dependsOn 'selectionContractTest'
     dependsOn selectedDomains.collect { ":server:domains:${it}:check" }
 }

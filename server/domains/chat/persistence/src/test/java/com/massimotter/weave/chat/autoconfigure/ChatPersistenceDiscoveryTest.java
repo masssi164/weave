@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import jakarta.persistence.EntityManagerFactory;
 import com.massimotter.weave.backend.chat.persistence.MatrixE2eeRelationalStore;
-import com.massimotter.weave.backend.matrix.MatrixE2eePersistence;
+import com.massimotter.weave.backend.chat.port.MatrixE2eePersistence;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;

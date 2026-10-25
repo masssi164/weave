@@ -1,11 +1,13 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.chat.api.matrix.MatrixClientServerProjectionController;
+
 import com.massimotter.weave.backend.chat.api.security.MatrixClientSecurityErrorWriter;
 
 import com.massimotter.weave.backend.security.MemberSessionRevocationService;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import tools.jackson.databind.ObjectMapper;
-import com.massimotter.weave.backend.chat.ChatDomainFacadeService;
+import com.massimotter.weave.backend.chat.application.ChatDomainFacadeService;
 import com.massimotter.weave.backend.chat.domain.ChatAccessDeniedException;
 import com.massimotter.weave.backend.chat.domain.ChatConversation;
 import com.massimotter.weave.backend.chat.domain.ChatCursor;
@@ -31,12 +33,12 @@ import com.massimotter.weave.backend.security.http.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.api.error.ApiExceptionHandler;
-import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateService;
-import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateStore;
-import com.massimotter.weave.backend.matrix.MatrixE2eeStateService;
-import com.massimotter.weave.backend.matrix.MatrixDeviceProofService;
-import com.massimotter.weave.backend.matrix.InMemoryMatrixE2eeRelationalStore;
-import com.massimotter.weave.backend.matrix.MatrixProtocolCoreService;
+import com.massimotter.weave.backend.chat.application.matrix.MatrixFacadeClientStateService;
+import com.massimotter.weave.backend.chat.port.MatrixFacadeClientStateStore;
+import com.massimotter.weave.backend.chat.application.matrix.MatrixE2eeStateService;
+import com.massimotter.weave.backend.chat.application.matrix.MatrixDeviceProofService;
+import com.massimotter.weave.backend.chat.application.matrix.InMemoryMatrixE2eeRelationalStore;
+import com.massimotter.weave.backend.chat.provider.matrix.MatrixProtocolCoreService;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.testing.InMemoryMatrixFacadeClientStateStore;
 import java.time.Instant;
@@ -91,7 +93,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(
         controllers = MatrixClientServerProjectionController.class,
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
-@Import({MatrixClientSecurityErrorWriter.class,
+@Import({MatrixClientServerProjectionController.class, MatrixClientSecurityErrorWriter.class,
         SecurityConfig.class,
         ApiAuthenticationEntryPoint.class,
         ApiAccessDeniedHandler.class,

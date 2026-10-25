@@ -1,4 +1,3 @@
-def catalogFile = rootProject.file('server/domains/catalog.json')
 def weaveDomainCatalog = project(':server').ext.weaveDomainCatalog
 def weaveDomainSelection = project(':server').ext.weaveDomainSelection
 
@@ -18,30 +17,4 @@ def verifyFullDomainPackaging = tasks.register('verifyFullDomainPackaging') {
 }
 tasks.matching { it.name in ['bootJar', 'bootBuildImage', 'nativeCompile', 'openApiContractExport', 'entitySchemaExport'] }.configureEach {
     dependsOn verifyFullDomainPackaging
-}
-
-// These are existing JVM tests, not extracted domains or native/product qualification.
-weaveDomainCatalog.domains.findAll { domain, inventory -> inventory.server_unit_tests }.each { domain, inventory ->
-    tasks.register("domain${domain.capitalize()}UnitTest", Test) {
-        group = 'verification'
-        description = "Run the bounded ${domain} JVM unit inventory from the existing Server sources."
-        dependsOn tasks.named('testClasses')
-        testClassesDirs = sourceSets.test.output.classesDirs
-        classpath = sourceSets.test.runtimeClasspath
-        inputs.file(catalogFile)
-        filter {
-            inventory.server_unit_tests.each { includeTestsMatching it }
-            failOnNoMatchingTests = true
-        }
-        useJUnitPlatform {
-            // Class-name filtering alone does not constrain Cucumber discovery.
-            includeEngines 'junit-jupiter'
-            excludeTags 'postgres'
-        }
-        afterSuite { descriptor, result ->
-            if (descriptor.parent == null && result.testCount == result.skippedTestCount) {
-                throw new GradleException("The ${domain} JVM unit inventory executed no tests.")
-            }
-        }
-    }
 }

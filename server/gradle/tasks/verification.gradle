@@ -42,7 +42,7 @@ tasks.named('test') {
     useJUnitPlatform {
         excludeTags 'postgres'
     }
-    systemProperty 'weave.matrix.protocol.library.path', matrixProtocolLibrary.absolutePath
+    systemProperty 'weave.matrix.protocol.library.path', matrixProtocolLibrary.get().absolutePath
 }
 
 tasks.register('javaAgentReferenceTest', Test) {
@@ -92,7 +92,7 @@ tasks.register('postgresJpaTest', Test) {
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     maxParallelForks = 1
-    systemProperty 'weave.matrix.protocol.library.path', matrixProtocolLibrary.absolutePath
+    systemProperty 'weave.matrix.protocol.library.path', matrixProtocolLibrary.get().absolutePath
     systemProperty 'weave.test.postgres', 'true'
     testLogging {
         exceptionFormat = 'full'
@@ -126,6 +126,7 @@ tasks.register('postgresJpaTest', Test) {
         includeTestsMatching '*JpaProviderBindingRepositoryPostgresTest'
         includeTestsMatching '*CalendarBindingBootstrapPersistenceTest'
         includeTestsMatching '*JpaOrganizationBootstrapRepositoryTest'
+        includeTestsMatching '*IdentityAdminOperationStorePostgresTest'
         includeTestsMatching '*JpaMigrationRunEvidenceRepositoryTest'
         includeTestsMatching '*JpaMigrationRunEvidenceRepositoryPostgresTest'
         includeTestsMatching '*JpaOperationIntentRepositoryPostgresTest'

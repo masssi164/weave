@@ -1,5 +1,14 @@
 package com.massimotter.weave.backend.architecture;
 
+import com.massimotter.weave.backend.chat.persistence.JpaCanonicalChatStore;
+import com.massimotter.weave.backend.chat.persistence.CanonicalChatJpaAuthority;
+import com.massimotter.weave.backend.chat.config.ChatRuntimeConfiguration;
+import com.massimotter.weave.backend.chat.config.CanonicalChatPersistenceConfiguration;
+import com.massimotter.weave.backend.chat.config.MatrixApplicationServiceSecurityConfiguration;
+import com.massimotter.weave.backend.chat.api.ChatController;
+import com.massimotter.weave.backend.chat.api.matrix.MatrixClientServerProjectionController;
+import com.massimotter.weave.backend.chat.provider.matrix.MatrixProtocolCoreService;
+
 import com.massimotter.weave.backend.identity.profile.persistence.FileProductProfileOverrideRepository;
 
 
@@ -277,7 +286,7 @@ class ServerArchitectureBoundaryTest {
         assertThat(sourceEndingWith(Path.of("controller", "WorkspaceController.java")).text())
                 .doesNotContain("/api/v1/organization")
                 .doesNotContain("/api/v1/workspace");
-        assertThat(sourceEndingWith(Path.of("controller", "ChatController.java")).text())
+        assertThat(sourceEndingWith(Path.of("chat", "api", "ChatController.java")).text())
                 .doesNotContain("/api/v1/chat")
                 .doesNotContain("/api/v1/admin/chat");
         assertThat(sourceEndingWith(Path.of("controller", "AdminControlPlaneController.java")).text())
@@ -345,7 +354,7 @@ class ServerArchitectureBoundaryTest {
     @Test
     void matrixClientServerProjectionUsesCanonicalChatAndNativeCoreNotRestDtos() throws IOException {
         JavaSource matrixProjection = productionSources().stream()
-                .filter(source -> source.path().endsWith(Path.of("controller", "MatrixClientServerProjectionController.java")))
+                .filter(source -> source.path().endsWith(Path.of("chat", "api", "matrix", "MatrixClientServerProjectionController.java")))
                 .findFirst()
                 .orElseThrow();
 
@@ -805,6 +814,8 @@ class ServerArchitectureBoundaryTest {
         return !source.packageName().equals(BACKEND_PACKAGE + "config")
                 && !source.packageName().startsWith(BACKEND_PACKAGE + "config.")
                 && !source.packageName().startsWith(BACKEND_PACKAGE + "chat.provider.")
+                && !source.packageName().equals(BACKEND_PACKAGE + "chat.config")
+                && !source.packageName().startsWith(BACKEND_PACKAGE + "chat.config.")
                 && !source.packageName().startsWith(BACKEND_PACKAGE + "calendar.provider.")
                 && !source.packageName().startsWith(BACKEND_PACKAGE + "calendar.config")
                 && (className.contains("Mcp")

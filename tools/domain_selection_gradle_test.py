@@ -25,9 +25,14 @@ class DomainGradleWiringTest(unittest.TestCase):
 
     def test_subset_check_uses_only_selected_inventory(self):
         output = self.gradle(':server:domains:check', '-Pdomains=files,chat', '--dry-run')
-        self.assertEqual(self.unit_tasks(output), {':server:app:domainChatUnitTest'})
+        self.assertEqual(self.unit_tasks(output), set())
         self.assertIn(':server:domains:files:test SKIPPED', output)
         self.assertIn(':server:domains:files:contextTest SKIPPED', output)
+        self.assertIn(':server:domains:chat:test SKIPPED', output)
+        self.assertIn(':server:domains:chat:contextTest SKIPPED', output)
+        self.assertIn(':server:domains:chat:buildMatrixRustCoreJni SKIPPED', output)
+        self.assertNotIn(':server:domains:decisions:test', output)
+        self.assertNotIn(':server:domains:meetings:test', output)
         self.assertIn(':server:domains:files:persistence:contextTest SKIPPED', output)
         self.assertIn(':server:core:contextTest SKIPPED', output)
         self.assertNotIn(':server:domains:calendar:contextTest', output)
@@ -48,11 +53,11 @@ class DomainGradleWiringTest(unittest.TestCase):
     def test_default_and_explicit_all_have_the_same_domain_graph(self):
         default = self.gradle(':server:domains:check', '--dry-run')
         explicit = self.gradle(':server:domains:check', '-Pdomains=all', '--dry-run')
-        expected = {':server:app:domainChatUnitTest'}
+        expected = set()
         self.assertEqual(self.unit_tasks(default), expected)
         self.assertEqual(self.unit_tasks(explicit), expected)
         for output in (default, explicit):
-            for domain in ('files', 'calendar'):
+            for domain in ('files', 'calendar', 'chat', 'decisions', 'meetings'):
                 self.assertIn(f':server:domains:{domain}:test SKIPPED', output)
                 self.assertIn(f':server:domains:{domain}:contextTest SKIPPED', output)
                 self.assertNotIn(f':server:domains:{domain}:model:contextTest', output)

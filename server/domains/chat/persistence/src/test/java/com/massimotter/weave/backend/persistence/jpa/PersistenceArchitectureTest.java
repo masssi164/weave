@@ -8,9 +8,8 @@ import com.tngtech.archunit.lang.ArchRule;
 
 @AnalyzeClasses(
     packages = {
-      "com.massimotter.weave.backend.chat.store",
       "com.massimotter.weave.backend.chat.persistence",
-      "com.massimotter.weave.backend.matrix"
+      "com.massimotter.weave.backend.chat.port"
     })
 class PersistenceArchitectureTest {
 

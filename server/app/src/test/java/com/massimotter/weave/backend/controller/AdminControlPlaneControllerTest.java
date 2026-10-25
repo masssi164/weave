@@ -84,8 +84,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(
         controllers = AdminControlPlaneController.class,
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
-@org.springframework.boot.context.properties.EnableConfigurationProperties(
-        com.massimotter.weave.backend.files.config.FilesRuntimeProperties.class)
+@org.springframework.boot.context.properties.EnableConfigurationProperties({
+        com.massimotter.weave.backend.files.config.FilesRuntimeProperties.class,
+        com.massimotter.weave.backend.meetings.config.LiveKitSfuProviderProperties.class})
 @Import({
         OrganizationIdentityContextResolver.class,
         SecurityConfig.class,
@@ -813,6 +814,14 @@ class AdminControlPlaneControllerTest {
 
     @TestConfiguration
     static class AuditTestConfig {
+        @org.springframework.context.annotation.Bean
+        com.massimotter.weave.backend.chat.port.ChatProviderPort chatProviderPort() {
+            var store = org.mockito.Mockito.mock(com.massimotter.weave.backend.chat.port.CanonicalChatStore.class);
+            org.mockito.Mockito.when(store.persistencePosture()).thenReturn("durable-relational-jpa-code-first");
+            return new com.massimotter.weave.backend.chat.provider.weave.NativeChatProviderAdapter(
+                    store, java.time.Clock.systemUTC());
+        }
+
         @Bean
         AuditEventPublisher auditEventPublisher() {
             return new InMemoryAuditEventPublisher();

@@ -33,3 +33,9 @@ serving imports must stay unique with bootstrap disabled by default. Shared HTTP
 `api.error` must preserve support-safe diagnostics and Space revocation ETags without optional
 feature imports. Identity migration/recovery helpers are operator-only plain classes: never
 register them, run them at startup or use their client-secret provider as a serving fallback.
+
+Member lifecycle administration and protected external-client entitlement assignment belong to
+Identity/Security independently of Agent Runtime execution. Preserve the shared Keycloak authority,
+last-owner protection, opaque handles, version preconditions and durable session cutoffs. A failed
+idempotency insert transaction must end before its recovery read; claims/receipts survive caller
+rollback because they fence remote side effects. Test concurrency against PostgreSQL.

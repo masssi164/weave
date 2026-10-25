@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.testing;
 
-import com.massimotter.weave.backend.matrix.MatrixFacadeClientStateStore;
+import com.massimotter.weave.backend.chat.port.MatrixFacadeClientStateStore;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;

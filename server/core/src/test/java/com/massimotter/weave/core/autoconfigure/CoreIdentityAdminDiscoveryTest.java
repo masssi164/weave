@@ -34,6 +34,9 @@ class CoreIdentityAdminDiscoveryTest {
                         .hasSingleBean(com.massimotter.weave.backend.api.error.ApiExceptionHandler.class)
                         .doesNotHaveBean(com.massimotter.weave.backend.spaces.api.DefaultSpaceBootstrapController.class)
                         .doesNotHaveBean(com.massimotter.weave.backend.spaces.bootstrap.DefaultSpaceBootstrapCredential.class)
+                        .hasSingleBean(com.massimotter.weave.backend.identity.member.application.OrganizationMemberAdministrationService.class)
+                        .hasSingleBean(com.massimotter.weave.backend.identity.member.api.OrganizationMemberAdministrationController.class)
+                        .hasSingleBean(com.massimotter.weave.backend.identity.persistence.IdentityAdminOperationStore.class)
                         .hasSingleBean(KeycloakIdentityAdminClient.class)
                         .hasSingleBean(KeycloakAdminClient.class)
                         .hasSingleBean(KeycloakAdminAccessTokenProvider.class));
@@ -62,6 +65,8 @@ class CoreIdentityAdminDiscoveryTest {
                         .doesNotHaveBean(com.massimotter.weave.backend.spaces.application.SpaceAdminApiService.class)
                         .doesNotHaveBean(com.massimotter.weave.backend.spaces.api.SpacesAdminController.class)
                         .doesNotHaveBean(com.massimotter.weave.backend.api.error.ApiExceptionHandler.class)
+                        .doesNotHaveBean(com.massimotter.weave.backend.identity.member.application.OrganizationMemberAdministrationService.class)
+                        .doesNotHaveBean(com.massimotter.weave.backend.identity.member.api.OrganizationMemberAdministrationController.class)
                         .doesNotHaveBean(KeycloakIdentityAdminClient.class)
                         .doesNotHaveBean(KeycloakAdminClient.class)
                         .doesNotHaveBean(KeycloakAdminAccessTokenProvider.class));

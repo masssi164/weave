@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.service;
 
-import com.massimotter.weave.backend.config.MatrixChatProperties;
+import com.massimotter.weave.backend.chat.config.MatrixChatProperties;
 import com.massimotter.weave.backend.discovery.config.PlatformContractProperties;
 import com.massimotter.weave.backend.security.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.capability.config.WorkspaceCapabilityProperties;

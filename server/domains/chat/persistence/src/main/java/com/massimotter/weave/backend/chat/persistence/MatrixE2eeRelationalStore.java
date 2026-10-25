@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.chat.persistence;
 
-import com.massimotter.weave.backend.matrix.MatrixE2eePersistence;
+import com.massimotter.weave.backend.chat.port.MatrixE2eePersistence;
 import com.massimotter.weave.backend.chat.persistence.MatrixE2eeJpaModel.*;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;

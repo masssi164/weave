@@ -104,6 +104,27 @@ class Repository(unittest.TestCase):
             self.assertEqual(before["ios-device"], after["ios-device"])
             before = after
 
+    def test_extracted_runtime_sources_resources_and_builds_invalidate_the_runtime(self):
+        before = self.inputs()
+        for name in ("server/domains/chat/src/main/java/Chat.java",
+                     "server/domains/chat/src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports",
+                     "server/domains/chat/build.gradle", "server/domains/chat/gradle/native-runtime.gradle",
+                     "server/domains/decisions/src/main/java/Decisions.java", "server/domains/decisions/build.gradle",
+                     "server/domains/meetings/src/main/java/Meetings.java", "server/domains/meetings/build.gradle"):
+            self.write(name, "changed runtime input\n")
+            self.commit()
+            after = self.inputs()
+            self.assertNotEqual(before["runtime-linux-amd64"], after["runtime-linux-amd64"], name)
+            self.assertEqual(before["ios-simulator"], after["ios-simulator"], name)
+            self.assertEqual(before["ios-device"], after["ios-device"], name)
+            before = after
+
+    def test_shared_rust_client_toolchain_rebuilds_all_consumers(self):
+        before = self.inputs()
+        self.write("rust/matrix-client/rust-toolchain.toml", "changed declared toolchain\n")
+        self.commit()
+        self.assertTrue(all(before[name] != self.inputs()[name] for name in before))
+
     def test_client_change_does_not_rebuild_server(self):
         before = self.inputs()
         self.write("client/lib/main.dart", "void main() { print('changed'); }\n")

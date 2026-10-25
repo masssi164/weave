@@ -92,7 +92,7 @@ For focused Server feedback, use
 The selected-domain JVM lane defaults to `all` after any matching branch pin;
 it does not replace the complete Server/PostgreSQL/JNI gates or make production
 packaging domain-selectable. See [Selected domain JVM verification](development/domain-verification.md)
-for selection rules, CI dispatch and the current bounded test inventory.
+for selection rules, selected/individual CI dispatch, required domain dependencies and owning test lanes.
 
 ## Everyday Flutter workflow
 

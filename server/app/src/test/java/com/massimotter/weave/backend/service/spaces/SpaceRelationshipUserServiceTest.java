@@ -10,9 +10,9 @@ import com.massimotter.weave.backend.security.config.ContextAuthorizationPropert
 import com.massimotter.weave.backend.calendar.spaces.CalendarSpaceRelationshipContribution;
 import com.massimotter.weave.backend.files.spaces.FilesSpaceRelationshipContribution;
 import com.massimotter.weave.backend.chat.spaces.ChatSpaceRelationshipContribution;
-import com.massimotter.weave.backend.chat.ChatDomainFacadeService;
+import com.massimotter.weave.backend.chat.application.ChatDomainFacadeService;
 import com.massimotter.weave.backend.chat.domain.ChatAccessDeniedException;
-import com.massimotter.weave.backend.matrix.MatrixProtocolCoreService;
+import com.massimotter.weave.backend.chat.provider.matrix.MatrixProtocolCoreService;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.files.domain.FilesDomain.Kind;
 import com.massimotter.weave.backend.files.domain.FilesUserResource;

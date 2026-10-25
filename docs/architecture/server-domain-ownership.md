@@ -4,9 +4,9 @@ Implementation owner: #1745; integration parent: #1741; PR: #1746. This is the c
 
 ## Current state versus target
 
-**Implemented:** Files and Calendar own their actual serving runtimes: authenticated services, controllers, wire
+**Implemented:** Files, Calendar and Chat own their actual serving runtimes: authenticated services, controllers, wire
 values, provider integrations, settings, resources and tests, plus pure model and transactional
-JPA adapters. Their owning checks and real Boot discovery run without App or sibling domains. Calendar owns
+JPA adapters. Their owning checks and real Boot discovery run without App or sibling domains. Chat owns canonical conversations, Matrix HTTP projection, synchronization/device/crypto orchestration, Synapse integration and the Ruma/JNI transport boundary. Decisions and Meetings own their existing conversation-attached implementations as separate future runtimes with an explicit required Chat dependency; their in-memory implementation does not establish release readiness. Calendar owns
 its temporal/recurrence orchestration, native/CalDAV providers, pure model, normalized mappings
 and production JPA payload store. Core owns shared persistence
 under actual identity/security/Spaces/audit/operation/binding/readiness/schema packages; its pure
@@ -16,7 +16,7 @@ Server. All former Server-owned root projects are retired. Five shadowed adapter
 removed without weakening the active security behavior.
 
 Core and the five persistence owners register scoped entity/repository wiring through their
-own Boot imports resources. Six actual Boot discovery tests pass. Shared provider health uses
+own Boot imports resources. Owning context lanes exercise actual Boot imports discovery and bean uniqueness. Shared provider health uses
 domain contributions, and shared member/session revocation no longer imports Chat types.
 The health cache, safe response, deferred probe contract and typed settings now live in
 Core health. Its module-local servlet auto-configuration is discovered without optional
@@ -29,9 +29,8 @@ project that resolves domain selection once. Root tasks, API/schema tooling, hos
 Docker JAR paths and complete source inputs target App. The independent nested Server
 wrapper/settings were retired in favor of the repository-pinned root wrapper.
 
-**Still transitional:** Chat services/controllers/providers, remaining shared platform
-services and future-domain runtimes still require extraction. Real selected-runtime packaging, future-domain
-release exclusion and reduced discovery/client integration are not complete. Chat retains a verification bridge; Files and Calendar use genuine owning checks. Partial App packaging/API/schema export guards remain
+**Still transitional:** Remaining shared platform services and the Boards, Office, DevOps, Agent Runtime, Integrations, Guest Access and Portability serving runtimes still require extraction. Real selected-runtime packaging, future-domain
+release exclusion and reduced discovery/client integration are not complete. Files, Calendar, Chat, Decisions and Meetings use genuine owning checks; the verification-only bridge is retired. Partial App packaging/API/schema export guards remain
 until real selected runtime composition is implemented. No ARM64,
 native or live/human release qualification is claimed from library checks.
 
@@ -59,8 +58,8 @@ Core must not depend on an optional domain implementation. Domains must not depe
 - `:server:domains:files` runtime, `:server:domains:files:model` and `:server:domains:files:persistence`: see `server/domains/files/README.md` for ownership and removal rationale.
 - `:server:domains:calendar` runtime, `:server:domains:calendar:model` and `:server:domains:calendar:persistence`: see `server/domains/calendar/README.md`.
 - `:server:core:model` and `:server:core`: shared pure contracts and responsibility-owned persistence.
-- Agent Runtime `model`, `persistence`, `provider` and `security`; Portability `model` and
-  `persistence`; Chat `persistence`: see their owning READMEs.
+- `:server:domains:chat` runtime and its owning `persistence` library; `:server:domains:decisions` and `:server:domains:meetings` future runtimes: see their owning READMEs.
+- Agent Runtime `model`, `persistence`, `provider` and `security`; Portability `model` and `persistence`: see their owning READMEs. Their serving extraction remains open.
 - Shared Java/toolchain/JUnit mechanics: `server/gradle/scripts/domain-library.gradle`. Dependencies remain in each library. Domain-qualified groups and archives prevent sibling libraries named `model` or `persistence` from claiming the same Gradle component identity.
 
 The canonical package-direction rules remain in `docs/architecture/core-package-boundaries.md`. Keep model/provider/persistence/API boundaries explicit; do not generate a Gradle project for every package or maintain empty placeholder domains.
@@ -79,9 +78,7 @@ Optional shared workflows consume domain-owned contributions through small contr
 
 ## Build selection and OpenAPI
 
-The agreed selection rule is explicit pipeline `domains` / `-Pdomains`, then a matching branch's `pinned_domains`, then `all`. `all` expands the canonical selectable catalog. The current bridge still catalogs only Files,
-Chat and Calendar; catalog expansion to implemented future runtimes is part of unfinished
-production composition, not permission to redefine final `all` as the release set. Reuse the shared resolver from #1744 when integrating production composition; do not invent another resolver or silently package excluded code. Branch pins are resolved to exact source commits. Domain set, platform, toolchain/flavor, source and spec identity must participate in artifact identity and digest consumption.
+The agreed selection rule is explicit pipeline `domains` / `-Pdomains`, then a matching branch's `pinned_domains`, then `all`. `all` expands the canonical selectable catalog. The catalog currently includes Files, Chat, Calendar, Decisions and Meetings. The last two explicitly require Chat; an invalid selection fails rather than silently adding it. `all` includes these future runtimes, while the automatic release pin remains `files,chat,calendar`. Other future capabilities enter the selectable catalog when their real runtimes are extracted. Selected and per-domain CI iterations use this same resolver; each row has separate reports. Full App composition remains transitional and guarded. Reuse the shared resolver from #1744 when integrating production composition; do not invent another resolver or silently package excluded code. Branch pins are resolved to exact source commits. Domain set, platform, toolchain/flavor, source and spec identity must participate in artifact identity and digest consumption.
 
 The selected controllers and their Spring handler mappings must exist **before** code-first OpenAPI export. Use actual Gradle prerequisite dependencies, not ordering hints alone. Generated User/Admin clients follow the completed export. Keep the accepted OrgManifest/API contract intact; reduced/no-Chat discovery requires its explicit accepted contract change.
 
@@ -100,7 +97,7 @@ Prefer immutable records, constructor injection, typed configuration, declarativ
 From the repository root:
 
 ```sh
-./gradlew :server:domains:files:check :server:domains:calendar:check
+./gradlew :server:domains:check -Pdomains=files,chat,calendar
 ./gradlew coreArchitectureCi
 ```
 
@@ -122,9 +119,9 @@ workflow is removed as its own instructions required, resolving both current CI 
 | Phase | Milestone and implementation decisions | Checks | Status / blockers |
 | --- | --- | --- | --- |
 | 1. Ownership and contracts | Inventory source/resources/dependencies and assign actual owners; prepare Entity-first and selected-domain discovery corpus changes; retain this plan as the single execution record | Corpus lint/examples, resolver tests, source inspection | In progress; accepted pin remains unchanged pending normal corpus review |
-| 2. Domain composition | App is the sole executable; Core owns justified platform responsibilities; runtime modules own imports registration and scoped persistence; separate non-web tooling | Compile, dependency graph, real imports discovery and bean uniqueness | App executable split, Core shared wiring and actual Files/Calendar runtime/imports implemented; Chat and future runtime extraction pending |
-| 3. Vertical extraction and ORM | Files/Calendar/Chat own services/controllers/providers/persistence; future domains remain buildable outside release; convert ordinary Calendar/Matrix JDBC CRUD | Domain units, PostgreSQL writes/isolation/constraints/transactions, no legacy copies | Files/Calendar vertical runtimes and Calendar/Matrix ORM extraction implemented; remaining Chat/future runtime/API ownership open |
-| 4. Core and build finalization | Remove feature dependencies from Core; one selection drives real checks, runtime, schema/API and identity; preserve data-safe initializer until qualified cutover | Architecture rules, selected JAR/SDK inspection, offline deterministic schema | Shared session/identity/Spaces/HTTP/policy and health implementations extracted into Core; runtime selection remains pending; schema cutover requires accepted corpus and integrity/recovery evidence |
+| 2. Domain composition | App is the sole executable; Core owns justified platform responsibilities; runtime modules own imports registration and scoped persistence; separate non-web tooling | Compile, dependency graph, real imports discovery and bean uniqueness | App executable split, Core shared wiring and actual Files/Calendar/Chat runtime/imports and future Decisions/Meetings implemented; other future runtime extraction pending |
+| 3. Vertical extraction and ORM | Files/Calendar/Chat own services/controllers/providers/persistence; future domains remain buildable outside release; convert ordinary Calendar/Matrix JDBC CRUD | Domain units, PostgreSQL writes/isolation/constraints/transactions, no legacy copies | Files/Calendar/Chat vertical runtimes, Calendar/Matrix ORM and future Decisions/Meetings implemented; other future runtime/API ownership open |
+| 4. Core and build finalization | Remove feature dependencies from Core; one selection drives real checks, runtime, schema/API and identity; preserve data-safe initializer until qualified cutover | Architecture rules, selected JAR/SDK inspection, offline deterministic schema | Shared session/identity/member lifecycle/Spaces/HTTP/policy and health implementations extracted into Core; selected owning checks and CI iteration implemented; runtime selection remains pending; schema cutover requires accepted corpus and integrity/recovery evidence |
 | 5. Runtime and clients | Release and three single-domain variants start with honest capabilities/endpoints; generated User/Admin contracts follow registered handlers; Flutter uses stable destinations | API/auth/client freshness, variants, Compose/two-member acceptance, ARM64/AOT/JNI where available | Pending; no live or native qualification claimed |
 | 6. Review and delivery | Consolidate docs/Skills/instructions; review combined diff; coherent commits/push and exact-revision PR evidence | Applicable combined CI, diff review, protected checks | Pending; no protected merge/deployment/data reset authorized |
 
@@ -789,3 +786,89 @@ all 24 moved production implementations in Core with zero App class copies. No p
 mapping changed; the earlier 200-case PostgreSQL run remains historical, not a new database
 qualification of this source. Reduced runtime composition, Chat/future extraction and final
 platform/integration qualification remain open.
+
+### Identity member administration and PostgreSQL idempotency checkpoint
+
+The actual organization-member service, HTTP adapter, wire values and durable operation store
+move from App's global service/controller/model and Identity packages into Core Identity's
+`member.application`, `member.api` and `persistence` owners. These govern shared membership,
+last-owner safety, offboarding/session cutoffs and protected external Weaver/MCP access policy
+independently of Agent Runtime execution. They preserve the accepted Keycloak authority and
+introduce no Agent Runtime implementation dependency. Test-only default identity construction
+and lazy required-cutoff lookup are removed; production receives the configured identity and
+required cutoff service directly. Actual Core imports discover the controller/store/service;
+non-web tooling excludes serving handlers.
+
+Inspection found a real concurrent-claim defect: the old store caught a uniqueness failure and
+queried the winner inside the aborted PostgreSQL transaction. Claim recovery now runs after
+that independent transaction ends. A second independent transaction resolves only the exact
+existing organization/key/request; otherwise the original failure propagates. This uses the
+existing Core transaction-template pattern over JPA, with no SQL CRUD or extra schema authority.
+Claim and completion still fence remote effects independently of caller rollback.
+
+`:server:core:check -Pdomains=all` passed 278 unit and 13 context tests. The actual PostgreSQL
+command `DOCKER_HOST=<observed-disposable-engine> ./gradlew :server:app:postgresJpaTest
+--tests '*IdentityAdminOperationStorePostgresTest' -Pdomains=all --console=plain` passed three
+cases in 13 seconds, zero skips/errors/failures. They cover tenant/request/replay isolation,
+claim and receipt survival across outer rollback, and two independent concurrent absent-row
+claims. The latter observes real PostgreSQL `23505` and requires exactly one claim and one safe
+conflict; a subsequent durable replay succeeds. Its first test run failed in Mockito's Spring
+proxy unwrapping before the race; the coordination wrapper now delegates to the actual repository
+instead of spying on the Spring proxy. The combined verification below supersedes this focused result.
+
+
+### Chat runtime, future conversation features and selected CI checkpoint
+
+Chat now owns 100 production runtime types, its scoped persistence library and 25 owning test
+sources, plus reusable test fixtures. The old App Chat/Matrix services, controllers, provider
+clients, configuration, wire values and JPA adapters are deleted from their old locations.
+The sole historical package exception is `backend.matrix.NativeMatrixCore`: its ABI name is
+required by the Rust JNI symbol; the implementation and native build task physically belong
+to Chat. The task uses the protocol crate's actual pinned Rust toolchain and declares platform
+inputs. App keeps a transitional task alias while full selected composition remains unfinished.
+
+Chat's actual Boot imports register serving beans; non-web contexts do not create serving or
+provider graphs. Required providers are explicit dependencies, with no synthetic pending fallback.
+Synapse construction is offline: exact distinct bounded tokens are validated and cached at
+ordered serving readiness or first use, preserving callback/outbound authentication. Matrix
+projection uses typed operations on the existing consumed protocol port; JNI remains a suitable
+separate transport rather than a REST abstraction. Shared session revocation remains Core.
+
+The old combined `ChatFacadeService` and seeded-message scaffold are retired. Decisions and
+Meetings own their existing conversation-attached services, controllers, wire values, settings
+and capability contributions, using the narrow Chat admission contract. Their stores now isolate
+organization, Space and conversation rather than conversation ID alone. They remain future,
+in-memory implementations, without release-readiness claims. LiveKit diagnostic output redacts
+credentials. Both dependencies on Chat are explicit in Gradle and the canonical selection catalog.
+
+The verification-only App bridge and `domain-project.gradle` are retired. The existing resolver
+now emits selected or per-domain CI rows, including explicit required-domain closures, and
+rejects cycles and invalid selections. Source identity and branch pins retain their precedence;
+workflow input has no literal `all` default. Reports distinguish rows and exact source. JVM/native
+artifact inputs include actual runtime/build/resources and crate-local toolchain pins. No new
+selection framework, provider selector, release qualification or hosted workflow result is implied.
+
+The final combined source command passed in 4m56s:
+
+```sh
+DOCKER_HOST=<observed-disposable-engine> WEAVE_SPEC_CORPUS_ROOT=<accepted-pinned-checkout> ./gradlew :server:domains:check :server:app:test :server:app:postgresJpaTest :server:app:entitySchemaCheck coreArchitectureCi canonicalDataCi specCorpusConformance acceptanceContract checkOpenApiContractFresh :server:app:bootJar -Pdomains=all --console=plain
+```
+
+App reports 1,008 cases, zero failures/errors and 23 explicit PostgreSQL-only skips; the separate
+PostgreSQL lane executes 201 cases with zero skips/failures/errors. Core reports 278 unit/13
+context cases; Chat 61/7; Decisions 4/1; Meetings 5/1. Actual export/freshness, schema, architecture,
+canonical-data, accepted corpus and acceptance contracts pass. These include the real relocated
+22-case canonical Chat store and six-case recovery suites in both applicable engines. Earlier
+979/173-case runs were incomplete because local incremental compilation had lost relocated
+bytecode. A forced test compilation restored the outputs; the final XML confirms all 28 cases.
+No test source or assertion was removed, and no global compiler workaround is introduced.
+Two former Matrix persistence-named cases use only memory doubles and correctly move to the
+owning Chat unit lane rather than being claimed as PostgreSQL proof.
+
+Selected `:server:domains:check -Pdomains=files,chat` passes. Resolver/workflow Python regressions
+pass 52 cases; artifact-input regressions pass 43. Production ownership inspection finds 925
+unique types with zero duplicate owners. Final JAR inspection proves all 100 Chat, 12 Decisions
+and 11 Meetings runtime classes in their owning libraries, with zero App class copies. This is
+full experimental `all` packaging, not three-domain release exclusion. The remaining future
+serving owners, selected App/schema/API composition, accepted reduced discovery, Linux ARM64,
+Graal/AOT, exact-candidate Compose/two-member native acceptance and HIL remain open.
