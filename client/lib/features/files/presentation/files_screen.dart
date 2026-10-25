@@ -707,6 +707,9 @@ class _DirectoryToolbar extends ConsumerWidget {
                   onPressed: state.isBusy
                       ? null
                       : () async {
+                          final operationController = ref.read(
+                            filesProvider.notifier,
+                          );
                           final operationRepository = ref.read(
                             filesRepositoryProvider,
                           );
@@ -725,10 +728,18 @@ class _DirectoryToolbar extends ConsumerWidget {
                               ),
                             ),
                           );
+                          // A dialog may outlive its original directory route.
+                          if (folderName == null || !context.mounted) return;
                           final active = ref.read(filesProvider).asData?.value;
-                          if (folderName == null ||
-                              !context.mounted ||
-                              active == null ||
+                          if (active == null ||
+                              !identical(
+                                operationController,
+                                ref.read(filesProvider.notifier),
+                              ) ||
+                              active.directoryListing?.ownerKey !=
+                                  state.directoryListing?.ownerKey ||
+                              active.directoryListing?.parentFileId !=
+                                  state.directoryListing?.parentFileId ||
                               active.rootSpaceRef != state.rootSpaceRef ||
                               active.currentPath != state.currentPath ||
                               !identical(
@@ -1177,6 +1188,7 @@ class _CreateFolderDialogState extends State<_CreateFolderDialog> {
     final name = _controller.text.trim();
 
     return AlertDialog(
+      scrollable: true,
       title: Text(l10n.filesCreateFolderDialogTitle),
       content: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1230,20 +1242,44 @@ class _FilePreview extends ConsumerWidget {
   const _FilePreview({
     required this.entry,
     required this.rootSpaceRef,
+    required this.ownerKey,
     required this.download,
   });
   final FileEntry entry;
   final String? rootSpaceRef;
+  final String? ownerKey;
   final Future<FileDownload> download;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final current = ref.watch(filesProvider).asData?.value;
+    final value = ref.watch(filesProvider);
+    final current = value.asData?.value;
+    final capabilities = ref.watch(workspaceCapabilitySnapshotProvider);
+    final spaces = rootSpaceRef == null
+        ? null
+        : ref.watch(weaveApiMemberSpacesProvider);
     final stillAvailable =
+        !value.isLoading &&
+        !value.hasError &&
+        !capabilities.isLoading &&
+        !capabilities.hasError &&
+        capabilities.asData?.value.files.isReady == true &&
+        (rootSpaceRef == null ||
+            (spaces?.isLoading == false &&
+                spaces?.hasError == false &&
+                spaces?.asData?.value?.visibleSpaceRefs.contains(
+                      rootSpaceRef,
+                    ) ==
+                    true)) &&
         current?.rootSpaceRef == rootSpaceRef &&
+        current?.directoryFailure == null &&
+        current?.directoryListing?.ownerKey == ownerKey &&
         current?.directoryListing?.entries.any(
-              (item) => item.id == entry.id && item.allows('download'),
+              (item) =>
+                  item.id == entry.id &&
+                  item.revision == entry.revision &&
+                  item.allows('download'),
             ) ==
             true;
     return AlertDialog(
@@ -1362,16 +1398,26 @@ class _FileEntryTile extends ConsumerWidget {
                       ? null
                       : () => showDialog<void>(
                           context: context,
-                          builder: (_) => _FilePreview(
-                            entry: entry,
-                            rootSpaceRef: ref
-                                .read(filesProvider)
-                                .asData
-                                ?.value
-                                .rootSpaceRef,
-                            download: ref
-                                .read(filesProvider.notifier)
-                                .downloadForPreview(entry),
+                          // Dialog routes do not inherit the directory's scoped providers.
+                          builder: (_) => UncontrolledProviderScope(
+                            container: ProviderScope.containerOf(context),
+                            child: _FilePreview(
+                              entry: entry,
+                              rootSpaceRef: ref
+                                  .read(filesProvider)
+                                  .asData
+                                  ?.value
+                                  .rootSpaceRef,
+                              ownerKey: ref
+                                  .read(filesProvider)
+                                  .asData
+                                  ?.value
+                                  .directoryListing
+                                  ?.ownerKey,
+                              download: ref
+                                  .read(filesProvider.notifier)
+                                  .downloadForPreview(entry),
+                            ),
                           ),
                         ),
                   icon: const Icon(Icons.visibility_outlined),

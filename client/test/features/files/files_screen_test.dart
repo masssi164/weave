@@ -505,6 +505,45 @@ class _NavigationFilesRepository extends _FakeFilesRepository
   }) => super.createFolder(parentPath: parentPath, name: name);
 }
 
+class _ScopedPreviewFilesRepository extends _NavigationFilesRepository {
+  Completer<FileDownload>? downloadGate;
+
+  @override
+  Future<DirectoryListing> listDirectory(
+    String path, {
+    String? spaceRef,
+  }) async {
+    final listing = await super.listDirectory(path, spaceRef: spaceRef);
+    return DirectoryListing(
+      path: listing.path,
+      parentFileId: listing.parentFileId,
+      ownerKey: listing.ownerKey,
+      allowedActions: listing.allowedActions,
+      entries: const [
+        FileEntry(
+          id: 'preview-file',
+          name: 'preview.txt',
+          path: '/preview.txt',
+          isDirectory: false,
+          revision: 'preview-version',
+          allowedActions: {'download'},
+        ),
+      ],
+    );
+  }
+
+  @override
+  Future<FileDownload> downloadFile(FileEntry entry) async {
+    final pending = downloadGate;
+    if (pending != null) return pending.future;
+    return FileDownload(
+      fileName: entry.name,
+      mediaType: 'text/plain',
+      bytes: Uint8List.fromList(utf8.encode('Shared route preview bytes.')),
+    );
+  }
+}
+
 List<dynamic> _navigationOverrides(_NavigationFilesRepository repository) => [
   filesRepositoryProvider.overrideWithValue(repository),
   weaveApiMemberSpacesProvider.overrideWith(
@@ -1887,6 +1926,137 @@ void main() {
       });
     }
   }
+
+  for (final change in ['unchanged', 'revoked', 'account-replaced']) {
+    testWidgets('route-scoped preview retains authorization: $change', (
+      tester,
+    ) async {
+      final repository = _ScopedPreviewFilesRepository();
+      final router = _filesRouter(
+        initialLocation: AppRoutes.filesLocation(
+          '/',
+          spaceRef: 'workspace-default',
+        ),
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        _filesNavigationApp(
+          router,
+          overrides: _navigationOverrides(repository),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final screen = find.byType(FilesScreen);
+      final directory = ProviderScope.containerOf(tester.element(screen));
+      final l10n = AppLocalizations.of(tester.element(screen));
+      final open = find.byKey(const ValueKey('files-open-preview-file'));
+      if (open.hitTestable().evaluate().length != 1) {
+        await Scrollable.ensureVisible(tester.element(open), alignment: 0.5);
+        await tester.pumpAndSettle();
+      }
+      expect(open.hitTestable(), findsOneWidget);
+      await tester.tap(open.hitTestable());
+      await tester.pumpAndSettle();
+      final content = find.byKey(const Key('files-preview-content'));
+      expect(content, findsOneWidget);
+      expect(
+        tester.widget<SelectableText>(content).data,
+        'Shared route preview bytes.',
+      );
+      expect(
+        identical(
+          ProviderScope.containerOf(tester.element(content)),
+          directory,
+        ),
+        isTrue,
+      );
+      if (change == 'revoked') {
+        repository.denyRoot = true;
+        await directory.read(filesProvider.notifier).refresh();
+      } else if (change == 'account-replaced') {
+        repository.owner = 'member-b';
+        directory
+            .read(workspaceInvalidationProvider.notifier)
+            .invalidate(
+              integration: WorkspaceIntegration.files,
+              reason: IntegrationInvalidationReason.authConfigurationChanged,
+            );
+      }
+      await tester.pumpAndSettle();
+      expect(content, change == 'unchanged' ? findsOneWidget : findsNothing);
+      if (change != 'unchanged') {
+        expect(find.text(l10n.filesUnavailableSpace), findsOneWidget);
+        expect(find.text('Shared route preview bytes.'), findsNothing);
+      }
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.byType(TextButton),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.byType(FilesScreen), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets(
+    'route-scoped preview discards bytes after pending-download revocation',
+    (tester) async {
+      final repository = _ScopedPreviewFilesRepository()
+        ..downloadGate = Completer<FileDownload>();
+      final router = _filesRouter(
+        initialLocation: AppRoutes.filesLocation(
+          '/',
+          spaceRef: 'workspace-default',
+        ),
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        _filesNavigationApp(
+          router,
+          overrides: _navigationOverrides(repository),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final directory = ProviderScope.containerOf(
+        tester.element(find.byType(FilesScreen)),
+      );
+      final open = find.byKey(const ValueKey('files-open-preview-file'));
+      if (open.hitTestable().evaluate().length != 1) {
+        await Scrollable.ensureVisible(tester.element(open), alignment: 0.5);
+        await tester.pumpAndSettle();
+      }
+      expect(open.hitTestable(), findsOneWidget);
+      await tester.tap(open.hitTestable());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(find.byKey(const Key('files-preview-content')), findsNothing);
+      repository.denyRoot = true;
+      await directory.read(filesProvider.notifier).refresh();
+      await tester.pump();
+      repository.downloadGate!.complete(
+        FileDownload(
+          fileName: 'preview.txt',
+          mediaType: 'text/plain',
+          bytes: Uint8List.fromList(utf8.encode('Late revoked preview bytes.')),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('files-preview-content')), findsNothing);
+      expect(find.text('Late revoked preview bytes.'), findsNothing);
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.byType(TextButton),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('native Back and iOS swipe retain scope and parent focus', (
     tester,
@@ -3438,6 +3608,16 @@ void main() {
                         defaultSpaceReadable: true,
                       ),
                     ),
+                    appStartDiscoveryClientProvider.overrideWith(
+                      (ref) => buildTestDiscoveryClient(
+                        ref.watch(serverConfigurationRepositoryProvider),
+                      ),
+                    ),
+                    serverConfigurationRepositoryProvider.overrideWith(
+                      (ref) => _FakeServerConfigurationRepository(
+                        buildTestConfiguration(),
+                      ),
+                    ),
                     filesRepositoryProvider.overrideWithValue(repository),
                   ],
                 ),
@@ -3496,7 +3676,10 @@ void main() {
                 findsNothing,
               );
               expect(find.text('Organization workspace'), findsWidgets);
-              await tester.pageBack();
+              // pageBack uses an English tooltip; exercise the real localized Back button.
+              final back = find.byType(BackButton);
+              expect(back.hitTestable(), findsOneWidget);
+              await tester.tap(back.hitTestable());
               await tester.pumpAndSettle();
               expect(find.byType(FilesLocationsScreen), findsOneWidget);
               final privateLocation = find.byWidgetPredicate(
