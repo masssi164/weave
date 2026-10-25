@@ -8,7 +8,7 @@ Files is a compile-time selectable product domain. It owns Files business semant
 
 ## Still to extract
 
-- Files-specific JPA entities/repositories and transaction adapters from `weave-persistence-jpa`.
+- JPA entities and repositories have moved into `:server:domains:files:persistence`, preserving the existing table names and mapped types. Files service-layer transaction adapters are still in the transitional Server and will move with Files use cases.
 - The provider adapters (native Files/OpenDAL, Nextcloud and S3), their own dependencies, API controller/DTO projection, and explicit module-local `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`.
 - Real `:server:app` composition, OpenAPI-after-controller generation, and optional-domain release qualification.
 

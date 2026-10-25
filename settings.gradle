@@ -13,6 +13,7 @@ dependencyResolutionManagement {
 rootProject.name = 'weave-orchestration'
 include 'weave-application-core',
         'server:domains:files:model',
+        'server:domains:files:persistence',
         'weave-persistence-jpa',
         'weave-runtime-provider-adapters',
         'weave-runtime-security-adapters',

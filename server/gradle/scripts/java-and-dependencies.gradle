@@ -54,6 +54,7 @@ dependencies {
 
     implementation project(':weave-application-core')
     implementation project(':server:domains:files:model')
+    implementation project(':server:domains:files:persistence')
     implementation project(':weave-persistence-jpa')
     implementation project(':weave-runtime-provider-adapters')
     implementation project(':weave-runtime-security-adapters')
