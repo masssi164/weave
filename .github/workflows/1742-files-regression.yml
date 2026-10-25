@@ -20,23 +20,14 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 2
-      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95
-        with:
-          distribution: temurin
-          java-version: '21'
-      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
-        with:
-          flutter-version: '3.41.6'
-          channel: stable
-      - name: Repair only the reviewed navigation helper and renamed evidence mappings
+      - name: Repair the reviewed folder helper and two stale test references
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
           import json
           import subprocess
-          expected_parent = 'bfc1d417ba31b6e8108dec951764e5518c018717'
-          if subprocess.check_output(['git', 'rev-parse', 'HEAD^'], text=True).strip() != expected_parent:
+          if subprocess.check_output(['git', 'rev-parse', 'HEAD^'], text=True).strip() != '4fcf057075795f119d0e647330fd6c8a8a825c49':
               raise SystemExit('Feature parent changed; review the source delta first')
           native = Path('client/integration_test/dual_ios_collaboration_test.dart')
           mapping = Path('e2e/scenario_mappings.json')
@@ -60,8 +51,8 @@ jobs:
           updated = text[:start] + block + text[end:]
           evidence = mapping.read_text()
           pairs = (
-              ('named Space selection and captured destination remain truthful after preview',
-               'named folder navigation and captured destination remain truthful'),
+              ('scope selection recovers a failed root read',
+               'folder navigation recovers a failed root read'),
               ('scope selection leaves a failed child through native Back',
                'folder navigation leaves a failed child through native Back'),
           )
@@ -74,14 +65,25 @@ jobs:
           native.write_text(updated)
           mapping.write_text(evidence)
           PY
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: '3.41.6'
+          channel: stable
+      - name: Format and publish only the reviewed changes
+        run: |
+          set -euo pipefail
           dart format client/integration_test/dual_ios_collaboration_test.dart
           git diff --check
           python3 - <<'PY'
           import subprocess
           allowed = {'client/integration_test/dual_ios_collaboration_test.dart', 'e2e/scenario_mappings.json'}
           changed = set(subprocess.check_output(['git', 'diff', '--name-only'], text=True).splitlines())
-          if not changed <= allowed:
-              raise SystemExit('Unexpected mutation; refusing to commit')
+          if changed != allowed:
+              raise SystemExit('Unexpected mutation set; refusing to commit')
           PY
           git add -- client/integration_test/dual_ios_collaboration_test.dart e2e/scenario_mappings.json
           git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'fix(files): preserve hittable location rows and current acceptance references'
