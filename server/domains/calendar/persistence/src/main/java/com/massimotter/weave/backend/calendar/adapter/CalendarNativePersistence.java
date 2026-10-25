@@ -363,6 +363,17 @@ interface CalendarEventJpaRepository extends JpaRepository<CalendarEventJpaEntit
     List<CalendarEventJpaEntity> findActive(
             @Param("calendarId") String calendarId,
             @Param("scopeKey") String scopeKey);
+
+    @Query("""
+            select event from CalendarEventJpaEntity event
+            where event.id.calendarId = :calendarId and event.id.scopeKey = :scopeKey
+              and event.deleted = false and event.id.eventId in :eventIds
+            order by event.localStart, event.id.eventId
+            """)
+    List<CalendarEventJpaEntity> findActiveCandidates(
+            @Param("calendarId") String calendarId,
+            @Param("scopeKey") String scopeKey,
+            @Param("eventIds") List<String> eventIds);
 }
 
 @Embeddable

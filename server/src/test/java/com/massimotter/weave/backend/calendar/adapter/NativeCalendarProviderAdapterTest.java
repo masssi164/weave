@@ -65,6 +65,43 @@ class NativeCalendarProviderAdapterTest {
     private static final CalendarScope WORKSPACE = CalendarScope.workspace();
 
     @Test
+    void boundedQueryFetchesOnlyDatabaseCandidatesBeforeEnriching() {
+        CalendarEventJpaRepository events = mock(CalendarEventJpaRepository.class);
+        NativeCalendarRelationalStore store = mock(NativeCalendarRelationalStore.class);
+        Instant from = Instant.parse("2026-03-28T00:00:00Z");
+        Instant to = Instant.parse("2026-03-29T00:00:00Z");
+        CalendarEvent event = event("candidate", "Candidate");
+        CalendarEventJpaEntity row = CalendarEventJpaEntity.create(new CalendarEventId(CALENDAR.value(), "WORKSPACE::", "candidate"));
+        row.apply(event, 1, "version", CLOCK.instant());
+        when(store.candidateEventIds(CALENDAR.value(), "WORKSPACE::", from, to, ZoneOffset.UTC))
+                .thenReturn(List.of("candidate"));
+        when(events.findActiveCandidates(CALENDAR.value(), "WORKSPACE::", List.of("candidate"))).thenReturn(List.of(row));
+        when(store.enrich(any(), eq("WORKSPACE::"))).thenAnswer(invocation -> invocation.getArgument(0));
+        NativeCalendarProviderAdapter adapter = new NativeCalendarProviderAdapter(
+                mock(CalendarCollectionJpaRepository.class), events, mock(CalendarChangeJpaRepository.class),
+                mock(CalendarSnapshotChangeRepository.class), store,
+                new CalendarOccurrenceEngine(new Ical4jRecurrenceEngine()), ZoneOffset.UTC, CLOCK);
+
+        assertThat(adapter.query(CALENDAR, WORKSPACE, from, to)).extracting(value -> value.id().value()).containsExactly("candidate");
+        verify(events, never()).findActive(anyString(), anyString());
+        verify(events).findActiveCandidates(CALENDAR.value(), "WORKSPACE::", List.of("candidate"));
+    }
+
+    @Test
+    void emptyDatabaseCandidatesAvoidLoadingEventPayloads() {
+        CalendarEventJpaRepository events = mock(CalendarEventJpaRepository.class);
+        NativeCalendarRelationalStore store = mock(NativeCalendarRelationalStore.class);
+        NativeCalendarProviderAdapter adapter = new NativeCalendarProviderAdapter(
+                mock(CalendarCollectionJpaRepository.class), events, mock(CalendarChangeJpaRepository.class),
+                mock(CalendarSnapshotChangeRepository.class), store,
+                new CalendarOccurrenceEngine(new Ical4jRecurrenceEngine()), ZoneOffset.UTC, CLOCK);
+
+        assertThat(adapter.query(CALENDAR, WORKSPACE,
+                Instant.parse("2026-03-28T00:00:00Z"), Instant.parse("2026-03-29T00:00:00Z"))).isEmpty();
+        org.mockito.Mockito.verifyNoInteractions(events);
+    }
+
+    @Test
     void canonicalWritesSurviveRestartAndKeepStableVersions() {
         DataSource database = JpaTestDatabase.entityFirstDataSource("native-calendar-restart-v2");
         NativeCalendarProviderAdapter first = adapter(database);
@@ -192,7 +229,7 @@ class NativeCalendarProviderAdapterTest {
 
     private NativeCalendarProviderAdapter adapter(DataSource database) {
         if (Boolean.getBoolean("weave.test.postgres")) {
-            NativeCalendarRelationalStore store = new NativeCalendarRelationalStore(new JdbcTemplate(database));
+            NativeCalendarRelationalStore store = new NativeCalendarRelationalStore(JpaTestDatabase.entityManager(database));
             NativeCalendarProviderAdapter target = new NativeCalendarProviderAdapter(
                     JpaTestDatabase.repository(database, CalendarCollectionJpaRepository.class),
                     JpaTestDatabase.repository(database, CalendarEventJpaRepository.class),
@@ -207,6 +244,29 @@ class NativeCalendarProviderAdapterTest {
                 JpaTestDatabase.repository(database, CalendarChangeJpaRepository.class),
                 CLOCK);
         return JpaTestDatabase.transactional(database, target);
+    }
+
+    @Test
+    void normalizedPayloadReplacementAndDeletionRetainAnIdenticalEventIdInAnotherScope() {
+        org.junit.jupiter.api.Assumptions.assumeTrue(Boolean.getBoolean("weave.test.postgres"), "Authoritative PostgreSQL gate");
+        DataSource database = JpaTestDatabase.entityFirstDataSource("calendar-normalized-scope");
+        NativeCalendarProviderAdapter adapter = adapter(database);
+        CalendarEvent original = event("shared-id", "Workspace");
+        CalendarScope team = new CalendarScope(com.massimotter.weave.backend.calendar.domain.CalendarDomain.ScopeType.TEAM, "team-one", null);
+        CalendarEvent teamEvent = new CalendarEvent(original.calendarId(), original.id(), team, "Team", null,
+                original.startValue(), original.endValue(), null,
+                List.of(new Attendee(null, "Team attendee", "team@example.test", null, null)),
+                original.recurrence(), original.overrides(), EventVersion.unknown(), CLOCK.instant());
+        CalendarEvent workspace = adapter.write(new CalendarWrite(original, WriteIntent.CREATE, EventVersion.unknown()));
+        adapter.write(new CalendarWrite(teamEvent, WriteIntent.CREATE, EventVersion.unknown()));
+        CalendarEvent updated = adapter.write(new CalendarWrite(withTitle(workspace, "Updated"), WriteIntent.UPDATE, workspace.version()));
+        assertThat(adapter.read(CALENDAR, team, original.id()).attendees()).isEqualTo(teamEvent.attendees());
+        adapter.delete(CALENDAR, WORKSPACE, original.id(), updated.version());
+        assertThat(adapter.read(CALENDAR, team, original.id()).title()).isEqualTo("Team");
+        assertThat(adapter.query(CALENDAR, team, Instant.parse("2026-03-28T00:00:00Z"),
+                Instant.parse("2026-03-29T00:00:00Z"))).extracting(value -> value.id().value()).containsExactly("shared-id");
+        assertThat(adapter.query(CALENDAR, WORKSPACE, Instant.parse("2026-03-28T00:00:00Z"),
+                Instant.parse("2026-03-29T00:00:00Z"))).isEmpty();
     }
 
     @ParameterizedTest

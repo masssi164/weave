@@ -177,7 +177,7 @@ class NativeCalendarPreviewHttpPostgresTest {
     }
 
     private static CalendarProviderPort adapter(DataSource database) {
-        NativeCalendarRelationalStore store = new NativeCalendarRelationalStore(new JdbcTemplate(database));
+        NativeCalendarRelationalStore store = new NativeCalendarRelationalStore(JpaTestDatabase.entityManager(database));
         NativeCalendarProviderAdapter target = new NativeCalendarProviderAdapter(
                 JpaTestDatabase.repository(database, CalendarCollectionJpaRepository.class),
                 JpaTestDatabase.repository(database, CalendarEventJpaRepository.class),

@@ -125,22 +125,20 @@ public class NativeCalendarProviderAdapter implements CalendarProviderPort {
         String scopeKey = scopeKey(scope);
         if (from != null || to != null) requireRange(from, to);
 
-        List<CalendarEvent> active = events.findActive(calendarId.value(), scopeKey).stream()
+        List<CalendarEventJpaEntity> selected;
+        if (from != null && relationalStore != null) {
+            List<String> candidates = relationalStore.candidateEventIds(calendarId.value(), scopeKey, from, to, evaluationZone);
+            if (candidates.isEmpty()) return List.of();
+            selected = events.findActiveCandidates(calendarId.value(), scopeKey, candidates);
+        } else {
+            selected = events.findActive(calendarId.value(), scopeKey);
+        }
+        List<CalendarEvent> active = selected.stream()
                 .map(CalendarEventJpaEntity::toDomain)
                 .map(event -> enrich(event, scopeKey))
                 .toList();
         if (from == null) return active;
-
-        if (relationalStore == null) {
-            return active.stream()
-                    .filter(event -> !occurrenceEngine.occurrences(event, from, to, evaluationZone).isEmpty())
-                    .toList();
-        }
-
-        Set<String> candidateIds = Set.copyOf(relationalStore.candidateEventIds(
-                calendarId.value(), scopeKey, from, to, evaluationZone));
         return active.stream()
-                .filter(event -> candidateIds.contains(event.id().value()))
                 .filter(event -> !occurrenceEngine.occurrences(event, from, to, evaluationZone).isEmpty())
                 .toList();
     }

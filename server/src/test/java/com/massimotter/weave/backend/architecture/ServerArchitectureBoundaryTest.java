@@ -489,8 +489,7 @@ class ServerArchitectureBoundaryTest {
                         persistence.stream())
                 .toList();
         Set<String> nativeCollaborationSqlExceptions = Set.of(
-                "MatrixE2eeRelationalStore.java",
-                "NativeCalendarRelationalStore.java");
+                "MatrixE2eeRelationalStore.java");
         assertThat(dataAccessSources.stream()
                         .filter(source -> source.text().contains("JdbcTemplate")
                                 || source.text().contains("org.springframework.jdbc.core"))

@@ -25,3 +25,17 @@ Domain checks cover pure model dependencies, temporal semantics, entity ownershi
 ## Cleanup record
 
 `CalendarDomain.java` was removed from `weave-application-core`; it is Calendar behavior, not a shared platform primitive. `CalendarNativePersistence.java` and `CalendarNormalizedPersistence.java` were removed from `weave-persistence-jpa`; Calendar owns its mappings. Keep only the domain-owned source copies. Retained legacy constructors and schema mappings are not dead code merely because their comments describe compatibility.
+
+## Normalized payload persistence extraction
+
+`NativeCalendarRelationalStore` moved from the executable's Calendar adapter package into this
+domain's persistence library. Its production dependency is the owning compiled JPA graph, not
+Server services or iCal4j. Ordinary payload CRUD and candidate selection now use JPA with scoped
+composite IDs. The redundant unused recurrence implementation is removed; active recurrence
+projection stays in `CalendarOccurrenceEngine`. Ranged native queries select candidate IDs in
+the database before loading/enriching payloads.
+
+The isolated store unit test moved with production code. PostgreSQL adapter, HTTP preview and
+generated-baseline checks remain in the existing integrated harness until its separate
+extraction. No schema/history or provider behavior changes and no persistent data reset occur.
+The remaining Calendar runtime/API extraction is still open.
