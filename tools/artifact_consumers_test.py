@@ -20,7 +20,7 @@ class ArtifactConsumers(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
+        self.root = Path(self.temporary.name).resolve()
         self.manifest = {"component": "ios-simulator", "sourceCommit": "a" * 40, "sourceTree": "b" * 40,
             "inputDigest": "sha256:" + "c" * 64, "target": "aarch64-apple-ios-sim", "buildMode": "debug",
             "buildNumber": "77", "producer": {"runId": 123, "runAttempt": 1},

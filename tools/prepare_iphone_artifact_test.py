@@ -21,7 +21,7 @@ class PhysicalArtifactPreparation(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
+        self.root = Path(self.temporary.name).resolve()
         self.candidate = "c" * 40
         self.device = "00008020-0012345678901234"
         self.manifest = {"component": "ios-device", "sourceCommit": "a" * 40, "sourceTree": "b" * 40,
