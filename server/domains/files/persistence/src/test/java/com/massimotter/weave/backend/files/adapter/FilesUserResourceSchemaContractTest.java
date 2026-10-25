@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import jakarta.persistence.Table;
 import org.junit.jupiter.api.Test;
 
-/** Keep the former SQL-only path invariants in the owning declarative entity mapping. */
+/** Keep path integrity in the owning entity, including SQL's three-valued null semantics. */
 class FilesUserResourceSchemaContractTest {
     private final Table table = FilesUserResourceJpaEntity.class.getAnnotation(Table.class);
 
@@ -27,11 +27,20 @@ class FilesUserResourceSchemaContractTest {
     }
 
     @Test
-    void lifecycleAndActivePathRemainOneDeclaredInvariant() {
+    void activePathCheckCannotAcceptUnknownFromANullKey() {
         assertThat(table.check()).anySatisfy(check -> {
             assertThat(check.name()).isEqualTo("ck_weave_files_user_resources_active_path");
-            assertThat(check.constraint()).contains("active_path_key = canonical_path",
-                    "lifecycle_state = 'TOMBSTONED'", "active_path_key IS NULL");
+            assertThat(check.constraint()).contains("active_path_key IS NOT NULL",
+                    "active_path_key = canonical_path", "lifecycle_state = 'TOMBSTONED'",
+                    "active_path_key IS NULL");
+        });
+    }
+
+    @Test
+    void bindingRevisionMatchesTheDomainInvariant() {
+        assertThat(table.check()).anySatisfy(check -> {
+            assertThat(check.name()).isEqualTo("ck_weave_files_user_resources_binding_revision");
+            assertThat(check.constraint()).isEqualTo("binding_revision > 0");
         });
     }
 }

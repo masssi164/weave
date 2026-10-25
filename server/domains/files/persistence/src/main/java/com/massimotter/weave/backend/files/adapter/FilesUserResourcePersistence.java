@@ -25,16 +25,21 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-// These invariants previously existed only in V9 SQL; generated schemas must preserve them.
+// Entity-owned integrity: SQL CHECK accepts UNKNOWN, so ACTIVE explicitly requires a non-null key.
 @Entity
 @Table(name = "weave_files_user_resources",
         uniqueConstraints = @UniqueConstraint(name = "uq_weave_files_user_resources_active_path",
                 columnNames = {"organization_ref", "binding_revision", "active_path_key"}),
         indexes = @Index(name = "ix_weave_files_user_resources_parent",
                 columnList = "organization_ref,parent_file_id,lifecycle_state"),
-        check = @CheckConstraint(name = "ck_weave_files_user_resources_active_path",
-                constraint = "(lifecycle_state = 'ACTIVE' AND active_path_key = canonical_path)"
-                        + " OR (lifecycle_state = 'TOMBSTONED' AND active_path_key IS NULL)"))
+        check = {
+            @CheckConstraint(name = "ck_weave_files_user_resources_active_path",
+                    constraint = "(lifecycle_state = 'ACTIVE' AND active_path_key IS NOT NULL"
+                            + " AND active_path_key = canonical_path)"
+                            + " OR (lifecycle_state = 'TOMBSTONED' AND active_path_key IS NULL)"),
+            @CheckConstraint(name = "ck_weave_files_user_resources_binding_revision",
+                    constraint = "binding_revision > 0")
+        })
 class FilesUserResourceJpaEntity {
     @EmbeddedId
     private FilesUserResourceId id;
