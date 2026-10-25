@@ -13,6 +13,8 @@ remain useful historical evidence only where they agree with current source and
 the pinned corpus. Do not use the older transport or private-execution examples
 as implementation instructions.
 
+**Current extraction note (2026-10-25):** Files pure model and its JPA mapping library now live in `server/domains/files/model` and `server/domains/files/persistence` as separate Gradle projects. The topology and single-server composition below describe the remaining transitional modules; do not reintroduce a Root Files model or put Files entities back in the generic JPA module. The full Server App/domain extraction is not complete.
+
 ## Module dependency direction
 
 ```text
