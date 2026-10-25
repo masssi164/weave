@@ -302,10 +302,7 @@ public class DogfoodPreparationService {
                 && name.codePoints().noneMatch(Character::isISOControl), "owner-unavailable");
         String issuer = resourceServer.getJwt().getIssuerUri();
         require(request.plan().issuerUrl().equals(issuer), "configuration-mismatch");
-        var context = new OrganizationIdentityContext(identities.configuredOrganizationId(), issuer, live.subject(),
-                IdentityReferences.primaryIdentityKey(issuer, live.subject()), IdentityReferences.accountId(issuer, live.subject()),
-                live.roles(), live.groups(), List.of(), Stream.concat(live.roles().stream().map(role -> "role_claim:" + role),
-                live.groups().stream().map(group -> "group_claim:" + group)).sorted().toList());
+        var context = identities.resolveVerifiedMember(issuer, live.subject(), live.roles(), live.groups());
         try { capabilities.requireCapabilityForVerifiedMember(context, "admin.policy.edit", "spaces", "dogfood-prepare-members"); }
         catch (ApiErrorException denied) { throw new Blocked("owner-policy-denied"); }
         return new Owner(context, references.member(organization.keycloakId(), live.subject()), name);

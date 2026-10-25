@@ -24,7 +24,9 @@ import org.springframework.http.HttpStatus;
 class DogfoodPreparationServiceTest {
     private final KeycloakIdentityAdminClient keycloak = mock(KeycloakIdentityAdminClient.class);
     private final WorkspaceCapabilityService capabilities = mock(WorkspaceCapabilityService.class);
-    private final OrganizationIdentityContextResolver identities = mock(OrganizationIdentityContextResolver.class);
+    private final OrganizationIdentityContextResolver identities = OrganizationIdentityContextResolver.configured(
+            new com.massimotter.weave.backend.config.ContextAuthorizationProperties(
+                    null, null, "org", null, null, null, null, null));
     private final IdentityOpaqueReferenceCodec references = mock(IdentityOpaqueReferenceCodec.class);
     private final DogfoodSpacePreparationPort spaces = mock(DogfoodSpacePreparationPort.class);
     private final DogfoodOperatorPlanBinding bindings = mock(DogfoodOperatorPlanBinding.class);
@@ -38,7 +40,6 @@ class DogfoodPreparationServiceTest {
         var properties = new IdentityInvitationProperties();
         properties.keycloak().setOrganizationId("provider-org");
         var resource = new OAuth2ResourceServerProperties(); resource.getJwt().setIssuerUri(ISSUER);
-        when(identities.configuredOrganizationId()).thenReturn("org");
         when(bindings.managedProgress(any(), anyString(), anyString(), anyString())).thenReturn(ManagedTestProgress.empty());
         when(keycloak.configuredOrganizationId()).thenReturn("provider-org");
         members.add(new ProviderMember("real-owner", "owner@example.test", "Actual owner", List.of("owner"), List.of(), true));
