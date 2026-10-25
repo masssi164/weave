@@ -18,20 +18,12 @@ jobs:
         with:
           ref: a478f1e35dde9d4e929c91c16f0075ab026ee365
           persist-credentials: false
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
-        with:
-          repository: masssi164/weave-specs
-          ref: f049c0b1879414eb529a3df83a18224407f1a436
-          path: .development-corpus
-          persist-credentials: false
       - name: Export tracked source only, without checkout credentials or runtime state
         run: |
           set -euo pipefail
           mkdir -p /tmp/member-preparation-source
           git archive --format=tar HEAD | gzip > /tmp/member-preparation-source/weave.tar.gz
-          git -C .development-corpus archive --format=tar HEAD | gzip > /tmp/member-preparation-source/weave-specs.tar.gz
           git rev-parse HEAD > /tmp/member-preparation-source/source.txt
-          git -C .development-corpus rev-parse HEAD > /tmp/member-preparation-source/specification.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: member-preparation-source-${{ github.run_id }}
