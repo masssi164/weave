@@ -3,12 +3,8 @@ package com.massimotter.weave.backend;
 import com.massimotter.weave.backend.agentruntime.operator.RuntimeProfileSigningKeyCli;
 import com.massimotter.weave.backend.agentruntime.operator.RuntimeStateWrappingKeyCli;
 import com.massimotter.weave.backend.security.workload.config.WorkloadEntitlementProperties;
-import com.massimotter.weave.backend.config.ConnectorRuntimeProperties;
 import com.massimotter.weave.backend.security.config.DeploymentOrganizationProperties;
-import com.massimotter.weave.backend.config.GuestAccessProperties;
 import com.massimotter.weave.backend.identity.keycloak.IdentityInvitationProperties;
-import com.massimotter.weave.backend.config.InteropGatewayProperties;
-import com.massimotter.weave.backend.config.MigrationToolkitProperties;
 import com.massimotter.weave.backend.discovery.config.PlatformContractProperties;
 import com.massimotter.weave.backend.security.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.capability.config.WorkspaceCapabilityProperties;
@@ -35,17 +31,13 @@ import org.springframework.scheduling.annotation.EnableScheduling;
                         classes = org.springframework.boot.autoconfigure.AutoConfigurationExcludeFilter.class),
                 @org.springframework.context.annotation.ComponentScan.Filter(
                         type = org.springframework.context.annotation.FilterType.REGEX,
-                        pattern = "com\\.massimotter\\.weave\\.backend\\.(files|calendar|chat|decisions|meetings|identity\\.member\\.api|spaces\\.api|spaces\\.bootstrap|api\\.error|identity\\.invitation\\.api|identity\\.profile\\.api)\\..*")
+                        pattern = "com\\.massimotter\\.weave\\.backend\\.(files|calendar|chat|decisions|meetings|boards|office|devops|integrations|guest|portability|agentruntime|identity\\.member\\.api|spaces\\.api|spaces\\.bootstrap|api\\.error|identity\\.invitation\\.api|identity\\.profile\\.api)\\..*")
         })
 @EnableScheduling
 @EnableConfigurationProperties({
         WorkloadEntitlementProperties.class,
-        ConnectorRuntimeProperties.class,
         DeploymentOrganizationProperties.class,
-        GuestAccessProperties.class,
-        InteropGatewayProperties.class,
         IdentityInvitationProperties.class,
-        MigrationToolkitProperties.class,
         PlatformContractProperties.class,
         WeaveSecurityProperties.class,
         WorkspaceCapabilityProperties.class

@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.portability.api.MigrationController;
+
 import com.massimotter.weave.backend.security.http.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.security.http.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
@@ -7,10 +9,10 @@ import com.massimotter.weave.backend.config.AdminApiSecurityConfiguration;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import com.massimotter.weave.backend.api.error.ApiExceptionHandler;
-import com.massimotter.weave.backend.model.migration.MigrationApplyGateResponse;
-import com.massimotter.weave.backend.model.migration.MigrationDryRunResponse;
-import com.massimotter.weave.backend.service.migration.MigrationApplyGateService;
-import com.massimotter.weave.backend.service.migration.MigrationDryRunService;
+import com.massimotter.weave.backend.portability.api.MigrationApplyGateResponse;
+import com.massimotter.weave.backend.portability.api.MigrationDryRunResponse;
+import com.massimotter.weave.backend.portability.application.MigrationApplyGateService;
+import com.massimotter.weave.backend.portability.application.MigrationDryRunService;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -39,6 +41,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         controllers = MigrationController.class,
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
+        MigrationController.class,
         AdminApiSecurityConfiguration.class,
         SecurityConfig.class,
         ApiAuthenticationEntryPoint.class,

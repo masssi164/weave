@@ -1,5 +1,10 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.security.jwt.JwtDecoderSupport;
+import com.massimotter.weave.backend.agentruntime.config.AgentRuntimeJwtTestSupport;
+
+import com.massimotter.weave.backend.agentruntime.config.AgentRuntimeAdminSecurityConfiguration;
+
 import com.massimotter.weave.backend.security.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.security.MemberSessionRevocationService;
 import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
@@ -313,9 +318,9 @@ class JwtDecoderConfigTest {
                 .expiresAt(now.plusSeconds(60))
                 .build();
 
-        assertThat(JwtDecoderConfig.rfc9068AccessTokenTypeValidator().validate(accessToken).hasErrors())
+        assertThat(JwtDecoderSupport.rfc9068AccessTokenTypeValidator().validate(accessToken).hasErrors())
                 .isFalse();
-        assertThat(JwtDecoderConfig.rfc9068AccessTokenTypeValidator().validate(genericJwt).hasErrors())
+        assertThat(JwtDecoderSupport.rfc9068AccessTokenTypeValidator().validate(genericJwt).hasErrors())
                 .isTrue();
     }
 
@@ -323,10 +328,10 @@ class JwtDecoderConfigTest {
     void exchangedMcpTokenRequiresExactBackendAudiencePrincipalTypeAndFilesScope() {
         Instant now = Instant.now();
         var validator = new DelegatingOAuth2TokenValidator<Jwt>(
-                JwtDecoderConfig.exactAudienceValidator(java.util.Set.of("https://api.weave.test/api")),
-                JwtDecoderConfig.requiredAuthorizedPartyValidator("weave-mcp-server"),
-                JwtDecoderConfig.rfc9068AccessTokenTypeValidator(),
-                JwtDecoderConfig.exactScopesValidator(java.util.Set.of("files.read")));
+                JwtDecoderSupport.exactAudienceValidator(java.util.Set.of("https://api.weave.test/api")),
+                JwtDecoderSupport.requiredAuthorizedPartyValidator("weave-mcp-server"),
+                JwtDecoderSupport.rfc9068AccessTokenTypeValidator(),
+                JwtDecoderSupport.exactScopesValidator(java.util.Set.of("files.read")));
         Jwt accepted = exchangedToken(now, List.of("https://api.weave.test/api"), "at+jwt");
         Jwt broadAudience = exchangedToken(
                 now, List.of("https://api.weave.test/api", "account"), "at+jwt");
@@ -394,8 +399,8 @@ class JwtDecoderConfigTest {
             OAuth2ResourceServerProperties properties = new OAuth2ResourceServerProperties();
             properties.getJwt().setIssuerUri(ISSUER_URI);
             properties.getJwt().setJwkSetUri(jwksServer.jwkSetUri());
-            JwtDecoder decoder = JwtDecoderConfig.configuredRfc9068Decoder(
-                    properties, JwtDecoderConfig.rfc9068AccessTokenTypeValidator());
+            JwtDecoder decoder = JwtDecoderSupport.configuredRfc9068Decoder(
+                    properties, JwtDecoderSupport.rfc9068AccessTokenTypeValidator());
 
             Jwt accepted = decoder.decode(signedToken(
                     signingKey,
@@ -487,7 +492,7 @@ class JwtDecoderConfigTest {
         OAuth2ResourceServerProperties properties = new OAuth2ResourceServerProperties();
         properties.getJwt().setIssuerUri(ISSUER_URI);
         properties.getJwt().setJwkSetUri(jwkSetUri);
-        return new JwtDecoderConfig().agentRuntimeAdminJwtDecoder(
+        return AgentRuntimeJwtTestSupport.adminDecoder(
                 properties,
                 new WeaveSecurityProperties("https://api.weave.test/api", "weave-app"));
     }

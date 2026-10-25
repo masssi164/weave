@@ -12,7 +12,7 @@ import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import com.massimotter.weave.backend.security.http.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.security.http.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
-import com.massimotter.weave.backend.config.DevopsProviderConfiguration;
+import com.massimotter.weave.backend.devops.config.DevopsProviderConfiguration;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.config.AdminApiSecurityConfiguration;
 import com.massimotter.weave.backend.service.AdminProviderRegistryService;
@@ -24,7 +24,7 @@ import com.massimotter.weave.backend.capability.api.WorkspaceCapabilitiesRespons
 import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityPolicyState;
 import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityReadiness;
 import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityStatusResponse;
-import com.massimotter.weave.backend.office.port.DisabledOfficeProvider;
+import com.massimotter.weave.backend.office.provider.DisabledOfficeProvider;
 import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
 import com.massimotter.weave.backend.provider.ProviderRegistry;
 import com.massimotter.weave.backend.providerbinding.selection.ProviderSelection;
@@ -113,6 +113,11 @@ class ProviderRegistryControllerTest {
 
     @org.springframework.boot.test.context.TestConfiguration
     static class UserDecoderConfiguration {
+        @org.springframework.context.annotation.Bean
+        com.massimotter.weave.backend.boards.port.BoardsRepository boardsRepository() {
+            return new com.massimotter.weave.backend.boards.provider.local.LocalWorkspaceBoardsRepository();
+        }
+
         @org.springframework.context.annotation.Bean
         com.massimotter.weave.backend.chat.port.ChatProviderPort chatProviderPort() {
             var store = org.mockito.Mockito.mock(com.massimotter.weave.backend.chat.port.CanonicalChatStore.class);

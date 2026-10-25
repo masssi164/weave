@@ -4,9 +4,9 @@ import com.massimotter.weave.backend.security.workload.domain.WorkloadReferences
 
 import static org.assertj.core.api.Assertions.assertThat;
 import tools.jackson.databind.ObjectMapper;
-import com.massimotter.weave.backend.agentruntime.adapter.FileRuntimeWorkloadCredentialStore;
-import com.massimotter.weave.backend.agentruntime.adapter.JpaRuntimeCellRepository;
-import com.massimotter.weave.backend.agentruntime.adapter.AgentRuntimeJpaTestFactory;
+import com.massimotter.weave.backend.agentruntime.provider.identity.FileRuntimeWorkloadCredentialStore;
+import com.massimotter.weave.backend.agentruntime.persistence.JpaRuntimeCellRepository;
+import com.massimotter.weave.backend.agentruntime.persistence.AgentRuntimeJpaTestFactory;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCell;
 import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadBinding;

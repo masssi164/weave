@@ -56,16 +56,16 @@ class ServerArchitectureBoundaryTest {
             BACKEND_PACKAGE + "weaver.",
             BACKEND_PACKAGE + "audit.",
             BACKEND_PACKAGE + "persistence.",
-            BACKEND_PACKAGE + "boards.openproject.",
-            BACKEND_PACKAGE + "boards.vikunja.",
-            BACKEND_PACKAGE + "boards.deck.",
-            BACKEND_PACKAGE + "boards.local.");
+            BACKEND_PACKAGE + "boards.provider.openproject.",
+            BACKEND_PACKAGE + "boards.provider.vikunja.",
+            BACKEND_PACKAGE + "boards.provider.deck.",
+            BACKEND_PACKAGE + "boards.provider.local.");
     private static final List<String> PROVIDER_ADAPTER_IMPORT_PREFIXES = List.of(
             BACKEND_PACKAGE + "chat.provider.",
-            BACKEND_PACKAGE + "boards.openproject.",
-            BACKEND_PACKAGE + "boards.vikunja.",
-            BACKEND_PACKAGE + "boards.deck.",
-            BACKEND_PACKAGE + "boards.local.",
+            BACKEND_PACKAGE + "boards.provider.openproject.",
+            BACKEND_PACKAGE + "boards.provider.vikunja.",
+            BACKEND_PACKAGE + "boards.provider.deck.",
+            BACKEND_PACKAGE + "boards.provider.local.",
             BACKEND_PACKAGE + "files.provider.NextcloudFilesAdapter",
             BACKEND_PACKAGE + "calendar.provider.",
             BACKEND_PACKAGE + "calendar.persistence.NativeCalendarProviderAdapter");
@@ -112,8 +112,8 @@ class ServerArchitectureBoundaryTest {
             "/service/FileProductProfileOverrideRepository.java",
             "/service/migration/FileMigrationRunEvidenceRepository.java");
     private static final List<String> ACCEPTED_FILE_KEY_CUSTODY_ALLOWLIST = List.of(
-            "/agentruntime/adapter/FileRuntimeProfileSigningKeyStore.java",
-            "/agentruntime/adapter/FileRuntimeStateKeyWrapper.java",
+            "/agentruntime/security/FileRuntimeProfileSigningKeyStore.java",
+            "/agentruntime/security/FileRuntimeStateKeyWrapper.java",
             "/schema/SchemaAuthorityInitializer.java",
             "/schema/SchemaReceiptVerifier.java");
     private static final List<String> FILE_RUNTIME_AUTHORITY_MARKERS = List.of(
@@ -339,7 +339,7 @@ class ServerArchitectureBoundaryTest {
     @Test
     void boardsControllerRoutesThroughCanonicalFacadeRatherThanConcreteAdapters() throws IOException {
         JavaSource boardsController = productionSources().stream()
-                .filter(source -> source.path().endsWith(Path.of("controller", "BoardsController.java")))
+                .filter(source -> source.path().endsWith(Path.of("boards", "api", "BoardsController.java")))
                 .findFirst()
                 .orElseThrow();
 
@@ -655,13 +655,13 @@ class ServerArchitectureBoundaryTest {
                 moduleProductionSources("server/domains/agent-runtime/provider");
         JavaSource transport = providerAdapters.stream()
                 .filter(source -> source.path().endsWith(
-                        Path.of("agentruntime", "adapter",
+                        Path.of("agentruntime", "provider", "identity",
                                 "KeycloakClientRegistrationTransport.java")))
                 .findFirst()
                 .orElseThrow();
         JavaSource fileStore = providerAdapters.stream()
                 .filter(source -> source.path().endsWith(
-                        Path.of("agentruntime", "adapter",
+                        Path.of("agentruntime", "provider", "identity",
                                 "FileRuntimeWorkloadCredentialStore.java")))
                 .findFirst()
                 .orElseThrow();
@@ -793,7 +793,10 @@ class ServerArchitectureBoundaryTest {
     }
 
     private static boolean isDomainForbiddenImport(String importName) {
-        return DOMAIN_FORBIDDEN_IMPORT_PREFIXES.stream().anyMatch(importName::startsWith);
+        return DOMAIN_FORBIDDEN_IMPORT_PREFIXES.stream().anyMatch(importName::startsWith)
+                || (importName.startsWith(BACKEND_PACKAGE) && (importName.contains(".provider.")
+                        || importName.contains(".api.") || importName.contains(".application.")
+                        || importName.contains(".config.")));
     }
 
     private static boolean isProviderAdapterImport(String importName) {

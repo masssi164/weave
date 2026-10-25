@@ -8,7 +8,7 @@ import com.tngtech.archunit.lang.ArchRule;
 
 @AnalyzeClasses(
     packages = {
-      "com.massimotter.weave.backend.agentruntime.adapter"
+      "com.massimotter.weave.backend.agentruntime.persistence"
     })
 class PersistenceArchitectureTest {
 
@@ -19,6 +19,7 @@ class PersistenceArchitectureTest {
           .dependOnClassesThat()
           .resideInAnyPackage(
               "com.massimotter.weave.backend.controller..",
+              "com.massimotter.weave.backend.agentruntime.api..",
               "com.massimotter.weave.backend.model..",
               "com.massimotter.weave.backend.provider..",
               "com.massimotter.weave.mcp..");

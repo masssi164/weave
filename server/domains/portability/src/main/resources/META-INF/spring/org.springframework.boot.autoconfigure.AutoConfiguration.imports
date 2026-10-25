@@ -1,0 +1,2 @@
+com.massimotter.weave.backend.portability.autoconfigure.PortabilityRuntimeAutoConfiguration
+com.massimotter.weave.backend.portability.autoconfigure.PortabilityApplicationPersistenceAutoConfiguration

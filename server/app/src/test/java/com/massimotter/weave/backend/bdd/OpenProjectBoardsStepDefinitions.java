@@ -13,8 +13,8 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.boards.domain.BoardCapability;
-import com.massimotter.weave.backend.boards.openproject.OpenProjectBoardsRepository;
-import com.massimotter.weave.backend.boards.openproject.OpenProjectBoardsRuntimeGate;
+import com.massimotter.weave.backend.boards.provider.openproject.OpenProjectBoardsRepository;
+import com.massimotter.weave.backend.boards.provider.openproject.OpenProjectBoardsRuntimeGate;
 import com.massimotter.weave.backend.boards.port.BoardQuery;
 import com.massimotter.weave.backend.boards.port.BoardsRuntimeGuard;
 import com.massimotter.weave.backend.boards.port.CreateTaskCommand;
@@ -25,8 +25,8 @@ import com.massimotter.weave.backend.security.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation.Settings;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
-import com.massimotter.weave.backend.model.boards.BoardsWorkspaceResponse;
-import com.massimotter.weave.backend.service.BoardsFacadeService;
+import com.massimotter.weave.backend.boards.api.BoardsWorkspaceResponse;
+import com.massimotter.weave.backend.boards.application.BoardsFacadeService;
 import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import io.cucumber.java.Before;
 import io.cucumber.java.en.Given;
@@ -257,6 +257,7 @@ public class OpenProjectBoardsStepDefinitions {
                         ? ContextAuthorizationDecision.deny("no matching context membership")
                         : ContextAuthorizationDecision.allow("context membership matched"),
                 new ContextAuthorizationProperties(null, null, null, null, null, null, null, null),
+                com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver.configured(new ContextAuthorizationProperties(null, null, null, null, null, null, null, null)),
                 workspaceCapabilityService(),
                 new InMemoryAuditEventPublisher());
     }

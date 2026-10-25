@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.agentruntime.api.AgentRuntimeAdminController;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -18,11 +20,11 @@ import com.massimotter.weave.backend.agentruntime.application.AgentRuntimeAdminS
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCommandConflictException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimePersonNotFoundException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimePolicyException;
-import com.massimotter.weave.backend.config.AgentRuntimeAdminSecurityConfiguration;
-import com.massimotter.weave.backend.config.AgentRuntimeErrorResponseWriter;
+import com.massimotter.weave.backend.agentruntime.config.AgentRuntimeAdminSecurityConfiguration;
+import com.massimotter.weave.backend.agentruntime.api.AgentRuntimeErrorResponseWriter;
 import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
-import com.massimotter.weave.backend.exception.AgentRuntimeAdminExceptionHandler;
-import com.massimotter.weave.backend.model.agentruntime.AgentRuntimeProjectionResponse;
+import com.massimotter.weave.backend.agentruntime.api.AgentRuntimeAdminExceptionHandler;
+import com.massimotter.weave.backend.agentruntime.api.AgentRuntimeProjectionResponse;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.security.DeploymentOrganizationAdmission;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
@@ -53,6 +55,7 @@ import org.springframework.test.web.servlet.MockMvc;
         controllers = AgentRuntimeAdminController.class,
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
+        AgentRuntimeAdminController.class,
         OrganizationIdentityContextResolver.class,
         DeploymentOrganizationAdmission.class,
         AgentRuntimeAdminSecurityConfiguration.class,

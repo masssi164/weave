@@ -215,6 +215,8 @@ class CanonicalDomainRegistryContractTest {
     }
 
     private JsonNode readContract(String name) throws Exception {
-        return OBJECT_MAPPER.readTree(Files.readString(Path.of("src/main/resources/contracts", name)));
+        try (var resource = new org.springframework.core.io.ClassPathResource("contracts/" + name).getInputStream()) {
+            return OBJECT_MAPPER.readTree(resource);
+        }
     }
 }

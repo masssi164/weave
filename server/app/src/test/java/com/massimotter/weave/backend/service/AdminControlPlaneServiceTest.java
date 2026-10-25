@@ -24,7 +24,7 @@ import com.massimotter.weave.backend.provider.ProviderRegistry;
 import com.massimotter.weave.backend.providerbinding.selection.ProviderSelection;
 import com.massimotter.weave.backend.providerbinding.domain.ProviderBinding;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
-import com.massimotter.weave.backend.service.migration.InMemoryMigrationRunEvidenceRepository;
+import com.massimotter.weave.backend.portability.application.InMemoryMigrationRunEvidenceRepository;
 import java.io.InputStream;
 import java.time.Clock;
 import java.time.Instant;

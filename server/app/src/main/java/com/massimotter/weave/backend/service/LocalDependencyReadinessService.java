@@ -1,29 +1,32 @@
 package com.massimotter.weave.backend.service;
 
-import com.massimotter.weave.backend.agentruntime.application.AgentRuntimeWorkloadReconciliationService;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadReconciliationReport;
-import com.massimotter.weave.backend.agentruntime.port.RuntimeStateStore;
 import com.massimotter.weave.backend.model.PlatformStatusResponse;
 import com.massimotter.weave.backend.readiness.persistence.JpaPersistenceReadinessProbe;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import com.massimotter.weave.backend.readiness.port.LocalDependencyContribution;
+import java.util.Comparator;
+import java.util.HashSet;
 import org.springframework.stereotype.Service;
 
 @Service
 public class LocalDependencyReadinessService {
 
     private final JpaPersistenceReadinessProbe persistenceReadinessProbe;
-    private final RuntimeStateStore runtimeStateStore;
-    private final AgentRuntimeWorkloadReconciliationService workloadReconciliation;
+    private final List<LocalDependencyContribution> contributions;
 
     public LocalDependencyReadinessService(
             Optional<JpaPersistenceReadinessProbe> persistenceReadinessProbe,
-            Optional<RuntimeStateStore> runtimeStateStore,
-            Optional<AgentRuntimeWorkloadReconciliationService> workloadReconciliation) {
+            List<LocalDependencyContribution> contributions) {
         this.persistenceReadinessProbe = persistenceReadinessProbe.orElse(null);
-        this.runtimeStateStore = runtimeStateStore.orElse(null);
-        this.workloadReconciliation = workloadReconciliation.orElse(null);
+        var ids = new HashSet<String>();
+        for (var contribution : contributions) {
+            if ("persistence".equals(contribution.id()) || !ids.add(contribution.id())) {
+                throw new IllegalArgumentException("Duplicate local dependency readiness owner: " + contribution.id());
+            }
+        }
+        this.contributions = contributions.stream().sorted(Comparator.comparing(LocalDependencyContribution::id)).toList();
     }
 
     public List<PlatformStatusResponse.DiagnosticCheck> checks() {
@@ -31,53 +34,16 @@ public class LocalDependencyReadinessService {
         if (persistenceReadinessProbe != null) {
             checks.add(persistenceCheck());
         }
-        if (runtimeStateStore != null) {
-            checks.add(runtimeStateCheck());
-        }
-        if (workloadReconciliation != null) {
-            checks.add(workloadIdentityCheck());
+        for (var contribution : contributions) {
+            var observation = contribution.check();
+            if (!contribution.id().equals(observation.id())) {
+                throw new IllegalStateException("Local dependency readiness owner returned a different identity");
+            }
+            checks.add(new PlatformStatusResponse.DiagnosticCheck(
+                    observation.id(), observation.label(), observation.status(), observation.readiness(),
+                    observation.summary(), observation.remediation()));
         }
         return List.copyOf(checks);
-    }
-
-    private PlatformStatusResponse.DiagnosticCheck workloadIdentityCheck() {
-        RuntimeWorkloadReconciliationReport report = workloadReconciliation.supportSafeSnapshot();
-        if (report.state() == RuntimeWorkloadReconciliationReport.State.CONVERGED) {
-            return new PlatformStatusResponse.DiagnosticCheck(
-                    "agent-runtime-workload-identities",
-                    "Agent runtime workload identities",
-                    "up",
-                    "ready",
-                    "Agent runtime cell bindings, workload credentials, and the reserved Keycloak client namespace are reconciled.",
-                    null);
-        }
-        return new PlatformStatusResponse.DiagnosticCheck(
-                "agent-runtime-workload-identities",
-                "Agent runtime workload identities",
-                "blocked",
-                "blocked",
-                "Agent runtime workload identity reconciliation has not converged.",
-                "Reconcile current cells, workload SecretRefs, and the reserved Keycloak client namespace before serving runtime traffic.");
-    }
-
-    private PlatformStatusResponse.DiagnosticCheck runtimeStateCheck() {
-        RuntimeStateStore.StoreReadiness readiness = runtimeStateStore.readiness();
-        if (readiness.ready()) {
-            return new PlatformStatusResponse.DiagnosticCheck(
-                    "agent-runtime-state",
-                    "Agent runtime state",
-                    "up",
-                    "ready",
-                    "Encrypted external runtime state is available in the guarded self-hosted profile.",
-                    null);
-        }
-        return new PlatformStatusResponse.DiagnosticCheck(
-                "agent-runtime-state",
-                "Agent runtime state",
-                "blocked",
-                "blocked",
-                "Encrypted external runtime state is unavailable.",
-                "Restore and reconcile the runtime-state database and wrapping-key SecretRef set.");
     }
 
     private PlatformStatusResponse.DiagnosticCheck persistenceCheck() {

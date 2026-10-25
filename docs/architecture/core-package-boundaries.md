@@ -44,9 +44,10 @@ Forbidden:
 | Shared framework-free identity/Spaces/operation/binding contracts | `server/core/model` |
 | Shared persistence and domain-owned JPA graphs | `server/core` and owning domain `persistence` libraries |
 | Agent Runtime provider/security adapters | `server/domains/agent-runtime/provider`, `server/domains/agent-runtime/security` |
-| Serving composition, remaining controllers/providers/use cases | `server/app` (remaining feature runtime still transitional) |
+| Serving composition and remaining application-wide platform/admin coordination | `server/app` (shared ownership and selected assembly still transitional) |
+| Existing future Boards/Office/DevOps/Agent Runtime/Integrations/Guest/Portability/Decisions/Meetings serving code | Owning `server/domains/<domain>` runtime with module-local imports; incomplete implementations remain outside intended release |
 
-The remaining executable services are not the final Core design. Classify remaining Identity/Security/Spaces/audit code separately from planned Agent Runtime, Boards, Office, DevOps and portability domains. No future feature is deleted merely to make Core appear small.
+The remaining executable services are not the final Core design. Classify remaining Identity/Security/Spaces/audit and application-wide administration separately from owning optional domains; shared workflows consume narrow contributions rather than concrete feature services. No future feature is deleted merely to make Core appear small.
 
 ## Domain integration
 
@@ -62,6 +63,6 @@ Chat: Weave Matrix Client-Server projection → canonical Chat application → `
 
 ## Verification and cleanup discipline
 
-`./gradlew coreArchitectureCi` includes the extracted Files and Calendar library checks plus existing core/MCP boundaries. The domain tests inspect their compiled implementation; the Server relational inventory also includes nested domain source roots. Full PostgreSQL and actual runtime qualification are separate requirements.
+`./gradlew coreArchitectureCi` includes the extracted Files and Calendar library checks; `:server:domains:check` schedules all resolved owning domain checks plus existing core/MCP boundaries. The domain tests inspect their compiled implementation; the Server relational inventory also includes nested domain source roots. Full PostgreSQL and actual runtime qualification are separate requirements.
 
 A move removes the old physical copy in the same commit. A removed abstraction needs an identified replacement or an established absence of consumers. Keep removal rationale in the domain README/commit, not commented-out code. Do not weaken a guard to bypass a moved source; update the guard's actual ownership inputs.

@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.agentruntime.api.AgentRuntimeProfileController;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -9,13 +11,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import com.massimotter.weave.backend.agentruntime.adapter.AgentRuntimeWorkloadTokenPolicy;
+import com.massimotter.weave.backend.agentruntime.security.AgentRuntimeWorkloadTokenPolicy;
 import com.massimotter.weave.backend.agentruntime.application.RuntimeProfileDeliveryService;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeProfileJwkSet;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadPrincipal;
 import com.massimotter.weave.backend.agentruntime.domain.SignedRuntimeProfile;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileTrustBundlePublisher;
-import com.massimotter.weave.backend.config.AgentRuntimeProfileSecurityConfiguration;
+import com.massimotter.weave.backend.agentruntime.config.AgentRuntimeProfileSecurityConfiguration;
 import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.discovery.config.PlatformContractProperties;
 import com.massimotter.weave.backend.api.error.ApiExceptionHandler;
@@ -43,6 +45,7 @@ import org.springframework.test.web.servlet.MockMvc;
         controllers = AgentRuntimeProfileController.class,
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
+        AgentRuntimeProfileController.class,
         AgentRuntimeProfileSecurityConfiguration.class,
         AgentRuntimeProfileControllerTest.PolicyConfiguration.class,
         ApiErrorResponseWriter.class,

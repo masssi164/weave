@@ -18,7 +18,7 @@ import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.security.http.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.security.http.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
-import com.massimotter.weave.backend.config.DevopsProviderConfiguration;
+import com.massimotter.weave.backend.devops.config.DevopsProviderConfiguration;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.api.error.ApiExceptionHandler;
@@ -30,7 +30,7 @@ import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityStatusRes
 import com.massimotter.weave.backend.capability.api.EffectivePolicyDenyResponse;
 import com.massimotter.weave.backend.capability.api.EffectivePolicyResponse;
 import com.massimotter.weave.backend.model.admin.ProviderSelectionRequest;
-import com.massimotter.weave.backend.office.port.DisabledOfficeProvider;
+import com.massimotter.weave.backend.office.provider.DisabledOfficeProvider;
 import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
 import com.massimotter.weave.backend.provider.ProviderRegistry;
 import com.massimotter.weave.backend.providerbinding.selection.ProviderSelection;
@@ -44,7 +44,7 @@ import com.massimotter.weave.backend.service.OrganizationBootstrapRepository;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.identity.profile.port.ProductProfileOverrideRepository;
 import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
-import com.massimotter.weave.backend.service.migration.MigrationRunEvidenceRepository;
+import com.massimotter.weave.backend.portability.port.MigrationRunEvidenceRepository;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -814,6 +814,11 @@ class AdminControlPlaneControllerTest {
 
     @TestConfiguration
     static class AuditTestConfig {
+        @org.springframework.context.annotation.Bean
+        com.massimotter.weave.backend.boards.port.BoardsRepository boardsRepository() {
+            return new com.massimotter.weave.backend.boards.provider.local.LocalWorkspaceBoardsRepository();
+        }
+
         @org.springframework.context.annotation.Bean
         com.massimotter.weave.backend.chat.port.ChatProviderPort chatProviderPort() {
             var store = org.mockito.Mockito.mock(com.massimotter.weave.backend.chat.port.CanonicalChatStore.class);

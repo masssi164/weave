@@ -1,874 +1,201 @@
 # Server ownership and domain consolidation
 
-Implementation owner: #1745; integration parent: #1741; PR: #1746. This is the current implementation guide, not specification-corpus authority or release qualification.
+Implementation: #1745; integration: #1741; PR: #1746. This document is the single living
+six-phase execution plan and implementation checkpoint. It records source and checks, not
+specification authority or release qualification. Earlier checkpoint detail remains in Git history.
 
-## Current state versus target
+## Authority and current outcome
 
-**Implemented:** Files, Calendar and Chat own their actual serving runtimes: authenticated services, controllers, wire
-values, provider integrations, settings, resources and tests, plus pure model and transactional
-JPA adapters. Their owning checks and real Boot discovery run without App or sibling domains. Chat owns canonical conversations, Matrix HTTP projection, synchronization/device/crypto orchestration, Synapse integration and the Ruma/JNI transport boundary. Decisions and Meetings own their existing conversation-attached implementations as separate future runtimes with an explicit required Chat dependency; their in-memory implementation does not establish release readiness. Calendar owns
-its temporal/recurrence orchestration, native/CalDAV providers, pure model, normalized mappings
-and production JPA payload store. Core owns shared persistence
-under actual identity/security/Spaces/audit/operation/binding/readiness/schema packages; its pure
-model has no optional feature implementation. Chat, Agent Runtime and Portability have owning
-JPA libraries; Agent Runtime and Portability models and existing adapter libraries are below
-Server. All former Server-owned root projects are retired. Five shadowed adapter copies were
-removed without weakening the active security behavior.
+Primary classification: `cross-repo-contract`; implementation owner: `weave`; normative owner:
+`weave-specs`. Continue `refactor/1745-domain-ownership`, inspect/fetch before edits, preserve
+unrelated work and incorporate upstream normally. Never reset to a historical checkpoint.
 
-Core and the five persistence owners register scoped entity/repository wiring through their
-own Boot imports resources. Owning context lanes exercise actual Boot imports discovery and bean uniqueness. Shared provider health uses
-domain contributions, and shared member/session revocation no longer imports Chat types.
-The health cache, safe response, deferred probe contract and typed settings now live in
-Core health. Its module-local servlet auto-configuration is discovered without optional
-domain classes and does not probe providers during construction. The global provider
-configuration is retired; Files, Calendar, Chat, Boards, Integrations and Meetings own
-their existing registry metadata and adapter selection.
+The accepted corpus remains `f049c0b1879414eb529a3df83a18224407f1a436`. Entity-first ownership
+was approved through weave-specs#170. Explicit persistence/composition/no-Chat and Linux
+ARM64/GHCR reconciliation is proposed in [weave-specs#172](https://github.com/masssi164/weave-specs/pull/172),
+proposal `e38e9ba`; its hosted conformance passed, acceptance remains pending. A proposal does not
+silently replace the accepted pin. No placeholder Matrix URL, owner-data reset, applied-history
+rewrite, protected merge, deployment or release publication is authorized by this refactor.
 
-**Executable composition:** `server/app` is now the only Boot executable; `server` is a base
-project that resolves domain selection once. Root tasks, API/schema tooling, host runners,
-Docker JAR paths and complete source inputs target App. The independent nested Server
-wrapper/settings were retired in favor of the repository-pinned root wrapper.
+**Implemented:** Files, Calendar and Chat own actual services, HTTP adapters, wire values,
+provider integration, configuration, runtime resources, persistence and owning tests. Existing
+Boards, Office, DevOps, Agent Runtime, Integrations, Guest Access, Portability, Decisions and
+Meetings implementations have real owning runtime projects. Their incomplete implementations
+remain explicit future scope. Core owns independently useful platform capabilities.
 
-**Still transitional:** Remaining shared platform services and the Boards, Office, DevOps, Agent Runtime, Integrations, Guest Access and Portability serving runtimes still require extraction. Real selected-runtime packaging, future-domain
-release exclusion and reduced discovery/client integration are not complete. Files, Calendar, Chat, Decisions and Meetings use genuine owning checks; the verification-only bridge is retired. Partial App packaging/API/schema export guards remain
-until real selected runtime composition is implemented. No ARM64,
-native or live/human release qualification is claimed from library checks.
-
-The initial release product scope is **Files, Calendar and Chat**. Boards, Office, DevOps, Agent Runtime, portability/transfer, guest-facing and integration features remain planned domains. Move their implementations out of Core rather than deleting agreed product scope.
-
-## Ownership rules
-
-| Owner | Responsibility |
-| --- | --- |
-| App | Executable entry point, composition of selected domains, OpenAPI export and the complete historical Flyway catalog |
-| Core | Genuinely shared identity, organization admission, Security, Spaces, audit and narrow cross-domain contracts |
-| Domain model | Provider-neutral values and invariants; no Spring, JPA, HTTP, Jackson or provider SDK |
-| Domain persistence | That domain's entities, IDs, repositories, transaction adapters and persistence-specific dependencies |
-| Domain application/API | Authenticated use cases, orchestration, controllers and wire DTOs |
-| Domain provider integration | Provider adapters, their configuration, transport/serialization and SDK dependencies |
-
-There is no general requirement for catch-all `core/adapters` or `core/persistence` projects. Shared Security/Spaces/Identity may need persistence, but it belongs with that actual platform responsibility. Files or Calendar entities never become Core merely because they use the same database.
-
-Core must not depend on an optional domain implementation. Domains must not depend on the executable App or another domain's repositories. A source move that needs a reverse dependency is not complete; extract a small honest contract instead of hiding a cycle.
-
-**Security exception:** the historically Matrix-named durable member/session revocation storage is shared authentication state. It must remain available without Chat, preserve its existing table/hash format and fail closed. Room/device/crypto state belongs to Chat.
-
-## Current leaf projects
-
-- `:server:domains:files` runtime, `:server:domains:files:model` and `:server:domains:files:persistence`: see `server/domains/files/README.md` for ownership and removal rationale.
-- `:server:domains:calendar` runtime, `:server:domains:calendar:model` and `:server:domains:calendar:persistence`: see `server/domains/calendar/README.md`.
-- `:server:core:model` and `:server:core`: shared pure contracts and responsibility-owned persistence.
-- `:server:domains:chat` runtime and its owning `persistence` library; `:server:domains:decisions` and `:server:domains:meetings` future runtimes: see their owning READMEs.
-- Agent Runtime `model`, `persistence`, `provider` and `security`; Portability `model` and `persistence`: see their owning READMEs. Their serving extraction remains open.
-- Shared Java/toolchain/JUnit mechanics: `server/gradle/scripts/domain-library.gradle`. Dependencies remain in each library. Domain-qualified groups and archives prevent sibling libraries named `model` or `persistence` from claiming the same Gradle component identity.
-
-The canonical package-direction rules remain in `docs/architecture/core-package-boundaries.md`. Keep model/provider/persistence/API boundaries explicit; do not generate a Gradle project for every package or maintain empty placeholder domains.
-
-## Domain runtime composition
-
-Each completed runtime domain registers its own `@AutoConfiguration` class through:
-
-```text
-src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports
-```
-
-Use one fully qualified class name per line, explicit imports and no broad domain component scan. App does not maintain a second handwritten list of every domain bean. Pure Java model libraries need no fake Spring registration. Serving beans must not accidentally load in schema-init or Dogfood operator CLI contexts.
-
-Optional shared workflows consume domain-owned contributions through small contracts, not concrete Files/Calendar/Chat implementations. Domain inclusion is a build decision; provider binding is a separate runtime decision.
-
-## Build selection and OpenAPI
-
-The agreed selection rule is explicit pipeline `domains` / `-Pdomains`, then a matching branch's `pinned_domains`, then `all`. `all` expands the canonical selectable catalog. The catalog currently includes Files, Chat, Calendar, Decisions and Meetings. The last two explicitly require Chat; an invalid selection fails rather than silently adding it. `all` includes these future runtimes, while the automatic release pin remains `files,chat,calendar`. Other future capabilities enter the selectable catalog when their real runtimes are extracted. Selected and per-domain CI iterations use this same resolver; each row has separate reports. Full App composition remains transitional and guarded. Reuse the shared resolver from #1744 when integrating production composition; do not invent another resolver or silently package excluded code. Branch pins are resolved to exact source commits. Domain set, platform, toolchain/flavor, source and spec identity must participate in artifact identity and digest consumption.
-
-The selected controllers and their Spring handler mappings must exist **before** code-first OpenAPI export. Use actual Gradle prerequisite dependencies, not ordering hints alone. Generated User/Admin clients follow the completed export. Keep the accepted OrgManifest/API contract intact; reduced/no-Chat discovery requires its explicit accepted contract change.
-
-Automatic delivery target remains the agreed Linux ARM64 container for Apple Silicon. Other platform variants are manual. Native Image/AOT, JNI and actual consumption on the Mac mini require separate execution evidence; moving Java classes is not that evidence.
-
-## Cleanup and code style
-
-Delete verified duplicates and obsolete build plumbing; do not leave commented-out old implementations. Every removal records the old location, replacement (or why none is needed), compatibility consequence and reason in the commit and the owning domain README.
-
-Do not delete planned features, retained database state or historical migrations because they are outside the first release. Preserve behavior while moving, then simplify deliberate code paths in separately reviewable changes.
-
-Prefer immutable records, constructor injection, typed configuration, declarative HTTP interfaces and explicit Spring auto-configuration. Use Lombok only for real boilerplate; do not replace invariants or add implicit credential `toString()` / JPA equality semantics. Use streams where clearer, not to disguise stateful transaction or lock ordering.
-
-## Verification and maintenance
-
-From the repository root:
-
-```sh
-./gradlew :server:domains:check -Pdomains=files,chat,calendar
-./gradlew coreArchitectureCi
-```
-
-These are library checks, not a claim that the production domain selector is finished. Existing complete Server, PostgreSQL, API and protocol checks remain required. The source-level relational inventory includes nested domain projects, not only the old root locations; domain architecture tests inspect their compiled classes. Image source-input closure includes new module sources/build files and shared build mechanics.
-
-The active historical Flyway catalog remains unchanged during extraction. Entity-first
-authoring and any deliberate pre-release consolidation follow the explicit corpus proposal
-and integrity/recovery gates; source moves never reset data or rewrite applied history.
+**Still open:** remaining shared App/Core administration, discovery/home and global feature
+catalog coupling; actual selected App/schema/API/artifact composition; future-runtime release
+exclusion; accepted reduced/no-Chat discovery and coordinated client activation; final variants
+and platform/integration qualification. Partial App packaging/API/schema export guards remain.
+A green full experimental `all` build is not a qualified three-domain release candidate.
 
 ## Living six-phase execution plan
 
-Primary classification: `cross-repo-contract`. Implementation owner: `weave`; normative owner:
-`weave-specs`. Baseline: PR #1746 at `7440a32e45`; accepted corpus
-`f049c0b1879414eb529a3df83a18224407f1a436`. Continue the existing branch, preserve concurrent
-changes and merge upstream normally. The shared resolver from PR #1744 is integrated;
-its Files model task now uses the extracted coordinate. The temporary source archive
-workflow is removed as its own instructions required, resolving both current CI failures.
-
-| Phase | Milestone and implementation decisions | Checks | Status / blockers |
+| Phase | Concrete milestone / decision | Required checks | State and remaining blockers |
 | --- | --- | --- | --- |
-| 1. Ownership and contracts | Inventory source/resources/dependencies and assign actual owners; prepare Entity-first and selected-domain discovery corpus changes; retain this plan as the single execution record | Corpus lint/examples, resolver tests, source inspection | In progress; accepted pin remains unchanged pending normal corpus review |
-| 2. Domain composition | App is the sole executable; Core owns justified platform responsibilities; runtime modules own imports registration and scoped persistence; separate non-web tooling | Compile, dependency graph, real imports discovery and bean uniqueness | App executable split, Core shared wiring and actual Files/Calendar/Chat runtime/imports and future Decisions/Meetings implemented; other future runtime extraction pending |
-| 3. Vertical extraction and ORM | Files/Calendar/Chat own services/controllers/providers/persistence; future domains remain buildable outside release; convert ordinary Calendar/Matrix JDBC CRUD | Domain units, PostgreSQL writes/isolation/constraints/transactions, no legacy copies | Files/Calendar/Chat vertical runtimes, Calendar/Matrix ORM and future Decisions/Meetings implemented; other future runtime/API ownership open |
-| 4. Core and build finalization | Remove feature dependencies from Core; one selection drives real checks, runtime, schema/API and identity; preserve data-safe initializer until qualified cutover | Architecture rules, selected JAR/SDK inspection, offline deterministic schema | Shared session/identity/member lifecycle/Spaces/HTTP/policy and health implementations extracted into Core; selected owning checks and CI iteration implemented; runtime selection remains pending; schema cutover requires accepted corpus and integrity/recovery evidence |
-| 5. Runtime and clients | Release and three single-domain variants start with honest capabilities/endpoints; generated User/Admin contracts follow registered handlers; Flutter uses stable destinations | API/auth/client freshness, variants, Compose/two-member acceptance, ARM64/AOT/JNI where available | Pending; no live or native qualification claimed |
-| 6. Review and delivery | Consolidate docs/Skills/instructions; review combined diff; coherent commits/push and exact-revision PR evidence | Applicable combined CI, diff review, protected checks | Pending; no protected merge/deployment/data reset authorized |
+| 1. Ownership and contracts | Inventory production classes, resources, SDK/native inputs and tests; assign actual owners before moves; reconcile corpus through normal review | Accepted corpus, call sites, bean/resource/reflection/generated consumers, ownership/source inspection | Inventory and explicit proposal implemented; acceptance of #172 pending |
+| 2. Runtime architecture | Sole executable App; justified Core responsibilities; real domain Gradle runtimes with module-local imports and separate non-web persistence | Compiled graph, real Boot imports discovery, singleton beans, no App dependency | Runtime owners extracted; remaining shared platform/global-catalog ownership open |
+| 3. Vertical extraction and ORM | Move actual controllers/use cases/providers/settings/resources/JPA; preserve future functionality; remove ordinary Calendar/Matrix JDBC CRUD | Owning units; PostgreSQL reads/writes/isolation/constraints/rollback/locking/concurrency; no legacy copies | Actual release and existing future runtimes extracted; shared Admin migration/catalog coordination still transitional |
+| 4. Core and build finalization | Remove optional implementation dependencies from shared workflows; one resolver drives checks, runtime, schema/API and identity | Architecture, selected artifact/SDK inspection, deterministic schema, real Gradle wiring | Shared session/Identity/Spaces/HTTP/policy/health/readiness contracts implemented; selected App composition unfinished |
+| 5. Runtime and clients | Actual release plus Files-only/Calendar-only/Chat-only startup, honest endpoints/capabilities, generated User/Admin consumers and stable Flutter navigation | API/auth/freshness, reduced variants, actual absence of omitted SDK/JNI, Compose/two members, ARM64/AOT where available | Full experimental runtime checks only; reduced discovery acceptance and live/platform qualification pending |
+| 6. Review and delivery | Consolidate canonical docs/scoped instructions/Skills; review combined source; coherent commits/push and PR evidence | Applicable combined gates, diff/source review, exact revision, hosted results | Checkpoints pushed; latest future-runtime combined verification passed; final selected runtime work remains; PR stays draft |
 
-### Ownership map and removal rationale
+## Ownership map and dependency direction
 
-| Current location / owner | Target owner / action | Rationale and dependencies |
+| Previous location / responsibility | Actual owner and action | Rationale and dependencies |
 | --- | --- | --- |
-| Server executable, operator dispatch and web composition | App; move | Composition and application entry points, not feature business logic |
-| Files model/JPA libraries and Server Files controllers/use cases/providers | Files; retain libraries and move runtime | Files owns storage authority, DAV/OpenDAL/S3, bindings and mutation semantics; uses Core authorization/Spaces/audit |
-| Calendar model/JPA libraries and Server Calendar runtime | Calendar; retain libraries and move runtime | Calendar owns temporal/recurrence rules, native/CalDAV access and scoped persistence; uses Core authorization/Spaces |
-| Server Chat/Matrix, canonical Chat JPA | Chat; move | Chat owns facade/protocol/sync/device/crypto, Synapse and JNI; uses Core security and stable Space identifiers |
-| Historically Matrix-named session revocation | Core Security; retain/move | Shared authentication must work without Chat; retain storage/hash semantics |
-| Root application-core Agent Runtime model and root runtime adapters | Agent Runtime; move | Deferred feature, not shared platform or release prerequisite; retain implemented tests |
-| Root application-core transfer and Server portability/migration | Portability; consolidate | Same transfer/report/reconciliation responsibility; shared binding contracts remain Core |
-| Server Boards, Office, DevOps | Separate future domains; move | Their use cases/providers/SDKs must not enter the release transitively |
-| Server connector/interoperability and guest features | Integrations and Guest Access; move | Retain implemented behavior without production-ready claims or duplicated membership/security |
-| Root generic JPA project | Owning domains or Core responsibilities; split/delete | PostgreSQL is not a business owner; Identity/Security/Spaces/audit remain independently useful |
-| Global provider configuration and shared services importing features | Domain-owned contributions plus narrow Core contracts; split | Avoid reverse dependencies, fake readiness and required optional-domain beans |
-| Generated API clients, MCP, product E2E | Retain standalone projects | Independent public consumers/process/verification boundary; not Server-internal modules |
+| Root Server executable, nested wrapper/settings and task paths | `server/app`; move executable, retire nested build | App is composition/application entry points; repository root wrapper is authoritative |
+| Files global service/controller/model/provider and root Files libraries | `server/domains/files` runtime + model/persistence; move/delete old copies | Storage authority, User/DAV APIs, mutation/ETag semantics, OpenDAL/native/Nextcloud/S3 settings and integration belong to Files |
+| Calendar global service/controller/model/config and root libraries | `server/domains/calendar` runtime + model/persistence | Time/recurrence, native JPA, CalDAV/iCal4j, setup/DAV/User transport and provider credentials belong to Calendar |
+| Chat/Matrix global services, handlers, settings, canonical JPA and JNI build | `server/domains/chat` runtime + persistence | Canonical conversation/sync/device/crypto and Synapse/Ruma integration belong to Chat; retain only the historical JNI ABI package inside its owning project |
+| Combined Chat facade's Decision Ledger and Meeting Capsule | `decisions` and `meetings` runtimes; split | Existing future capabilities use narrow Chat admission; explicit required Chat dependency, never hidden inclusion |
+| Boards/Office/DevOps global services, controllers, wire models, providers and resources | Separate owning future runtimes | Preserve actual local/gated/disabled behavior without production-readiness or release-inclusion claims |
+| Root application-core Agent Runtime and root provider/security/JPA; remaining App runtime | `agent-runtime` runtime + model/persistence/provider/security | Execution, lifecycle/admin/profile transport, workload registration, encrypted state, signing/wrapping and their SDKs are optional future capability |
+| Connector/Interop handlers, sandbox/signature/consent logic and schemas | `integrations` runtime | Own actual future interoperability; shared membership/security stay Core; no production delivery invented |
+| Guest-specific handlers, policy service and wire values | `guest` runtime | Explicit future policy/pending invitation; shared organization membership and Identity invitations remain Core |
+| Migration planning/evidence + canonical resumable transfer | `portability` runtime + model/persistence; consolidate | One portability/transfer owner; pure values/ports, existing mappings and transactional adapters remain distinct boundaries |
+| Shared member/session revocation formerly Matrix-named | Core Security | Required without Chat; preserve table/hash semantics, tenant authorization and fail-closed behavior |
+| Identity/member/invitation/profile, org admission, Spaces, audit, operation intents, binding policy, health | Core responsibility packages | Independently useful platform capabilities; no optional-domain implementation dependency |
+| Ordinary global metadata facades with empty item lists | Retire unused service/guard graph; retain consumed Admin metadata as `discovery.admin.SuiteDomainDefinition` | No production handler/consumer used the facade graph; Admin response values remain unchanged |
+| Standalone generated clients, MCP and product-test projects | Retain outside Server | Separate consumer/process/test ownership; sharing Java does not make them Server internals |
 
-The initial inventory counted 795 Java source types before the runtime moves.
-Move resources, source guards, build inputs and tests with their consumers. Verify call sites,
-bean registration, resource/reflection and native loading before removal. No broad source-set
-redirects, forwarding controllers or duplicate production copies are acceptable.
+App composes Core and runtime libraries. Domains use Core contracts and explicitly required narrow
+business APIs; no domain depends on App or another owner's entities/repositories. Stable IDs cross
+persistence boundaries. Core consumes small domain-owned capability, Space, binding or health/readiness
+contributions; it does not discover optional implementations through a service locator. No circular
+Gradle/Spring dependency, cross-domain ORM relationship, source-set alias or forwarding controller is
+an extraction mechanism. Public DTOs are separate from managed JPA entities.
 
-### Validation record
+Core's justified responsibilities are Identity/organization admission and member lifecycle; shared
+Keycloak authorization, sessions, workload admission and credentials; foundational Spaces/membership;
+cross-domain audit; durable operation/idempotency/binding contracts; discovery, health, schema and
+shared HTTP/error infrastructure. Each owns its persistence/adapters/settings beneath its responsibility.
+There is no generic Core common/util/service/controller/model/persistence/adapters dumping ground.
+The framework-free `core/model` project is a deliberate contract boundary, not a home for features.
 
-- Initial remote inspection: current Dev is an ancestor of #1746; default checkout is clean on
-  an unrelated Files branch and is preserved. Work continues in an isolated checkout.
-- Current PR CI: API export, architecture, PostgreSQL and protocol foundation succeeded;
-  aggregate CI failed on the temporary workflow's disposition and action pin comments.
-  These previous checks do not qualify a changed candidate or selected-runtime composition.
-- Local tools observed: Java 21, Docker and Flutter available. Use repository-pinned versions;
-  local tool presence is not a test result.
-- Required final commands: `./gradlew :server:domains:check` with omitted, `all` and
-  `files,chat` selections, plus `:server:app:bootJar` with `files,chat,calendar` and `files`.
-  Add real Calendar-only/Chat-only startup and artifact inspection, authoritative PostgreSQL,
-  generated consumer, security, architecture and existing combined gates.
+App's built-in Manuals/help capability declaration currently describes an application-wide UI entry,
+with no provider, persistence or separate implemented backend feature. Do not invent a placeholder
+Manuals/notifications Gradle project merely to relocate declaration metadata. Remaining global feature
+catalogs require explicit domain ownership before claiming selected composition complete.
 
-Update this record with exact commands/results as implementation proceeds. Missing external
-acceptance or platform evidence remains a blocker; it never becomes an inferred pass.
+## Domain integration and provider lifecycle
 
-### Calendar implementation checkpoint
+Every actual runtime and reusable persistence/Core integration registers fully qualified
+`@AutoConfiguration` classes through its own
+`src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`.
+App maintains no second manual domain configuration list. Explicit imports/beans and scoped entity/repository
+registration replace broad domain scans. Pure model libraries have no fake auto-configuration.
 
-- `NativeCalendarRelationalStore` now executes JPA over the owning normalized mappings and
-  physically resides in Calendar persistence. Removed ordinary JDBC CRUD and unused duplicate
-  recurrence projection; the active application recurrence engine remains.
-- Native ranged reads query scoped candidate IDs before fetching payloads. Added empty-window
-  and scoped replacement/delete regressions; no schema or provider behavior changed.
-- Before the physical move: Calendar persistence 8/8; focused unit/architecture 8 passed with
-  6 PostgreSQL-only skips; authoritative PostgreSQL 14/14; Calendar semantic/API units 65/65
-  plus the existing 12 Cucumber Boards scenarios passed. PostgreSQL required an explicit
-  observed local Docker socket via `DOCKER_HOST`; no persistent Docker configuration changed.
-- After moving production store/unit test: `./gradlew :server:domains:calendar:persistence:test
-  :server:app:compileTestJava --no-daemon --console=plain` passed.
-- `python3 -m unittest tools.domain_selection_resolver_test tools.domain_unit_workflow_test
-  tools.test_dev_ci_impact`: 66 passed. `:server:domains:check -Pdomains=files,chat` passed.
-- Corpus proposal: [weave-specs#172](https://github.com/masssi164/weave-specs/pull/172). Its local
-  lint (159 entries/26 example pairs), vector freshness, ready-claim self-test, link check and
-  bundle build passed. It is proposed, not the implementation's accepted pin.
+Servlet graphs are separate from schema/operator persistence. Owning discovery tests use the published
+imports resources, actual handlers and shared prerequisites, and verify uniqueness, omitted sibling
+implementations and non-web exclusion. Manual slice imports alone are not discovery proof.
 
-### Server-internal library consolidation checkpoint
+Providers are runtime state, not build selections. Preserve existing adapter aliases, authentication,
+allowlists, timeouts, exact statuses and provider gates; the finite legacy-selector ratchet is not enlarged.
+Synapse secrets, Identity HMAC, signing/wrapping/credential mounts and S3 credentials are deferred for
+construction/AOT; ordered actual serving readiness and first use retain fail-closed validation. Operator
+READ_WRITE initialization remains explicit; READ_ONLY readiness never creates keys or changes permissions.
+Issuer-only JWT discovery uses the pinned cached supplier and retains validators/timeouts; a signed
+loopback regression proves zero construction calls and real first-use verification/cache behavior.
 
-The former root application-core project is split into Core model, Agent Runtime model and
-Portability model. Root JPA sources are split into Core and Chat/Agent Runtime/Portability
-persistence owners; framework-free source sets and compiled architecture tests remain separate.
-Root provider/security adapters move under Agent Runtime with their existing security/provider
-dependency tests. Generated clients, MCP and product E2E remain standalone. The old root build
-projects are removed with no source-set forwarding.
+Chat owns typed operations on the consumed Matrix protocol port. DAV, Matrix and JNI retain appropriate
+transport boundaries. Shared session revocation works without Chat. Decision/Meeting stores key organization,
+Space and conversation; their in-memory implementation remains incomplete future scope. Disabled Office,
+DevOps and Guest behavior stays honest. No test double becomes a production fallback or readiness signal.
 
-This relocation does not yet extract the remaining executable's services/controllers or
-exclude future runtime code from release assembly. Shared workload-security types historically
-in Agent Runtime still need their actual Core security boundary before runtime exclusion.
+## Persistence and significant removals
 
-Duplicate-source review found four additional shadowed Agent Runtime adapters. Their active
-Server implementations replace stale root-library copies under the actual adapter owner.
-In particular, the active exact-audience token policy and explicit READ_ONLY/READ_WRITE
-SecretRef access modes are preserved; stale copies must not silently weaken them. Related
-unit tests move into the adapter libraries. One whitespace-equivalent signer duplicate was
-also removed. Source architecture inspection now walks every real Server production root.
+JPA entities lead ORM-expressible persistence. Calendar's `NativeCalendarRelationalStore` now uses owning
+JPA mappings and bounded candidate queries; normal Matrix E2EE CRUD uses typed normalized entities.
+Preserve tenant/null/time/recurrence, uniqueness, locking/version, idempotency and transaction semantics.
+The narrowly tested PostgreSQL absent-row advisory fence remains for a concrete serialization reason;
+it is not a parallel SQL CRUD layer. Remote provider writes are not undone by local rollback.
 
-### Shared security and persistence discovery checkpoint
+Core member administration fixes an actual concurrent operation-claim defect: uniqueness recovery occurs
+after the failed independent PostgreSQL transaction ends, followed by exact organization/key/request lookup.
+Real tests cover concurrent claims, replay/isolation and independence from outer rollback. Portability's
+transfer mappings consolidate under its persistence owner without changing table identity or locking.
 
-- Shared session port and JPA adapter now belong to Core Security. JWT validation and member
-  cutoff depend on shared security; Chat retains identity projection and delegates shared state.
-  Existing table/hash, claim precedence, expiry, bounded retries and independent transactions
-  are preserved. Focused auth/Matrix/security: 131 passed; authoritative PostgreSQL: 6 passed.
-- Health contribution tests: 17 passed; Java reference checks: 13 passed; Python static checks:
-  16 passed. Domain-owned configuration preserves existing provider routing and cached probe
-  semantics; absent contributions create no entries/gauges and duplicate IDs are rejected.
-- Six persistence projects now prove actual Boot imports-resource discovery and real repository
-  construction without manual test imports of their configurations. These use H2 only for
-  bean wiring; authoritative integrity and recovery evidence remains PostgreSQL.
-- Artifact input closure follows moved production sources/build files.
-  `TMPDIR=/private/tmp python3 tools/build_artifacts_test.py`: 39 passed; the canonical macOS
-  temporary path avoids `/var` versus `/private/var` fixture mismatches without changing product code.
-- Source inspection walks every real Server production root and reports no duplicate types or
-  retired root projects. Physical `@Column(name="tenant_id")` metadata is distinguished from
-  human-token claim aliases; the executable still cannot declare entities/repositories.
-- Corpus proposal #172 hosted Specification conformance succeeded; normal review/acceptance
-  and the resulting implementation pin update remain pending.
+Generated schema remains a deterministic derived artifact of compiled mappings and an exporter outside
+the serving executable. The historical complete Flyway catalog remains App-owned while the qualified
+Entity-first initializer/baseline transition is unfinished. No silent removal of unmapped integrity rules,
+Flyway clean/repair, non-empty database adoption or persistent-data reset is allowed.
 
-### Shared Space contribution checkpoint
+Significant retirements:
 
-Shared relationship listing now consumes installed Calendar/Files/Chat contributions. Each domain
-owns bounded candidate selection, current access readback, ID validation and protocol projection.
-Shared member/Space admission, event/file/room cursor ordering, pagination and support-safe
-errors remain centralized. Omitted-domain cursors fail explicitly; missing domains do not
-create synthetic results or unsatisfied dependencies.
+- Root application-core/generic JPA/provider/security projects and five shadowed adapters: owning libraries
+  replace them, preserving the active stricter token, SecretRef and exact-audience behavior.
+- Nested Server wrapper/settings and obsolete source/task/Docker paths: root build plus sole App executable.
+- Verification-only App domain bridge and `domain-project.gradle`: genuine selected owning unit/context tasks.
+- Combined `ChatFacadeService` and seeded-message scaffold: actual Chat admission/provider replacement plus
+  separate future Decision/Meeting use cases; preserve real tests and tenant boundaries.
+- Unused generic `domainfacade` graph and nine scaffold-only tests: actual Files/Calendar/Boards policy,
+  audit and provider tests replace historical acceptance references. Its definition enum had one Admin
+  metadata consumer missed by the initial service-name search; the consumed metadata is preserved in a
+  narrow value, with unchanged response values. No public endpoint or real guard is removed.
+- Unused package-private migration approval-copy helper: no callers; actual audited approval use case remains.
 
-Default Space preparation likewise consumes installed-domain guards. Files retains existing
-capability/snapshot checks; Calendar captures/rechecks its binding. The exact order is shared
-authorization, all snapshot checks, authority capture, unchanged membership primitive, authority
-recheck and audit. Zero-domain and single-domain compositions preserve the shared primitive.
+Historical closure reports retain provenance; they do not qualify changed source. No trivial getter needs
+an independent migration entry. Owning READMEs record actual replacements, limitations and commands.
 
-Focused service/contribution/controller/bootstrap checks: 48 passed; authoritative Space and
-Dogfood preparation PostgreSQL checks: 13 passed. Existing incidental Cucumber discovery also
-ran its 12 scenarios. These are bounded backend checks, not two-member native acceptance.
+## Selection, generated APIs and artifacts
 
-### App split checkpoint
+Use PR #1744's existing resolver exactly once: explicit valid input, then an exactly matching source branch
+pin, otherwise `all`. Explicit `all` overrides a pin. PR target `dev` does not make the source pinned `dev`.
+The catalog includes actual extracted runtime projects, including future experiments; `all` never means
+only release domains. The automatic release pin stays `files,chat,calendar`. Invalid required-domain
+selections and cycles fail clearly rather than silently including excluded modules.
 
-- Moved the executable source sets and build into `server/app`; no source-set aliases or
-  duplicate production copies. `server` retains only the shared resolver and composition
-  mechanics. Domain library dependencies remain explicit and currently include future
-  code until the remaining vertical extraction is complete. Partial packaging still fails.
-- Updated root gates, API export, host runners, CI callers, Docker artifact paths, source
-  guards and source-input closure. Retired `server/gradlew`, nested settings and duplicate
-  wrapper distribution; historical executed-command evidence remains unchanged.
-- Before this move, `coreArchitectureCi canonicalDataCi :server:test :server:postgresJpaTest
-  specCorpusConformance` passed against the accepted corpus. Those historical task names
-  describe that checked revision; current executable tasks use `:server:app:`.
-- Review corrected incomplete Core Identity and Portability persistence discovery. Owning
-  module checks passed all 8 tests without skips, asserting the specific formerly omitted
-  entities and repository beans.
+Owning checks aggregate only selected domain checks and genuine shared prerequisites. Unit, real-context,
+PostgreSQL and expensive integration lanes remain separate. Selected or per-domain CI rows reuse the resolver,
+include explicit dependency closures and distinguish source/domain reports. Forward shell arguments with
+`"$@"`, never `eval`; workflow input has no literal `all` default that suppresses pins.
 
-- App checkpoint validation (source represented by the App split commit):
-  `DOCKER_HOST=unix:///Users/flotterotter/.orbstack/run/docker.sock` and
-  `WEAVE_SPEC_CORPUS_ROOT=<accepted f049c0b18794 checkout>` with
-  `./gradlew coreArchitectureCi canonicalDataCi serverCi specCorpusConformance
-  checkOpenApiContractFresh --no-daemon --console=plain`: **passed**. App unit lane
-  1,478 tests / 14 PostgreSQL-only skips; PostgreSQL lane 189 / zero skips; Core 13 /
-  zero skips. Actual User/Admin export matched committed contracts.
-- `./gradlew :server:app:bootJar -Pdomains=all --console=plain`: **passed**. This is
-  the full current transitional composition, including future code, not the release
-  runtime or a reduced variant. `ProviderRegistryConfigurationTest`/controller focus:
-  36 passed, no skips. Selection/workflow/Gradle wiring: 13 passed. Source-guard,
-  resolver and impact fixtures: 84 passed. Artifact identity/input fixtures: 39 passed
-  (`TMPDIR=/private/tmp` avoids the macOS `/var` alias in fixture canonicalization).
+Actual selected App runtime dependencies, schema/API export and artifact identity remain unfinished and
+guarded. The required final chain is selection → compiled selected sources/resources → real registered
+handlers → separate User/Admin exports → generated consumers/freshness. Use task prerequisites, not ordering
+hints. Never reuse a stale full-domain contract or treat hidden beans/skipped tasks as artifact exclusion.
+Cache/signing inputs include actual source/resources/build/native pins, source/spec identity and platform/flavor.
 
-### Shared Identity/Security extraction
+Flutter uses stable shell destination identities for routing/navigation/semantics/member refresh. Its accepted
+full bootstrap remains active. Omitted-domain navigation and no-Chat Matrix discovery require accepted contract,
+server/generated consumer and client validation changes together. No placeholder protocol URL or extra client
+build is an alternative. Existing GHCR work must reconcile immutable consumers with automatic Linux ARM64;
+JVM ARM64 is not GraalVM Native Image. No runner rebuild or unrelated delivery rewrite belongs here.
 
-Identity resolution/context and identity-key formatting now belong to Core Identity. Shared
-Security owns Keycloak organization parsing/admission, session cutoffs/revocation and typed
-settings. Foundational Space authorization values/ports are framework-free in Core model;
-the configured policy adapter and strict seed loader remain Core runtime. The common HTTP
-error contract lives in Core API errors. No generic Core service/model/config dumping ground
-was created. Core has no optional domain dependency.
+## Validation and next execution checkpoint
 
-The actual serving services register through module-local servlet auto-configuration; schema
-and operator contexts retain their explicit independent wiring. Existing default construction
-consumers retain the same fail-closed configured-policy defaults. Human JWT fixtures moved
-into Core test fixtures, with direct App test dependency rather than duplicate helpers.
+Latest pushed checkpoint `d14a6abb76` passed combined owning/App/API/schema/architecture/canonical/spec/acceptance
+checks, App 1,008 cases with 23 PostgreSQL-only skips, separate PostgreSQL 201 with zero skips; resolver/workflow
+52 and artifact-input 43 cases. It is historical evidence for the subsequent future-runtime source changes.
+Local incremental compilation had lost 28 relocated Chat test classes; forced compilation restored them and
+fresh XML proved both canonical store/recovery suites ran. Current source-to-bytecode inspection finds no missing
+App test classes. No test source/assertion or global compiler safety is removed to obtain a green result.
 
-- Shared Identity/Security checks: `./gradlew :server:core:check :server:core:model:check
-  :server:app:test --tests '*JwtDecoderConfigTest' --tests '*FirstPartyIdentityContractTest'
-  --tests '*AdminUserHttpAdmissionTest' --tests '*SpacesRelationshipsUserControllerTest'
-  --tests '*DefaultSpaceBootstrapServiceTest' :server:app:javaAgentReferenceTest
-  --console=plain`: **passed**. 102 focused App tests, 39 Core tests and 3 Core-model
-  tests, zero failures/skips. Core discovery asserts actual shared identity/policy/session
-  beans are singletons with no optional domain on its test classpath, and absent in the
-  non-web persistence context.
+Current future-runtime source passed actual owning checks: Boards 60 unit/3 context; Office 2/2; DevOps 1/2;
+Agent Runtime root 21/5, model 12, persistence 4/1, provider 38, security 27; Core 283/13. Integrations 8/2, Guest 2/2 and Portability 16/2 also pass. App reports 855 cases, zero failures/errors and 23 PostgreSQL-only skips; the separate PostgreSQL lane executes 201 with zero skips/failures/errors. Focused App HTTP/security/architecture regressions pass after
+explicit moved-controller imports, real required-adapter fixtures and exact relocated source fences. Initial
+failures are recorded in the checkpoint commits/PR; assertions and required-bean rules remain intact.
 
-### Matrix normalized persistence checkpoint
-
-The last ordinary collaboration JDBC store moved from App to Chat persistence and now uses
-typed JPA over 15 owning normalized mappings. The broad filename JDBC exemption is removed.
-Only the exact PostgreSQL transaction advisory fence for absent aggregate rows is allowed;
-negative architecture tests reject SQL/parameter changes, extra queries or copies elsewhere.
-JPA module discovery separates serving-store construction from non-web metadata tooling.
-
-The mapping graph retains the existing normalized tables, SQL-only integrity rules represented
-by supported checks/partial indexes, default values and synchronization version semantics.
-The generated schema remains a candidate: these source changes do not rewrite applied
-migrations or reset data. Existing proof/backup PostgreSQL tests now exercise the JPA adapter.
-New direct store regressions exercise tenant scope, bounded/locked claims, concurrent winners,
-revisions/journals, progress, backups, rollback, and repeated delete/reinsert in one transaction.
-
-- Final Chat ORM command with disposable PostgreSQL: `./gradlew
-  :server:domains:chat:persistence:check :server:app:test
-  --tests '*ServerArchitectureBoundaryTest' --tests '*MatrixE2eeStateService*'
-  :server:app:postgresJpaTest --tests '*MatrixE2eeRelationalStorePostgresTest'
-  --tests '*MatrixDeviceProofPostgresTest' --tests '*MatrixBackupVersionPostgresTest'
-  --tests '*EntityFirstBaselinePostgresTest' --console=plain`: **passed**. Chat 5, App 45
-  (25 architecture, 8 Matrix state, 12 existing Cucumber), PostgreSQL 18 (9 new store,
-  6 proof/recovery, 1 backup concurrency, 2 Files/Calendar baseline), no failures/skips.
-  Generated schema uniqueness/checks executed against PostgreSQL; previous timestamp
-  projection and repeated-mutation failures were corrected and their regressions pass.
-
-### Shared provider contracts and Audit ownership
-
-Core Discovery owns shared provider status contracts and generic runtime-status construction;
-Core Provider Binding owns the framework-free conformance/readiness values. Shared redaction
-and HTTP Retry-After parsing belong to Core Security and HTTP respectively. The unused-by-serving
-portability report mapping remains buildable in future Portability rather than becoming a
-shared platform implementation. Domain-specific provider registry beans remain with domains.
-
-Core model now owns the cross-domain audit envelope, publication contract, redaction and
-required-publication rules. Core Audit persistence owns the real JPA sink, registered through
-module-local serving auto-configuration. Operator preparation keeps its explicit sink. Future
-connector/consent event builders are under Integrations, outside Core. Their existing tests
-remain there; four shared envelope/privacy/publication tests moved to Core.
-
-The old Boards fixture that directly called App's removed audit factory was retired: actual
-Core Boot-import discovery now asserts the singleton JPA audit authority. The Boards-specific
-no-persistence-fallback assertion remains. This strengthens ownership verification rather than
-retaining an App factory solely for an obsolete direct-construction test.
-
-### Release MCP ownership checkpoint
-
-Files/Calendar consume `McpWorkloadAuthorization`; the actual release implementation,
-protected binding reader, exchanged-token policy, current Keycloak entitlement, signed
-administrative token provider and shared SecretRef contracts live in Core Security. The
-future Agent Runtime implementation retains only cells/profiles/governance and future
-person-directory resolution. Its old nullable release branch is removed. The shared
-principal carries resolved binding/audit/policy metadata from its actual owner. Core
-production has no Agent Runtime, Files, Calendar or Chat implementation imports.
-
-Module-local servlet auto-configuration discovers release authorization without the future
-runtime on the classpath; non-web tooling does not construct that authority. Existing
-configuration keys/defaults and mutually exclusive release/future authorization modes are
-preserved. No token shape, permissions, Keycloak authority, provider selector or new public
-environment setting was introduced.
-
-- Final owning unit/check lane: whole Core 75, Core model 3, App 190 (workload/JWT/
-  Files/Calendar/Keycloak/config/architecture plus provider/audit/Boards regressions),
-  future model 4/provider 5/security 23: **300 passed, no skips**. Exact class filters
-  and logs are preserved in the associated commit/PR validation record.
-- PostgreSQL: Runtime Cell 7/Command 3/Governance 3/Profile 6 and audit publisher 1: **20
-  passed, no skips**, against disposable infrastructure. The separate existing audit
-  PostgreSQL class also passed after moving it from ordinary unit execution into the
-  registered PostgreSQL lane. No database data or migrations changed.
-
-- Combined foundation validation: `./gradlew coreArchitectureCi canonicalDataCi
-  checkOpenApiContractFresh specCorpusConformance --no-daemon --console=plain` with the
-  accepted corpus: **passed**. Actual full App handlers booted/exported and User/Admin
-  artifacts remained fresh. Current release workload libraries are independent of
-  Agent Runtime; real selected App composition is still pending.
-- Remaining transport cleanup includes suitable existing Keycloak REST integration under
-  the shared declarative HTTP standard, preserving bounded bodies, authentication,
-  allowlists, timeout and error behavior; no framework upgrade is authorized.
-
-### Shared operation and provider-binding runtime
-
-The actual `operation.adapter.JpaOperationIntentRepository` and
-`providerbinding.adapter.JpaProviderBindingRepository` move from App into Core beside their
-owning mappings. Module-local serving auto-configurations import the real adapters and
-construct the shared operation service. Their scoped transactions, outbox atomicity,
-idempotency reconciliation, active-binding locks and bounded mapping queries are preserved.
-Non-web export/operator contexts retain their explicit graph.
-
-Provider selection values/port/store exception move from App's generic `provider` package to
-Core model `providerbinding.selection`; the typed JPA implementation belongs to Core
-`providerbinding.persistence`. App no longer declares these shared beans. Provider selection
-remains organization runtime state, independent of build-time domain selection.
-
-Feature-specific replacement guards are extracted from the shared binding adapter into
-Files, Calendar and Chat `domain` policies, explicitly registered by their owning configuration.
-Files/Calendar still require identity carry-forward when mappings exist; Chat still requires
-provider reconciliation for every replacement. Core rejects activation without an installed
-policy, and duplicate policy identities fail construction. Domain bootstrap/use cases remain
-with their features. These internal package/type changes do not change the public API or
-accepted corpus pin; no provider migration functionality is added.
-
-Verification for this checkpoint: `:server:core:check :server:core:model:check
-:server:app:test --tests '*ProviderRegistry*Test' --tests '*AdminControlPlaneServiceTest'
---tests '*ServerArchitectureBoundaryTest'` passed (Core 75, model 3, App 70, zero skips).
-`:server:app:postgresJpaTest --tests '*JpaProviderSelectionRepositoryTest'
---tests '*JpaProviderBindingRepositoryPostgresTest' --tests '*JpaOperationIntentRepositoryPostgresTest'
---tests '*FilesMutationIntentServicePostgresTest' --tests '*CalendarBindingBootstrapPersistenceTest'`
-passed against disposable PostgreSQL (19 tests, zero skips). Java standard, provider boundary,
-Gradle structure and documentation static checks pass. The additional missing/duplicate-policy
-ownership cases passed in a subsequent Core check (77 tests total, zero skips). These checks prove this bounded
-extraction; selected-domain packaging, full runtime extraction and release acceptance remain open.
-
-### Core profile and device credential ownership
-
-Product-profile values and storage ports move from App's generic `service` package to Core
-model `identity.profile.domain` / `identity.profile.port`. The existing JPA adapter, use cases
-and transport DTOs move into Core `identity.profile.persistence`, `application` and `api`.
-The shared error envelope now belongs beside `api.error.ApiErrorException`. Core's servlet
-imports register the actual profile repository/service, always using configured identity
-resolution; production no longer supplies a constructor that silently creates default policy.
-App's existing HTTP controller composition remains until its broad component scan is retired.
-Serialized profile/error shapes and endpoint behavior remain unchanged.
-
-Security owns device credential values, repository, adaptive hashing, expiry/revocation and
-JPA implementation. Files and Calendar contribute their installed credential scopes; Core
-contains no hardcoded feature list. Empty installation permits no scope, duplicate ownership
-fails, and schema/non-web entry points do not construct serving credential services. Existing
-PBKDF2 parameters, credential lifetime and authorization rules are preserved. Credential and
-issuance records explicitly redact string output so logging cannot reveal a hash or issued
-secret. Test installation helpers and the old file-profile fixture live only in Core test
-artifacts, outside serving artifacts; owning profile/security unit tests no longer need App.
-
-Remaining shared prerequisites for Files runtime include Space contribution contracts and
-serving security/error adapters still under App. The current error handlers contain a Matrix
-protocol branch that must become Chat-owned before Core can own the handlers. This is an
-actual source dependency, not a reason to add a Core-to-Chat implementation dependency.
-
-### Foundational Spaces and shared HTTP security
-
-Core now owns the actual Space contribution contracts, API values (`spaces.api`), independent
-user/relationship projections (`spaces.application`) and explicit serving wiring for its
-membership/access/provisioning JPA adapters. Old component stereotypes are removed; App's
-component scan is no longer their registration mechanism. The Dogfood adapter remains
-explicitly imported by the non-web preparation graph. Default preparation and administrative
-use cases still have pending Identity/runtime dependencies in App; feature-specific resource
-checks remain domain contributions. The independent Space user unit test moves with its
-implementation; cross-domain integration remains in the existing App lane.
-
-Shared request correlation is in Core `http.request`; the error writer is in `api.error`, and
-API authentication/access-denied adapters are in `security.http`. Their module-local serving
-imports construct actual beans, with a narrow protocol error-envelope contribution. Chat owns
-the concrete Matrix Client-Server denial writer and registration. Shared handlers have no
-Matrix path/JSON knowledge. The same Keycloak token validation, authorities, safe request IDs,
-HTTP statuses, Matrix error codes and JSON envelopes are preserved. Tests exercise shared
-401/403 without optional protocols, actual Core imports discovery and the existing Matrix
-filter/controller behavior. This is error transport ownership, not a new permission system.
-
-Whole-App validation exposed HTTP slice fixtures that had relied on App scanning the moved
-shared correlation/Matrix writers. Their explicit imports now install the real owning
-components; assertions and authorization are retained. Eight existing PostgreSQL-only
-Testcontainers classes lacked the tag already excluded by the ordinary unit task. They now
-use `postgres`; the missing migration-evidence class is added to the existing PostgreSQL
-lane filter. No test is deleted or weakened. The unit lane is rerun without Docker access,
-and the real PostgreSQL lane remains required separately; unavailable Docker is not a pass.
-
-### Workspace capability policy and installed declarations
-
-Core now owns the actual shared `capability.WorkspaceCapabilityService`, shared typed shell/
-administration settings, capability/readiness wire contracts and effective-policy DTOs.
-`CoreWorkspaceCapabilityAutoConfiguration` registers serving policy and release readiness
-through Core's imports resource. Non-web schema/operator discovery does not construct them;
-the operator explicitly composes its required shared policy. Core requires no optional-domain
-implementation or provider to construct this graph.
-
-Domain-owned `*WorkspaceCapabilities` classes declare their capability keys, administrator/
-member/group grants, configured policy, readiness projection and support-safe copy. Their
-small configuration classes only wire typed settings and required dependencies. Chat, Files
-and Calendar consume the shared cached-health contract; Chat and Files own their existing
-release-readiness diagnostics. Boards, Meetings, Office, Decisions, Manuals, DevOps and Agent
-Runtime retain existing declarations under their business namespaces until their actual
-runtime modules move. This preserves existing feature behavior without declaring future
-features production-ready or adding placeholder projects.
-
-The former global Workspace settings record is replaced by shared shell/admin settings and
-ten owning domain settings records, preserving existing `weave.workspace.*` keys, defaults
-and configured readiness semantics. Core retains Keycloak identity/role/group authorization,
-deny behavior and the accepted closed twelve-field snapshot projection. An absent domain has
-no installed declaration, settings, state, release diagnostic or grants; an installed disabled
-domain retains its explicit disabled state. Duplicate domain/capability ownership and grants
-outside a domain's declared keys fail immediately. Device token claims cannot restore an
-absent domain. Existing production compatibility constructors and the six-field snapshot
-constructor are removed; explicit full-installation helpers exist only in test sources.
-
-Public full-runtime User/Admin serialization and required schema fields remain unchanged.
-Reduced-runtime publication and optional wire metadata still require accepted specification
-changes and actual selected-runtime composition; this internal absence support does not
-activate that pending public behavior. Platform manifest capability lists now derive from
-the owning declarations rather than another App-owned feature list.
-
-The combined checkpoint command is `./gradlew :server:core:check :server:core:model:check
-:server:app:test checkOpenApiContractFresh`: 96 Core tests, 3 Core model tests, 1,389 App tests
-(24 skipped), and 14 actual OpenAPI export tests, with no failures/errors; five OpenAPI
-normalization tests also pass. The App skips are 23 PostgreSQL-lane checks and one unavailable
-MinIO fixture. Real PostgreSQL qualification remains a separate required lane. New ownership
-checks cover absent versus disabled installation, role denial despite provider readiness,
-duplicate ownership, undeclared grants, absent-domain device claims, actual Boot discovery/
-non-web exclusion, and independent binding of existing domain settings keys/defaults.
-
-Combined checkpoint validation after capability/profile/device/Space/HTTP extraction:
+The combined future-runtime command passes (final rerun 41 seconds with unchanged runtime tasks up-to-date; the preceding fresh App/PostgreSQL execution took 4m12s):
 
 ```sh
-./gradlew :server:core:check :server:core:model:check :server:app:test checkOpenApiContractFresh
-DOCKER_HOST=<disposable-local-engine> ./gradlew :server:app:postgresJpaTest
+DOCKER_HOST=<observed-disposable-engine> WEAVE_SPEC_CORPUS_ROOT=<accepted-pinned-checkout> ./gradlew :server:domains:check :server:app:test :server:app:postgresJpaTest :server:app:entitySchemaCheck coreArchitectureCi canonicalDataCi specCorpusConformance acceptanceContract checkOpenApiContractFresh infraStatic :server:app:bootJar -Pdomains=all --console=plain
 ```
 
-Both passed. Core: 96 tests, model: 3, App: 1,389 (24 skips), actual full User/Admin export:
-14, API normalization: 5; zero failures/errors. The ordinary lane runs without Docker access;
-its skips are 23 PostgreSQL-gated cases plus the unavailable MinIO fixture. The separate
-PostgreSQL lane passed all 200 tests with zero skips. MinIO is not qualified by PostgreSQL.
-Existing architecture/provider/Java/Gradle/docs checks pass. These are whole-App/persistence
-checks of the current extraction, not proof of selected runtime packaging or release delivery.
+Resolver/workflow Python tests pass 52 cases; real Gradle wiring passes six cases in 33 seconds. Artifact-input tests pass 43; the complete hosted-artifact contract lane passes 96. Three temporary test roots are canonicalized on macOS so genuine symlink/provenance/output guards are reached without relaxing production checks; the related 75 fixture/input regressions pass. Final compiled JAR inspection finds 1,582 Server class definitions with zero duplicate owners; all 185 newly extracted future-runtime source files compile into owning libraries, with zero App copies. Source inspection finds 923 main Java source files and no missing App test bytecode. These counts describe experimental `all`, not release exclusion.
 
-`coreArchitectureCi canonicalDataCi specCorpusConformance acceptanceContract` also passed
-against the exact accepted corpus checkout. The acceptance mapping guard first identified
-four stale retired-JPA source references and an obsolete App factory-test marker. Mapping
-now points at the actual owning entities and real Core imports-discovery singleton assertion,
-while retaining the Boards no-fallback assertion and unchanged behavior tests. This repairs
-existing evidence references rather than substituting planned evidence. The legacy E2E
-structure helper's optional local manifest-path cross-check is unavailable in this isolated
-worktree layout; the separate pinned corpus conformance gate ran and passed.
+Actual `:server:domains:check` with omitted selection and `-Pdomains=files,chat` both pass; explicit `all` passes in the combined command. Actual App `bootJar -Pdomains=files,chat,calendar` and `bootJar -Pdomains=files` both reject at the intentional partial-packaging guard. They remain failed required completion entry points; that is an unfinished boundary, not passing variant qualification. Verify actual
+release and individual Files/Calendar/Chat artifacts/startup, missing endpoints/SDKs/JNI/capabilities, API/auth,
+generated consumers and PostgreSQL before retiring the guard.
 
-### Device authentication filter prerequisite
+Hosted `d14a6abb76` API/export, backend/protocol, PostgreSQL, generated clients, architecture, docs and corpus
+jobs passed. Its selected owning checks passed but a later Gradle wiring probe failed reading an ephemeral
+binary store; verify on the next candidate. Infra static found stale source locations in two contract scripts;
+the scripts now inspect actual Files/Calendar/Chat/Core owners and sole App build wiring with the same assertions. Negative source checks also fail when inspected files are absent. All affected shell contracts and full `infraStatic` pass locally; no Compose lifecycle, provider URL, persistent data or deployment behavior changes.
 
-The actual `security.device.DeviceCredentialAuthenticationFilter` now belongs to Core and
-is registered by its servlet imports. It requires the real credential authority and error
-writer instead of a nullable fallback. Files and Calendar own their `DeviceCredentialHttpScope`
-path declarations; the shared filter contains no feature IDs or DAV path list. Existing
-Basic decoding, minted JWT claims, expiry/revocation enforcement and denial envelope stay
-unchanged. The private decoded credential value also redacts string output.
-
-Core's empty-domain discovery constructs the filter with no permitted path scope. Tests
-prove omitted/sibling paths cannot invoke credential authentication and duplicate path
-ownership fails. Existing full Files/Calendar credential lifecycle/HTTP and workload-security
-regressions, architecture checks and fresh full User/Admin API export passed with Core checks:
-`:server:core:check :server:app:test --tests '*FilesCalendarFacadeControllerTest'
---tests '*ServerArchitectureBoundaryTest' --tests '*FilesWebDavSecurityConfigurationTest'
---tests '*CalendarMcpSecurityConfigurationTest' checkOpenApiContractFresh`. No persistence
-mapping or transaction changes are included in this follow-up.
-
-### Files runtime extraction checkpoint
-
-The actual `:server:domains:files` project now compiles its complete serving implementation:
-Files controllers/wire values, authenticated use cases, native/Nextcloud/S3 provider adapters,
-typed settings, provider/bootstrap/health/capability/Space contributions and actual Spring
-integration. Fifty-six former App production files moved to Files business packages; there
-are no legacy source-set aliases or forwarding copies. Model and persistence remain useful
-separate projects. App composes the runtime dependency and excludes its business namespace
-from transitional scanning while retaining Boot's test/auto-configuration filters.
-
-Files runtime imports register actual servlet beans/controllers; persistence imports register
-both actual transactional JPA adapters beside scoped mappings/repositories. Controller and
-Repository annotations retain their handler-discovery and exception-translation meanings;
-component scanning is not their registration mechanism. Discovery without App proves bean
-uniqueness, real Files request mappings, absent Calendar/Chat implementation classes and no
-serving providers/controllers/native filesystem construction in non-web contexts. Required
-local Files storage and SecretRef-root configuration remain explicit; no live provider or
-mounted credential is needed by the isolated discovery fixture.
-
-Nine independent unit classes moved with the runtime. Existing full-App HTTP, PostgreSQL,
-locking, native composition and backup/restore harnesses continue using the extracted code.
-The App scaffold no longer registers Files lock/mutation/bootstrap beans or owns their
-settings. Files owns organization-binding status probes; shared binding-status values/port
-belong to Core, and App projects the unchanged accepted Admin wire shape. The future
-FilesDocs canonical interoperability facade remains outside release Files.
-
-The existing resolver/catalog now accepts an explicit owning-task closure instead of an App
-class inventory. Files no longer applies the verification bridge; an empty legacy inventory
-never creates an unfiltered App test task. Selection precedence/pinning is unchanged. The
-same existing partial-App guard also protects actual API and schema exports: until selected
-App composition is implemented, reduced exports reject rather than rewrite full contracts
-under a reduced identity. Negative executions preserved existing export hashes and mtimes.
-The Files library is independently buildable; a complete Files-only App executable is not
-yet claimed.
-
-OpenDAL 0.50.0 and the unchanged platform-classifier resolution now belong to Files. The
-shared domain-library build preserves Java parameter metadata needed by Spring HTTP/AOT
-reflection, previously supplied implicitly by the executable Boot plugin. The real BDD
-credential creation/revocation path exposed and verified this prerequisite. Actual full App
-JAR inspection finds the Files runtime/model/persistence nested JARs, the actual controller,
-use case and imports resource in the runtime JAR, and no Files implementation classes in
-App's own classes. This Mac build uses `osx-aarch_64`; Linux ARM64/native-image qualification
-is separate. Existing finite native/S3 startup-selector debt remains tracked under #1736.
-
-Final source validation: `:server:domains:files:check`, whole `:server:app:test`,
-`checkOpenApiContractFresh`, `coreArchitectureCi` and `:server:app:bootJar -Pdomains=all`
-passed together in 1m48s. Results: Core 98, Core model 3, Files runtime 94 (including two
-actual discovery contexts), Files model 21, Files persistence 11 and App 1,307 tests, with
-zero failures/errors. App retains 24 explicitly skipped PostgreSQL/MinIO cases in that lane;
-actual OpenAPI export runs 14 tests and normalization runs five. The separate full
-`:server:app:postgresJpaTest -Pdomains=all` with scoped disposable OrbStack PostgreSQL passed
-200 tests with no skips/failures/errors in 2m59s. Selected Files aggregate checks also pass.
-No persistent operator database, owner data or migration history was reset.
-
-### Protected HTTP client integration checkpoint
-
-The existing HTTP-client implementation from PR #1732 is incorporated by normal branch merge,
-with relocation conflicts resolved at actual owners. Core Identity now owns the human Keycloak
-administration client, named HTTP interface, exact operation admission/status policy and the
-original invitation settings binder. Existing Core Security token and SecretRef implementations
-remain unchanged; no duplicate OAuth2 stack or Core-to-Agent Runtime dependency is introduced.
-The redundant incoming settings snapshot and production test-only constructor are removed.
-Independent client, policy and managed-fixture tests moved physically to Core.
-
-Actual servlet auto-configuration discovers the protected beans once without App or optional
-domains, with no credential read or remote call during construction; non-web discovery omits
-them and the operator composes its explicit transport. Authentication, timeouts, URL context
-paths, request-local fixture admission, exact successful statuses and 401 invalidation remain
-covered. Files owns its specialized Nextcloud transport factory. Calendar/Chat/Boards factories
-have their business packages; their remaining App runtime location stays transitional. DAV and
-Matrix retain their specialized transport semantics. The existing HTTP implementation record
-links to the canonical Java standard instead of defining a second rule set.
-
-`./gradlew :server:core:check :server:core:model:check :server:domains:files:check
-:server:app:test checkOpenApiContractFresh coreArchitectureCi -Pdomains=all --console=plain`
-passed in 1m57s: Core 157/model 3, Files 94/model 21/persistence 11, App 1,262 with 24 explicit
-PostgreSQL/MinIO lane skips, OpenAPI export 14 plus normalization five; zero failures/errors.
-`WEAVE_SPEC_CORPUS_ROOT=<exact-accepted-checkout> ./gradlew canonicalDataCi
-specCorpusConformance acceptanceContract --console=plain` passed in five seconds. No persistence
-mapping changed; the prior Files checkpoint's 200 real PostgreSQL cases are historical evidence,
-not a new database run for this HTTP-only source. Production inventory: 909 file FQNs, no duplicates.
-
-The proposed corpus PR #172 now also reconciles the old AMD64 component partition with the
-owner's automatic Linux ARM64 target and explicitly describes digest-bound private GHCR
-transport from related PR #1733. Proposal revision `e38e9ba` passed manifest generation, pinned
-corpus lint/contract examples and links; implementation still pins accepted `f049c0b18794`.
-No delivery contract was activated. Read-only registry inspection verified the pinned Keycloak
-index's ARM64 manifest `sha256:89d56312ace1d9b0bf8168f1a92ea135ba185d2844285f7651cb50774e47c1d8`;
-a disposable ARM64 container produced the existing required services-JAR SHA-256
-`b295c806047aea4b3ca31352c1664bff698106013902cb2b66f0cd1a61c2ad83`. This is dependency validation,
-not a Weave ARM64 image, native executable or release qualification.
-
-
-### Calendar runtime and shared Identity checkpoint
-
-Calendar now owns its actual serving runtime under `:server:domains:calendar`: authenticated
-use cases, User/DAV/setup controllers and wire values, native JPA provider, CalDAV transport,
-recurrence/parsing/rendering, settings, binding bootstrap and health/capability/Space contributions.
-Sixty App production files moved physically. Normalized mappings/store and native JPA adapter
-share the owning `calendar.persistence` namespace; pure model remains separate. Existing
-package-private mappings stay private rather than becoming a cross-domain API. Calendar's
-`ical4j` dependency moved with its runtime consumers. Bootstrap business validation lives in
-an application class; configuration only constructs its runner.
-
-Module-local runtime imports register the actual servlet graph after scoped persistence.
-Three standalone contexts prove native and CalDAV construction without live providers/secrets,
-bean uniqueness, actual handler registration, no serving graph in non-web tooling and absence
-of Files OpenDAL, Matrix JNI and Chat persistence implementations. App excludes the owning
-namespace from transitional scanning, preserving Boot filters. There are no legacy source-set
-aliases, forwarding controllers or duplicate implementations. Actual JAR inspection finds the
-Calendar runtime/model/persistence libraries and their imports/handlers, with zero copies of
-the sixty moved implementations in App classes.
-
-Independent units move with Calendar. Two suites using the full installation fixture remain
-App integration tests in Calendar business packages. The resolver schedules real owning tests;
-only Chat retains the transitional App bridge. Its inventory test now distinguishes actual
-runtime projects by their task closure rather than a Files-only name exception. Rendered
-mobile-profile results belong to application instead of provider implementation. Source guards
-continue inspecting actual API/persistence/provider paths without loosening the boundary rule.
-
-Core Identity now owns current-member/display-name queries, invitation use cases and HTTP
-adapters, profile/identity HTTP adapters, invitation JPA adaptation and pure invitation
-values/ports. The shared in-memory invitation test adapter is a test fixture. App/operator
-repository duplicates and the invitation service's default-identity test convenience constructor
-are removed. Existing User/Admin URLs, authorization, provider sequencing, idempotency and
-wire shapes remain unchanged. Organization administration/Weaver entitlement separation and
-remaining foundational Space controllers still require their later ownership cleanup.
-
-HMAC reference construction no longer reads a mounted secret during AOT/context construction.
-The ordered serving readiness runner validates the exact SecretRef before normal startup
-workflows/traffic; first use also fails closed. Same key-length/symlink/readability checks and
-one-time key caching remain. Tests cover unavailable/short/symlinked secrets, a mount arriving
-after construction, cached-key behavior and the actual imports-discovered readiness hook.
-Standalone discovery verifies actual shared controllers and no non-web serving graph. MVC
-slices explicitly import relocated handlers while full runtime uses module-local discovery.
-Calendar and Files one-time credential DTOs now redact diagnostics without altering JSON or
-credential accessors; owning regressions preserve the wire values and exclude sensitive output.
-
-Final main-source combined command:
-`./gradlew :server:domains:calendar:check :server:core:model:check :server:app:test
-checkOpenApiContractFresh coreArchitectureCi :server:app:bootJar -Pdomains=all --console=plain`
-passed in 3m3s. Core 186/model 3,
-Calendar 71/model 4/persistence 10, Files 95/model 21/persistence 11, App 1,169 with 24 explicit
-PostgreSQL/MinIO lane skips, OpenAPI export 14 and normalization five; zero failures/errors.
-The strengthened Calendar discovery assertions also passed selected Calendar checks afterwards.
-`:server:domains:check -Pdomains=calendar` passed; resolver 32 tests. `:server:app:entitySchemaCheck`
-passed against the selected compiled graph. The separate scoped disposable PostgreSQL command
-`:server:app:postgresJpaTest -Pdomains=all --console=plain` passed 200 tests with zero skips,
-failures or errors in three minutes. No owner data, database or migration history was reset.
-Production inventory: 912 file FQNs, no duplicates. Distinct context-lane scheduling is a
-remaining build cleanup, not a completed qualification claim.
-
-### Flutter stable navigation checkpoint
-
-The existing Flutter application now shares `ShellDestination` identities between route
-composition, navigation semantics and member-Space refresh. Indices only adapt that list to
-GoRouter/Material widgets. Production still uses the accepted full shell and bootstrap rules;
-there is no reduced-manifest activation, provider inference or separate per-selection client.
-New widget fixtures prove omitted/reordered destinations retain correct routes and semantics at
-ordinary and doubled text scale. Existing English/German large-text targets, keyboard access,
-bootstrap/sign-in redirects and navigation continue passing.
-
-Pinned local Flutter 3.41.6 / Dart 3.11.4 / Rust 1.95.0: `flutter pub get`, `flutter gen-l10n`
-and the repository build_runner command passed without dependency upgrades; only the router's
-owned generated hash changed. `flutter test --no-pub test/core/router test/features/shell`
-passed 80 tests. Final `flutter analyze --no-pub --fatal-infos` passed and
-`dart format --output=none --set-exit-if-changed .` checked 482 files with zero changes.
-The first widget run built the pinned local Matrix bridge; this is not server Linux ARM64,
-GraalVM native or two-member product acceptance. Full application/native/HIL lanes remain separate.
-
-The final checkpoint also passed `WEAVE_SPEC_CORPUS_ROOT=<exact-accepted-checkout> ./gradlew
-coreArchitectureCi canonicalDataCi specCorpusConformance acceptanceContract --console=plain`
-in seven seconds. Acceptance mappings cover 270 scenarios; runtime evidence was not collected.
-The legacy structure helper's optional sibling-path manifest comparison is unavailable in this
-isolated layout; the separate exact-pin conformance check ran and passed for all 159 entries.
-Static Java selector/skill links and provider boundary invariants passed without budget changes.
-
-### Owning context lanes and provider-selection policy checkpoint
-
-Eight actual Core/domain runtime or persistence libraries now separate ordinary unit tests
-from tagged Spring context discovery. `check` schedules both; reports remain separate under
-`test` and `contextTest`. Pure model/provider/security libraries have no synthetic context task.
-Mixed unit/context suites tag only the methods that construct contexts. The selected-domain
-aggregate executes these owning tasks and CI collects both report sets. App's broader context
-and expensive integration classification remains a later task.
-
-The owning checks passed 369 unit and 23 context tests with no overlap, skips, errors or
-failures. App provider-registry/Chat regressions passed 43 tests; fresh full OpenAPI export
-passed 14 tests plus five normalization tests. Selected Files/Calendar checks, six real Gradle
-wiring regressions, 32 resolver cases and `coreArchitectureCi` passed. Wiring regressions now
-expect the actual Files/Calendar tasks and retain the explicit partial-runtime/API/schema
-rejections until composition is complete.
-
-Core's small `ProviderSelectionStatus` policy now owns generic admin-selection status
-projection. App's transitional feature catalog delegates to it; no optional feature metadata
-or registry moved into Core. Five direct unit cases preserve pending selection, aliases,
-wrong-adapter rejection and category ownership. A selection no longer upgrades an unsafe
-provider diagnostic to support-safe. Chat can consume this policy without importing App's
-feature catalog.
-
-The runtime artifact input closure includes its embedded specification lock and the canonical
-domain catalog/resolver. Cache regressions distinguish those build-affecting inputs from
-composition-only documentation and unrelated client inputs. `python3 tools/build_artifacts_test.py`
-passed 41 tests. Its first local run exposed an existing macOS `/var` versus `/private/var`
-fixture assertion; the fixture now resolves the path exactly as the production Xcode command
-already does. This changes no signing or build behavior. No ARM64/GHCR contract was activated.
-
-### Foundational Spaces, HTTP errors and Identity operator checkpoint
-
-Core now owns the actual Space administration/bootstrap use cases, User/Admin/relationship
-controllers, exceptional setup settings/credential and revocation-ETag exception. Their former
-App `service.spaces`, `controller`, `config`, `exception` and `identity.bootstrap` copies are
-deleted. Explicit servlet imports discover the actual shared graph once; App scanning excludes
-the owning HTTP/credential namespaces. Setup remains disabled by default, admits only the
-reviewed Dogfood/E2E environments and does not read its mounted token during construction.
-Domains retain their preparation/resource contributions. No Files/Calendar/Chat implementation
-is needed for the shared Space primitive.
-
-Shared `api.error.ApiExceptionHandler` also moved physically to Core. Support-safe exception
-categorization, validation/status handling and strong Space-revocation ETags are unchanged.
-MVC fixtures explicitly import the relocated handler/controllers; actual runtime discovery
-uses Core's module-local imports. A complete first App run found PlatformControllerTest's
-reliance on old App scanning; its fixture import was corrected and the full rerun passed.
-
-Thirteen plain Keycloak realm-migration operator helpers and the client-secret recovery token
-provider move to Core Identity. Its sole production consumer is the explicit migration CLI;
-its former Agent Runtime adapter location was misleading and made identity recovery depend
-on a future feature. App retains CLI dispatch only. No migration auto-configuration, serving
-authentication fallback, provider call or persistent mutation is introduced. Backup proof,
-exact SecretRef, operation allowlist, receipt and idempotency guards remain. Recovery token
-cache diagnostics now redact the bearer. Independent tests move with their production owners;
-the transport fixture uses Core's actual exact-file SecretRef adapter. Future integration
-fixtures stay in App's owning business namespaces.
-
-Final main-source command `./gradlew :server:core:check :server:app:test
-checkOpenApiContractFresh coreArchitectureCi :server:app:bootJar -Pdomains=all --console=plain`
-passed in 1m49s. Core 263 unit/13 context tests; App 1,085 with 24 explicit PostgreSQL/MinIO lane
-skips; zero failures/errors. Fresh full API export 14 plus normalization five passed. Existing
-owning Files/Calendar checks and architecture prerequisites also passed. JAR inspection proves
-all 24 moved production implementations in Core with zero App class copies. No persistence
-mapping changed; the earlier 200-case PostgreSQL run remains historical, not a new database
-qualification of this source. Reduced runtime composition, Chat/future extraction and final
-platform/integration qualification remain open.
-
-### Identity member administration and PostgreSQL idempotency checkpoint
-
-The actual organization-member service, HTTP adapter, wire values and durable operation store
-move from App's global service/controller/model and Identity packages into Core Identity's
-`member.application`, `member.api` and `persistence` owners. These govern shared membership,
-last-owner safety, offboarding/session cutoffs and protected external Weaver/MCP access policy
-independently of Agent Runtime execution. They preserve the accepted Keycloak authority and
-introduce no Agent Runtime implementation dependency. Test-only default identity construction
-and lazy required-cutoff lookup are removed; production receives the configured identity and
-required cutoff service directly. Actual Core imports discover the controller/store/service;
-non-web tooling excludes serving handlers.
-
-Inspection found a real concurrent-claim defect: the old store caught a uniqueness failure and
-queried the winner inside the aborted PostgreSQL transaction. Claim recovery now runs after
-that independent transaction ends. A second independent transaction resolves only the exact
-existing organization/key/request; otherwise the original failure propagates. This uses the
-existing Core transaction-template pattern over JPA, with no SQL CRUD or extra schema authority.
-Claim and completion still fence remote effects independently of caller rollback.
-
-`:server:core:check -Pdomains=all` passed 278 unit and 13 context tests. The actual PostgreSQL
-command `DOCKER_HOST=<observed-disposable-engine> ./gradlew :server:app:postgresJpaTest
---tests '*IdentityAdminOperationStorePostgresTest' -Pdomains=all --console=plain` passed three
-cases in 13 seconds, zero skips/errors/failures. They cover tenant/request/replay isolation,
-claim and receipt survival across outer rollback, and two independent concurrent absent-row
-claims. The latter observes real PostgreSQL `23505` and requires exactly one claim and one safe
-conflict; a subsequent durable replay succeeds. Its first test run failed in Mockito's Spring
-proxy unwrapping before the race; the coordination wrapper now delegates to the actual repository
-instead of spying on the Spring proxy. The combined verification below supersedes this focused result.
-
-
-### Chat runtime, future conversation features and selected CI checkpoint
-
-Chat now owns 100 production runtime types, its scoped persistence library and 25 owning test
-sources, plus reusable test fixtures. The old App Chat/Matrix services, controllers, provider
-clients, configuration, wire values and JPA adapters are deleted from their old locations.
-The sole historical package exception is `backend.matrix.NativeMatrixCore`: its ABI name is
-required by the Rust JNI symbol; the implementation and native build task physically belong
-to Chat. The task uses the protocol crate's actual pinned Rust toolchain and declares platform
-inputs. App keeps a transitional task alias while full selected composition remains unfinished.
-
-Chat's actual Boot imports register serving beans; non-web contexts do not create serving or
-provider graphs. Required providers are explicit dependencies, with no synthetic pending fallback.
-Synapse construction is offline: exact distinct bounded tokens are validated and cached at
-ordered serving readiness or first use, preserving callback/outbound authentication. Matrix
-projection uses typed operations on the existing consumed protocol port; JNI remains a suitable
-separate transport rather than a REST abstraction. Shared session revocation remains Core.
-
-The old combined `ChatFacadeService` and seeded-message scaffold are retired. Decisions and
-Meetings own their existing conversation-attached services, controllers, wire values, settings
-and capability contributions, using the narrow Chat admission contract. Their stores now isolate
-organization, Space and conversation rather than conversation ID alone. They remain future,
-in-memory implementations, without release-readiness claims. LiveKit diagnostic output redacts
-credentials. Both dependencies on Chat are explicit in Gradle and the canonical selection catalog.
-
-The verification-only App bridge and `domain-project.gradle` are retired. The existing resolver
-now emits selected or per-domain CI rows, including explicit required-domain closures, and
-rejects cycles and invalid selections. Source identity and branch pins retain their precedence;
-workflow input has no literal `all` default. Reports distinguish rows and exact source. JVM/native
-artifact inputs include actual runtime/build/resources and crate-local toolchain pins. No new
-selection framework, provider selector, release qualification or hosted workflow result is implied.
-
-The final combined source command passed in 4m56s:
-
-```sh
-DOCKER_HOST=<observed-disposable-engine> WEAVE_SPEC_CORPUS_ROOT=<accepted-pinned-checkout> ./gradlew :server:domains:check :server:app:test :server:app:postgresJpaTest :server:app:entitySchemaCheck coreArchitectureCi canonicalDataCi specCorpusConformance acceptanceContract checkOpenApiContractFresh :server:app:bootJar -Pdomains=all --console=plain
-```
-
-App reports 1,008 cases, zero failures/errors and 23 explicit PostgreSQL-only skips; the separate
-PostgreSQL lane executes 201 cases with zero skips/failures/errors. Core reports 278 unit/13
-context cases; Chat 61/7; Decisions 4/1; Meetings 5/1. Actual export/freshness, schema, architecture,
-canonical-data, accepted corpus and acceptance contracts pass. These include the real relocated
-22-case canonical Chat store and six-case recovery suites in both applicable engines. Earlier
-979/173-case runs were incomplete because local incremental compilation had lost relocated
-bytecode. A forced test compilation restored the outputs; the final XML confirms all 28 cases.
-No test source or assertion was removed, and no global compiler workaround is introduced.
-Two former Matrix persistence-named cases use only memory doubles and correctly move to the
-owning Chat unit lane rather than being claimed as PostgreSQL proof.
-
-Selected `:server:domains:check -Pdomains=files,chat` passes. Resolver/workflow Python regressions
-pass 52 cases; artifact-input regressions pass 43. Production ownership inspection finds 925
-unique types with zero duplicate owners. Final JAR inspection proves all 100 Chat, 12 Decisions
-and 11 Meetings runtime classes in their owning libraries, with zero App class copies. This is
-full experimental `all` packaging, not three-domain release exclusion. The remaining future
-serving owners, selected App/schema/API composition, accepted reduced discovery, Linux ARM64,
-Graal/AOT, exact-candidate Compose/two-member native acceptance and HIL remain open.
+Remaining external qualification: accepted #172 where affected; Linux ARM64 JVM/AOT/native/JNI; exact-candidate
+Compose and two ordinary members/two real Flutter iOS apps; physical preparation and explicit HIL. Missing,
+skipped, failed and unavailable checks must stay distinct. The next internal work is remaining shared Admin/
+organization/home/discovery ownership and actual selected composition, followed by combined review and coherent
+commit/push/PR updates. Do not present this checkpoint as completion of #1745.

@@ -1,0 +1,25 @@
+plugins { id 'java-library' }
+
+// Real imports-discovery checks run separately from owning unit tests.
+ext.weaveContextTests = true
+apply from: rootProject.file('server/gradle/scripts/domain-library.gradle')
+
+group = 'com.massimotter.weave.integrations'
+base { archivesName = 'weave-integrations' }
+
+dependencies {
+    api platform(libs.spring.boot.bom)
+    api project(':server:core')
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.security:spring-security-oauth2-resource-server'
+    testImplementation testFixtures(project(':server:core'))
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-actuator'
+    testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    testRuntimeOnly libs.h2.test
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('check') { dependsOn ':server:core:check' }

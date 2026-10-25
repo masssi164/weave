@@ -53,7 +53,7 @@ A future coherent cutover replaces the old chain, pin and initializer together a
 
 ## Maintenance and consolidation
 
-Services, controllers, entities and provider integrations belong to their domains; a shared database does not make Core their owner. The Java agent guard follows the extracted Files/Calendar source roots and still scans future production roots. Its legacy provider-selector allowance was not enlarged to make refactoring pass.
+Services, controllers, entities and provider integrations belong to their domains; a shared database does not make Core their owner. The Java agent guard follows the extracted serving and persistence domain source roots and still scans future production roots. Its legacy provider-selector allowance was not enlarged to make refactoring pass.
 
 The merged Skills work is integrated with domain/ORM guidance. Java agent gate registration lives with `coreArchitectureCi`; lazy task wiring retains both documentation and Server CI checks without duplicate registration. The developer handbook keeps its corrected Files project path; navigation, root/Server agent rules and this guide link the single shared Java standard.
 

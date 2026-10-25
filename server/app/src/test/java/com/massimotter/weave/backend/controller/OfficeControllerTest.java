@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.office.api.OfficeController;
+
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import com.massimotter.weave.backend.security.http.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.security.http.ApiAuthenticationEntryPoint;
@@ -8,8 +10,8 @@ import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.security.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation.Settings;
 import com.massimotter.weave.backend.api.error.ApiExceptionHandler;
-import com.massimotter.weave.backend.office.port.DisabledOfficeProvider;
-import com.massimotter.weave.backend.service.OfficeFacadeService;
+import com.massimotter.weave.backend.office.provider.DisabledOfficeProvider;
+import com.massimotter.weave.backend.office.application.OfficeFacadeService;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import org.junit.jupiter.api.Test;
@@ -39,6 +41,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         controllers = OfficeController.class,
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
+        OfficeController.class,
         com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation.Configuration.class,
         OrganizationIdentityContextResolver.class,
         SecurityConfig.class,

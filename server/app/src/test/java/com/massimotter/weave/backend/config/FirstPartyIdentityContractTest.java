@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.security.jwt.JwtDecoderSupport;
+
 import com.massimotter.weave.backend.security.MemberSessionRevocationService;
 import com.massimotter.weave.backend.identity.invitation.api.IdentitySessionController;
 import com.massimotter.weave.backend.identity.invitation.application.MemberInvitationService;
@@ -405,8 +407,8 @@ class FirstPartyIdentityContractTest {
         };
 
         OAuth2TokenValidator<Jwt> validator = new org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator<>(
-                JwtDecoderConfig.requiredAudienceValidator(REQUIRED_AUDIENCE),
-                JwtDecoderConfig.requiredAuthorizedPartyValidator(FIRST_PARTY_CLIENT_ID));
+                JwtDecoderSupport.requiredAudienceValidator(REQUIRED_AUDIENCE),
+                JwtDecoderSupport.requiredAuthorizedPartyValidator(FIRST_PARTY_CLIENT_ID));
         OAuth2TokenValidatorResult validation = validator.validate(jwt);
         if (validation.hasErrors()) {
             throw new JwtValidationException("JWT does not satisfy the first-party contract.",
@@ -440,8 +442,8 @@ class FirstPartyIdentityContractTest {
                     "The Admin API requires an Admin Console token.");
         };
         var validator = new org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator<Jwt>(
-                JwtDecoderConfig.exactAudienceValidator(java.util.Set.of(REQUIRED_AUDIENCE)),
-                JwtDecoderConfig.requiredAuthorizedPartyValidator("weave-admin-console"));
+                JwtDecoderSupport.exactAudienceValidator(java.util.Set.of(REQUIRED_AUDIENCE)),
+                JwtDecoderSupport.requiredAuthorizedPartyValidator("weave-admin-console"));
         OAuth2TokenValidatorResult validation = validator.validate(jwt);
         if (validation.hasErrors()) {
             throw new JwtValidationException("JWT does not satisfy the Admin API contract.", validation.getErrors());

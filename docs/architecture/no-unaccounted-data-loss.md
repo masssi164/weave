@@ -15,7 +15,7 @@ The Sprint 12 provider portability schema v2 `LossClass` enum is shared by every
 
 ## Contract schemas
 
-Machine-readable schemas live under `server/app/src/main/resources/contracts/portability/`:
+Machine-readable schemas live under `server/domains/portability/src/main/resources/contracts/portability/`:
 
 - `ProviderAdapterManifest`
 - `ProviderMapping`

@@ -9,7 +9,7 @@ readonly ROOT_DIR REPO_ROOT
 
 fail() { printf '%s\n' "$*" >&2; exit 1; }
 require() { grep -Fq -- "$2" "$1" || fail "Missing Nextcloud provider boundary '$2' in $1"; }
-reject() { ! grep -Fq -- "$2" "$1" || fail "Forbidden Nextcloud boundary '$2' remains in $1"; }
+reject() { [[ -f "$1" ]] || fail "Missing inspected contract file: $1"; ! grep -Fq -- "$2" "$1" || fail "Forbidden Nextcloud boundary '$2' remains in $1"; }
 
 readonly GATEWAY="${ROOT_DIR}/scripts/rendering/gateway.py"
 
@@ -29,10 +29,10 @@ require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'credentialMutationCount'
 require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'oidcManagedProjectionDigest'
 require "${ROOT_DIR}/scripts/nextcloud_reconcile.py" 'containsSecretValues'
 
-require "${REPO_ROOT}/server/app/src/main/java/com/massimotter/weave/backend/service/files/NextcloudFilesAdapter.java" 'implements FilesProviderPort'
-require "${REPO_ROOT}/server/app/src/main/java/com/massimotter/weave/backend/service/calendar/CalDavCalendarAdapter.java" 'implements CalendarProviderPort'
-require "${REPO_ROOT}/server/app/src/main/java/com/massimotter/weave/backend/service/FilesFacadeService.java" 'FilesProviderPort'
-require "${REPO_ROOT}/server/app/src/main/java/com/massimotter/weave/backend/service/CalendarFacadeService.java" 'CalendarProviderPort'
+require "${REPO_ROOT}/server/domains/files/src/main/java/com/massimotter/weave/backend/files/provider/NextcloudFilesAdapter.java" 'implements FilesProviderPort'
+require "${REPO_ROOT}/server/domains/calendar/src/main/java/com/massimotter/weave/backend/calendar/provider/caldav/CalDavCalendarAdapter.java" 'implements CalendarProviderPort'
+require "${REPO_ROOT}/server/domains/files/src/main/java/com/massimotter/weave/backend/files/application/FilesFacadeService.java" 'FilesProviderPort'
+require "${REPO_ROOT}/server/domains/calendar/src/main/java/com/massimotter/weave/backend/calendar/application/CalendarFacadeService.java" 'CalendarProviderPort'
 require "${REPO_ROOT}/server/app/src/main/resources/application.yml" 'import: classpath:application-base.yml'
 require "${REPO_ROOT}/server/app/src/main/resources/application-base.yml" 'calendar-path-template: ${WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE:'
 

@@ -2,7 +2,7 @@
 
 The canonical domain catalog and `tools/domain_selection_resolver.py` supply one selection model
 for owning domain checks and CI scheduling. Files, Calendar and Chat run their actual libraries;
-implemented future Decisions and Meetings have separate owners. This check does not make App
+existing future Boards, Office, DevOps, Agent Runtime, Integrations, Guest Access, Portability, Decisions and Meetings have separate runtime owners. Incomplete providers remain explicitly incomplete. This check does not make App
 packaging domain-selectable or qualify live product behavior.
 
 ## Commands
@@ -83,3 +83,27 @@ Owning domain checks no longer use an App-filtered unit bridge. App packaging an
 still reject partial selections until actual selected runtime composition and required contract
 approval are complete. A green selected check does not prove reduced executable contents, omitted
 runtime endpoints, cryptographic acceptance, GraalVM native qualification or live E2E readiness.
+
+
+## Adding an actual future domain
+
+Assign its business and contract owner first, using the pinned corpus and the living
+[Server ownership plan](../architecture/server-domain-ownership.md). Do not create an empty project
+for a roadmap entry. Move implemented production code and its actual consumers, resources, provider
+libraries and tests; preserve useful framework-free model and persistence boundaries.
+
+Create the real `server/domains/<identity>/build.gradle`, register its production auto-configuration
+through its own imports resource, and scope entities/repositories to that owner. Follow the canonical
+[Java/Spring standard](../java-spring-standard.md) for dependency direction, typed settings, provider
+lifecycle and testing. App is composition; a domain cannot compile against App or another owner's private
+persistence. Actual Boot discovery and omitted/non-web graphs are required alongside independent units.
+
+Add the stable identity and real owning unit tasks to `server/domains/catalog.json`. Declare genuine
+`required_domains` explicitly, with tests that invalid selections reject. The shared resolver/settings
+include catalog projects and schedule selected checks; do not add another selector or redefine `all`.
+A future domain joins experimental `all` without changing the three-domain automatic release pin.
+
+Update actual runtime source/resource/build/native input closure, owning README/scoped guidance and
+source/API/acceptance consumers. Verify owning checks, real Gradle selection, applicable PostgreSQL,
+full API/auth/freshness and actual selected artifact contents. New persistence or provider behavior
+requires its normal accepted contract and integration proof; buildability is not release readiness.

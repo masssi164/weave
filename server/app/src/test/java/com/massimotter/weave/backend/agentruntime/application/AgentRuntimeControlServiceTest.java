@@ -2,11 +2,11 @@ package com.massimotter.weave.backend.agentruntime.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import com.massimotter.weave.backend.agentruntime.adapter.JpaRuntimeCellRepository;
-import com.massimotter.weave.backend.agentruntime.adapter.JpaRuntimeCommandRepository;
-import com.massimotter.weave.backend.agentruntime.adapter.JpaRuntimeGovernanceRepository;
-import com.massimotter.weave.backend.agentruntime.adapter.JpaRuntimeProfileRepository;
-import com.massimotter.weave.backend.agentruntime.adapter.AgentRuntimeJpaTestFactory;
+import com.massimotter.weave.backend.agentruntime.persistence.JpaRuntimeCellRepository;
+import com.massimotter.weave.backend.agentruntime.persistence.JpaRuntimeCommandRepository;
+import com.massimotter.weave.backend.agentruntime.persistence.JpaRuntimeGovernanceRepository;
+import com.massimotter.weave.backend.agentruntime.persistence.JpaRuntimeProfileRepository;
+import com.massimotter.weave.backend.agentruntime.persistence.AgentRuntimeJpaTestFactory;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCell;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCellState;
 import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBinding;

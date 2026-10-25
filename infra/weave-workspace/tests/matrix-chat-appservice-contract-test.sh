@@ -9,7 +9,7 @@ readonly ROOT_DIR REPO_ROOT
 
 fail() { printf '%s\n' "$*" >&2; exit 1; }
 require() { grep -Fq -- "$2" "$1" || fail "Missing Matrix facade contract '$2' in $1"; }
-reject() { ! grep -Fq -- "$2" "$1" || fail "Forbidden Matrix contract '$2' remains in $1"; }
+reject() { [[ -f "$1" ]] || fail "Missing inspected contract file: $1"; ! grep -Fq -- "$2" "$1" || fail "Forbidden Matrix contract '$2' remains in $1"; }
 
 readonly PROVIDERS="${ROOT_DIR}/scripts/rendering/providers.py"
 readonly GATEWAY="${ROOT_DIR}/scripts/rendering/gateway.py"
@@ -32,12 +32,12 @@ require "${GATEWAY}" 'handle @internal'
 require "${REPO_ROOT}/server/app/src/main/resources/application.yml" 'import: classpath:application-base.yml'
 require "${REPO_ROOT}/server/app/src/main/resources/application-base.yml" 'provider: ${WEAVE_CHAT_PROVIDER:weave-native}'
 require "${REPO_ROOT}/server/app/src/main/resources/application-base.yml" 'as-token-file: ${WEAVE_CHAT_MATRIX_APPSERVICE_AS_TOKEN_FILE:}'
-require "${REPO_ROOT}/server/app/src/main/java/com/massimotter/weave/backend/config/MatrixApplicationServiceSecurityConfiguration.java" '.securityMatcher("/api/internal/chat/matrix/appservice/**")'
-require "${REPO_ROOT}/server/domains/chat/persistence/src/main/java/com/massimotter/weave/backend/chat/store/CanonicalChatPersistence.java" 'weave_chat_appservice_transactions'
-require "${REPO_ROOT}/server/app/src/main/java/com/massimotter/weave/backend/chat/store/CanonicalChatJpaAuthority.java" 'PROPAGATION_REQUIRES_NEW'
-require "${REPO_ROOT}/server/app/src/main/java/com/massimotter/weave/backend/chat/store/CanonicalChatJpaAuthority.java" 'callbacks.saveAndFlush'
-require "${REPO_ROOT}/server/app/src/main/java/com/massimotter/weave/backend/chat/store/CanonicalChatJpaAuthority.java" 'callbacks.existsById'
-[[ ! -e "${REPO_ROOT}/server/app/src/main/java/com/massimotter/weave/backend/chat/store/ChatCallbackClaimNativeRepository.java" ]] \
+require "${REPO_ROOT}/server/domains/chat/src/main/java/com/massimotter/weave/backend/chat/config/MatrixApplicationServiceSecurityConfiguration.java" '.securityMatcher("/api/internal/chat/matrix/appservice/**")'
+require "${REPO_ROOT}/server/domains/chat/persistence/src/main/java/com/massimotter/weave/backend/chat/persistence/CanonicalChatPersistence.java" 'weave_chat_appservice_transactions'
+require "${REPO_ROOT}/server/domains/chat/src/main/java/com/massimotter/weave/backend/chat/persistence/CanonicalChatJpaAuthority.java" 'PROPAGATION_REQUIRES_NEW'
+require "${REPO_ROOT}/server/domains/chat/src/main/java/com/massimotter/weave/backend/chat/persistence/CanonicalChatJpaAuthority.java" 'callbacks.saveAndFlush'
+require "${REPO_ROOT}/server/domains/chat/src/main/java/com/massimotter/weave/backend/chat/persistence/CanonicalChatJpaAuthority.java" 'callbacks.existsById'
+[[ ! -e "${REPO_ROOT}/server/domains/chat/src/main/java/com/massimotter/weave/backend/chat/persistence/ChatCallbackClaimNativeRepository.java" ]] \
   || fail "Database-specific Chat callback claim repository must stay removed"
 
 reject "${ROOT_DIR}/compose.yaml" 'WEAVE_CHAT_MATRIX_APPSERVICE_AS_TOKEN='

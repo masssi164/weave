@@ -41,7 +41,7 @@
       "count": 1
     },
     {
-      "path": "server/app/src/main/java/com/massimotter/weave/backend/config/BoardsRuntimeConfiguration.java",
+      "path": "server/domains/boards/src/main/java/com/massimotter/weave/backend/boards/config/BoardsRuntimeConfiguration.java",
       "kind": "java-annotation",
       "signature": "@Value(\"${weave.boards.workspace.provider:${weave.boards.provider:local-workspace}}\")",
       "count": 1

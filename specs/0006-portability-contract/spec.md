@@ -59,7 +59,7 @@ For the #1470 release, the pinned consolidation contract supersedes the earlier 
 ## Acceptance and evidence mapping
 
 - Tooling test path(s): `tools/portability_contract_check.py`.
-- Schemas: `server/src/main/resources/contracts/portability/*.schema.json`.
+- Schemas: `server/domains/portability/src/main/resources/contracts/portability/*.schema.json`.
 - Fixtures: `specs/0006-portability-contract/migration-run-*.json`.
 - Gherkin feature path(s): `e2e/features/northstar_spec_decisions.feature` for no-unaccounted-data-loss and the fixed Keycloak federation boundary.
 - `e2e/scenario_mappings.json` marker(s): `NORTHSTAR_PLATFORM_IDENTITY_FEDERATION`, `NORTHSTAR_PORTABILITY_NO_UNACCOUNTED_LOSS`.

@@ -43,6 +43,45 @@
       "unit_tasks": [
         ":server:domains:meetings:test"
       ]
+    },
+    "boards": {
+      "unit_tasks": [
+        ":server:domains:boards:test"
+      ]
+    },
+    "office": {
+      "unit_tasks": [
+        ":server:domains:office:test"
+      ]
+    },
+    "devops": {
+      "unit_tasks": [
+        ":server:domains:devops:test"
+      ]
+    },
+    "integrations": {
+      "unit_tasks": [
+        ":server:domains:integrations:test"
+      ]
+    },
+    "guest": {
+      "unit_tasks": [
+        ":server:domains:guest:test"
+      ]
+    },
+    "portability": {
+      "unit_tasks": [
+        ":server:domains:portability:test"
+      ]
+    },
+    "agent-runtime": {
+      "unit_tasks": [
+        ":server:domains:agent-runtime:test",
+        ":server:domains:agent-runtime:model:test",
+        ":server:domains:agent-runtime:persistence:test",
+        ":server:domains:agent-runtime:provider:test",
+        ":server:domains:agent-runtime:security:test"
+      ]
     }
   }
 }

@@ -28,6 +28,9 @@ class ApplicationCoreArchitectureTest {
                     "io.modelcontextprotocol..",
                     "org.springframework.ai..",
                     "..adapter..",
+                    "com.massimotter.weave.backend.agentruntime.provider..",
+                    "com.massimotter.weave.backend.agentruntime.security..",
+                    "com.massimotter.weave.backend.agentruntime.api..",
                     "..controller..",
                     "..projection..",
                     "..persistence..");
@@ -42,6 +45,9 @@ class ApplicationCoreArchitectureTest {
                     "..application..",
                     "..port..",
                     "..adapter..",
+                    "com.massimotter.weave.backend.agentruntime.provider..",
+                    "com.massimotter.weave.backend.agentruntime.security..",
+                    "com.massimotter.weave.backend.agentruntime.api..",
                     "..controller..",
                     "..projection..",
                     "..persistence..");
@@ -54,6 +60,9 @@ class ApplicationCoreArchitectureTest {
             .dependOnClassesThat()
             .resideInAnyPackage(
                     "..adapter..",
+                    "com.massimotter.weave.backend.agentruntime.provider..",
+                    "com.massimotter.weave.backend.agentruntime.security..",
+                    "com.massimotter.weave.backend.agentruntime.api..",
                     "..controller..",
                     "..projection..",
                     "..persistence..");

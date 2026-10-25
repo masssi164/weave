@@ -45,9 +45,9 @@ import com.massimotter.weave.backend.providerbinding.selection.ProviderSelection
 import com.massimotter.weave.backend.providerbinding.selection.ProviderSelectionRepository;
 import com.massimotter.weave.backend.discovery.provider.ProviderStatusResponse;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
-import com.massimotter.weave.backend.domainfacade.CanonicalDomainDefinition;
-import com.massimotter.weave.backend.service.migration.MigrationRunEvidence;
-import com.massimotter.weave.backend.service.migration.MigrationRunEvidenceRepository;
+import com.massimotter.weave.backend.discovery.admin.SuiteDomainDefinition;
+import com.massimotter.weave.backend.portability.domain.MigrationRunEvidence;
+import com.massimotter.weave.backend.portability.port.MigrationRunEvidenceRepository;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -1611,22 +1611,22 @@ public class AdminControlPlaneService {
 
     private List<SuiteDomainReadinessResponse> suiteDomainReadiness(ProviderRegistryResponse registry) {
         return List.of(
-                suiteDomain(CanonicalDomainDefinition.FILES_DOCS, registry,
+                suiteDomain(SuiteDomainDefinition.FILES_DOCS, registry,
                         "backend-owned file/document facade with guarded editor sessions",
                         List.of("Export manifests required before provider replacement", "Document editing remains guarded until WOPI session evidence is fresh"),
                         "Select/test files and documents providers, then attach support-safe export/delete evidence."),
-                suiteDomain(CanonicalDomainDefinition.BOARDS_TASKS, registry,
+                suiteDomain(SuiteDomainDefinition.BOARDS_TASKS, registry,
                         "local workspace writes; provider sync/write promotion gated by contract evidence",
                         List.of("Provider-write apply is refused until read-sync, conflict, and rollback evidence pass", "Keyboard create/move/complete flows are required before member promotion"),
                         "Verify board/task workspace contract, accessible workflows, conflict states, and audit events."),
-                suiteDomain(CanonicalDomainDefinition.CALENDAR_MEETINGS, registry,
+                suiteDomain(SuiteDomainDefinition.CALENDAR_MEETINGS, registry,
                         "workspace/team/channel calendar facade; private personal calendars blocked",
                         List.of("Secret-free setup metadata only", "Private calendar ingestion and credential profile downloads are out of scope"),
                         "Confirm workspace/team/channel event readiness and keep private-calendar setup blocked."));
     }
 
     private SuiteDomainReadinessResponse suiteDomain(
-            CanonicalDomainDefinition definition,
+            SuiteDomainDefinition definition,
             ProviderRegistryResponse registry,
             String sourceOfTruthMode,
             List<String> portabilityNotes,

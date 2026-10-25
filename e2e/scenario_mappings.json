@@ -1018,7 +1018,7 @@
       ],
       "additionalEvidence": [
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/service/BoardsFacadeServiceTest.java",
+          "path": "server/domains/boards/src/test/java/com/massimotter/weave/backend/boards/application/BoardsFacadeServiceTest.java",
           "fragments": [
             "taskWritesPublishSupportSafeWorkspaceAuditEvents",
             "preWriteAuditRedactsUnsafeResourceReferencesBeforeRepositoryValidation",
@@ -1400,11 +1400,27 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/domainfacade/CanonicalDomainFacadeServicesTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
           "fragments": [
-            "contractsCoverRemainingNonChatDomainsWithoutThinProviderProxyVocabulary",
-            "memberReadinessFailsClosedWithoutAdminSelectedMappingsAndHidesProviderDiagnostics",
-            "canonical-domain-facade-v1"
+            "failsClosedWhenAdapterIsMissingOrUnconfigured",
+            "listFailsClosedWhenContextAuthorizationDeniesAccess",
+            "webDavPutCreateFolderAndDeleteUseFacadePolicyAndPublishMutationAudit"
+          ]
+        },
+        {
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/calendar/application/CalendarFacadeServiceTest.java",
+          "fragments": [
+            "ordinaryMemberCanCreateReadAndDeleteWithinAuthorizedTeamScope",
+            "ordinaryMemberWithViewAccessStillRequiresEditBeforeCallingProvider",
+            "publishesSupportSafeAuditBeforeCalendarMutation"
+          ]
+        },
+        {
+          "path": "server/domains/boards/src/test/java/com/massimotter/weave/backend/boards/application/BoardsFacadeServiceTest.java",
+          "fragments": [
+            "createTaskRequiresEffectivePolicyGrantBeforeContextAuthorization",
+            "updateStatusFailsClosedBeforeMutationWhenAuditPublisherIsMissing",
+            "workspaceFailsClosedInsteadOfLeakingUnsafeProviderCursor"
           ]
         },
         {
@@ -1459,11 +1475,27 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/domainfacade/CanonicalDomainFacadeServicesTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
           "fragments": [
-            "contractsCoverRemainingNonChatDomainsWithoutThinProviderProxyVocabulary",
-            "canonical-domain-facade-v1",
-            "memberReadinessFailsClosedWithoutAdminSelectedMappingsAndHidesProviderDiagnostics"
+            "failsClosedWhenAdapterIsMissingOrUnconfigured",
+            "listFailsClosedWhenContextAuthorizationDeniesAccess",
+            "webDavPutCreateFolderAndDeleteUseFacadePolicyAndPublishMutationAudit"
+          ]
+        },
+        {
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/calendar/application/CalendarFacadeServiceTest.java",
+          "fragments": [
+            "ordinaryMemberCanCreateReadAndDeleteWithinAuthorizedTeamScope",
+            "ordinaryMemberWithViewAccessStillRequiresEditBeforeCallingProvider",
+            "publishesSupportSafeAuditBeforeCalendarMutation"
+          ]
+        },
+        {
+          "path": "server/domains/boards/src/test/java/com/massimotter/weave/backend/boards/application/BoardsFacadeServiceTest.java",
+          "fragments": [
+            "createTaskRequiresEffectivePolicyGrantBeforeContextAuthorization",
+            "updateStatusFailsClosedBeforeMutationWhenAuditPublisherIsMissing",
+            "workspaceFailsClosedInsteadOfLeakingUnsafeProviderCursor"
           ]
         },
         {
@@ -4285,7 +4317,7 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/config/BoardsRuntimeConfigurationTest.java",
+          "path": "server/domains/boards/src/test/java/com/massimotter/weave/backend/boards/config/BoardsRuntimeConfigurationTest.java",
           "fragments": [
             "boardsConfigurationDoesNotCreateAPersistenceFallback"
           ]
@@ -4303,7 +4335,7 @@
       "tag": "@enterprise-target-migration-evidence-persistence-foundation",
       "scenario": "Provider-switch migration run evidence gains a gated relational persistence foundation",
       "feature": "e2e/features/enterprise_target_architecture.feature",
-      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/service/migration/JpaMigrationRunEvidenceRepositoryTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/portability/persistence/JpaMigrationRunEvidenceRepositoryTest.java",
       "evidenceMarkers": [
         "ENTERPRISE_TARGET_MIGRATION_EVIDENCE_PERSISTENCE_FOUNDATION"
       ],
@@ -4325,14 +4357,14 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/service/migration/JpaMigrationRunEvidenceRepositoryTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/portability/persistence/JpaMigrationRunEvidenceRepositoryTest.java",
           "fragments": [
             "evidenceSurvivesAdapterRestartAndExpiresAtTheContractBoundary",
             "portable-jpa-hibernate-validated"
           ]
         },
         {
-          "path": "server/app/src/main/java/com/massimotter/weave/backend/service/migration/JpaMigrationRunEvidenceRepository.java",
+          "path": "server/domains/portability/src/main/java/com/massimotter/weave/backend/portability/persistence/JpaMigrationRunEvidenceRepository.java",
           "fragments": [
             "portable-jpa-hibernate-validated",
             "Failed to persist durable migration run evidence.",

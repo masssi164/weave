@@ -19,28 +19,32 @@ dependencies {
     implementation libs.flyway.core
     implementation libs.flyway.postgresql
 
-    // Separate southbound S3 provider / ARC object-store support. This is not part of weave-native Files.
-    implementation libs.aws.s3
-    implementation libs.aws.url.connection.client
 
     implementation project(':server:core:model')
     implementation project(':server:domains:files')
     implementation project(':server:domains:calendar')
     implementation project(':server:core')
+    implementation project(':server:domains:agent-runtime')
+    testImplementation testFixtures(project(':server:domains:agent-runtime'))
+    testImplementation testFixtures(project(':server:domains:portability'))
     testImplementation testFixtures(project(':server:core'))
     testImplementation testFixtures(project(':server:domains:chat'))
-    implementation project(':server:domains:agent-runtime:persistence')
     implementation project(':server:domains:chat')
     implementation project(':server:domains:decisions')
     implementation project(':server:domains:meetings')
+    implementation project(':server:domains:boards')
+    implementation project(':server:domains:office')
+    implementation project(':server:domains:devops')
+    implementation project(':server:domains:integrations')
+    implementation project(':server:domains:guest')
+    implementation project(':server:domains:portability')
     implementation project(':server:domains:portability:persistence')
-    implementation project(':server:domains:agent-runtime:model')
     implementation project(':server:domains:portability:model')
-    implementation project(':server:domains:agent-runtime:provider')
-    implementation project(':server:domains:agent-runtime:security')
     runtimeOnly 'org.postgresql:postgresql'
     developmentOnly 'com.h2database:h2'
 
+    testImplementation libs.aws.s3
+    testImplementation libs.aws.url.connection.client
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'

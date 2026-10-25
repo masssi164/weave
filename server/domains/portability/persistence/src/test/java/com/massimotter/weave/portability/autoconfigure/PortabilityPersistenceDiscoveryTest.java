@@ -25,8 +25,8 @@ class PortabilityPersistenceDiscoveryTest {
                             .hasBean("portabilityPlanJpaRepository").hasBean("portabilityFidelityItemJpaRepository");
                     assertThat(context.getBean(EntityManagerFactory.class).getMetamodel().getEntities())
                             .extracting(entity -> entity.getJavaType().getName())
-                            .contains("com.massimotter.weave.backend.portability.adapter.PortabilityPlanJpaEntity",
-                                    "com.massimotter.weave.backend.portability.adapter.PortabilityFidelityItemJpaEntity");
+                            .contains("com.massimotter.weave.backend.portability.persistence.PortabilityPlanJpaEntity",
+                                    "com.massimotter.weave.backend.portability.persistence.PortabilityFidelityItemJpaEntity");
                 });
     }
 

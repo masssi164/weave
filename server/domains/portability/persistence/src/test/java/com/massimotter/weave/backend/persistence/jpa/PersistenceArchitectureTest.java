@@ -8,7 +8,7 @@ import com.tngtech.archunit.lang.ArchRule;
 
 @AnalyzeClasses(
     packages = {
-      "com.massimotter.weave.backend.transfer.adapter"
+      "com.massimotter.weave.backend.portability.persistence"
     })
 class PersistenceArchitectureTest {
 

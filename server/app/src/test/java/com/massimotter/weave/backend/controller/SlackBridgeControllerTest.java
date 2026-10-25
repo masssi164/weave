@@ -2,7 +2,7 @@ package com.massimotter.weave.backend.controller;
 
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 
-import com.massimotter.weave.backend.service.interop.SlackSecretResolver;
+import com.massimotter.weave.backend.integrations.port.SlackSecretResolver;
 import java.nio.charset.StandardCharsets;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;

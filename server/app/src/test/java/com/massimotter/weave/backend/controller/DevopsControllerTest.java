@@ -1,14 +1,16 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.devops.api.DevopsController;
+
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 
 import com.massimotter.weave.backend.security.http.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.security.http.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
-import com.massimotter.weave.backend.config.DevopsProviderConfiguration;
+import com.massimotter.weave.backend.devops.config.DevopsProviderConfiguration;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.api.error.ApiExceptionHandler;
-import com.massimotter.weave.backend.service.DevopsFacadeService;
+import com.massimotter.weave.backend.devops.application.DevopsFacadeService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerAutoConfiguration;
@@ -33,6 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         controllers = DevopsController.class,
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
+        DevopsController.class,
         SecurityConfig.class,
         ApiAuthenticationEntryPoint.class,
         ApiAccessDeniedHandler.class,

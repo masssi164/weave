@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Import;
 @AutoConfiguration(after = CorePersistenceAutoConfiguration.class,
         afterName = "org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration")
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@Import(JpaOperationIntentRepository.class)
+@Import({JpaOperationIntentRepository.class, com.massimotter.weave.backend.operation.idempotency.IdempotencyKeyService.class})
 public class CoreOperationAutoConfiguration {
     @Bean
     OperationIntentService operationIntentService(JpaOperationIntentRepository repository) {

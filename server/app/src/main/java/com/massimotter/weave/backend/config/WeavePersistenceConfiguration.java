@@ -1,11 +1,8 @@
 package com.massimotter.weave.backend.config;
 
-import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.operation.application.OperationIntentService;
-import com.massimotter.weave.backend.portability.persistence.MigrationRunEvidenceJpaRepository;
 import com.massimotter.weave.backend.readiness.persistence.JpaPersistenceReadinessProbe;
 import com.massimotter.weave.backend.schema.persistence.SchemaAuthorityJpaRepository;
-import com.massimotter.weave.backend.service.migration.JpaMigrationRunEvidenceRepository;
 import jakarta.persistence.EntityManagerFactory;
 import java.util.Arrays;
 import java.util.Set;
@@ -37,12 +34,5 @@ public class WeavePersistenceConfiguration {
     return new JpaPersistenceReadinessProbe(
         entityManagerFactory, schemaAuthority, markerRequired, candidate);
   }
-
-  @Bean
-  JpaMigrationRunEvidenceRepository jpaMigrationRunEvidenceRepository(
-      MigrationRunEvidenceJpaRepository repository, ObjectMapper objectMapper) {
-    return new JpaMigrationRunEvidenceRepository(repository, objectMapper);
-  }
-
 
 }

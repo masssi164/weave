@@ -1,11 +1,13 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.boards.api.BoardsController;
+
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.security.http.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.security.http.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
-import com.massimotter.weave.backend.config.BoardsRuntimeConfiguration;
+import com.massimotter.weave.backend.boards.config.BoardsRuntimeConfiguration;
 import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.security.config.WeaveSecurityProperties;
@@ -14,7 +16,7 @@ import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDe
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
 import com.massimotter.weave.backend.spaces.authorization.ContextPermission;
 import com.massimotter.weave.backend.api.error.ApiExceptionHandler;
-import com.massimotter.weave.backend.service.BoardsFacadeService;
+import com.massimotter.weave.backend.boards.application.BoardsFacadeService;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import org.junit.jupiter.api.Test;
@@ -47,6 +49,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @ImportAutoConfiguration(RestClientAutoConfiguration.class)
 @Import({
+        BoardsController.class,
         com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation.Configuration.class,
         OrganizationIdentityContextResolver.class,
         SecurityConfig.class,

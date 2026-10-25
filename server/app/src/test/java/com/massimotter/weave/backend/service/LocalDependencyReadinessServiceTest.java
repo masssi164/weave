@@ -1,7 +1,5 @@
 package com.massimotter.weave.backend.service;
 
-import com.massimotter.weave.backend.agentruntime.application.AgentRuntimeWorkloadReconciliationService;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadReconciliationReport;
 import com.massimotter.weave.backend.readiness.persistence.JpaPersistenceReadinessProbe;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -15,7 +13,7 @@ class LocalDependencyReadinessServiceTest {
     @Test
     void omitsPersistenceCheckWhenJpaIsNotConfigured() {
         LocalDependencyReadinessService service = new LocalDependencyReadinessService(
-                Optional.empty(), Optional.empty(), Optional.empty());
+                Optional.empty(), java.util.List.of());
 
         assertThat(service.checks()).isEmpty();
     }
@@ -26,7 +24,7 @@ class LocalDependencyReadinessServiceTest {
         when(probe.isReady()).thenReturn(true);
 
         LocalDependencyReadinessService service = new LocalDependencyReadinessService(
-                Optional.of(probe), Optional.empty(), Optional.empty());
+                Optional.of(probe), java.util.List.of());
 
         assertThat(service.checks()).singleElement().satisfies(check -> {
             assertThat(check.key()).isEqualTo("persistence");
@@ -43,7 +41,7 @@ class LocalDependencyReadinessServiceTest {
                 .thenThrow(new IllegalStateException(
                         "jdbc:postgresql://db.internal/weave?password=do-not-expose"));
         LocalDependencyReadinessService service = new LocalDependencyReadinessService(
-                Optional.of(probe), Optional.empty(), Optional.empty());
+                Optional.of(probe), java.util.List.of());
 
         assertThat(service.checks()).singleElement().satisfies(check -> {
             assertThat(check.key()).isEqualTo("persistence");
@@ -57,37 +55,4 @@ class LocalDependencyReadinessServiceTest {
         });
     }
 
-    @Test
-    void reportsWorkloadIdentityReconciliationAsReadyOnlyAfterConvergence() {
-        AgentRuntimeWorkloadReconciliationService reconciliation =
-                mock(AgentRuntimeWorkloadReconciliationService.class);
-        RuntimeWorkloadReconciliationReport report = mock(RuntimeWorkloadReconciliationReport.class);
-        when(reconciliation.supportSafeSnapshot()).thenReturn(report);
-        when(report.state()).thenReturn(RuntimeWorkloadReconciliationReport.State.CONVERGED);
-        LocalDependencyReadinessService service = new LocalDependencyReadinessService(
-                Optional.empty(), Optional.empty(), Optional.of(reconciliation));
-
-        assertThat(service.checks()).singleElement().satisfies(check -> {
-            assertThat(check.key()).isEqualTo("agent-runtime-workload-identities");
-            assertThat(check.readiness()).isEqualTo("ready");
-            assertThat(check.action()).isNull();
-        });
-    }
-
-    @Test
-    void blocksReadinessWhileWorkloadIdentityReconciliationIsNotConverged() {
-        AgentRuntimeWorkloadReconciliationService reconciliation =
-                mock(AgentRuntimeWorkloadReconciliationService.class);
-        RuntimeWorkloadReconciliationReport report = mock(RuntimeWorkloadReconciliationReport.class);
-        when(reconciliation.supportSafeSnapshot()).thenReturn(report);
-        when(report.state()).thenReturn(RuntimeWorkloadReconciliationReport.State.BLOCKED);
-        LocalDependencyReadinessService service = new LocalDependencyReadinessService(
-                Optional.empty(), Optional.empty(), Optional.of(reconciliation));
-
-        assertThat(service.checks()).singleElement().satisfies(check -> {
-            assertThat(check.key()).isEqualTo("agent-runtime-workload-identities");
-            assertThat(check.readiness()).isEqualTo("blocked");
-            assertThat(check.toString()).doesNotContain("credentialref", "weaver-cell-", "keycloak/clients");
-        });
-    }
 }

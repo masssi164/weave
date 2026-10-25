@@ -110,7 +110,14 @@ class Repository(unittest.TestCase):
                      "server/domains/chat/src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports",
                      "server/domains/chat/build.gradle", "server/domains/chat/gradle/native-runtime.gradle",
                      "server/domains/decisions/src/main/java/Decisions.java", "server/domains/decisions/build.gradle",
-                     "server/domains/meetings/src/main/java/Meetings.java", "server/domains/meetings/build.gradle"):
+                     "server/domains/meetings/src/main/java/Meetings.java", "server/domains/meetings/build.gradle",
+                     "server/domains/boards/src/main/java/Boards.java", "server/domains/boards/build.gradle",
+                     "server/domains/office/src/main/java/Office.java", "server/domains/office/build.gradle",
+                     "server/domains/devops/src/main/java/Devops.java", "server/domains/devops/build.gradle",
+                     "server/domains/integrations/src/main/java/Integrations.java", "server/domains/integrations/build.gradle",
+                     "server/domains/guest/src/main/java/Guest.java", "server/domains/guest/build.gradle",
+                     "server/domains/portability/src/main/java/Portability.java", "server/domains/portability/build.gradle",
+                     "server/domains/agent-runtime/src/main/java/AgentRuntime.java", "server/domains/agent-runtime/build.gradle"):
             self.write(name, "changed runtime input\n")
             self.commit()
             after = self.inputs()
