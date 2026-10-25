@@ -1,0 +1,61 @@
+name: One-off Files navigation verification
+on:
+  push:
+    branches: [feat/1742-collaboration-files-root]
+    paths:
+      - .github/workflows/1742-files-verify.yml
+permissions:
+  contents: read
+concurrency:
+  group: files-navigation-verification-1742
+  cancel-in-progress: false
+jobs:
+  verify:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/feat/1742-collaboration-files-root'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: '3.41.6'
+          channel: stable
+      - name: Format only this implementation slice
+        run: |
+          set -euo pipefail
+          dart format client/lib/core/router/app_routes.dart client/lib/core/router/files_routes.dart client/lib/features/files/presentation/files_folder_route.dart client/lib/features/files/presentation/files_locations_screen.dart client/test/features/files/presentation/files_locations_screen_test.dart
+          git add -- client/lib/core/router/app_routes.dart client/lib/core/router/files_routes.dart client/lib/features/files/presentation/files_folder_route.dart client/lib/features/files/presentation/files_locations_screen.dart client/test/features/files/presentation/files_locations_screen_test.dart
+          if ! git diff --cached --quiet; then
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'style(files): apply pinned Dart formatter to location navigation'
+            git push origin HEAD:refs/heads/feat/1742-collaboration-files-root
+          fi
+          git rev-parse HEAD
+      - name: Prepare the pinned test toolchain
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.95.0 --profile minimal
+          cd client
+          flutter pub get --enforce-lockfile
+      - name: Run focused location regressions
+        working-directory: client
+        env:
+          RUSTUP_TOOLCHAIN: 1.95.0
+        run: flutter test test/features/files/presentation/files_locations_screen_test.dart --reporter expanded
+      - name: Analyze the member client
+        working-directory: client
+        env:
+          RUSTUP_TOOLCHAIN: 1.95.0
+        run: flutter analyze --fatal-infos
+      - name: Run existing Files regressions unchanged
+        working-directory: client
+        env:
+          RUSTUP_TOOLCHAIN: 1.95.0
+        run: flutter test test/features/files/files_screen_test.dart --reporter expanded
