@@ -12,104 +12,64 @@ jobs:
   files:
     if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/feat/1742-collaboration-files-root'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: ${{ github.sha }}
-      - name: Add the reviewed preview regressions and repair the toolbar fixture
+      - name: Extend the verified preview boundary to its filename
         run: |
           set -euo pipefail
-          python3 tools/1742_scoped_files_dialog_patch.py tests
           python3 - <<'PY'
+          import hashlib
           from pathlib import Path
-          path = Path('client/test/features/files/files_screen_test.dart')
-          text = path.read_text()
-          start = text.index("    for (final locale in ['en', 'de']) {\n      for (final scale in [1.0, 1.5]) {")
-          end = text.index("    testWidgets('meets androidTapTargetGuideline'", start)
-          block = text[start:end]
-          before = '                    filesRepositoryProvider.overrideWithValue(repository),'
-          if block.count(before) != 1 or block.count('await tester.pageBack();') != 1:
-              raise SystemExit('Reviewed toolbar fixture anchors changed')
-          block = block.replace(before, '''                    appStartDiscoveryClientProvider.overrideWith(
-                                (ref) => buildTestDiscoveryClient(ref.watch(serverConfigurationRepositoryProvider)),
-                              ),
-                              serverConfigurationRepositoryProvider.overrideWith(
-                                (ref) => _FakeServerConfigurationRepository(buildTestConfiguration()),
-                              ),
-          ''' + before, 1)
-          block = block.replace('await tester.pageBack();', '''// pageBack uses an English tooltip; exercise the real localized Back button.
-                        final back = find.byType(BackButton);
-                        expect(back.hitTestable(), findsOneWidget);
-                        await tester.tap(back.hitTestable());''', 1)
-          path.write_text(text[:start] + block + text[end:])
+          screen = 'client/lib/features/files/presentation/files_screen.dart'
+          tests = 'client/test/features/files/files_screen_test.dart'
+          expected = {screen: '8cb0d99e26276562297f73ba79d263da16740bc2', tests: 'f2d0889c48ed28bf41b52e5e299c73539629724a'}
+          sources = {}
+          for name, digest in expected.items():
+              path = Path(name)
+              raw = path.read_bytes()
+              actual = hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()
+              if path.is_symlink() or actual != digest:
+                  raise SystemExit('Verified source changed; review before mutation')
+              sources[name] = raw.decode()
+          old = 'title: Text(entry.name),'
+          if sources[screen].count(old) != 1:
+              raise SystemExit('Preview title anchor changed')
+          sources[screen] = sources[screen].replace(old, 'title: Text(stillAvailable ? entry.name : l10n.filesScreenTitle),', 1)
+          assertion = '''
+                expect(
+                  find.descendant(of: find.byType(AlertDialog), matching: find.text('preview.txt')),
+                  findsNothing,
+                );'''
+          for message in ['Shared route preview bytes.', 'Late revoked preview bytes.']:
+              old = f"expect(find.text('{message}'), findsNothing);"
+              if sources[tests].count(old) != 1:
+                  raise SystemExit('Preview negative assertion changed')
+              sources[tests] = sources[tests].replace(old, old + assertion, 1)
+          for name, text in sources.items():
+              Path(name).write_text(text)
           PY
-      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95
-        with:
-          distribution: temurin
-          java-version: '21'
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
         with:
           flutter-version: '3.41.6'
           channel: stable
           cache: true
-      - name: Install the existing pinned dependencies
+      - name: Resolve pinned dependencies and format only the changed files
         run: |
           set -euo pipefail
-          rustup toolchain install 1.95.0 --profile minimal
           cd client
           flutter pub get --enforce-lockfile
-      - name: Prove the new preview regression detects the original defect
-        env:
-          RUSTUP_TOOLCHAIN: 1.95.0
-        run: |
-          set -euo pipefail
-          mkdir -p build/files-diagnostics
-          cd client
-          if flutter test test/features/files/files_screen_test.dart --plain-name 'route-scoped preview' --reporter json > ../build/files-diagnostics/preview-before.jsonl 2>&1; then
-            result=0
-          else
-            result=$?
-          fi
           cd ..
-          python3 - "$result" <<'PY'
-          import json, sys
-          from pathlib import Path
-          tests, completed, failures = {}, {}, []
-          for line in Path('build/files-diagnostics/preview-before.jsonl').read_text().splitlines():
-              try: event = json.loads(line)
-              except json.JSONDecodeError: continue
-              if event.get('type') == 'testStart':
-                  tests[event['test']['id']] = event['test']['name']
-              elif event.get('type') == 'testDone':
-                  name = tests.get(event['testID'], '')
-                  if name.startswith('route-scoped preview'):
-                      completed[name] = event.get('result')
-              elif event.get('type') == 'error':
-                  failures.append({'test': tests.get(event.get('testID'), 'unknown'), 'error': event.get('error')})
-          print(json.dumps({'before': completed, 'failures': failures}, indent=2))
-          if sys.argv[1] == '0' or len(completed) != 4 or completed.get('route-scoped preview retains authorization: unchanged') == 'success':
-              raise SystemExit('The original preview defect was not reproduced by four executable tests')
-          PY
-      - name: Apply and format the reviewed implementation repair
-        run: |
-          set -euo pipefail
-          python3 tools/1742_scoped_files_dialog_patch.py implementation
           dart format client/lib/features/files/presentation/files_screen.dart client/test/features/files/files_screen_test.dart
           git diff --check
-      - name: Analyze the member client
+      - name: Analyze the final source and test assertions
         working-directory: client
-        env:
-          RUSTUP_TOOLCHAIN: 1.95.0
         run: flutter analyze --fatal-infos
-      - name: Require all new preview regressions to pass
-        working-directory: client
-        env:
-          RUSTUP_TOOLCHAIN: 1.95.0
-        run: flutter test test/features/files/files_screen_test.dart --plain-name 'route-scoped preview' --reporter expanded
-      - name: Publish only the reviewed source and test changes
+      - name: Publish only the bounded metadata redaction
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -120,49 +80,8 @@ jobs:
               raise SystemExit('Unexpected mutation set; refusing publication')
           PY
           git add -- client/lib/features/files/presentation/files_screen.dart client/test/features/files/files_screen_test.dart
-          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'fix(files): retain route-bound preview authorization and reject stale dialog writes'
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'fix(files): hide preview metadata when its original authorization is lost'
           git push origin HEAD:refs/heads/feat/1742-collaboration-files-root
-          git rev-parse HEAD | tee build/files-diagnostics/source.txt
-      - name: Run the complete new-location and existing Files suite
-        env:
-          RUSTUP_TOOLCHAIN: 1.95.0
-        run: |
-          set -euo pipefail
-          cd client
-          if flutter test test/features/files/presentation/files_locations_screen_test.dart test/features/files/files_screen_test.dart --reporter json > ../build/files-diagnostics/results.jsonl 2>&1; then
-            result=0
-          else
-            result=$?
-          fi
-          cd ..
-          printf '%s\n' "$result" > build/files-diagnostics/exit-code.txt
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          tests, failures, completed = {}, [], []
-          finished = None
-          for line in Path('build/files-diagnostics/results.jsonl').read_text().splitlines():
-              try: event = json.loads(line)
-              except json.JSONDecodeError: continue
-              kind = event.get('type')
-              if kind == 'testStart': tests[event['test']['id']] = event['test']['name']
-              elif kind == 'error': failures.append({'test': tests.get(event.get('testID'), 'unknown'), 'error': event.get('error'), 'stack': event.get('stackTrace')})
-              elif kind == 'testDone' and not event.get('hidden'):
-                  completed.append(event)
-                  if event.get('result') != 'success': failures.append({'test': tests.get(event.get('testID'), 'unknown'), 'result': event.get('result'), 'skipped': event.get('skipped')})
-              elif kind == 'done': finished = event
-          report = {'source': Path('build/files-diagnostics/source.txt').read_text().strip(), 'completedTests': len(completed), 'passed': sum(e.get('result') == 'success' and not e.get('skipped') for e in completed), 'finished': finished, 'failures': failures}
-          text = json.dumps(report, indent=2)
-          Path('build/files-diagnostics/summary.json').write_text(text + '\n')
-          print(text)
-          PY
-          git diff --exit-code
-          exit "$result"
-      - name: Preserve diagnostic evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: files-diagnostics-${{ github.run_id }}
-          path: build/files-diagnostics/
-          if-no-files-found: error
-          retention-days: 3
+          git rev-parse HEAD
+          git diff HEAD^ HEAD --stat
+          echo 'Static validation passed. Full execution of the strengthened assertions remains required in normal Core CI.'
