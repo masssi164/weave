@@ -126,3 +126,24 @@ The intermediate Git tree inspected before this phase is **not safe to publish a
 - Domain ownership, actual omitted-runtime classpaths, JPA entity placement, and code-first OpenAPI order therefore require a new exact-head implementation and CI proof. Previous local assertions against a different source tree cannot be attributed to this staged Git tree.
 
 **No WIP tree promotion, destructive path removal, speculative code deletion, or Dogfood image promotion is authorized until those blockers are resolved.**
+
+
+## Measured package inventory of the unpublished intermediate tree
+
+These are **source-file counts, not Java type/class counts**, measured from the exact uncommitted Git tree `a07667168811df73201a4022604033d83d5fb140`. They are an actionable migration backlog, **not** a measurement of code currently merged into `dev`.
+
+| Physical location / package | Java source files | Review conclusion |
+| --- | ---: | --- |
+| `server/core/src/main/java` total | 440 | Excessive for the intended shared foundation; split by owner |
+| `core/.../boards` | 50 | Entire future Boards domain candidate |
+| `core/.../config` | 53 | Classify by bean ownership: domain-specific configs move with their domain |
+| `core/.../service` | 46 | Split into identity/security/Spaces vs optional-domain use cases |
+| `core/.../model` | 113 | Split wire DTOs and product models from truly shared primitives |
+| `core/.../controller` | 27 | Move domain controllers; keep shared identity/platform endpoints only |
+| `core/.../provider` | 27 | Split generic binding primitives from domain provider runtime |
+| `core/.../domainfacade` | 17 | Remove generic catch-all ownership; delegate domain implementations |
+| `core/.../identity` | 25 | Shared identity candidate, subject to dependency inventory |
+| `core/model` (separate Gradle project) | 93 | 76 have future-domain-like paths; investigate individual ownership |
+| `core/persistence` (separate Gradle project) | 46 | At least 13 have Agent Runtime / Portability / Transfer paths |
+
+**Priority:** remove future-product runtime dependencies from the release Core *before* investing in superficial Lombok cleanups. Each moved source must keep one owner and preserve its JPA/database/API/security contract. Some path matches can still resolve to a shared primitive after inspection; directory naming alone is not a deletion authorization.
