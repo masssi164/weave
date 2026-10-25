@@ -45,7 +45,7 @@ def load_catalog(root: Path) -> dict:
                        or not re.fullmatch(r'(?:[A-Za-z_$][\w$]*\.)+[A-Za-z_$][\w$]*Test', name)
                        for name in tests)
                 or len(tests) != len(set(tests)) or not isinstance(tasks, list)
-                or any(not isinstance(task, str) or not re.fullmatch(r':[a-z][a-z0-9-]*:test', task)
+                or any(not isinstance(task, str) or not re.fullmatch(r'(?::[a-z][a-z0-9-]*)+:test', task)
                        for task in tasks)):
             raise DomainSelectionError('catalog must declare explicit non-empty JVM test inventories')
     return catalog

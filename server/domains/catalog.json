@@ -1,12 +1,15 @@
 {
   "selection": {
     "pinned_branch": "dev",
-    "pinned_domains": ["files", "chat", "calendar"]
+    "pinned_domains": [
+      "files",
+      "chat",
+      "calendar"
+    ]
   },
   "domains": {
     "calendar": {
       "server_unit_tests": [
-        "com.massimotter.weave.backend.calendar.adapter.NativeCalendarRelationalStoreTest",
         "com.massimotter.weave.backend.controller.protocol.CalDavReportParserTest",
         "com.massimotter.weave.backend.service.CalendarFacadeServiceTest",
         "com.massimotter.weave.backend.service.calendar.AppleMobileConfigProfileRendererTest",
@@ -17,7 +20,9 @@
         "com.massimotter.weave.backend.service.calendar.CalendarUserModelMapperTest",
         "com.massimotter.weave.backend.service.calendar.IcalendarMapperTest"
       ],
-      "additional_unit_tasks": []
+      "additional_unit_tasks": [
+        ":server:domains:calendar:persistence:test"
+      ]
     },
     "chat": {
       "server_unit_tests": [
@@ -41,7 +46,9 @@
         "com.massimotter.weave.backend.service.files.WeaveNativeFilesQueryDelegationTest",
         "com.massimotter.weave.backend.service.files.WeaveS3FilesAdapterTest"
       ],
-      "additional_unit_tasks": [":server:domains:files:model:test"]
+      "additional_unit_tasks": [
+        ":server:domains:files:model:test"
+      ]
     }
   }
 }

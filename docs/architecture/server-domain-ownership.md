@@ -76,13 +76,78 @@ These are library checks, not a claim that the production domain selector or new
 
 Preserve one complete historical Flyway catalog. JPA mappings remain domain-owned and production uses the migrated schema. No source move rewrites historical SQL.
 
-## Six-phase completion boundary
+## Living six-phase execution plan
 
-1. Ownership planning: established; refine the actual incoming/outgoing dependencies while extracting.
-2. Domain shape: model/persistence pattern implemented for Files and Calendar; runtime/provider/API composition still open.
-3. Extraction/consolidation: in progress; no global completion claim.
-4. Core finalization: open until all optional feature implementations and dependencies leave Core.
-5. Domain finalization: open until runtime auto-configuration, handler/API composition, selected classpaths and actual functional tests pass.
-6. Final presentation: provide before/after ownership, real removals, dependency changes, measured resource outcomes and remaining limits after integration.
+Primary classification: `cross-repo-contract`. Implementation owner: `weave`; normative owner:
+`weave-specs`. Baseline: PR #1746 at `7440a32e45`; accepted corpus
+`f049c0b1879414eb529a3df83a18224407f1a436`. Continue the existing branch, preserve concurrent
+changes and merge upstream normally. The shared resolver from PR #1744 is integrated;
+its Files model task now uses the extracted coordinate. The temporary source archive
+workflow is removed as its own instructions required, resolving both current CI failures.
 
-Update code, source guards, build inputs, scoped `AGENTS.md`, domain READMEs and this guide in the same change. Historical intermediate-tree diagnoses are retained in Git/PR history, not repeated as current implementation instructions. Keep PR #1746 draft until its actual scope has fresh exact-head CI and independent review. No live deployment or human acceptance is implied.
+| Phase | Milestone and implementation decisions | Checks | Status / blockers |
+| --- | --- | --- | --- |
+| 1. Ownership and contracts | Inventory source/resources/dependencies and assign actual owners; prepare Entity-first and selected-domain discovery corpus changes; retain this plan as the single execution record | Corpus lint/examples, resolver tests, source inspection | In progress; accepted pin remains unchanged pending normal corpus review |
+| 2. Domain composition | App is the sole executable; Core owns justified platform responsibilities; runtime modules own imports registration and scoped persistence; separate non-web tooling | Compile, dependency graph, real imports discovery and bean uniqueness | Pending |
+| 3. Vertical extraction and ORM | Files/Calendar/Chat own services/controllers/providers/persistence; future domains remain buildable outside release; convert ordinary Calendar/Matrix JDBC CRUD | Domain units, PostgreSQL writes/isolation/constraints/transactions, no legacy copies | Calendar ORM conversion and persistence-library extraction implemented; runtime/API still open |
+| 4. Core and build finalization | Remove feature dependencies from Core; one selection drives real checks, runtime, schema/API and identity; preserve data-safe initializer until qualified cutover | Architecture rules, selected JAR/SDK inspection, offline deterministic schema | Pending; active schema cutover requires accepted corpus and integrity/recovery evidence |
+| 5. Runtime and clients | Release and three single-domain variants start with honest capabilities/endpoints; generated User/Admin contracts follow registered handlers; Flutter uses stable destinations | API/auth/client freshness, variants, Compose/two-member acceptance, ARM64/AOT/JNI where available | Pending; no live or native qualification claimed |
+| 6. Review and delivery | Consolidate docs/Skills/instructions; review combined diff; coherent commits/push and exact-revision PR evidence | Applicable combined CI, diff review, protected checks | Pending; no protected merge/deployment/data reset authorized |
+
+### Ownership map and removal rationale
+
+| Current owner | Target owner / action | Rationale and dependencies |
+| --- | --- | --- |
+| Server executable, operator dispatch and web composition | App; move | Composition and application entry points, not feature business logic |
+| Files model/JPA libraries and Server Files controllers/use cases/providers | Files; retain libraries and move runtime | Files owns storage authority, DAV/OpenDAL/S3, bindings and mutation semantics; uses Core authorization/Spaces/audit |
+| Calendar model/JPA libraries and Server Calendar runtime | Calendar; retain libraries and move runtime | Calendar owns temporal/recurrence rules, native/CalDAV access and scoped persistence; uses Core authorization/Spaces |
+| Server Chat/Matrix, canonical Chat JPA | Chat; move | Chat owns facade/protocol/sync/device/crypto, Synapse and JNI; uses Core security and stable Space identifiers |
+| Historically Matrix-named session revocation | Core Security; retain/move | Shared authentication must work without Chat; retain storage/hash semantics |
+| Root application-core Agent Runtime model and root runtime adapters | Agent Runtime; move | Deferred feature, not shared platform or release prerequisite; retain implemented tests |
+| Root application-core transfer and Server portability/migration | Portability; consolidate | Same transfer/report/reconciliation responsibility; shared binding contracts remain Core |
+| Server Boards, Office, DevOps | Separate future domains; move | Their use cases/providers/SDKs must not enter the release transitively |
+| Server connector/interoperability and guest features | Integrations and Guest Access; move | Retain implemented behavior without production-ready claims or duplicated membership/security |
+| Root generic JPA project | Owning domains or Core responsibilities; split/delete | PostgreSQL is not a business owner; Identity/Security/Spaces/audit remain independently useful |
+| Global provider configuration and shared services importing features | Domain-owned contributions plus narrow Core contracts; split | Avoid reverse dependencies, fake readiness and required optional-domain beans |
+| Generated API clients, MCP, product E2E | Retain standalone projects | Independent public consumers/process/verification boundary; not Server-internal modules |
+
+The remaining legacy production roots contain 795 Java source types before runtime moves.
+Move resources, source guards, build inputs and tests with their consumers. Verify call sites,
+bean registration, resource/reflection and native loading before removal. No broad source-set
+redirects, forwarding controllers or duplicate production copies are acceptable.
+
+### Validation record
+
+- Initial remote inspection: current Dev is an ancestor of #1746; default checkout is clean on
+  an unrelated Files branch and is preserved. Work continues in an isolated checkout.
+- Current PR CI: API export, architecture, PostgreSQL and protocol foundation succeeded;
+  aggregate CI failed on the temporary workflow's disposition and action pin comments.
+  These previous checks do not qualify a changed candidate or selected-runtime composition.
+- Local tools observed: Java 21, Docker and Flutter available. Use repository-pinned versions;
+  local tool presence is not a test result.
+- Required final commands: `./gradlew :server:domains:check` with omitted, `all` and
+  `files,chat` selections, plus `:server:app:bootJar` with `files,chat,calendar` and `files`.
+  Add real Calendar-only/Chat-only startup and artifact inspection, authoritative PostgreSQL,
+  generated consumer, security, architecture and existing combined gates.
+
+Update this record with exact commands/results as implementation proceeds. Missing external
+acceptance or platform evidence remains a blocker; it never becomes an inferred pass.
+
+### Calendar implementation checkpoint
+
+- `NativeCalendarRelationalStore` now executes JPA over the owning normalized mappings and
+  physically resides in Calendar persistence. Removed ordinary JDBC CRUD and unused duplicate
+  recurrence projection; the active application recurrence engine remains.
+- Native ranged reads query scoped candidate IDs before fetching payloads. Added empty-window
+  and scoped replacement/delete regressions; no schema or provider behavior changed.
+- Before the physical move: Calendar persistence 8/8; focused unit/architecture 8 passed with
+  6 PostgreSQL-only skips; authoritative PostgreSQL 14/14; Calendar semantic/API units 65/65
+  plus the existing 12 Cucumber Boards scenarios passed. PostgreSQL required an explicit
+  observed local Docker socket via `DOCKER_HOST`; no persistent Docker configuration changed.
+- After moving production store/unit test: `./gradlew :server:domains:calendar:persistence:test
+  :server:compileTestJava --no-daemon --console=plain` passed.
+- `python3 -m unittest tools.domain_selection_resolver_test tools.domain_unit_workflow_test
+  tools.test_dev_ci_impact`: 66 passed. `:server:domains:check -Pdomains=files,chat` passed.
+- Corpus proposal: [weave-specs#172](https://github.com/masssi164/weave-specs/pull/172). Its local
+  lint (159 entries/26 example pairs), vector freshness, ready-claim self-test, link check and
+  bundle build passed. It is proposed, not the implementation's accepted pin.

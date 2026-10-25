@@ -26,7 +26,7 @@ class DomainGradleWiringTest(unittest.TestCase):
     def test_subset_check_uses_only_selected_inventory(self):
         output = self.gradle(':server:domains:check', '-Pdomains=files,chat', '--dry-run')
         self.assertEqual(self.unit_tasks(output), {':server:domainFilesUnitTest', ':server:domainChatUnitTest'})
-        self.assertIn(':weave-files-core:test SKIPPED', output)
+        self.assertIn(':server:domains:files:model:test SKIPPED', output)
         self.assertNotIn(':server:test SKIPPED', output)
         self.assertNotIn(':server:postgresJpaTest', output)
         self.assertNotIn(':server:buildMatrixRustCoreJni', output)
@@ -34,7 +34,7 @@ class DomainGradleWiringTest(unittest.TestCase):
     def test_test_alias_is_scoped_to_the_requested_domain(self):
         output = self.gradle(':server:domains:test', '-Pdomains=calendar', '--dry-run')
         self.assertEqual(self.unit_tasks(output), {':server:domainCalendarUnitTest'})
-        self.assertNotIn(':weave-files-core:test SKIPPED', output)
+        self.assertNotIn(':server:domains:files:model:test SKIPPED', output)
 
     def test_default_and_explicit_all_have_the_same_domain_graph(self):
         default = self.gradle(':server:domains:check', '--dry-run')

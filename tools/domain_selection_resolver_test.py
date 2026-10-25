@@ -182,7 +182,7 @@ class InventoryTest(unittest.TestCase):
             self.assertIn('domain-project.gradle', source)
 
     def test_files_includes_its_existing_framework_free_unit_suite(self):
-        self.assertIn(':weave-files-core:test', load_catalog(ROOT)['domains']['files']['additional_unit_tasks'])
+        self.assertIn(':server:domains:files:model:test', load_catalog(ROOT)['domains']['files']['additional_unit_tasks'])
 
     def test_invalid_catalog_is_rejected(self):
         for payload in [{}, {'domains': {}}, {'domains': {'all': {}}}, {'domains': {'../files': {}}},
