@@ -10,16 +10,19 @@ The server owns Weave product facades, authorization, audit, provider boundaries
 - Context/Space authorization is the gate for workspace-scoped provider data.
 - Prefer Cucumber/JUnit and facade contract tests for product behavior; map release-grade behavior back to `../e2e/scenario_mappings.json`.
 
-Validation from the repository root (single Gradle wrapper authority):
+## Module ownership during extraction
 
-- `./gradlew :server:domains:files:check` verifies both the framework-free Files model and Files-owned JPA model.
-- `./gradlew :server:domains:files:persistence:test` checks unchanged JPA table and mapping contracts.
-- `./gradlew coreArchitectureCi` runs the canonical architecture gate.
-- `./gradlew :server:test` keeps the complete legacy Server integration tests while extraction continues.
+Read `docs/architecture/server-domain-ownership.md` and the affected domain's README/AGENTS first. Files model and complete transactional JPA adapter implementation are under `server/domains/files`; Calendar model and JPA mappings are under `server/domains/calendar`. Their controllers/providers and the executable App/Core split are still transitional. Do not recreate old root copies or claim a complete reduced-domain runtime.
 
-**Current status:** Files model is now owned by `server/domains/files/model`. Files service-layer persistence adapters, provider adapters, controllers and the executable App remain in transitional modules until the following extraction steps. The standalone `weave-files-core` root was retired; never recreate a duplicate.
+Shared Java build mechanics live in `server/gradle/scripts/domain-library.gradle`; each library owns its dependencies. Core cannot import optional domain implementation. Shared Security/Identity/Spaces persistence stays with its actual responsibility; no generic dumping ground for domain entities or providers.
 
-For each future source move, update Gradle coordinates, image input closures, CI source filters, documentation and architecture tests in the **same PR**. Do not claim a reduced runtime or successful AOT qualification until the actual executable composition is proven.
+When removing obsolete code or build plumbing, delete it instead of commenting it out. Record reason, replacement and compatibility impact in the commit and owning domain README. Retain agreed future functionality and historical Flyway migrations. Every source move updates Gradle dependencies, artifact input closure, source guards, domain tests and documentation together.
+
+Validation from the repository root:
+
+- `./gradlew :server:domains:files:check :server:domains:calendar:check`
+- `./gradlew coreArchitectureCi`
+- `./gradlew :server:test` and the existing PostgreSQL/protocol/API gates for integration.
 
 ## Global Weave agent baseline
 

@@ -1,0 +1,6 @@
+plugins { id 'base' }
+
+// Only extracted Calendar libraries: this does not yet assemble a selected Server runtime.
+tasks.named('check') {
+    dependsOn ':server:domains:calendar:model:check', ':server:domains:calendar:persistence:check'
+}

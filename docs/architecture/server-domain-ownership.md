@@ -1,162 +1,88 @@
 # Server ownership and domain consolidation
 
-Status: architecture refinement and implementation contract for [#1745](https://github.com/masssi164/weave/issues/1745), integrated under [#1741](https://github.com/masssi164/weave/issues/1741). This document is **not** evidence that the moves, build variants, or native release have already qualified.
+Implementation owner: #1745; integration parent: #1741; PR: #1746. This is the current implementation guide, not specification-corpus authority or release qualification.
 
-## Product and release decision
+## Current state versus target
 
-Weave is a **modular monolith**: one Spring Boot runtime assembled from independent Gradle projects. The **initial release** includes only `files`, `chat`, and `calendar`. Boards, Office, DevOps, Agent Runtime and other planned product domains must **remain represented as future product scope**, but their feature code must not be disguised as global Core or accidentally packaged in the release artifact.
+**Implemented:** Files model, entities/repositories and transactional JPA adapters live under `server/domains/files`. Calendar model and JPA mappings live under `server/domains/calendar`. Each model/persistence library is a real Gradle project with its own compile boundary and tests. The retired root Files model has no second production copy.
 
-The default Gradle domain selection remains `all` (all **currently registered/implemented** optional domains), preceded by explicit `-Pdomains` or pipeline `domains` input, then a matching `pinned_branch` / `pinned_domains` selection. Branch names resolve to exact source commits before artifact creation. Build identity, test selection, OCI publication and Dogfood consumption use the same normalized selected-domain set.
+**Still transitional:** `server` remains the executable application. Files/Calendar authenticated services, controllers, provider adapters and runtime wiring, Chat extraction, the small shared Core and final `server/app` composition are not complete. The generic root JPA and runtime-adapter projects remain only until their remaining owners are extracted. Do not claim that reduced `bootJar` variants, module-local runtime auto-configuration, ARM64/native execution or owner HIL are qualified by these library moves.
 
-Build-time domain selection is **independent** of runtime provider binding and provider migration.
+The initial release product scope is **Files, Calendar and Chat**. Boards, Office, DevOps, Agent Runtime, portability/transfer, guest-facing and integration features remain planned domains. Move their implementations out of Core rather than deleting agreed product scope.
 
-## Target project ownership
+## Ownership rules
 
-| Gradle project | Responsibility | Rules |
-|---|---|---|
-| `:server:app` | Only executable Spring Boot entry point, authoritative *complete historical* Flyway migration catalog, OpenAPI export, deployment composition | No duplicate domain implementation; APIs generated **after** selected controllers have compiled and their runtime mappings are present |
-| `:server:core` | Spring wiring for shared identity, organization, access, Spaces, cross-domain audit, public platform config, module discovery and shared runtime authorization | No optional-domain implementations, no concrete provider client, no Files/Calendar/Chat JPA entities |
-| `:server:core:model` | Immutable common value types and narrowly shared ports | Java-only, no Spring, JPA, HTTP, Jackson, provider SDK or product-specific objects |
-| `:server:domains:files` | Files controllers, use cases, ports, domain DTOs, adapter orchestration, auto-configuration | Own Files JPA entities/repositories and native/Nextcloud/S3 provider integration; OpenDAL only here |
-| `:server:domains:chat` | Matrix-facing controllers, canonical chat use cases, persistence, adapters, native JNI bridge, auto-configuration | Own Chat-specific Matrix room/device/crypto entities and repositories; **not** shared OIDC session revocation |
-| `:server:domains:calendar` | Calendar controllers, use cases, persistence and CalDAV/iCalendar provider adapters, auto-configuration | Own Calendar entities/repositories; iCal4j only here |
-| `:server:domains` | Gradle aggregator and selection-aware verification | Aggregator itself must not pull every domain into `:server:app` |
-| Future `server/domains/*` | Boards, Office, DevOps, Agent Runtime, interoperability, guest-facing features, portability/transfer | Introduce individually when extracted and supported; **no empty pretend modules** and no silent feature deletion |
+| Owner | Responsibility |
+| --- | --- |
+| App | Executable entry point, composition of selected domains, OpenAPI export and the complete historical Flyway catalog |
+| Core | Genuinely shared identity, organization admission, Security, Spaces, audit and narrow cross-domain contracts |
+| Domain model | Provider-neutral values and invariants; no Spring, JPA, HTTP, Jackson or provider SDK |
+| Domain persistence | That domain's entities, IDs, repositories, transaction adapters and persistence-specific dependencies |
+| Domain application/API | Authenticated use cases, orchestration, controllers and wire DTOs |
+| Domain provider integration | Provider adapters, their configuration, transport/serialization and SDK dependencies |
 
-A shared adapter or persistence **project** is not a required architectural layer. Merge implementation into the smallest actual owner. If an implementation is genuinely shared, colocate it in the appropriate Core feature package (e.g. `core/identity`, `core/security`, `core/spaces`, `core/audit`). The exceptions are narrowly reviewed, not justification for catch-all `core/persistence` or `core/adapters`.
+There is no general requirement for catch-all `core/adapters` or `core/persistence` projects. Shared Security/Spaces/Identity may need persistence, but it belongs with that actual platform responsibility. Files or Calendar entities never become Core merely because they use the same database.
 
-### Concrete source ownership decisions
+Core must not depend on an optional domain implementation. Domains must not depend on the executable App or another domain's repositories. A source move that needs a reverse dependency is not complete; extract a small honest contract instead of hiding a cycle.
 
-* `files.*`, `service.files.*`, Files-specific `persistence.jpa.*`, Files WebDAV, Nextcloud, OpenDAL and S3 Files implementations: **Files**.
-* `calendar.*`, `service.calendar.*`, Calendar-specific `persistence.jpa.*`, CalDAV and iCalendar: **Calendar**.
-* `chat.*`, Matrix Client-Server projection, Matrix device/room crypto persistence and native Chat adapters: **Chat**.
-* `persistence.jpa.matrix.MatrixRevokedSession*` (historical storage naming): **Core Security**, with a documented backward-compatible table/key format; do not lose revocation if Chat is omitted.
-* `identity.*`, tenant admission, shared session cutoff/revocation, `security.*`, `spaces.*`, `context.authz.*`: **Core**, including their narrowly owned JPA entities, ports and repositories.
-* `audit.*` and audit persistence: **Core** where cross-domain; domain-specific audit policy stays inside its domain.
-* `boards.*`, `office.*`, `devops.*`, `agentruntime.*`: **future domain implementation**, not generic Core. Preserve agreed functionality and data; move instead of dropping.
-* `portability.*`, `transfer.*`: candidate **future Portability domain**, preserving shared infrastructure only if genuinely used without the feature.
-* `service.guest.*`: identify whether functionality is pure membership/security (Core) or the Guest Access product domain. Separate before moving.
-* `config`, `controller`, `model`, `service`, `domainfacade` are **not owners**. Classify each declaration by its actual behavior; migrate under the owner or delete only verified duplication.
-* Generic provider-binding *primitives* may be Core. Per-domain binding and readiness, migration, adapter lifecycle and provider dependencies are domain-owned.
+**Security exception:** the historically Matrix-named durable member/session revocation storage is shared authentication state. It must remain available without Chat, preserve its existing table/hash format and fail closed. Room/device/crypto state belongs to Chat.
 
-## Domain internal layout
+## Current leaf projects
 
-Use **one Gradle project per domain initially**, adding subprojects only for actual boundary enforcement or resource savings:
+- `:server:domains:files:model` and `:server:domains:files:persistence`: see `server/domains/files/README.md` for ownership and removal rationale.
+- `:server:domains:calendar:model` and `:server:domains:calendar:persistence`: see `server/domains/calendar/README.md`.
+- Shared Java/toolchain/JUnit mechanics: `server/gradle/scripts/domain-library.gradle`. Dependencies remain in each library. Domain-qualified groups and archives prevent sibling libraries named `model` or `persistence` from claiming the same Gradle component identity.
+
+The canonical package-direction rules remain in `docs/architecture/core-package-boundaries.md`. Keep model/provider/persistence/API boundaries explicit; do not generate a Gradle project for every package or maintain empty placeholder domains.
+
+## Domain runtime composition
+
+Each completed runtime domain registers its own `@AutoConfiguration` class through:
 
 ```text
-server/
-  app/
-  core/
-    model/
-  domains/
-    build.gradle
-    files/
-      build.gradle
-      src/main/java/.../files/
-        domain/
-        application/
-        port/
-        persistence/          # JPA entities, repositories, adapters
-        provider/             # Nextcloud / native / S3 implementations
-        api/                  # controllers and wire DTOs
-        autoconfigure/
-      src/main/resources/META-INF/spring/
-        org.springframework.boot.autoconfigure.AutoConfiguration.imports
-    chat/
-      build.gradle
-      src/main/resources/META-INF/spring/
-        org.springframework.boot.autoconfigure.AutoConfiguration.imports
-    calendar/
-      build.gradle
-      src/main/resources/META-INF/spring/
-        org.springframework.boot.autoconfigure.AutoConfiguration.imports
+src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports
 ```
 
-A domain exposes narrow ports and optional contributions to shared workflows: `DefaultSpaceDomainPreparation`, `SpaceRelationshipContributor`, `DomainProviderHealthContributor`, and `DomainDescriptor`. Core sees only these contracts. **No circular Gradle dependency**, duplicated bean owner, full-package component scan, reflection-based discovery, or direct cross-domain persistence access.
+Use one fully qualified class name per line, explicit imports and no broad domain component scan. App does not maintain a second handwritten list of every domain bean. Pure Java model libraries need no fake Spring registration. Serving beans must not accidentally load in schema-init or Dogfood operator CLI contexts.
 
-Each auto-configuration has `@AutoConfiguration` and its module-local `AutoConfiguration.imports` file with its **fully qualified class name on a separate line**. Scope serving Beans to servlet runtimes as appropriate; schema initialization and Dogfood operator CLIs are distinct non-web entry points. Verify Boot's real discovery, not a manual test `@Import` shortcut.
+Optional shared workflows consume domain-owned contributions through small contracts, not concrete Files/Calendar/Chat implementations. Domain inclusion is a build decision; provider binding is a separate runtime decision.
 
-## Minimal-code / Lombok policy
+## Build selection and OpenAPI
 
-Prefer Spring's declarative `@HttpExchange` proxy clients and typed configuration where HTTP semantics and security guards remain equivalent; do not abstract away WebDAV/CalDAV verbs or Keycloak operation allowlists. Use constructor injection, Spring Boot auto-configuration, immutable records, explicit `@ConfigurationProperties` and `@ConditionalOn...` where appropriate.
+The agreed selection rule is explicit pipeline `domains` / `-Pdomains`, then a matching branch's `pinned_domains`, then `all`. `all` means registered domains, not every future feature. Reuse the shared resolver from #1744 when integrating production composition; do not invent another resolver or silently package excluded code. Branch pins are resolved to exact source commits. Domain set, platform, toolchain/flavor, source and spec identity must participate in artifact identity and digest consumption.
 
-Use Lombok **selectively**, only where it removes real mutable-model/constructor boilerplate without obscuring invariants. Do **not** blanket-apply `@Data`, generated `toString()`, `equals()` or `hashCode()` to JPA entities or credential-bearing objects. Avoid needless Lombok on records and one-constructor Spring services. Keep annotation processors explicitly scoped to owning Gradle projects and compatible with AOT.
+The selected controllers and their Spring handler mappings must exist **before** code-first OpenAPI export. Use actual Gradle prerequisite dependencies, not ordering hints alone. Generated User/Admin clients follow the completed export. Keep the accepted OrgManifest/API contract intact; reduced/no-Chat discovery requires its explicit accepted contract change.
 
-Prefer streams/functional style where it materially improves comprehension. Do not introduce a generic adapter framework or a new configuration authority merely to shorten code.
+Automatic delivery target remains the agreed Linux ARM64 container for Apple Silicon. Other platform variants are manual. Native Image/AOT, JNI and actual consumption on the Mac mini require separate execution evidence; moving Java classes is not that evidence.
 
-## Ordered six-phase delivery
+## Cleanup and code style
 
-1. **Architecture planning:** inventory every production declaration in App, Core, legacy root projects and Domains; record its only owner and incoming/outgoing dependencies. Mark each as move, retain (with reason), consolidate, or delete (with reproducible redundancy proof). Explicitly review Lombok and declarative Spring opportunities. No unreviewed deletions.
-2. **Domain contract:** implement one real domain's configuration/ports/JPA/provider/API layout and the three extension contracts; verify non-web CLI isolation, `AutoConfiguration.imports` and negative dependency checks. Specify a reusable pattern; do not require needless per-layer Gradle projects.
-3. **Extract and consolidate:** move all Files, Chat and Calendar implementations, JPA entities and provider-specific dependencies to their owners. Move future-domain classes out of Core into separate planned projects only when real. Delete previously duplicated classes only after semantic comparison; preserve stricter auth and secret-handling implementations. Every class must have one source and JAR owner.
-4. **Core finalization:** reduce Core to genuine cross-domain contracts/infrastructure; remove generic catch-all adapter/persistence projects where their code has domain owners; preserve identity, Spaces, audit, schema and durable session revocation. Remove orphaned dependencies/imports.
-5. **Domain finalization:** build and run tests for all and selected domain sets; check runtime/JAR dependency graph, actual Spring discovery, reduced-context startup, Data/JPA, API/handler registration, Rust JNI, security negatives, and module-specific health. Keep all historical Flyway migration *bytes* unchanged and all retained data intact.
-6. **Review and presentation:** supply before/after project and package maps, deleted/merged code and dependency counts, concrete maintainability/resource wins, interesting design decisions, evidence and open release blockers. No deployment/HIL claims from unit tests.
+Delete verified duplicates and obsolete build plumbing; do not leave commented-out old implementations. Every removal records the old location, replacement (or why none is needed), compatibility consequence and reason in the commit and the owning domain README.
 
-## OpenAPI and generated clients: enforce a real build dependency
+Do not delete planned features, retained database state or historical migrations because they are outside the first release. Preserve behavior while moving, then simplify deliberate code paths in separately reviewable changes.
 
-For an `:server:app` OpenAPI export, **compile and load the selected domain controllers first**, including mapping/handler registration. `:server:app:openApiContractExport` must depend on the proper compilation/resource/test runtime tasks, not rely solely on `mustRunAfter`. Generated User/Admin clients must depend on this completed export; consumer checks must fail closed on stale or omitted operation inventory. A Files-only artifact may omit Calendar/Chat operations only under a versioned, accepted User API/client bootstrap contract. Do not alter OrgManifest v2's mandatory Matrix discovery in secret: reduced client/bootstrap support requires a governed corpus change.
+Prefer immutable records, constructor injection, typed configuration, declarative HTTP interfaces and explicit Spring auto-configuration. Use Lombok only for real boilerplate; do not replace invariants or add implicit credential `toString()` / JPA equality semantics. Use streams where clearer, not to disguise stateful transaction or lock ordering.
 
-## CI, selected build, runtime and release gates
+## Verification and maintenance
 
-Examples, once implementation qualifies:
+From the repository root:
 
-```bash
-./gradlew :server:domains:check -Pdomains=files,chat,calendar
-./gradlew :server:app:bootJar -Pdomains=files,chat,calendar
-./gradlew :server:app:bootJar -Pdomains=files
+```sh
+./gradlew :server:domains:files:check :server:domains:calendar:check
+./gradlew coreArchitectureCi
 ```
 
-All registered current release domains are the `all` default; matching branch pins apply when no explicit selection is given. Ensure normalized domain identity, source commit, spec lock, Java flavor and `linux/arm64` platform flow through builder → GHCR digest → Mac mini consumer, with no runner rebuild. Other platforms/build flavors remain manually selectable.
+These are library checks, not a claim that the production domain selector or new App assembly is finished. Existing complete Server, PostgreSQL, API and protocol checks remain required. The source-level relational inventory includes nested domain projects, not only the old root locations; domain architecture tests inspect their compiled classes. Image source-input closure includes new module sources/build files and shared build mechanics.
 
-**Acceptance is separate:** compile, unit/integration, API contract freshness, full historical Flyway/PostgreSQL, native/JNI, two ordinary member collaboration, exact OCI digest/ARM64 Dogfood, physical iPhone HIL. A reduced JAR that compiles does **not** establish client bootstrap or release readiness. Native Image/AOT must run same contract and evidence suite before any promotion.
+Preserve one complete historical Flyway catalog. JPA mappings remain domain-owned and production uses the migrated schema. No source move rewrites historical SQL.
 
-## Review requirements
+## Six-phase completion boundary
 
-Every phase is a small linked PR with one release-notes label, no parallel source authority, independently reviewable failure boundaries and exact-commit CI. Do not merge the still-draft #1744 verification bridge as if it were production extraction. Do not publish the previously staged incomplete source tree as an accepted consolidation; the historical root projects and Core-owned future-domain code still require removal. No live state or persistent volumes are reset by refactoring.
+1. Ownership planning: established; refine the actual incoming/outgoing dependencies while extracting.
+2. Domain shape: model/persistence pattern implemented for Files and Calendar; runtime/provider/API composition still open.
+3. Extraction/consolidation: in progress; no global completion claim.
+4. Core finalization: open until all optional feature implementations and dependencies leave Core.
+5. Domain finalization: open until runtime auto-configuration, handler/API composition, selected classpaths and actual functional tests pass.
+6. Final presentation: provide before/after ownership, real removals, dependency changes, measured resource outcomes and remaining limits after integration.
 
-
-## Verified blockers in the previously staged, unpublished tree
-
-The intermediate Git tree inspected before this phase is **not safe to publish as a completed module extraction**:
-
-- `server/domains/files`, `server/domains/chat`, and `server/domains/calendar` all resolve to the **same Git tree SHA** `19176c72abbdb590e96acda7761e4542fac153b6` — they are identical placeholder project trees, not three independent production implementations.
-- Legacy `weave-application-core`, `weave-files-core`, `weave-persistence-jpa`, `weave-runtime-provider-adapters`, `weave-runtime-security-adapters` and `server/src` remain in that root tree beside the new layout.
-- Its root `settings.gradle` still includes the legacy root projects and a verification-only domain bridge, rather than a proven production module graph.
-- Domain ownership, actual omitted-runtime classpaths, JPA entity placement, and code-first OpenAPI order therefore require a new exact-head implementation and CI proof. Previous local assertions against a different source tree cannot be attributed to this staged Git tree.
-
-**No WIP tree promotion, destructive path removal, speculative code deletion, or Dogfood image promotion is authorized until those blockers are resolved.**
-
-
-## Measured package inventory of the unpublished intermediate tree
-
-These are **source-file counts, not Java type/class counts**, measured from the exact uncommitted Git tree `a07667168811df73201a4022604033d83d5fb140`. They are an actionable migration backlog, **not** a measurement of code currently merged into `dev`.
-
-| Physical location / package | Java source files | Review conclusion |
-| --- | ---: | --- |
-| `server/core/src/main/java` total | 440 | Excessive for the intended shared foundation; split by owner |
-| `core/.../boards` | 50 | Entire future Boards domain candidate |
-| `core/.../config` | 53 | Classify by bean ownership: domain-specific configs move with their domain |
-| `core/.../service` | 46 | Split into identity/security/Spaces vs optional-domain use cases |
-| `core/.../model` | 113 | Split wire DTOs and product models from truly shared primitives |
-| `core/.../controller` | 27 | Move domain controllers; keep shared identity/platform endpoints only |
-| `core/.../provider` | 27 | Split generic binding primitives from domain provider runtime |
-| `core/.../domainfacade` | 17 | Remove generic catch-all ownership; delegate domain implementations |
-| `core/.../identity` | 25 | Shared identity candidate, subject to dependency inventory |
-| `core/model` (separate Gradle project) | 93 | 76 have future-domain-like paths; investigate individual ownership |
-| `core/persistence` (separate Gradle project) | 46 | At least 13 have Agent Runtime / Portability / Transfer paths |
-
-**Priority:** remove future-product runtime dependencies from the release Core *before* investing in superficial Lombok cleanups. Each moved source must keep one owner and preserve its JPA/database/API/security contract. Some path matches can still resolve to a shared primitive after inspection; directory naming alone is not a deletion authorization.
-
-
-## Phase 2.1: first physical domain extraction
-
-The first production-code step relocates the framework-free Files model from historical root `weave-files-core` to `server/domains/files/model` (Gradle path `:server:domains:files:model`), preserving the complete Java production and test sources without code rewriting. The root copy is removed; the executable Server and JPA dependency graph point at the new coordinate. This is **not yet the whole Files domain**, because Files persistence entities, provider adapters, REST controllers and the Spring Boot runtime remain transitional and are assigned to the next slices. Full and reduced `bootJar` variants remain unqualified.
-
-Every follow-on extraction follows the same discipline: single physical owner, correct Gradle dependencies, source fingerprint closure, selected-domain tests, and documentation. Preserve all existing historical Flyway migrations and support-safe authentication behavior.
-
-### Phase 2.2: Files JPA entity extraction
-
-The three Files JPA entities (file objects, file locks, user resources), their embedded IDs and Spring Data repository interfaces are declared in two existing Java source files and moved **byte-for-byte** from `weave-persistence-jpa` to the new `:server:domains:files:persistence` library. No table names, indices, version fields, Java packages, SQL migrations or data are changed. The executable Server now depends on that library explicitly. The old shared JPA module no longer depends on the Files model; Files-only persistence ownership can be validated without changing current runtime semantics. Files transaction/repository service adapters and controllers remain subsequent extraction steps.
-
-Domain checks and the root architecture aggregate both include the Files persistence JUnit contract suite. The artifact input closure includes Files persistence source and build configuration, ensuring registry image reuse cannot ignore these changes.
+Update code, source guards, build inputs, scoped `AGENTS.md`, domain READMEs and this guide in the same change. Historical intermediate-tree diagnoses are retained in Git/PR history, not repeated as current implementation instructions. Keep PR #1746 draft until its actual scope has fresh exact-head CI and independent review. No live deployment or human acceptance is implied.

@@ -61,12 +61,19 @@ class RelationalModelParityTest {
                 .as("the accepted local baseline begins at Flyway V1")
                 .contains("1");
 
-        Path duplicateMigrationRoot = repositoryRoot.resolve(
-                "weave-persistence-jpa/src/main/resources/db/migration");
-        if (Files.exists(duplicateMigrationRoot)) {
-            try (var files = Files.walk(duplicateMigrationRoot)) {
-                assertThat(files.filter(Files::isRegularFile).toList())
-                        .as("Flyway migrations have one repository location")
+        // Domain ownership does not create a second owner for historical Flyway scripts.
+        for (String module : List.of("weave-persistence-jpa", "server/domains")) {
+            Path root = repositoryRoot.resolve(module);
+            if (!Files.isDirectory(root)) {
+                continue;
+            }
+            try (var files = Files.walk(root)) {
+                assertThat(files.filter(Files::isRegularFile)
+                        .filter(path -> sourcePath(repositoryRoot, path)
+                                .contains("/src/main/resources/db/migration/"))
+                        .filter(path -> !sourcePath(repositoryRoot, path).contains("/build/"))
+                        .toList())
+                        .as("Flyway migrations have one repository location, not a per-domain copy")
                         .isEmpty();
             }
         }
@@ -82,7 +89,9 @@ class RelationalModelParityTest {
                 .as("the persistence adapters contain explicit Spring Data repositories")
                 .isNotEmpty();
         assertThat(entityTables.values())
-                .as("JPA entities use explicit active table mappings")
+                .as("the inventory must include domain-owned entities, not only remaining legacy sources")
+                .contains("weave_files_objects", "weave_file_locks", "weave_files_user_resources",
+                        "weave_calendar_collections", "weave_calendar_event_temporals")
                 .allMatch(table -> table != null && !table.isBlank())
                 .doesNotContain("weave_agent_runtime_state_chunks");
     }
@@ -104,17 +113,24 @@ class RelationalModelParityTest {
 
     private String productionJava(Path repositoryRoot) throws IOException {
         StringBuilder source = new StringBuilder();
-        for (String module : Set.of("server", "weave-persistence-jpa")) {
-            Path javaRoot = repositoryRoot.resolve(module + "/src/main/java");
-            try (var files = Files.walk(javaRoot)) {
-                for (Path file : files
+        // Walk real nested source roots: the old two fixed /src/main/java roots silently
+        // stopped inspecting Files and Calendar entities as they were extracted.
+        for (String module : List.of("server", "weave-persistence-jpa")) {
+            try (var files = Files.walk(repositoryRoot.resolve(module))) {
+                for (Path file : files.filter(Files::isRegularFile)
                         .filter(path -> path.toString().endsWith(".java"))
-                        .toList()) {
+                        .filter(path -> sourcePath(repositoryRoot, path).contains("/src/main/java/"))
+                        .filter(path -> !sourcePath(repositoryRoot, path).contains("/build/"))
+                        .sorted().toList()) {
                     source.append(Files.readString(file)).append('\n');
                 }
             }
         }
         return source.toString();
+    }
+
+    private String sourcePath(Path repositoryRoot, Path file) {
+        return repositoryRoot.relativize(file).toString().replace('\\', '/');
     }
 
     private Map<String, String> entityTables(String production) {
@@ -133,10 +149,7 @@ class RelationalModelParityTest {
         return result;
     }
 
-    private Set<String> matches(
-            Pattern pattern,
-            String source,
-            int group) {
+    private Set<String> matches(Pattern pattern, String source, int group) {
         Set<String> result = new LinkedHashSet<>();
         var matcher = pattern.matcher(source);
         while (matcher.find()) {
@@ -153,7 +166,6 @@ class RelationalModelParityTest {
         if (Files.isDirectory(current.resolve("src/main/java"))) {
             return current.getParent();
         }
-        throw new IllegalStateException(
-                "Unable to locate the Weave repository root");
+        throw new IllegalStateException("Unable to locate the Weave repository root");
     }
 }
