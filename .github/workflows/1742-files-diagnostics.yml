@@ -36,10 +36,10 @@ jobs:
               if path.is_symlink() or actual != digest:
                   raise SystemExit('Verified source changed; review before mutation')
               sources[name] = raw.decode()
-          old = 'title: Text(entry.name),'
+          old = 'return AlertDialog(\n      title: Text(entry.name),'
           if sources[screen].count(old) != 1:
-              raise SystemExit('Preview title anchor changed')
-          sources[screen] = sources[screen].replace(old, 'title: Text(stillAvailable ? entry.name : l10n.filesScreenTitle),', 1)
+              raise SystemExit('Unique preview dialog title anchor changed')
+          sources[screen] = sources[screen].replace(old, 'return AlertDialog(\n      title: Text(stillAvailable ? entry.name : l10n.filesScreenTitle),', 1)
           assertion = '''
                 expect(
                   find.descendant(of: find.byType(AlertDialog), matching: find.text('preview.txt')),
