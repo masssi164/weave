@@ -39,3 +39,10 @@ tasks.register('entitySchemaCheck') {
     description = 'Export the actual compiled entity set and check the ORM-first authoring boundary.'
     dependsOn tasks.named('entitySchemaExport'), tasks.named('entitySchemaContractTest')
 }
+
+// Use the existing isolated PostgreSQL lane; never initialize an operator-provided database.
+tasks.named('postgresJpaTest') {
+    dependsOn tasks.named('entitySchemaExport')
+    systemProperty 'weave.entity-schema.output', entityBaseline.get().asFile.absolutePath
+    filter { includeTestsMatching '*EntityFirstBaselinePostgresTest' }
+}

@@ -15,21 +15,31 @@ Model constraints, indexes, relations and versioning explicitly in the mappings.
 ./gradlew :server:entitySchemaExport
 ```
 
-The exporter uses Spring's managed-type discovery and Boot naming defaults, then the standard JPA schema-generation API with the pinned Hibernate PostgreSQL dialect. Its input is the **actual compiled runtime classpath**, not a second list of entity names or tables. Export order is canonicalized. The current application is still the full transitional Server; this is not yet proof of production `-Pdomains` assembly.
+The exporter uses Spring's managed-type discovery and Boot naming defaults, then the standard JPA schema-generation API with the pinned Hibernate PostgreSQL dialect. Its input is the actual compiled runtime classpath, not a second list of entity names or tables. Export order is canonicalized. The current application is still the full transitional Server; this is not yet proof of production `-Pdomains` assembly.
 
-Output: `server/build/generated/entity-schema/V1__entity_baseline.sql`. This is generated code and a **candidate** baseline, not a script to edit by hand or automatically apply. The task has real compilation/resource prerequisites and never starts the web application, provider clients, schedulers or a database. Database actions are disabled, metadata connections are disabled, and a rejecting DataSource prevents accidental connections. No environment credentials are consumed. Tests use real Hibernate generation rather than a recording mock.
+Output: `server/build/generated/entity-schema/V1__entity_baseline.sql`. This is generated code and a candidate baseline, not a script to edit by hand or automatically apply. The task has real compilation/resource prerequisites and never starts the web application, provider clients, schedulers or a database. Database actions are disabled, metadata connections are disabled, and a rejecting DataSource prevents accidental connections. No application environment credentials are consumed. Tests use real Hibernate generation rather than a recording mock.
 
 The exporter is in the `schemaExport` source set; it is not packaged into the serving bootJar or native executable. The root architecture gate runs the candidate export and isolated contract tests. Schema generation remains distinct from OpenAPI generation, which still follows the compiled controller/handler graph.
+
+## PostgreSQL candidate qualification
+
+```sh
+./gradlew :server:postgresJpaTest --tests '*EntityFirstBaselinePostgresTest'
+```
+
+This test uses only a new schema in the existing test-owned PostgreSQL container. It copies the actual generated baseline into an isolated migration directory and uses Flyway as its executor, then validates all mapped types. Real Files Spring Data repositories and the transactional adapter exercise writes, reads, organization-scoped IDs and private Space visibility. A second migrate must apply zero migrations and preserve both organizations' records. The existing PostgreSQL CI gate includes this test automatically.
+
+This establishes a bounded fresh-baseline/ORM test. It does not prove every security constraint, native/ARM64 runtime, provider protocol, deployment or restore path. In particular, mappings must cover integrity rules previously present only in SQL before any old migration chain is retired.
 
 ## Initial schema and deployment are different responsibilities
 
 Target: generate the reviewed fresh-install baseline from the entity model; retain Flyway only as a small execution/history mechanism if needed. Hibernate must not alter a serving database alongside Flyway. Serving stays validation-only with DML permissions. Do not introduce automatic ddl-auto=update, a home-grown schema diff engine, or a new schema-definition language.
 
-Weave has no released user installations requiring compatibility with every previous development schema. The pre-release history may therefore be replaced as part of a deliberate baseline consolidation. This supersedes an unconditional requirement to preserve every development migration forever, **not** the requirement to protect existing owner/Dogfood data.
+Weave has no released user installations requiring compatibility with every previous development schema. The pre-release history may therefore be replaced as part of a deliberate baseline consolidation. This supersedes an unconditional requirement to preserve every development migration forever, not the requirement to protect existing owner/Dogfood data.
 
 ## Cutover still required
 
-The running schema initializer and its existing migration resources are **not switched by this export slice**. The pinned ADR 0023 still describes SQL-first authority; weave-specs#170 records the explicit owner-approved change instead of silently editing the lock.
+The running schema initializer and its existing migration resources are not switched by this export slice. The pinned ADR 0023 still describes SQL-first authority; weave-specs#170 records the explicit owner-approved change instead of silently editing the lock.
 
 Before replacing that path: complete entity mappings for SQL-only constraints/defaults/indexes, execute the generated baseline against disposable PostgreSQL, test actual CRUD, tenant constraints, locks, restart and recovery, and simplify the old marker/fingerprint compatibility apparatus against those checks. Hibernate validate alone does not verify every physical database guarantee. Do not discard an integrity rule just because it was previously expressed in SQL.
 
