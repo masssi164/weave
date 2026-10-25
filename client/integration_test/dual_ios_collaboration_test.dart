@@ -2284,7 +2284,15 @@ Future<void> selectNativeDualFilesScope(
   }
   expect(choice, findsOneWidget);
   expect(tester.widget<Semantics>(choice).properties.enabled, isTrue);
-  await _tap(tester, choice);
+  // Do not realign an already hittable row to the sliver's leading edge.
+  // If scrolling is needed, center the row and still require a real hit.
+  if (choice.hitTestable().evaluate().length != 1) {
+    await Scrollable.ensureVisible(tester.element(choice), alignment: 0.5);
+    await tester.pump(const Duration(milliseconds: 250));
+  }
+  expect(choice.hitTestable(), findsOneWidget);
+  await tester.tap(choice.hitTestable());
+  await tester.pump(const Duration(milliseconds: 250));
   await _wait(tester, () {
     if (screen.evaluate().length != 1) return false;
     final value = _nativeFilesContainer(tester).read(filesProvider);
