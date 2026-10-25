@@ -12,12 +12,15 @@ jobs:
   files:
     if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/feat/1742-collaboration-files-root'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
-          ref: 5a06e9b13e9221264cfc8e137da8f6992f04e3cb
-          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Add the reviewed regressions only
+        run: python3 tools/1742_scoped_files_dialog_patch.py tests
       - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95
         with:
           distribution: temurin
@@ -33,13 +36,70 @@ jobs:
           rustup toolchain install 1.95.0 --profile minimal
           cd client
           flutter pub get --enforce-lockfile
-      - name: Reproduce the full Files regression suite without changing sources
+      - name: Prove the new preview regression detects the original defect
         env:
           RUSTUP_TOOLCHAIN: 1.95.0
         run: |
           set -uo pipefail
           mkdir -p build/files-diagnostics
-          git rev-parse HEAD > build/files-diagnostics/source.txt
+          cd client
+          flutter test test/features/files/files_screen_test.dart --plain-name 'route-scoped preview' --reporter json > ../build/files-diagnostics/preview-before.jsonl 2>&1
+          result=$?
+          cd ..
+          python3 - "$result" <<'PY'
+          import json, sys
+          from pathlib import Path
+          tests, completed, failures = {}, {}, []
+          for line in Path('build/files-diagnostics/preview-before.jsonl').read_text().splitlines():
+              try: event = json.loads(line)
+              except json.JSONDecodeError: continue
+              if event.get('type') == 'testStart':
+                  tests[event['test']['id']] = event['test']['name']
+              elif event.get('type') == 'testDone':
+                  name = tests.get(event['testID'], '')
+                  if name.startswith('route-scoped preview'):
+                      completed[name] = event.get('result')
+              elif event.get('type') == 'error':
+                  failures.append({'test': tests.get(event.get('testID'), 'unknown'), 'error': event.get('error')})
+          print(json.dumps({'before': completed, 'failures': failures}, indent=2))
+          if sys.argv[1] == '0' or len(completed) != 4 or completed.get('route-scoped preview retains authorization: unchanged') == 'success':
+              raise SystemExit('The original preview defect was not reproduced by four executable tests')
+          PY
+      - name: Apply and format the reviewed implementation repair
+        run: |
+          set -euo pipefail
+          python3 tools/1742_scoped_files_dialog_patch.py implementation
+          dart format client/lib/features/files/presentation/files_screen.dart client/test/features/files/files_screen_test.dart
+          git diff --check
+      - name: Analyze the member client
+        working-directory: client
+        env:
+          RUSTUP_TOOLCHAIN: 1.95.0
+        run: flutter analyze --fatal-infos
+      - name: Require all new preview regressions to pass
+        working-directory: client
+        env:
+          RUSTUP_TOOLCHAIN: 1.95.0
+        run: flutter test test/features/files/files_screen_test.dart --plain-name 'route-scoped preview' --reporter expanded
+      - name: Publish only the reviewed source and test changes
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import subprocess
+          expected = {'client/lib/features/files/presentation/files_screen.dart', 'client/test/features/files/files_screen_test.dart'}
+          changed = set(subprocess.check_output(['git', 'diff', '--name-only'], text=True).splitlines())
+          if changed != expected:
+              raise SystemExit('Unexpected mutation set; refusing publication')
+          PY
+          git add -- client/lib/features/files/presentation/files_screen.dart client/test/features/files/files_screen_test.dart
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'fix(files): retain route-bound preview authorization and reject stale dialog writes'
+          git push origin HEAD:refs/heads/feat/1742-collaboration-files-root
+          git rev-parse HEAD | tee build/files-diagnostics/source.txt
+      - name: Run the complete new-location and existing Files suite
+        env:
+          RUSTUP_TOOLCHAIN: 1.95.0
+        run: |
+          set -uo pipefail
           cd client
           flutter test test/features/files/presentation/files_locations_screen_test.dart test/features/files/files_screen_test.dart --reporter json > ../build/files-diagnostics/results.jsonl 2>&1
           result=$?
@@ -48,23 +108,16 @@ jobs:
           python3 - <<'PY'
           import json
           from pathlib import Path
-          tests = {}
-          failures = []
+          tests, failures = {}, []
           finished = None
           for line in Path('build/files-diagnostics/results.jsonl').read_text().splitlines():
-              try:
-                  event = json.loads(line)
-              except json.JSONDecodeError:
-                  continue
+              try: event = json.loads(line)
+              except json.JSONDecodeError: continue
               kind = event.get('type')
-              if kind == 'testStart':
-                  tests[event['test']['id']] = event['test']['name']
-              elif kind == 'error':
-                  failures.append({'test': tests.get(event.get('testID'), 'unknown'), 'error': event.get('error'), 'stack': event.get('stackTrace')})
-              elif kind == 'testDone' and event.get('result') != 'success':
-                  failures.append({'test': tests.get(event.get('testID'), 'unknown'), 'result': event.get('result'), 'skipped': event.get('skipped')})
-              elif kind == 'done':
-                  finished = event
+              if kind == 'testStart': tests[event['test']['id']] = event['test']['name']
+              elif kind == 'error': failures.append({'test': tests.get(event.get('testID'), 'unknown'), 'error': event.get('error'), 'stack': event.get('stackTrace')})
+              elif kind == 'testDone' and event.get('result') != 'success': failures.append({'test': tests.get(event.get('testID'), 'unknown'), 'result': event.get('result'), 'skipped': event.get('skipped')})
+              elif kind == 'done': finished = event
           report = {'source': Path('build/files-diagnostics/source.txt').read_text().strip(), 'registeredTests': len(tests), 'finished': finished, 'failures': failures}
           text = json.dumps(report, indent=2)
           Path('build/files-diagnostics/summary.json').write_text(text + '\n')
