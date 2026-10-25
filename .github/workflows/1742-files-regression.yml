@@ -1,0 +1,102 @@
+name: One-off Files regression verification
+on:
+  push:
+    branches: [feat/1742-collaboration-files-root]
+    paths: [.github/workflows/1742-files-regression.yml]
+permissions:
+  contents: read
+concurrency:
+  group: files-navigation-verification-1742
+  cancel-in-progress: false
+jobs:
+  verify:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/feat/1742-collaboration-files-root'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: '3.41.6'
+          channel: stable
+      - name: Repair only the reviewed navigation helper and renamed evidence mappings
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          import subprocess
+          expected_parent = '2b51829ec32fb5036f56f95cc05bdb04716fe03b'
+          if subprocess.check_output(['git', 'rev-parse', 'HEAD^'], text=True).strip() != expected_parent:
+              raise SystemExit('Feature parent changed; review the source delta first')
+          native = Path('client/integration_test/dual_ios_collaboration_test.dart')
+          mapping = Path('e2e/scenario-mapping.yaml')
+          tests = Path('client/test/features/files/files_screen_test.dart').read_text()
+          text = native.read_text()
+          start = text.index('Future<void> selectNativeDualFilesScope(')
+          end = text.index('enum NativeDualFilesAction', start)
+          block = text[start:end]
+          before = 'await _tap(tester, choice);'
+          if block.count(before) != 1:
+              raise SystemExit('Reviewed folder tap anchor changed')
+          block = block.replace(before, '''// Do not realign an already hittable row to the sliver's leading edge.
+            // If scrolling is needed, center the row and still require a real hit.
+            if (choice.hitTestable().evaluate().length != 1) {
+              await Scrollable.ensureVisible(tester.element(choice), alignment: 0.5);
+              await tester.pump(const Duration(milliseconds: 250));
+            }
+            expect(choice.hitTestable(), findsOneWidget);
+            await tester.tap(choice.hitTestable());
+            await tester.pump(const Duration(milliseconds: 250));''', 1)
+          updated = text[:start] + block + text[end:]
+          evidence = mapping.read_text()
+          pairs = (
+              ('named Space selection and captured destination remain truthful after preview',
+               'named folder navigation and captured destination remain truthful'),
+              ('scope selection leaves a failed child through native Back',
+               'folder navigation leaves a failed child through native Back'),
+          )
+          for old, new in pairs:
+              if new not in tests or evidence.count(old) != 1:
+                  raise SystemExit('Reviewed acceptance mapping/test name changed')
+              evidence = evidence.replace(old, new, 1)
+          native.write_text(updated)
+          mapping.write_text(evidence)
+          PY
+          dart format client/integration_test/dual_ios_collaboration_test.dart
+          git diff --check
+          python3 - <<'PY'
+          import subprocess
+          allowed = {'client/integration_test/dual_ios_collaboration_test.dart', 'e2e/scenario-mapping.yaml'}
+          changed = set(subprocess.check_output(['git', 'diff', '--name-only'], text=True).splitlines())
+          if not changed <= allowed:
+              raise SystemExit('Unexpected mutation; refusing to commit')
+          PY
+          git add -- client/integration_test/dual_ios_collaboration_test.dart e2e/scenario-mapping.yaml
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'fix(files): preserve hittable location rows and current acceptance references'
+          git push origin HEAD:refs/heads/feat/1742-collaboration-files-root
+          git rev-parse HEAD
+      - name: Prepare the pinned test toolchain
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.95.0 --profile minimal
+          cd client
+          flutter pub get --enforce-lockfile
+      - name: Analyze the member client
+        working-directory: client
+        env:
+          RUSTUP_TOOLCHAIN: 1.95.0
+        run: flutter analyze --fatal-infos
+      - name: Run all new location and existing Files regressions
+        working-directory: client
+        env:
+          RUSTUP_TOOLCHAIN: 1.95.0
+        run: flutter test test/features/files/presentation/files_locations_screen_test.dart test/features/files/files_screen_test.dart --reporter expanded
