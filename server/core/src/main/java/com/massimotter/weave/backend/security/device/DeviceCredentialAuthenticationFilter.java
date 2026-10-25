@@ -9,27 +9,33 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
-import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-@Component
 public class DeviceCredentialAuthenticationFilter extends OncePerRequestFilter {
 
     private final DeviceCredentialService credentialService;
     private final ApiErrorResponseWriter errorResponseWriter;
+    private final List<DeviceCredentialHttpScope> scopes;
 
     public DeviceCredentialAuthenticationFilter(
-            ObjectProvider<DeviceCredentialService> credentialServiceProvider,
-            ApiErrorResponseWriter errorResponseWriter) {
-        this.credentialService = credentialServiceProvider.getIfAvailable();
-        this.errorResponseWriter = errorResponseWriter;
+            DeviceCredentialService credentialService,
+            ApiErrorResponseWriter errorResponseWriter,
+            List<DeviceCredentialHttpScope> scopes) {
+        this.credentialService = java.util.Objects.requireNonNull(credentialService);
+        this.errorResponseWriter = java.util.Objects.requireNonNull(errorResponseWriter);
+        this.scopes = List.copyOf(scopes);
+        var prefixes = new java.util.HashSet<String>();
+        for (var scope : scopes) {
+            if (!prefixes.add(scope.pathPrefix())) {
+                throw new IllegalArgumentException("device credential HTTP scope ownership is duplicated");
+            }
+        }
     }
 
     @Override
@@ -37,10 +43,10 @@ public class DeviceCredentialAuthenticationFilter extends OncePerRequestFilter {
             HttpServletRequest request,
             HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
-        String domain = davDomain(request.getRequestURI());
+        String domain = scopes.stream().filter(scope -> scope.matches(request.getRequestURI()))
+                .map(DeviceCredentialHttpScope::domain).findFirst().orElse(null);
         String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (domain == null
-                || credentialService == null
                 || authorization == null
                 || !authorization.regionMatches(true, 0, "Basic ", 0, 6)) {
             filterChain.doFilter(request, response);
@@ -80,16 +86,6 @@ public class DeviceCredentialAuthenticationFilter extends OncePerRequestFilter {
         }
     }
 
-    private String davDomain(String path) {
-        if (path != null && (path.equals("/dav/files") || path.startsWith("/dav/files/"))) {
-            return "files";
-        }
-        if (path != null && (path.equals("/caldav") || path.startsWith("/caldav/"))) {
-            return "calendar";
-        }
-        return null;
-    }
-
     private BasicCredentials decode(String encoded) {
         try {
             String decoded = new String(Base64.getDecoder().decode(encoded.trim()), StandardCharsets.UTF_8);
@@ -104,5 +100,6 @@ public class DeviceCredentialAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private record BasicCredentials(String username, String secret) {
+        @Override public String toString() { return "BasicCredentials[redacted]"; }
     }
 }

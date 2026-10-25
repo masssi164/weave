@@ -20,6 +20,11 @@ import org.springframework.context.annotation.Configuration;
 public class CalendarProviderRegistryConfiguration {
 
     @Bean
+    com.massimotter.weave.backend.security.device.DeviceCredentialHttpScope calendarDeviceCredentialHttpScope() {
+        return new com.massimotter.weave.backend.security.device.DeviceCredentialHttpScope("calendar", "/caldav");
+    }
+
+    @Bean
     com.massimotter.weave.backend.security.device.DeviceCredentialDomain calendarDeviceCredentialDomain() {
         return new com.massimotter.weave.backend.security.device.DeviceCredentialDomain("calendar");
     }

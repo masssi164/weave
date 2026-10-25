@@ -21,6 +21,11 @@ import org.springframework.context.annotation.Configuration;
 public class FilesProviderRegistryConfiguration {
 
     @Bean
+    com.massimotter.weave.backend.security.device.DeviceCredentialHttpScope filesDeviceCredentialHttpScope() {
+        return new com.massimotter.weave.backend.security.device.DeviceCredentialHttpScope("files", "/dav/files");
+    }
+
+    @Bean
     com.massimotter.weave.backend.security.device.DeviceCredentialDomain filesDeviceCredentialDomain() {
         return new com.massimotter.weave.backend.security.device.DeviceCredentialDomain("files");
     }

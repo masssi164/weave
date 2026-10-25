@@ -8,12 +8,15 @@ import java.util.List;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import com.massimotter.weave.backend.security.device.DeviceCredentialAuthenticationFilter;
 import tools.jackson.databind.ObjectMapper;
 
 /** Shared credential hashing/storage; only installed domains declare permitted issuance scopes. */
-@AutoConfiguration(after = CorePersistenceAutoConfiguration.class,
+@AutoConfiguration(after = {CorePersistenceAutoConfiguration.class, CoreHttpSecurityAutoConfiguration.class},
         afterName = "org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration")
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
+@Import(DeviceCredentialAuthenticationFilter.class)
 public class CoreDeviceSecurityAutoConfiguration {
     @Bean
     JpaDeviceCredentialRepository jpaDeviceCredentialRepository(

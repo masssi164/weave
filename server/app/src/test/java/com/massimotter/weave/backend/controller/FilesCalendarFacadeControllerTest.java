@@ -127,6 +127,15 @@ class FilesCalendarFacadeControllerTest {
 
     @TestConfiguration
     static class DeviceCredentialTestConfiguration {
+        @org.springframework.context.annotation.Bean
+        com.massimotter.weave.backend.security.device.DeviceCredentialHttpScope filesDeviceScope() {
+            return new com.massimotter.weave.backend.security.device.DeviceCredentialHttpScope("files", "/dav/files");
+        }
+        @org.springframework.context.annotation.Bean
+        com.massimotter.weave.backend.security.device.DeviceCredentialHttpScope calendarDeviceScope() {
+            return new com.massimotter.weave.backend.security.device.DeviceCredentialHttpScope("calendar", "/caldav");
+        }
+
         @Bean
         DeviceCredentialRepository deviceCredentialRepository() {
             return new InMemoryDeviceCredentialRepository();

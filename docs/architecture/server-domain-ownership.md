@@ -524,3 +524,21 @@ while retaining the Boards no-fallback assertion and unchanged behavior tests. T
 existing evidence references rather than substituting planned evidence. The legacy E2E
 structure helper's optional local manifest-path cross-check is unavailable in this isolated
 worktree layout; the separate pinned corpus conformance gate ran and passed.
+
+### Device authentication filter prerequisite
+
+The actual `security.device.DeviceCredentialAuthenticationFilter` now belongs to Core and
+is registered by its servlet imports. It requires the real credential authority and error
+writer instead of a nullable fallback. Files and Calendar own their `DeviceCredentialHttpScope`
+path declarations; the shared filter contains no feature IDs or DAV path list. Existing
+Basic decoding, minted JWT claims, expiry/revocation enforcement and denial envelope stay
+unchanged. The private decoded credential value also redacts string output.
+
+Core's empty-domain discovery constructs the filter with no permitted path scope. Tests
+prove omitted/sibling paths cannot invoke credential authentication and duplicate path
+ownership fails. Existing full Files/Calendar credential lifecycle/HTTP and workload-security
+regressions, architecture checks and fresh full User/Admin API export passed with Core checks:
+`:server:core:check :server:app:test --tests '*FilesCalendarFacadeControllerTest'
+--tests '*ServerArchitectureBoundaryTest' --tests '*FilesWebDavSecurityConfigurationTest'
+--tests '*CalendarMcpSecurityConfigurationTest' checkOpenApiContractFresh`. No persistence
+mapping or transaction changes are included in this follow-up.

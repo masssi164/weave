@@ -30,6 +30,7 @@ import com.massimotter.weave.backend.http.request.RequestIdFilter;
 import com.massimotter.weave.backend.security.http.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.security.http.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.security.http.ProtocolSecurityErrorHandler;
+import com.massimotter.weave.backend.security.device.DeviceCredentialAuthenticationFilter;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -58,6 +59,7 @@ class CorePersistenceDiscoveryTest {
                             .doesNotHaveBean(ProviderSelectionRepository.class)
                             .doesNotHaveBean(ProductProfileService.class)
                             .doesNotHaveBean(DeviceCredentialService.class)
+                            .doesNotHaveBean(DeviceCredentialAuthenticationFilter.class)
                             .doesNotHaveBean(SpaceAccessPort.class)
                             .doesNotHaveBean(SpaceUserApiService.class)
                             .doesNotHaveBean(ApiErrorResponseWriter.class)
@@ -97,6 +99,7 @@ class CorePersistenceDiscoveryTest {
                             .hasSingleBean(ProductProfileService.class)
                             .hasSingleBean(ProductProfileOverrideRepository.class)
                             .hasSingleBean(DeviceCredentialService.class)
+                            .hasSingleBean(DeviceCredentialAuthenticationFilter.class)
                             .hasSingleBean(DeviceCredentialRepository.class)
                             .hasSingleBean(SpaceAccessPort.class)
                             .hasSingleBean(SpaceReadPort.class)
