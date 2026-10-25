@@ -51,6 +51,9 @@ abstract final class AppRoutes {
   }
 }
 
+/// Native history metadata; the overview is not the root of any file location.
+typedef FilesRouteLocation = ({String path, String? spaceRef});
+
 /// Converts a validated app-link shape to its internal route without changing
 /// query data. Domain parsing remains responsible for the handoff contract.
 String? normalizedJoinRouteLocation(Uri uri) {
