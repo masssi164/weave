@@ -1,9 +1,11 @@
 package com.massimotter.weave.backend.dogfood;
 
+import com.massimotter.weave.backend.security.workload.config.WorkloadEntitlementProperties;
+
 import com.massimotter.weave.backend.security.config.DeploymentOrganizationProperties;
 import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
-import com.massimotter.weave.backend.audit.JpaAuditEventPublisher;
+import com.massimotter.weave.backend.audit.persistence.JpaAuditEventPublisher;
 import com.massimotter.weave.backend.config.*;
 import com.massimotter.weave.backend.identity.IdentityOpaqueReferenceCodec;
 import com.massimotter.weave.backend.identity.invitation.*;
@@ -29,7 +31,7 @@ import tools.jackson.databind.ObjectMapper;
 @EnableAutoConfiguration
 @EnableConfigurationProperties({IdentityInvitationProperties.class, ContextAuthorizationProperties.class,
         DeploymentOrganizationProperties.class, OAuth2ResourceServerProperties.class, WeaveSecurityProperties.class,
-        WorkspaceCapabilityProperties.class, AgentRuntimeEntitlementProperties.class})
+        WorkspaceCapabilityProperties.class, WorkloadEntitlementProperties.class})
 @Import({KeycloakAdminClientConfiguration.class, KeycloakIdentityAdminClient.class, IdentityOpaqueReferenceCodec.class,
         OrganizationIdentityContextResolver.class, WorkspaceCapabilityService.class, MemberInvitationService.class,
         JpaDogfoodSpacePreparationAdapter.class, DogfoodOperatorPlanBinding.class, DogfoodPreparationService.class,

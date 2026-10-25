@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.audit;
 
+import com.massimotter.weave.backend.audit.persistence.JpaAuditEventPublisher;
+
 import com.massimotter.weave.backend.audit.persistence.AuditEventJpaRepository;
 import java.time.Instant;
 import java.util.Map;

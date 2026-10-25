@@ -13,9 +13,9 @@ import com.massimotter.weave.backend.calendar.domain.CalendarDomain.FreeBusyWind
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.RecurrenceSet;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.WriteIntent;
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
-import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
-import com.massimotter.weave.backend.portability.ProviderConformanceProfile.MappingClass;
-import com.massimotter.weave.backend.portability.ProviderReadiness;
+import com.massimotter.weave.backend.providerbinding.contract.ProviderConformanceProfile;
+import com.massimotter.weave.backend.providerbinding.contract.ProviderConformanceProfile.MappingClass;
+import com.massimotter.weave.backend.providerbinding.contract.ProviderReadiness;
 import com.massimotter.weave.backend.service.calendar.CalendarAdapterException;
 import com.massimotter.weave.backend.service.calendar.CalendarOccurrenceEngine;
 import com.massimotter.weave.backend.service.calendar.Ical4jRecurrenceEngine;

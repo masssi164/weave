@@ -4,7 +4,7 @@ import tools.jackson.databind.JsonNode;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakClientRegistrationTransport;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakClientRegistrationTransport.FinalizeResult;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakClientRegistrationTransport.RegistrationHandoffProof;
-import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityException;
+import com.massimotter.weave.backend.security.workload.port.WorkloadIdentityException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
@@ -91,7 +91,7 @@ public final class SpringKeycloakClientRegistrationTransport
       String administrationAccessToken,
       RegistrationHandoffProof handoff) {
     if (administrationAccessToken == null || administrationAccessToken.isBlank()) {
-      throw new RuntimeWorkloadIdentityException(
+      throw new WorkloadIdentityException(
           "Keycloak workload administration access token is unavailable");
     }
     return exchangeJson(
@@ -159,7 +159,7 @@ public final class SpringKeycloakClientRegistrationTransport
       String administrationAccessToken,
       RegistrationHandoffProof handoff) {
     if (administrationAccessToken == null || administrationAccessToken.isBlank()) {
-      throw new RuntimeWorkloadIdentityException(
+      throw new WorkloadIdentityException(
           "Keycloak workload administration access token is unavailable");
     }
     URI operationUri =
@@ -182,10 +182,10 @@ public final class SpringKeycloakClientRegistrationTransport
     } catch (RestClientResponseException failure) {
       requireNonCacheable(failure.getResponseHeaders());
       throw protocolFailure(failure);
-    } catch (RuntimeWorkloadIdentityException failure) {
+    } catch (WorkloadIdentityException failure) {
       throw failure;
     } catch (RuntimeException failure) {
-      throw new RuntimeWorkloadIdentityException(
+      throw new WorkloadIdentityException(
           "Keycloak client-registration protocol request failed [failureType="
               + failure.getClass().getSimpleName()
               + "]");
@@ -193,7 +193,7 @@ public final class SpringKeycloakClientRegistrationTransport
     requireNonCacheable(response);
     JsonNode body = response.getBody();
     if (body == null || !body.isObject()) {
-      throw new RuntimeWorkloadIdentityException(
+      throw new WorkloadIdentityException(
           "Keycloak returned a malformed client-registration response");
     }
     return body;
@@ -223,7 +223,7 @@ public final class SpringKeycloakClientRegistrationTransport
               .retrieve()
               .toBodilessEntity();
       if (response.getStatusCode().value() != 204) {
-        throw new RuntimeWorkloadIdentityException(
+        throw new WorkloadIdentityException(
             "Keycloak returned an invalid registration handoff status");
       }
       requireNonCacheable(response);
@@ -238,10 +238,10 @@ public final class SpringKeycloakClientRegistrationTransport
         return FinalizeResult.ALREADY_FINALIZED;
       }
       throw protocolFailure(failure);
-    } catch (RuntimeWorkloadIdentityException failure) {
+    } catch (WorkloadIdentityException failure) {
       throw failure;
     } catch (RuntimeException failure) {
-      throw new RuntimeWorkloadIdentityException(
+      throw new WorkloadIdentityException(
           "Keycloak client-registration protocol request failed [failureType="
               + failure.getClass().getSimpleName()
               + "]");
@@ -266,10 +266,10 @@ public final class SpringKeycloakClientRegistrationTransport
       if (failure.getStatusCode().value() != 404) {
         throw protocolFailure(failure);
       }
-    } catch (RuntimeWorkloadIdentityException failure) {
+    } catch (WorkloadIdentityException failure) {
       throw failure;
     } catch (RuntimeException failure) {
-      throw new RuntimeWorkloadIdentityException(
+      throw new WorkloadIdentityException(
           "Keycloak client-registration protocol request failed [failureType="
               + failure.getClass().getSimpleName()
               + "]");
@@ -293,13 +293,13 @@ public final class SpringKeycloakClientRegistrationTransport
 
   private URI registrationOperationUri(String clientId, URI registrationUri) {
     if (!WORKLOAD_CLIENT_ID.matcher(Objects.requireNonNullElse(clientId, "")).matches()) {
-      throw new RuntimeWorkloadIdentityException(
+      throw new WorkloadIdentityException(
           "The Keycloak registration client is outside the configured realm boundary");
     }
     URI expectedPublicUri =
         URI.create(publicRegistrationEndpoint.toASCIIString() + "/" + clientId);
     if (!expectedPublicUri.equals(registrationUri)) {
-      throw new RuntimeWorkloadIdentityException(
+      throw new WorkloadIdentityException(
           "The Keycloak registration URI is outside the configured realm boundary");
     }
     // Keycloak returns its public backend URI. Retain that protocol value in protected state,
@@ -323,7 +323,7 @@ public final class SpringKeycloakClientRegistrationTransport
     if (headers == null
         || !containsValuelessCacheControlDirective(headers, "no-store")
         || !"no-cache".equalsIgnoreCase(headers.getFirst("Pragma"))) {
-      throw new RuntimeWorkloadIdentityException(
+      throw new WorkloadIdentityException(
           "Keycloak returned an unsafe registration handoff response");
     }
   }
@@ -360,7 +360,7 @@ public final class SpringKeycloakClientRegistrationTransport
   private static JsonNode exchangeJson(Exchange<JsonNode> exchange) {
     JsonNode response = exchangeVoid(exchange);
     if (response == null || !response.isObject()) {
-      throw new RuntimeWorkloadIdentityException(
+      throw new WorkloadIdentityException(
           "Keycloak returned a malformed client-registration response");
     }
     return response;
@@ -369,21 +369,21 @@ public final class SpringKeycloakClientRegistrationTransport
   private static <T> T exchangeVoid(Exchange<T> exchange) {
     try {
       return exchange.perform();
-    } catch (RuntimeWorkloadIdentityException failure) {
+    } catch (WorkloadIdentityException failure) {
       throw failure;
     } catch (RestClientResponseException failure) {
       throw protocolFailure(failure);
     } catch (RuntimeException failure) {
-      throw new RuntimeWorkloadIdentityException(
+      throw new WorkloadIdentityException(
           "Keycloak client-registration protocol request failed [failureType="
               + failure.getClass().getSimpleName()
               + "]");
     }
   }
 
-  private static RuntimeWorkloadIdentityException protocolFailure(
+  private static WorkloadIdentityException protocolFailure(
       RestClientResponseException failure) {
-    return new RuntimeWorkloadIdentityException(
+    return new WorkloadIdentityException(
         "Keycloak client-registration protocol request failed [failureType="
             + failureCategory(failure)
             + "]");

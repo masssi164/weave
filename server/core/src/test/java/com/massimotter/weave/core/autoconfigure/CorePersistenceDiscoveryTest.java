@@ -10,6 +10,7 @@ import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolve
 import com.massimotter.weave.backend.security.MemberSessionCutoffService;
 import com.massimotter.weave.backend.security.MemberSessionRevocationService;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
+import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -31,6 +32,7 @@ class CorePersistenceDiscoveryTest {
                     assertThat(context).hasSingleBean(MemberSessionStateStore.class);
                     assertThat(context).doesNotHaveBean(ProviderCapabilityHealthService.class);
                     assertThat(context).doesNotHaveBean(CoreSecurityAutoConfiguration.class);
+                    assertThat(context).doesNotHaveBean(AuditEventPublisher.class);
                     assertThat(context).hasBean("schemaAuthorityJpaRepository").hasBean("personBindingJpaRepository");
                     assertThat(context.getBean(EntityManagerFactory.class).getMetamodel().getEntities())
                             .extracting(entity -> entity.getJavaType().getName())
@@ -57,6 +59,8 @@ class CorePersistenceDiscoveryTest {
                             .hasSingleBean(ContextAuthorizationPort.class)
                             .hasSingleBean(MemberSessionCutoffService.class)
                             .hasSingleBean(MemberSessionRevocationService.class);
+                    assertThat(context).hasSingleBean(CoreAuditAutoConfiguration.class)
+                            .hasSingleBean(AuditEventPublisher.class);
                     assertThat(context.getBean(ProviderCapabilityHealthService.class)
                             .supportSafeSnapshot().capabilities())
                             .extracting(capability -> capability.capability()).containsExactly("example");

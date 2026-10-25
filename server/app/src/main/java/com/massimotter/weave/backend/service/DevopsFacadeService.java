@@ -11,7 +11,7 @@ import com.massimotter.weave.backend.model.devops.DevopsReleaseSummaryResponse;
 import com.massimotter.weave.backend.model.devops.DevopsSummaryResponse;
 import com.massimotter.weave.backend.model.devops.LinkedSourceProjectResponse;
 import com.massimotter.weave.backend.model.devops.SourceRepositoryResponse;
-import com.massimotter.weave.backend.provider.ProviderStatusResponse;
+import com.massimotter.weave.backend.discovery.provider.ProviderStatusResponse;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Service;

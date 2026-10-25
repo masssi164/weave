@@ -2,10 +2,9 @@ package com.massimotter.weave.backend.agentruntime.adapter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCell;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
+import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeProfile;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeProvisioningPlan;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadBinding;
@@ -32,7 +31,7 @@ class FileRuntimePolicyAuthorityTest {
         FileRuntimePolicyAuthority policy = authority(policyFile);
         RuntimePersonDirectory.ResolvedRuntimePerson person = new RuntimePersonDirectory.ResolvedRuntimePerson(
                 "tenant-default", PERSON,
-                new RuntimeMemberBinding("https://auth.weave.test/realms/weave", "keycloak-user-1"));
+                new MemberIdentityBinding("https://auth.weave.test/realms/weave", "keycloak-user-1"));
 
         RuntimeProvisioningPlan plan = policy.provisioningPlan(person);
         RuntimeCell cell = RuntimeCell.provisioning(

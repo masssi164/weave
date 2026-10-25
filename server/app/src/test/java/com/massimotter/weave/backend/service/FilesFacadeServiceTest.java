@@ -3,11 +3,11 @@ package com.massimotter.weave.backend.service;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
-import com.massimotter.weave.backend.agentruntime.adapter.McpExchangedTokenPolicy;
-import com.massimotter.weave.backend.agentruntime.application.McpWorkloadAuthorizationService;
-import com.massimotter.weave.backend.agentruntime.domain.ExchangedWorkloadToken;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
-import com.massimotter.weave.backend.agentruntime.domain.WeaverWorkloadPrincipal;
+import com.massimotter.weave.backend.security.workload.jwt.McpExchangedTokenPolicy;
+import com.massimotter.weave.backend.security.workload.port.McpWorkloadAuthorization;
+import com.massimotter.weave.backend.security.workload.domain.ExchangedWorkloadToken;
+import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBinding;
+import com.massimotter.weave.backend.security.workload.domain.WeaverWorkloadPrincipal;
 import com.massimotter.weave.backend.security.config.ContextAuthorizationConfiguration;
 import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
@@ -36,8 +36,8 @@ import com.massimotter.weave.backend.providerbinding.port.ProviderBindingReposit
 import com.massimotter.weave.backend.model.files.CreateFolderRequest;
 import com.massimotter.weave.backend.model.files.FileItemResponse;
 import com.massimotter.weave.backend.model.files.FileListResponse;
-import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
-import com.massimotter.weave.backend.portability.ProviderReadiness;
+import com.massimotter.weave.backend.providerbinding.contract.ProviderConformanceProfile;
+import com.massimotter.weave.backend.providerbinding.contract.ProviderReadiness;
 import com.massimotter.weave.backend.service.files.WebDavPropfindResource;
 import com.massimotter.weave.backend.service.files.FilesProviderResolver;
 import com.massimotter.weave.backend.service.files.WebDavLockResult;
@@ -234,19 +234,19 @@ class FilesFacadeServiceTest {
                 "weave-mcp-server",
                 "tenant-default",
                 "person-1",
-                new RuntimeMemberBinding(
+                new MemberIdentityBinding(
                         "https://auth.weave.test/realms/weave", "member-subject-1"),
                 "member-username",
                 "cell-1",
-                "profile-1",
-                "sha256:profile",
-                "entitlement-1",
+                "cellRef",
+                "runtime-profile:sha256:profile",
+                "runtime-entitlement:entitlement-1",
                 issuedAt.plusSeconds(60),
                 Set.of("files.read"),
                 Set.of("files.read"));
         McpExchangedTokenPolicy tokenPolicy = mock(McpExchangedTokenPolicy.class);
-        McpWorkloadAuthorizationService authorization =
-                mock(McpWorkloadAuthorizationService.class);
+        McpWorkloadAuthorization authorization =
+                mock(McpWorkloadAuthorization.class);
         when(tokenPolicy.resolve(workloadJwt)).thenReturn(exchanged);
         when(authorization.authorize(exchanged)).thenReturn(principal);
 
@@ -834,7 +834,7 @@ class FilesFacadeServiceTest {
                 auditEventPublisher,
                 filesLockService,
                 null,
-                (McpWorkloadAuthorizationService) null,
+                (McpWorkloadAuthorization) null,
                 (McpExchangedTokenPolicy) null);
     }
 

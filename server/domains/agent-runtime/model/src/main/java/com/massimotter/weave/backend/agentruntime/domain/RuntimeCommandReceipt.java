@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.agentruntime.domain;
 
+import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBinding;
+
 import java.time.Instant;
 
 public record RuntimeCommandReceipt(
@@ -16,16 +18,16 @@ public record RuntimeCommandReceipt(
         Instant updatedAt) {
 
     public RuntimeCommandReceipt {
-        RuntimeMemberBinding.requireText(organizationRef, "organizationRef");
-        RuntimeMemberBinding.requireText(personRef, "personRef");
+        MemberIdentityBinding.requireText(organizationRef, "organizationRef");
+        MemberIdentityBinding.requireText(personRef, "personRef");
         if (idempotencyKey == null || idempotencyKey.length() < 16 || idempotencyKey.length() > 128) {
             throw new IllegalArgumentException("idempotencyKey length must be between 16 and 128");
         }
-        RuntimeMemberBinding.requireText(command, "command");
+        MemberIdentityBinding.requireText(command, "command");
         if (status == null) {
             throw new IllegalArgumentException("command status is required");
         }
-        RuntimeMemberBinding.requireText(cellRef, "cellRef");
+        MemberIdentityBinding.requireText(cellRef, "cellRef");
         if (status == Status.COMPLETED && runtimeVersion == null) {
             throw new IllegalArgumentException("completed command requires runtimeVersion");
         }
@@ -35,7 +37,7 @@ public record RuntimeCommandReceipt(
         if (status != Status.FAILED && failureCode != null) {
             throw new IllegalArgumentException("only failed commands may carry failureCode");
         }
-        RuntimeMemberBinding.requireText(auditRef, "auditRef");
+        MemberIdentityBinding.requireText(auditRef, "auditRef");
         if (createdAt == null || updatedAt == null || updatedAt.isBefore(createdAt)) {
             throw new IllegalArgumentException("command timestamps are invalid");
         }

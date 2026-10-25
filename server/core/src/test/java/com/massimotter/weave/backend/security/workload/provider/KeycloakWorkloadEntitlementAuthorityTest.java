@@ -1,0 +1,319 @@
+package com.massimotter.weave.backend.security.workload.provider;
+
+import com.massimotter.weave.backend.security.keycloak.port.KeycloakAdminAccessTokenProvider;
+
+import com.massimotter.weave.backend.security.workload.port.WorkloadEntitlementAuthority;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
+import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBinding;
+import com.massimotter.weave.backend.security.workload.port.WorkloadEntitlementAuthority.ObserveEntitlementCommand;
+import com.massimotter.weave.backend.security.workload.port.WorkloadEntitlementAuthorityException;
+import com.massimotter.weave.backend.security.workload.port.WorkloadEntitlementDeniedException;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+class KeycloakWorkloadEntitlementAuthorityTest {
+    private static final Instant NOW = Instant.parse("2026-07-20T09:00:00Z");
+    private static final String ISSUER = "https://auth.weave.test/realms/weave";
+    private static final String SUBJECT = "member-uuid";
+
+    private ObjectMapper mapper;
+    private FakeKeycloak keycloak;
+    private RotatingTokenProvider tokens;
+    private KeycloakWorkloadEntitlementAuthority authority;
+
+    @BeforeEach
+    void setUp() throws IOException {
+        mapper = new ObjectMapper();
+        keycloak = new FakeKeycloak(mapper);
+        keycloak.groups.add(group("role-member", "members", "/members"));
+        tokens = new RotatingTokenProvider();
+        authority = new KeycloakWorkloadEntitlementAuthority(
+                settings(true), tokens, mapper, HttpClient.newHttpClient(),
+                Clock.fixed(NOW, ZoneOffset.UTC));
+    }
+
+    @AfterEach
+    void tearDown() {
+        keycloak.close();
+    }
+
+    @Test
+    void derivesOpaqueEvidenceFromTheExactNativeOrganizationCapabilityGroup() {
+        keycloak.groups.add(group("group-1", "weaver", "/capabilities/weaver"));
+        keycloak.groups.add(group("group-2", "unrelated", "/unrelated"));
+
+        var observation = authority.observe(command(ISSUER));
+
+        assertThat(observation.sourceProvider()).isEqualTo("keycloak");
+        assertThat(observation.contextPrincipalClaim()).isEqualTo("member-username");
+        assertThat(observation.sourceGroupRef()).matches("sha256:[a-f0-9]{64}");
+        assertThat(observation.capabilityRevision()).matches("sha256:[a-f0-9]{64}");
+        assertThat(observation.sourceGroupRef()).doesNotContain("group-1", "capabilities");
+        assertThat(observation.observedAt()).isEqualTo(NOW);
+        assertThat(observation.expiresAt()).isEqualTo(NOW.plusSeconds(300));
+        assertThat(keycloak.lastAuthorization).isEqualTo("Bearer admin-token-1");
+        assertThat(keycloak.requestPaths)
+                .allMatch(path -> path.startsWith("/admin/realms/weave/organizations/org-uuid/"))
+                .noneMatch(path -> path.contains("/users/"));
+    }
+
+    @Test
+    void resolvesAndCachesTheExactConfiguredOrganizationAlias() {
+        keycloak.groups.add(group("group-1", "weaver", "/capabilities/weaver"));
+        KeycloakWorkloadEntitlementAuthority aliasAuthority = new KeycloakWorkloadEntitlementAuthority(
+                new KeycloakWorkloadEntitlementAuthority.Settings(
+                        true, keycloak.baseUri(), URI.create(ISSUER), "org:example", "",
+                        "weave-dogfood", "weave", Duration.ofSeconds(2),
+                        Duration.ofMinutes(5), List.of("files.read")),
+                tokens, mapper, HttpClient.newHttpClient(), Clock.fixed(NOW, ZoneOffset.UTC));
+
+        assertThat(aliasAuthority.observe(command(ISSUER)).sourceGroupRef()).startsWith("sha256:");
+        assertThat(aliasAuthority.observe(command(ISSUER)).sourceGroupRef()).startsWith("sha256:");
+        assertThat(keycloak.requestPaths)
+                .filteredOn(path -> path.equals("/admin/realms/weave/organizations"))
+                .hasSize(1);
+    }
+
+    @Test
+    void everyObservationRevalidatesGrantRevocationAndRegrantAgainstNativeOrganizationGroups() {
+        keycloak.groups.add(group("group-1", "weaver", "/capabilities/weaver"));
+
+        assertThat(authority.observe(command(ISSUER)).sourceGroupRef()).startsWith("sha256:");
+
+        keycloak.groups.removeIf(group -> "/capabilities/weaver".equals(group.path("path").asString()));
+        assertThatThrownBy(() -> authority.observe(command(ISSUER)))
+                .isInstanceOf(WorkloadEntitlementDeniedException.class)
+                .hasMessageContaining("no unambiguous native Weaver capability");
+
+        keycloak.groups.add(group("group-2", "weaver", "/capabilities/weaver"));
+        var regranted = authority.observe(command(ISSUER));
+
+        assertThat(regranted.sourceGroupRef()).startsWith("sha256:");
+        assertThat(keycloak.requests).hasValue(6);
+        assertThat(keycloak.requestPaths)
+                .filteredOn(path -> path.endsWith("/groups"))
+                .hasSize(3);
+    }
+
+    @Test
+    void guestRoleCannotRetainMcpDomainReadAfterRoleRevocation() {
+        keycloak.groups.add(group("group-1", "weaver", "/capabilities/weaver"));
+        assertThat(authority.observe(command(ISSUER)).sourceGroupRef()).startsWith("sha256:");
+
+        keycloak.groups.removeIf(group -> "/members".equals(group.path("path").asString()));
+        keycloak.groups.add(group("role-guest", "guests", "/guests"));
+
+        assertThatThrownBy(() -> authority.observe(command(ISSUER)))
+                .isInstanceOf(WorkloadEntitlementDeniedException.class)
+                .hasMessageContaining("no current organization role for Weave domain reads");
+    }
+
+    @Test
+    void currentMemberRolesComeFromNativeOrganizationGroupsWithoutUserRoleAdminApis() {
+        assertThat(authority.currentWeaveRoles(command(ISSUER))).containsExactly("member");
+
+        keycloak.groups.removeIf(group -> "/members".equals(group.path("path").asString()));
+        keycloak.groups.add(group("role-admin", "admins", "/admins"));
+        assertThat(authority.currentWeaveRoles(command(ISSUER))).containsExactly("admin");
+
+        keycloak.groups.removeIf(group -> "/admins".equals(group.path("path").asString()));
+        keycloak.groups.add(group("role-guest", "guests", "/guests"));
+        assertThat(authority.currentWeaveRoles(command(ISSUER))).containsExactly("guest");
+        assertThat(keycloak.requestPaths)
+                .allMatch(path -> path.startsWith("/admin/realms/weave/organizations/"))
+                .noneMatch(path -> path.contains("/users/") || path.contains("/role-mappings"));
+    }
+
+    @Test
+    void disabledAbsentWrongIssuerAndNonMemberIdentitiesFailClosed() {
+        assertThatThrownBy(() -> authority.observe(command(ISSUER)))
+                .isInstanceOf(WorkloadEntitlementDeniedException.class)
+                .hasMessageContaining("no unambiguous native Weaver capability");
+
+        keycloak.groups.add(group("group-1", "weaver", "/capabilities/weaver"));
+        keycloak.userEnabled = false;
+        assertThatThrownBy(() -> authority.observe(command(ISSUER)))
+                .isInstanceOf(WorkloadEntitlementDeniedException.class)
+                .hasMessageContaining("enabled organization member");
+
+        keycloak.userEnabled = true;
+        keycloak.organizationMember = false;
+        assertThatThrownBy(() -> authority.observe(command(ISSUER)))
+                .isInstanceOf(WorkloadEntitlementDeniedException.class)
+                .hasMessageContaining("not a current enabled organization member");
+        keycloak.organizationMember = true;
+
+        int requests = keycloak.requests.get();
+        assertThatThrownBy(() -> authority.observe(command("https://different.example/realms/weave")))
+                .isInstanceOf(WorkloadEntitlementDeniedException.class)
+                .hasMessageContaining("configured IDM");
+        assertThat(keycloak.requests).hasValue(requests);
+
+        KeycloakWorkloadEntitlementAuthority disabled = new KeycloakWorkloadEntitlementAuthority(
+                settings(false), tokens, mapper, HttpClient.newHttpClient(),
+                Clock.fixed(NOW, ZoneOffset.UTC));
+        assertThatThrownBy(() -> disabled.observe(command(ISSUER)))
+                .isInstanceOf(WorkloadEntitlementDeniedException.class)
+                .hasMessageContaining("disabled by policy");
+    }
+
+    @Test
+    void oneRejectedAdminTokenIsInvalidatedAndRetriedWithoutLeakingProviderBodies() {
+        keycloak.groups.add(group("group-1", "weaver", "/capabilities/weaver"));
+        keycloak.rejectFirstToken = true;
+
+        assertThat(authority.observe(command(ISSUER)).sourceGroupRef()).startsWith("sha256:");
+        assertThat(tokens.invalidations).hasValue(1);
+        assertThat(tokens.calls).hasValue(3);
+
+        keycloak.failureStatus = 503;
+        keycloak.failureBody = "provider-secret-debug-payload";
+        assertThatThrownBy(() -> authority.observe(command(ISSUER)))
+                .isInstanceOf(WorkloadEntitlementAuthorityException.class)
+                .hasMessage("Keycloak entitlement lookup failed with sanitized status 503")
+                .hasMessageNotContaining("provider-secret");
+    }
+
+    private KeycloakWorkloadEntitlementAuthority.Settings settings(boolean enabled) {
+        return new KeycloakWorkloadEntitlementAuthority.Settings(
+                enabled, keycloak.baseUri(), URI.create(ISSUER), "org:example", "org-uuid", "", "weave",
+                Duration.ofSeconds(2),
+                Duration.ofMinutes(5), List.of("files.read"));
+    }
+
+    private static ObserveEntitlementCommand command(String issuer) {
+        return new ObserveEntitlementCommand(
+                "org:example", "person:example", new MemberIdentityBinding(issuer, SUBJECT), "correlation:test");
+    }
+
+    private static ObjectNode group(String id, String name, String path) {
+        return new ObjectMapper().createObjectNode().put("id", id).put("name", name).put("path", path);
+    }
+
+    private static final class RotatingTokenProvider implements KeycloakAdminAccessTokenProvider {
+        private final AtomicInteger calls = new AtomicInteger();
+        private final AtomicInteger invalidations = new AtomicInteger();
+        private final AtomicInteger generation = new AtomicInteger(1);
+
+        @Override
+        public String accessToken() {
+            calls.incrementAndGet();
+            return "admin-token-" + generation.get();
+        }
+
+        @Override
+        public void invalidate(String rejectedToken) {
+            invalidations.incrementAndGet();
+            generation.incrementAndGet();
+        }
+    }
+
+    private static final class FakeKeycloak implements AutoCloseable {
+        private final ObjectMapper mapper;
+        private final HttpServer server;
+        private final AtomicInteger requests = new AtomicInteger();
+        private final List<ObjectNode> groups = new java.util.ArrayList<>();
+        private final List<String> requestPaths = new java.util.concurrent.CopyOnWriteArrayList<>();
+        private boolean userEnabled = true;
+        private boolean organizationMember = true;
+        private boolean rejectFirstToken;
+        private int failureStatus;
+        private String failureBody = "";
+        private String lastAuthorization;
+
+        private FakeKeycloak(ObjectMapper mapper) throws IOException {
+            this.mapper = mapper;
+            server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+            server.createContext("/", this::handle);
+            server.start();
+        }
+
+        private URI baseUri() {
+            return URI.create("http://127.0.0.1:" + server.getAddress().getPort());
+        }
+
+        private void handle(HttpExchange exchange) throws IOException {
+            requests.incrementAndGet();
+            lastAuthorization = exchange.getRequestHeaders().getFirst("Authorization");
+            if (failureStatus != 0) {
+                respond(exchange, failureStatus, failureBody);
+                return;
+            }
+            if (rejectFirstToken && "Bearer admin-token-1".equals(lastAuthorization)) {
+                rejectFirstToken = false;
+                respond(exchange, 401, "rejected-token-body");
+                return;
+            }
+            String path = exchange.getRequestURI().getPath();
+            requestPaths.add(path);
+            if (path.equals("/admin/realms/weave/organizations")) {
+                respond(exchange, 200, mapper.writeValueAsString(
+                        mapper.createArrayNode().add(mapper.createObjectNode()
+                                .put("id", "org-uuid")
+                                .put("alias", "weave-dogfood"))));
+                return;
+            }
+            if (path.equals("/admin/realms/weave/organizations/org-uuid/members")) {
+                ArrayNode members = mapper.createArrayNode();
+                if (organizationMember) {
+                    members.add(mapper.createObjectNode().put("id", SUBJECT));
+                }
+                respond(exchange, 200, mapper.writeValueAsString(members));
+                return;
+            }
+            if (path.equals("/admin/realms/weave/organizations/org-uuid/members/" + SUBJECT)) {
+                if (!organizationMember) {
+                    respond(exchange, 404, "{}");
+                    return;
+                }
+                respond(exchange, 200, mapper.writeValueAsString(
+                        mapper.createObjectNode()
+                        .put("id", SUBJECT)
+                        .put("username", "member-username")
+                        .put("enabled", userEnabled)));
+                return;
+            }
+            if (path.equals(
+                    "/admin/realms/weave/organizations/org-uuid/members/"
+                            + SUBJECT + "/groups")) {
+                ArrayNode result = mapper.createArrayNode();
+                groups.forEach(result::add);
+                respond(exchange, 200, mapper.writeValueAsString(result));
+                return;
+            }
+            respond(exchange, 404, "{}");
+        }
+
+        private static void respond(HttpExchange exchange, int status, String body) throws IOException {
+            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(status, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        }
+
+        @Override
+        public void close() {
+            server.stop(0);
+        }
+    }
+}

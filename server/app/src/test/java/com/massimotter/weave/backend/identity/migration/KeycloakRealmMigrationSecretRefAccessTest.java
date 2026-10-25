@@ -2,8 +2,7 @@ package com.massimotter.weave.backend.identity.migration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
-import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityException;
+import com.massimotter.weave.backend.security.workload.port.WorkloadIdentityException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -55,7 +54,7 @@ class KeycloakRealmMigrationSecretRefAccessTest {
             () ->
                 new KeycloakRealmMigrationSecretRefAccess(REF, symlink)
                     .withSecret(REF, value -> null))
-        .isInstanceOf(RuntimeWorkloadIdentityException.class)
+        .isInstanceOf(WorkloadIdentityException.class)
         .hasMessage("The Keycloak realm-migration bootstrap SecretRef is unavailable");
 
     if (Files.getFileStore(secret).supportsFileAttributeView("posix")) {
@@ -64,7 +63,7 @@ class KeycloakRealmMigrationSecretRefAccessTest {
               () ->
                   new KeycloakRealmMigrationSecretRefAccess(REF, secret)
                       .withSecret(REF, value -> null))
-          .isInstanceOf(RuntimeWorkloadIdentityException.class)
+          .isInstanceOf(WorkloadIdentityException.class)
           .hasMessage("The Keycloak realm-migration bootstrap SecretRef is unavailable");
     }
   }

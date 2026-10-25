@@ -1,10 +1,10 @@
 package com.massimotter.weave.backend.agentruntime.adapter;
 
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeAuditCorrelation;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementObservation;
+import com.massimotter.weave.backend.security.workload.domain.WorkloadEntitlementObservation;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementRef;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementState;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
+import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeRevocation;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -120,7 +120,7 @@ class RuntimeEntitlementJpaEntity {
     }
 
     void observe(
-            RuntimeEntitlementObservation observation,
+            WorkloadEntitlementObservation observation,
             String nextAuditRef,
             Instant now) {
         if (state != RuntimeEntitlementState.ENTITLED) {
@@ -159,7 +159,7 @@ class RuntimeEntitlementJpaEntity {
                 entitlementRevision,
                 organizationRef,
                 personRef,
-                new RuntimeMemberBinding(memberIssuer, memberSubject),
+                new MemberIdentityBinding(memberIssuer, memberSubject),
                 sourceProvider,
                 sourceGroupRef,
                 capabilityRevision,

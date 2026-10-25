@@ -3,10 +3,9 @@ package com.massimotter.weave.backend.chat.provider.synapse;
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.chat.port.CanonicalChatStore;
 import com.massimotter.weave.backend.config.ChatRuntimeProperties;
-import com.massimotter.weave.backend.portability.ProviderReadiness;
+import com.massimotter.weave.backend.providerbinding.contract.ProviderReadiness;
 import java.time.Clock;
 import org.junit.jupiter.api.Test;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;

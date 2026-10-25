@@ -1,8 +1,8 @@
 package com.massimotter.weave.backend.identity.migration;
 
 import com.massimotter.weave.backend.agentruntime.adapter.ClientSecretKeycloakAdminAccessTokenProvider;
-import com.massimotter.weave.backend.agentruntime.adapter.KeycloakAdminAccessTokenProvider;
-import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityException;
+import com.massimotter.weave.backend.security.keycloak.port.KeycloakAdminAccessTokenProvider;
+import com.massimotter.weave.backend.security.workload.port.WorkloadIdentityException;
 import java.io.PrintStream;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -78,7 +78,7 @@ public final class KeycloakRealmMigrationCli {
     } catch (KeycloakRealmMigrationException failure) {
       errors.println("keycloak-realm-migration: blocked [reason=" + failure.reasonCode() + "]");
       return 2;
-    } catch (RuntimeWorkloadIdentityException failure) {
+    } catch (WorkloadIdentityException failure) {
       errors.println("keycloak-realm-migration: blocked [reason=bootstrap-secret-authentication-failed]");
       return 2;
     } catch (Exception failure) {

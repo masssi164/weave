@@ -2,7 +2,6 @@ package com.massimotter.weave.backend.agentruntime.adapter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadBinding;
@@ -12,7 +11,7 @@ import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadCredential
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadCredentialStore.DeleteCredentialCommand;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadCredentialStore.RetireCredentialCommand;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadCredentialStore.RotateCredentialCommand;
-import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityException;
+import com.massimotter.weave.backend.security.workload.port.WorkloadIdentityException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -110,7 +109,7 @@ class FileRuntimeWorkloadCredentialStoreTest {
 
         assertThatThrownBy(() -> store.prepareRotation(
                 new RotateCredentialCommand(CLIENT_ID, OWNER, "rotation:0000000000000002")))
-                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .isInstanceOf(WorkloadIdentityException.class)
                 .hasMessageContaining("different workload credential rotation");
     }
 
@@ -120,10 +119,10 @@ class FileRuntimeWorkloadCredentialStoreTest {
 
         assertThatThrownBy(() -> store.create(new CreateCredentialCommand(
                 CLIENT_ID, OTHER_OWNER, RuntimeWorkloadBinding.AuthenticationMethod.PRIVATE_KEY_JWT)))
-                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .isInstanceOf(WorkloadIdentityException.class)
                 .hasMessageContaining("another immutable cell binding");
         assertThatThrownBy(() -> store.delete(new DeleteCredentialCommand(CLIENT_ID, OTHER_OWNER)))
-                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .isInstanceOf(WorkloadIdentityException.class)
                 .hasMessageContaining("another immutable cell binding");
         assertThat(store.find(CLIENT_ID)).isPresent();
     }
@@ -155,7 +154,7 @@ class FileRuntimeWorkloadCredentialStoreTest {
             Set<PosixFilePermission> broad = PosixFilePermissions.fromString("rw-r-----");
             Files.setPosixFilePermissions(secret, broad);
             assertThatThrownBy(() -> store.find(CLIENT_ID))
-                    .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                    .isInstanceOf(WorkloadIdentityException.class)
                     .hasMessageContaining("permissions are too broad");
         }
     }
@@ -234,7 +233,7 @@ class FileRuntimeWorkloadCredentialStoreTest {
                         () -> {
                             throw new AssertionError("the protected operation must not run");
                         }))
-                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .isInstanceOf(WorkloadIdentityException.class)
                 .hasMessageContaining("regular non-symlink");
         assertThat(Files.readString(outside)).isEqualTo("outside");
     }
@@ -258,7 +257,7 @@ class FileRuntimeWorkloadCredentialStoreTest {
                                 + "openid-connect/" + CLIENT_ID),
                 token,
                 "service-account-subject"))
-                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .isInstanceOf(WorkloadIdentityException.class)
                 .hasMessageContaining("registration authority is inconsistent");
         assertThatThrownBy(() -> strict.bindRegistrationAuthority(
                 CLIENT_ID,
@@ -271,7 +270,7 @@ class FileRuntimeWorkloadCredentialStoreTest {
                                 + CLIENT_ID + "?destination=elsewhere"),
                 token,
                 "service-account-subject"))
-                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .isInstanceOf(WorkloadIdentityException.class)
                 .hasMessageContaining("registration authority is inconsistent");
 
         URI expected = URI.create(
@@ -357,7 +356,7 @@ class FileRuntimeWorkloadCredentialStoreTest {
                 });
         assertThat(observedCapability.get()).containsOnly((byte) 0);
         assertThatThrownBy(() -> strict.registrationHandoff(CLIENT_ID, OTHER_OWNER))
-                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .isInstanceOf(WorkloadIdentityException.class)
                 .hasMessageContaining("another immutable cell binding");
 
         strict.stageRegistrationHandoff(
@@ -427,7 +426,7 @@ class FileRuntimeWorkloadCredentialStoreTest {
                         true,
                         FileRuntimeWorkloadCredentialStore
                                 .RegistrationHandoffOperation.CREATE))
-                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .isInstanceOf(WorkloadIdentityException.class)
                 .hasMessageContaining("symbolic");
     }
 

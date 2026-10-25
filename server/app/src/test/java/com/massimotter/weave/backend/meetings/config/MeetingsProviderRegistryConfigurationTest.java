@@ -3,10 +3,9 @@ package com.massimotter.weave.backend.meetings.config;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-
 import com.massimotter.weave.backend.config.LiveKitSfuProviderProperties;
-import com.massimotter.weave.backend.provider.ProviderState;
-import com.massimotter.weave.backend.provider.ProviderStatusResponse;
+import com.massimotter.weave.backend.discovery.provider.ProviderState;
+import com.massimotter.weave.backend.discovery.provider.ProviderStatusResponse;
 import org.junit.jupiter.api.Test;
 
 class MeetingsProviderRegistryConfigurationTest {

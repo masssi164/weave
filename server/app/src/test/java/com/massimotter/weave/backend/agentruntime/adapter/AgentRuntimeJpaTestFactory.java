@@ -1,9 +1,10 @@
 package com.massimotter.weave.backend.agentruntime.adapter;
 
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementObservation;
+import com.massimotter.weave.backend.security.workload.domain.WorkloadReferences;
+
+import com.massimotter.weave.backend.security.workload.domain.WorkloadEntitlementObservation;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementRef;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadOwnership;
+import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBinding;
 import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import java.time.Instant;
 import javax.sql.DataSource;
@@ -55,17 +56,17 @@ public final class AgentRuntimeJpaTestFactory {
             Context context,
             String organizationRef,
             String personRef,
-            RuntimeMemberBinding memberBinding,
+            MemberIdentityBinding memberBinding,
             Instant now) {
-        RuntimeEntitlementObservation observation = new RuntimeEntitlementObservation(
+        WorkloadEntitlementObservation observation = new WorkloadEntitlementObservation(
                 organizationRef,
                 personRef,
                 memberBinding,
                 "test-member",
                 "keycloak",
-                RuntimeWorkloadOwnership.fingerprint(
+                WorkloadReferences.fingerprint(
                         "organization-group:/capabilities/weaver"),
-                RuntimeWorkloadOwnership.fingerprint(
+                WorkloadReferences.fingerprint(
                         "capability:agent-runtime.entitled"),
                 now,
                 now.plusSeconds(3_600));

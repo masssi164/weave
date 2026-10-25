@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.provider;
-
+import com.massimotter.weave.backend.discovery.provider.ProviderState;
+import com.massimotter.weave.backend.discovery.provider.ProviderStatusResponse;
+import com.massimotter.weave.backend.discovery.provider.ProviderPort;
 import com.massimotter.weave.backend.domainregistry.CanonicalDomainRegistry;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import java.time.Instant;

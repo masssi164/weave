@@ -1,7 +1,8 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.security.workload.domain.WorkloadReferences;
+
 import tools.jackson.databind.ObjectMapper;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadOwnership;
 import com.massimotter.weave.backend.model.agentruntime.AgentRuntimeErrorEnvelope;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -56,6 +57,6 @@ public final class AgentRuntimeErrorResponseWriter {
     }
 
     private static String auditRef(String requestId) {
-        return "audit:arc:" + RuntimeWorkloadOwnership.fingerprint(requestId).substring(7);
+        return "audit:arc:" + WorkloadReferences.fingerprint(requestId).substring(7);
     }
 }

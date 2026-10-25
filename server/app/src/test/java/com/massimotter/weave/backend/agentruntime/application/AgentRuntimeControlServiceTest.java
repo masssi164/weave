@@ -2,7 +2,6 @@ package com.massimotter.weave.backend.agentruntime.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 import com.massimotter.weave.backend.agentruntime.adapter.JpaRuntimeCellRepository;
 import com.massimotter.weave.backend.agentruntime.adapter.JpaRuntimeCommandRepository;
 import com.massimotter.weave.backend.agentruntime.adapter.JpaRuntimeGovernanceRepository;
@@ -10,14 +9,14 @@ import com.massimotter.weave.backend.agentruntime.adapter.JpaRuntimeProfileRepos
 import com.massimotter.weave.backend.agentruntime.adapter.AgentRuntimeJpaTestFactory;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCell;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCellState;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
+import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementState;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementObservation;
+import com.massimotter.weave.backend.security.workload.domain.WorkloadEntitlementObservation;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadBinding;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCommandConflictException;
-import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementAuthority;
-import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementAuthorityException;
-import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementDeniedException;
+import com.massimotter.weave.backend.security.workload.port.WorkloadEntitlementAuthority;
+import com.massimotter.weave.backend.security.workload.port.WorkloadEntitlementAuthorityException;
+import com.massimotter.weave.backend.security.workload.port.WorkloadEntitlementDeniedException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityAdmin;
 import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import java.time.Clock;
@@ -175,7 +174,7 @@ class AgentRuntimeControlServiceTest {
         entitlementAuthority.unavailable = true;
 
         assertThatThrownBy(() -> service.reconcileEntitlement(provisioned, "audit:reconcile"))
-                .isInstanceOf(RuntimeEntitlementAuthorityException.class);
+                .isInstanceOf(WorkloadEntitlementAuthorityException.class);
         assertThat(cells.findByCellRef(provisioned.cellRef()).orElseThrow().entitlementState())
                 .isEqualTo(RuntimeEntitlementState.ENTITLED);
 
@@ -199,28 +198,28 @@ class AgentRuntimeControlServiceTest {
 
     private static AgentRuntimeControlService.ProvisionRuntimeCommand command(String key, String subject) {
         return new AgentRuntimeControlService.ProvisionRuntimeCommand(
-                "org:example", "person:example", new RuntimeMemberBinding(ISSUER, subject),
+                "org:example", "person:example", new MemberIdentityBinding(ISSUER, subject),
                 "workspace:1", "webdav-manifest:workspace:1",
                 "runtime-state://org/example/person/example/state/1",
                 RuntimeWorkloadBinding.AuthenticationMethod.PRIVATE_KEY_JWT, key, "audit:example");
     }
 
-    private static final class FixedEntitlementAuthority implements RuntimeEntitlementAuthority {
+    private static final class FixedEntitlementAuthority implements WorkloadEntitlementAuthority {
         private final AtomicInteger calls = new AtomicInteger();
         private boolean denied;
         private boolean unavailable;
         private String capabilityRevision = "sha256:" + "2".repeat(64);
 
         @Override
-        public RuntimeEntitlementObservation observe(ObserveEntitlementCommand command) {
+        public WorkloadEntitlementObservation observe(ObserveEntitlementCommand command) {
             calls.incrementAndGet();
             if (denied) {
-                throw new RuntimeEntitlementDeniedException("not currently entitled");
+                throw new WorkloadEntitlementDeniedException("not currently entitled");
             }
             if (unavailable) {
-                throw new RuntimeEntitlementAuthorityException("simulated authority outage");
+                throw new WorkloadEntitlementAuthorityException("simulated authority outage");
             }
-            return new RuntimeEntitlementObservation(
+            return new WorkloadEntitlementObservation(
                     command.organizationRef(), command.personRef(), command.memberBinding(), "test-member", "keycloak",
                     "sha256:" + "1".repeat(64), capabilityRevision,
                     NOW, NOW.plusSeconds(300));

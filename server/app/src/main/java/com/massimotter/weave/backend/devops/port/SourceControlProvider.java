@@ -3,7 +3,7 @@ package com.massimotter.weave.backend.devops.port;
 import com.massimotter.weave.backend.model.devops.DevopsMergeRequestSummaryResponse;
 import com.massimotter.weave.backend.model.devops.LinkedSourceProjectResponse;
 import com.massimotter.weave.backend.model.devops.SourceRepositoryResponse;
-import com.massimotter.weave.backend.provider.ProviderPort;
+import com.massimotter.weave.backend.discovery.provider.ProviderPort;
 import java.util.List;
 
 public interface SourceControlProvider extends ProviderPort {

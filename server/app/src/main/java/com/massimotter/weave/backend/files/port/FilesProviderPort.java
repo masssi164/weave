@@ -8,9 +8,9 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.FileVersion;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileWrite;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedFile;
 import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedListing;
-import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
+import com.massimotter.weave.backend.providerbinding.contract.ProviderConformanceProfile;
 import com.massimotter.weave.backend.health.ProviderCapabilityProbeResult;
-import com.massimotter.weave.backend.portability.ProviderReadiness;
+import com.massimotter.weave.backend.providerbinding.contract.ProviderReadiness;
 import java.util.Optional;
 import java.util.Objects;
 

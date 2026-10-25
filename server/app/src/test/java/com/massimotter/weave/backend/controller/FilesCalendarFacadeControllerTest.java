@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.security.workload.jwt.McpExchangedTokenPolicy;
+
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarEvent;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChange;
@@ -20,7 +22,7 @@ import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
-import com.massimotter.weave.backend.config.AgentRuntimeEntitlementProperties;
+import com.massimotter.weave.backend.security.workload.config.WorkloadEntitlementProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
@@ -108,7 +110,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @EnableConfigurationProperties({
         WeaveSecurityProperties.class,
-        AgentRuntimeEntitlementProperties.class,
+        WorkloadEntitlementProperties.class,
         WorkspaceCapabilityProperties.class,
         OAuth2ResourceServerProperties.class
 })
@@ -231,8 +233,8 @@ class FilesCalendarFacadeControllerTest {
                 new com.massimotter.weave.backend.security.config.ContextAuthorizationProperties(null, null, null, null, null, null, null, null)),
                 contextAuthorizationProperties, contextAuthorizationPort, policy, binding, filesProviderResolver, resources,
                 filesMutationIntentService, transactions, auditEventPublisher,
-                empty.getBeanProvider(com.massimotter.weave.backend.agentruntime.application.McpWorkloadAuthorizationService.class),
-                empty.getBeanProvider(com.massimotter.weave.backend.agentruntime.adapter.McpExchangedTokenPolicy.class), spaces);
+                empty.getBeanProvider(com.massimotter.weave.backend.security.workload.port.McpWorkloadAuthorization.class),
+                empty.getBeanProvider(com.massimotter.weave.backend.security.workload.jwt.McpExchangedTokenPolicy.class), spaces);
         // Keep this existing MVC/security fixture, but execute the real service and policy.
         // Neither the exception nor its public error code is stubbed.
         org.mockito.Mockito.doAnswer(call -> realFiles.download(call.getArgument(0), call.getArgument(1)))

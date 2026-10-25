@@ -3,11 +3,11 @@ package com.massimotter.weave.backend.service.files;
 import com.massimotter.weave.backend.spaces.authorization.ContextPermission;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationRequest;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
-import com.massimotter.weave.backend.agentruntime.adapter.McpExchangedTokenPolicy;
-import com.massimotter.weave.backend.agentruntime.application.McpWorkloadAuthorizationService;
-import com.massimotter.weave.backend.agentruntime.domain.ExchangedWorkloadToken;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
-import com.massimotter.weave.backend.agentruntime.domain.WeaverWorkloadPrincipal;
+import com.massimotter.weave.backend.security.workload.jwt.McpExchangedTokenPolicy;
+import com.massimotter.weave.backend.security.workload.port.McpWorkloadAuthorization;
+import com.massimotter.weave.backend.security.workload.domain.ExchangedWorkloadToken;
+import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBinding;
+import com.massimotter.weave.backend.security.workload.domain.WeaverWorkloadPrincipal;
 import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
@@ -24,7 +24,7 @@ import com.massimotter.weave.backend.files.domain.FilesDomain.VersionedFile;
 import com.massimotter.weave.backend.files.domain.FilesUserResource;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.files.port.FilesUserResourceRepository;
-import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
+import com.massimotter.weave.backend.providerbinding.contract.ProviderConformanceProfile;
 import com.massimotter.weave.backend.providerbinding.domain.ProviderBinding;
 import com.massimotter.weave.backend.providerbinding.domain.ProviderObjectMapping;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
@@ -141,9 +141,9 @@ class FilesUserApiServiceTest {
 
     @SuppressWarnings("unchecked")
     private FilesUserApiService workloadService() {
-        McpWorkloadAuthorizationService workloadAuthorization = mock(McpWorkloadAuthorizationService.class);
+        McpWorkloadAuthorization workloadAuthorization = mock(McpWorkloadAuthorization.class);
         McpExchangedTokenPolicy tokenPolicy = mock(McpExchangedTokenPolicy.class);
-        ObjectProvider<McpWorkloadAuthorizationService> authorizationProvider = mock(ObjectProvider.class);
+        ObjectProvider<McpWorkloadAuthorization> authorizationProvider = mock(ObjectProvider.class);
         ObjectProvider<McpExchangedTokenPolicy> tokenProvider = mock(ObjectProvider.class);
         when(authorizationProvider.getIfAvailable()).thenReturn(workloadAuthorization);
         when(tokenProvider.getIfAvailable()).thenReturn(tokenPolicy);
@@ -153,8 +153,8 @@ class FilesUserApiServiceTest {
                 Set.of("files.read"), now, now.plusSeconds(60), "exchange-1");
         WeaverWorkloadPrincipal principal = new WeaverWorkloadPrincipal(
                 exchanged.issuer(), exchanged.subject(), "weaver-cell-1", "weave-mcp-server",
-                "org-a", "person-1", new RuntimeMemberBinding(exchanged.issuer(), "alice"),
-                "alice", "cell-1", "profile-1", "sha256:profile", "entitlement-1",
+                "org-a", "person-1", new MemberIdentityBinding(exchanged.issuer(), "alice"),
+                "alice", "cell-1", "cellRef", "runtime-profile:sha256:profile", "runtime-entitlement:entitlement-1",
                 now.plusSeconds(60), Set.of("files.read"), Set.of("files.read"));
         when(tokenPolicy.resolve(any())).thenReturn(exchanged);
         when(workloadAuthorization.authorize(exchanged)).thenReturn(principal);

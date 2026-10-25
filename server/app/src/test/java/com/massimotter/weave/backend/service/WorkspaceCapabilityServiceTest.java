@@ -3,7 +3,7 @@ package com.massimotter.weave.backend.service;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.health.ProviderCapabilityHealthService;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
-import com.massimotter.weave.backend.config.AgentRuntimeEntitlementProperties;
+import com.massimotter.weave.backend.security.workload.config.WorkloadEntitlementProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
@@ -96,7 +96,7 @@ class WorkspaceCapabilityServiceTest {
                 resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
                 new WorkspaceCapabilityProperties(null, null, null, null, null, null),
-                new AgentRuntimeEntitlementProperties(true, null, List.of("calendar.read")));
+                new WorkloadEntitlementProperties(true, null, List.of("calendar.read")));
 
         assertThat(service.grantedCapabilities(
                 jwt(List.of("member"), List.of("/capabilities/weaver"))))
@@ -572,7 +572,7 @@ class WorkspaceCapabilityServiceTest {
                 new WeaveSecurityProperties("weave-app", "weave-app"),
                 new WorkspaceCapabilityProperties(null, domain, domain, domain, domain, domain,
                         domain, domain, domain, domain, null, domain),
-                new AgentRuntimeEntitlementProperties(true, null, List.of("calendar.read")));
+                new WorkloadEntitlementProperties(true, null, List.of("calendar.read")));
     }
 
     private List<WorkspaceCapabilityStatusResponse> domainStatuses(WorkspaceCapabilitiesResponse snapshot) {

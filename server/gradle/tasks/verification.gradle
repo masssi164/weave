@@ -111,6 +111,7 @@ tasks.register('postgresJpaTest', Test) {
         includeTestsMatching '*AgentRuntimeControlServiceTest'
         includeTestsMatching '*AgentRuntimeWorkloadReconciliationServiceTest'
         includeTestsMatching '*JpaAuditEventPublisherTest'
+        includeTestsMatching '*JpaAuditEventPublisherPostgresTest'
         includeTestsMatching '*JpaCanonicalChatLedgerRecoveryTest'
         includeTestsMatching '*JpaCanonicalChatStoreTest'
         includeTestsMatching '*MatrixE2eeStateServicePersistenceTest'

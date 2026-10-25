@@ -8,11 +8,11 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import com.massimotter.weave.backend.audit.AuditEvent;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
-import com.massimotter.weave.backend.agentruntime.adapter.McpExchangedTokenPolicy;
-import com.massimotter.weave.backend.agentruntime.application.McpWorkloadAuthorizationService;
-import com.massimotter.weave.backend.agentruntime.domain.ExchangedWorkloadToken;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
-import com.massimotter.weave.backend.agentruntime.domain.WeaverWorkloadPrincipal;
+import com.massimotter.weave.backend.security.workload.jwt.McpExchangedTokenPolicy;
+import com.massimotter.weave.backend.security.workload.port.McpWorkloadAuthorization;
+import com.massimotter.weave.backend.security.workload.domain.ExchangedWorkloadToken;
+import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBinding;
+import com.massimotter.weave.backend.security.workload.domain.WeaverWorkloadPrincipal;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.*;
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
 import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
@@ -22,7 +22,7 @@ import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.model.calendar.CalendarUserModels.*;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
-import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
+import com.massimotter.weave.backend.providerbinding.contract.ProviderConformanceProfile;
 import com.massimotter.weave.backend.providerbinding.domain.*;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
 import com.massimotter.weave.backend.service.*;
@@ -273,9 +273,9 @@ class CalendarUserApiServiceTest {
 
     @SuppressWarnings("unchecked")
     private CalendarUserApiService workloadService(String scope) {
-        var authorization = mock(McpWorkloadAuthorizationService.class);
+        var authorization = mock(McpWorkloadAuthorization.class);
         var tokenPolicy = mock(McpExchangedTokenPolicy.class);
-        ObjectProvider<McpWorkloadAuthorizationService> authorizationProvider = mock(ObjectProvider.class);
+        ObjectProvider<McpWorkloadAuthorization> authorizationProvider = mock(ObjectProvider.class);
         ObjectProvider<McpExchangedTokenPolicy> tokenProvider = mock(ObjectProvider.class);
         when(authorizationProvider.getIfAvailable()).thenReturn(authorization);
         when(tokenProvider.getIfAvailable()).thenReturn(tokenPolicy);
@@ -285,8 +285,8 @@ class CalendarUserApiServiceTest {
                 Set.of(scope), now, now.plusSeconds(60), "exchange-calendar-1");
         var principal = new WeaverWorkloadPrincipal(
                 exchanged.issuer(), exchanged.subject(), "weaver-cell-1", "weave-mcp-server",
-                "tenant-default", "person-1", new RuntimeMemberBinding(exchanged.issuer(), "member"),
-                "member", "cell-1", "profile-1", "sha256:profile", "entitlement-1",
+                "tenant-default", "person-1", new MemberIdentityBinding(exchanged.issuer(), "member"),
+                "member", "cell-1", "cellRef", "runtime-profile:sha256:profile", "runtime-entitlement:entitlement-1",
                 now.plusSeconds(60), Set.of(scope), Set.of(scope));
         when(tokenPolicy.resolve(any())).thenReturn(exchanged);
         when(authorization.authorize(exchanged)).thenReturn(principal);

@@ -3,7 +3,7 @@ package com.massimotter.weave.backend.chat.config;
 import com.massimotter.weave.backend.chat.port.ChatProviderPort;
 import com.massimotter.weave.backend.health.ProviderHealthContribution;
 import com.massimotter.weave.backend.health.ProviderCapabilityProbeResult;
-import com.massimotter.weave.backend.portability.ProviderReadiness;
+import com.massimotter.weave.backend.providerbinding.contract.ProviderReadiness;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.agentruntime.application;
 
+import com.massimotter.weave.backend.security.workload.domain.WorkloadReferences;
+
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCell;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementState;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadCredentialState;
@@ -136,11 +138,11 @@ final class RuntimeWorkloadReconciliationEvaluator {
                 cell.workloadBinding().clientId()))
         && Objects.equals(
             observation.organizationFingerprint(),
-            RuntimeWorkloadOwnership.fingerprint(cell.organizationRef()))
+            WorkloadReferences.fingerprint(cell.organizationRef()))
         && Objects.equals(
-            observation.personFingerprint(), RuntimeWorkloadOwnership.fingerprint(cell.personRef()))
+            observation.personFingerprint(), WorkloadReferences.fingerprint(cell.personRef()))
         && Objects.equals(
-            observation.cellFingerprint(), RuntimeWorkloadOwnership.fingerprint(cell.cellRef()));
+            observation.cellFingerprint(), WorkloadReferences.fingerprint(cell.cellRef()));
   }
 
   String authoritativeRevision(List<RuntimeCell> authoritative) {
@@ -157,7 +159,7 @@ final class RuntimeWorkloadReconciliationEvaluator {
       append(material, cell.workloadBinding().credentialRef());
       append(material, cell.runtimeProfileHash() == null ? "none" : cell.runtimeProfileHash());
     }
-    return RuntimeWorkloadOwnership.fingerprint(material.toString());
+    return WorkloadReferences.fingerprint(material.toString());
   }
 
   private void inspectCredential(

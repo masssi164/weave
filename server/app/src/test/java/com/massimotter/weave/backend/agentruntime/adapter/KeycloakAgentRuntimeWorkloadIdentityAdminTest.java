@@ -3,7 +3,6 @@ package com.massimotter.weave.backend.agentruntime.adapter;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
-
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
@@ -14,7 +13,7 @@ import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityAd
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityAdmin.ReconcileBindingCommand;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityAdmin.RetireCredentialCommand;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityAdmin.RotateBindingCommand;
-import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityException;
+import com.massimotter.weave.backend.security.workload.port.WorkloadIdentityException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityInventory.QuarantineManagedCommand;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -195,7 +194,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                 claims.withObject("realm_access").withArray("roles").removeAll();
 
         assertThatThrownBy(() -> adapter.ensureBinding(ensure()))
-                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .isInstanceOf(WorkloadIdentityException.class)
                 .hasMessageContaining(
                         "malformed workload access token [constraint=realm-role-required]")
                 .hasMessageNotContaining("realm_access");
@@ -209,7 +208,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                 .add("same-name-or-extra-role");
 
         assertThatThrownBy(() -> adapter.ensureBinding(ensure()))
-                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .isInstanceOf(WorkloadIdentityException.class)
                 .hasMessageContaining(
                         "malformed workload access token [constraint=realm-role-unexpected]")
                 .hasMessageNotContaining("same-name-or-extra-role");
@@ -224,7 +223,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                 .add("same-name-or-extra-role");
 
         assertThatThrownBy(() -> adapter.ensureBinding(ensure()))
-                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .isInstanceOf(WorkloadIdentityException.class)
                 .hasMessageContaining(
                         "malformed workload access token [constraint=client-roles]")
                 .hasMessageNotContaining("same-name-or-extra-role");
@@ -250,7 +249,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                 ORGANIZATION, PERSON, CELL, binding, "audit:disable-for-rat-rotation"));
 
         assertThatThrownBy(() -> transport.retrieve(CLIENT_ID, transport.registrationUri, initial))
-                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .isInstanceOf(WorkloadIdentityException.class)
                 .hasMessageNotContaining(new String(initial, StandardCharsets.UTF_8));
     }
 
@@ -302,7 +301,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                 new com.massimotter.weave.backend.agentruntime.port
                         .RuntimeWorkloadBindingAuthority.CurrentBindingCommand(
                         ORGANIZATION, PERSON, CELL, binding, "audit:disabled")))
-                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .isInstanceOf(WorkloadIdentityException.class)
                 .hasMessageContaining("disabled");
 
         assertThat(adapter.reconcileBinding(new ReconcileBindingCommand(
@@ -326,7 +325,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
 
         assertThatThrownBy(() -> adapter.disableBinding(new DisableBindingCommand(
                 ORGANIZATION, PERSON, CELL, binding, "audit:disable")))
-                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .isInstanceOf(WorkloadIdentityException.class)
                 .hasMessageContaining("simulated post-update verification failure");
 
         assertThat(adapter.reconcileBinding(new ReconcileBindingCommand(
@@ -350,8 +349,8 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
             }
         };
 
-        RuntimeWorkloadIdentityException failure = catchThrowableOfType(
-                RuntimeWorkloadIdentityException.class,
+        WorkloadIdentityException failure = catchThrowableOfType(
+                WorkloadIdentityException.class,
                 () -> adapter.disableBinding(new DisableBindingCommand(
                         ORGANIZATION,
                         PERSON,
@@ -387,8 +386,8 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
             }
         };
 
-        RuntimeWorkloadIdentityException failure = catchThrowableOfType(
-                RuntimeWorkloadIdentityException.class,
+        WorkloadIdentityException failure = catchThrowableOfType(
+                WorkloadIdentityException.class,
                 () -> adapter.disableBinding(new DisableBindingCommand(
                         ORGANIZATION,
                         PERSON,
@@ -446,7 +445,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
 
         assertThatThrownBy(() -> adapter.deleteBinding(new DeleteBindingCommand(
                 ORGANIZATION, PERSON, CELL, binding, "audit:delete-local-failure")))
-                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .isInstanceOf(WorkloadIdentityException.class)
                 .hasMessageNotContaining("rat-");
 
         assertThat(transport.deleted).isTrue();
@@ -479,7 +478,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
 
         assertThatThrownBy(() -> adapter.disableBinding(new DisableBindingCommand(
                 ORGANIZATION, PERSON, CELL, binding, "audit:missing-rat-rotation")))
-                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .isInstanceOf(WorkloadIdentityException.class)
                 .hasMessageContaining("did not rotate")
                 .hasMessageNotContaining("rat-");
 
@@ -496,7 +495,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                         + "openid-connect/" + CLIENT_ID);
 
         assertThatThrownBy(() -> adapter.ensureBinding(ensure()))
-                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .isInstanceOf(WorkloadIdentityException.class)
                 .hasMessageContaining("registration URI")
                 .hasMessageNotContaining("rat-");
 
@@ -519,7 +518,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                 CELL,
                 binding,
                 "audit:metadata-drift")))
-                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .isInstanceOf(WorkloadIdentityException.class)
                 .hasMessageContaining("metadata has drifted")
                 .hasMessageNotContaining("rat-");
 
@@ -533,10 +532,10 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
         RuntimeWorkloadBinding binding = adapter.ensureBinding(ensure());
         assertThatThrownBy(() -> adapter.reconcileBinding(new ReconcileBindingCommand(
                 ORGANIZATION, PERSON, "cell:other", binding, "audit:cross-cell")))
-                .isInstanceOf(RuntimeWorkloadIdentityException.class);
+                .isInstanceOf(WorkloadIdentityException.class);
         assertThatThrownBy(() -> adapter.deleteBinding(new DeleteBindingCommand(
                 ORGANIZATION, PERSON, "cell:other", binding, "audit:cross-cell-delete")))
-                .isInstanceOf(RuntimeWorkloadIdentityException.class);
+                .isInstanceOf(WorkloadIdentityException.class);
         assertThat(transport.deleted).isFalse();
     }
 
@@ -641,7 +640,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                 String administrationAccessToken,
                 RegistrationHandoffProof handoff) {
             if (metadata != null) {
-                throw new RuntimeWorkloadIdentityException("duplicate registration");
+                throw new WorkloadIdentityException("duplicate registration");
             }
             activeHandoff = copy(handoff);
             creates.incrementAndGet();
@@ -657,7 +656,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
             requireAuthority(uri, rat);
             if (failNextRetrieve) {
                 failNextRetrieve = false;
-                throw new RuntimeWorkloadIdentityException(
+                throw new WorkloadIdentityException(
                         "simulated post-update verification failure");
             }
             retrieves.incrementAndGet();
@@ -679,7 +678,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
             requireAuthority(uri, rat);
             activeHandoff = copy(handoff);
             if (!CLIENT_ID.equals(requested.path("client_id").asText())) {
-                throw new RuntimeWorkloadIdentityException(
+                throw new WorkloadIdentityException(
                         "registration update client binding rejected");
             }
             updates.incrementAndGet();
@@ -706,7 +705,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                 RegistrationHandoffProof handoff) {
             requireClient(clientId);
             if (metadata == null || activeHandoff == null) {
-                throw new RuntimeWorkloadIdentityException(
+                throw new WorkloadIdentityException(
                         "registration handoff target unavailable");
             }
             requireProof(handoff);
@@ -747,7 +746,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
             requireAuthority(uri, rat);
             if (failNextDelete) {
                 failNextDelete = false;
-                throw new RuntimeWorkloadIdentityException(
+                throw new WorkloadIdentityException(
                         "simulated registration cleanup failure");
             }
             deleted = true;
@@ -808,14 +807,14 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
             if (!registrationUri.equals(uri)
                     || currentRat == null
                     || !java.security.MessageDigest.isEqual(currentRat, rat)) {
-                throw new RuntimeWorkloadIdentityException(
+                throw new WorkloadIdentityException(
                         "registration authority rejected");
             }
         }
 
         private void requireClient(String clientId) {
             if (!CLIENT_ID.equals(clientId)) {
-                throw new RuntimeWorkloadIdentityException(
+                throw new WorkloadIdentityException(
                         "registration client binding rejected");
             }
         }
@@ -826,7 +825,7 @@ class KeycloakAgentRuntimeWorkloadIdentityAdminTest {
                     || activeHandoff.operation() != handoff.operation()
                     || !java.security.MessageDigest.isEqual(
                             activeHandoff.capability(), handoff.capability())) {
-                throw new RuntimeWorkloadIdentityException(
+                throw new WorkloadIdentityException(
                         "registration handoff rejected");
             }
         }

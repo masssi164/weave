@@ -12,6 +12,7 @@ dependencies {
     api 'org.springframework:spring-web'
     api 'org.springframework.security:spring-security-oauth2-jose'
     implementation 'tools.jackson.core:jackson-databind'
+    implementation 'org.springframework.security:spring-security-oauth2-client'
     implementation 'com.fasterxml.jackson.core:jackson-annotations'
     api libs.swagger.annotations
     implementation 'io.micrometer:micrometer-core'

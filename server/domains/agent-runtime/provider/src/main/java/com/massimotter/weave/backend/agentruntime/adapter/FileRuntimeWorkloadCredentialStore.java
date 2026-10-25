@@ -11,8 +11,8 @@ import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadCredentialState;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadCredentialState.RotationPhase;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadCredentialStore;
-import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityException;
-import com.massimotter.weave.backend.agentruntime.port.SecretRefAccess;
+import com.massimotter.weave.backend.security.workload.port.WorkloadIdentityException;
+import com.massimotter.weave.backend.security.secret.port.SecretRefAccess;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.net.URI;
@@ -153,7 +153,7 @@ public final class FileRuntimeWorkloadCredentialStore
     public RuntimeWorkloadCredentialState create(CreateCredentialCommand command) {
         Objects.requireNonNull(command, "command");
         if (command.authenticationMethod() != RuntimeWorkloadBinding.AuthenticationMethod.PRIVATE_KEY_JWT) {
-            throw new RuntimeWorkloadIdentityException(
+            throw new WorkloadIdentityException(
                     "The file-key workload adapter accepts private_key_jwt only; local shared-secret mode requires its explicit adapter");
         }
         return locked(command.clientId(), () -> {
@@ -221,7 +221,7 @@ public final class FileRuntimeWorkloadCredentialStore
                 return projection(current);
             }
             if (phase(current) != RotationPhase.PREPARED) {
-                throw new RuntimeWorkloadIdentityException("The workload credential rotation is not prepared");
+                throw new WorkloadIdentityException("The workload credential rotation is not prepared");
             }
             StoredKey pending = current.keys().stream()
                     .filter(key -> key.status() == KeyStatus.PENDING)
@@ -258,7 +258,7 @@ public final class FileRuntimeWorkloadCredentialStore
             }
             requireRotation(current, rotation);
             if (phase(current) != RotationPhase.ACTIVE_OVERLAP) {
-                throw new RuntimeWorkloadIdentityException("The workload credential overlap is not active");
+                throw new WorkloadIdentityException("The workload credential overlap is not active");
             }
             StoredKey active = current.keys().stream()
                     .filter(key -> key.status() == KeyStatus.ACTIVE)
@@ -289,7 +289,7 @@ public final class FileRuntimeWorkloadCredentialStore
             }
             requireRotation(current, rotation);
             if (phase(current) != RotationPhase.ACTIVE_OVERLAP) {
-                throw new RuntimeWorkloadIdentityException("The workload credential overlap is not active");
+                throw new WorkloadIdentityException("The workload credential overlap is not active");
             }
             StoredKey active = current.keys().stream()
                     .filter(key -> key.status() == KeyStatus.ACTIVE)
@@ -365,7 +365,7 @@ public final class FileRuntimeWorkloadCredentialStore
                     .limit(10_001)
                     .toList();
             if (clientIds.size() > 10_000) {
-                throw new RuntimeWorkloadIdentityException(
+                throw new WorkloadIdentityException(
                         "The workload registration inventory exceeds its safe bound");
             }
             List<RegistrationAuthorityEntry> entries = new ArrayList<>();
@@ -403,7 +403,7 @@ public final class FileRuntimeWorkloadCredentialStore
         locked(clientId, () -> {
             StoredCredential current = requireStored(clientId, ownerFingerprint);
             if (authority(current).isPresent()) {
-                throw new RuntimeWorkloadIdentityException(
+                throw new WorkloadIdentityException(
                         "The workload registration authority is already bound");
             }
             StoredCredential bound = withAuthority(
@@ -434,12 +434,12 @@ public final class FileRuntimeWorkloadCredentialStore
         locked(clientId, () -> {
             StoredCredential current = requireStored(clientId, ownerFingerprint);
             RegistrationAuthority authority = authority(current)
-                    .orElseThrow(() -> new RuntimeWorkloadIdentityException(
+                    .orElseThrow(() -> new WorkloadIdentityException(
                             "The workload registration authority is unavailable"));
             if (!MessageDigest.isEqual(
                     authority.tokenFingerprint().getBytes(StandardCharsets.US_ASCII),
                     expectedTokenFingerprint.getBytes(StandardCharsets.US_ASCII))) {
-                throw new RuntimeWorkloadIdentityException(
+                throw new WorkloadIdentityException(
                         "The workload registration authority changed concurrently");
             }
             StoredCredential replaced = withAuthority(
@@ -471,18 +471,18 @@ public final class FileRuntimeWorkloadCredentialStore
         return locked(clientId, () -> {
             StoredCredential current = requireStored(clientId, ownerFingerprint);
             RegistrationAuthority authority = authority(current)
-                    .orElseThrow(() -> new RuntimeWorkloadIdentityException(
+                    .orElseThrow(() -> new WorkloadIdentityException(
                             "The workload registration authority is unavailable"));
             if (!MessageDigest.isEqual(
                     authority.tokenFingerprint().getBytes(StandardCharsets.US_ASCII),
                     expectedTokenFingerprint.getBytes(StandardCharsets.US_ASCII))) {
-                throw new RuntimeWorkloadIdentityException(
+                throw new WorkloadIdentityException(
                         "The workload registration authority changed concurrently");
             }
             String rotation = fingerprint(rotationRef);
             requireRotation(current, rotation);
             if (phase(current) != RotationPhase.PREPARED) {
-                throw new RuntimeWorkloadIdentityException(
+                throw new WorkloadIdentityException(
                         "The replacement workload credential is not prepared");
             }
             StoredKey replacement = current.keys().stream()
@@ -520,7 +520,7 @@ public final class FileRuntimeWorkloadCredentialStore
         RegistrationTokenSnapshot snapshot = locked(clientId, () -> {
             StoredCredential current = requireStored(clientId, ownerFingerprint);
             RegistrationAuthority authority = authority(current)
-                    .orElseThrow(() -> new RuntimeWorkloadIdentityException(
+                    .orElseThrow(() -> new WorkloadIdentityException(
                             "The workload registration authority is unavailable"));
             return new RegistrationTokenSnapshot(
                     authority,
@@ -550,7 +550,7 @@ public final class FileRuntimeWorkloadCredentialStore
             try (FileChannel channel = openOwnerLockFile(lockPath);
                     FileLock ignored = channel.lock()) {
                 return operation.call();
-            } catch (RuntimeWorkloadIdentityException failure) {
+            } catch (WorkloadIdentityException failure) {
                 throw failure;
             } catch (Exception failure) {
                 throw unavailable(
@@ -582,16 +582,16 @@ public final class FileRuntimeWorkloadCredentialStore
             Optional<RegistrationAuthority> authority = authority(credential);
             if (operation == RegistrationHandoffOperation.CREATE) {
                 if (authority.isPresent() || currentAuthorityFingerprint != null) {
-                    throw new RuntimeWorkloadIdentityException(
+                    throw new WorkloadIdentityException(
                             "The workload registration create handoff has an existing authority");
                 }
             } else {
                 RegistrationAuthority current = authority.orElseThrow(() ->
-                        new RuntimeWorkloadIdentityException(
+                        new WorkloadIdentityException(
                                 "The workload registration authority is unavailable"));
                 if (!constantTimeEquals(
                         current.tokenFingerprint(), currentAuthorityFingerprint)) {
-                    throw new RuntimeWorkloadIdentityException(
+                    throw new WorkloadIdentityException(
                             "The workload registration authority changed concurrently");
                 }
             }
@@ -608,7 +608,7 @@ public final class FileRuntimeWorkloadCredentialStore
                                 observed.currentAuthorityFingerprint(),
                                 currentAuthorityFingerprint)
                         || observed.targetEnabled() != targetEnabled) {
-                    throw new RuntimeWorkloadIdentityException(
+                    throw new WorkloadIdentityException(
                             "A different workload registration handoff is already pending");
                 }
                 return handoff(observed);
@@ -655,19 +655,19 @@ public final class FileRuntimeWorkloadCredentialStore
         Objects.requireNonNull(replacementRegistrationAccessToken, "replacementRegistrationAccessToken");
         return locked(clientId, () -> {
             StoredRegistrationHandoff current = readRegistrationHandoff(clientId)
-                    .orElseThrow(() -> new RuntimeWorkloadIdentityException(
+                    .orElseThrow(() -> new WorkloadIdentityException(
                             "The workload registration handoff is unavailable"));
             requireOwner(current, ownerFingerprint);
             requireCapability(current, expectedCapabilityFingerprint);
             if (!current.intendedStateDigest().equals(observedStateDigest)) {
-                throw new RuntimeWorkloadIdentityException(
+                throw new WorkloadIdentityException(
                         "The workload registration handoff state does not match");
             }
             if (current.expectedSubjectDigest() != null
                     && observedSubjectDigest != null
                     && !constantTimeEquals(
                             current.expectedSubjectDigest(), observedSubjectDigest)) {
-                throw new RuntimeWorkloadIdentityException(
+                throw new WorkloadIdentityException(
                         "The workload registration subject changed");
             }
             String replacement =
@@ -676,7 +676,7 @@ public final class FileRuntimeWorkloadCredentialStore
                     && !constantTimeEquals(
                             fingerprint(current.replacementRegistrationAccessToken()),
                             fingerprint(replacement))) {
-                throw new RuntimeWorkloadIdentityException(
+                throw new WorkloadIdentityException(
                         "The workload registration handoff changed concurrently");
             }
             StoredRegistrationHandoff staged = new StoredRegistrationHandoff(
@@ -715,24 +715,24 @@ public final class FileRuntimeWorkloadCredentialStore
         Objects.requireNonNull(observedSubjectDigest, "observedSubjectDigest");
         return locked(clientId, () -> {
             StoredRegistrationHandoff current = readRegistrationHandoff(clientId)
-                    .orElseThrow(() -> new RuntimeWorkloadIdentityException(
+                    .orElseThrow(() -> new WorkloadIdentityException(
                             "The workload registration handoff is unavailable"));
             requireOwner(current, ownerFingerprint);
             requireCapability(current, expectedCapabilityFingerprint);
             if (current.phase() != RegistrationHandoffPhase.STAGED) {
-                throw new RuntimeWorkloadIdentityException(
+                throw new WorkloadIdentityException(
                         "The workload registration handoff has no staged authority");
             }
             if (current.expectedSubjectDigest() != null
                     && !constantTimeEquals(
                             current.expectedSubjectDigest(), observedSubjectDigest)) {
-                throw new RuntimeWorkloadIdentityException(
+                throw new WorkloadIdentityException(
                         "The workload registration subject changed");
             }
             if (current.observedSubjectDigest() != null
                     && !constantTimeEquals(
                             current.observedSubjectDigest(), observedSubjectDigest)) {
-                throw new RuntimeWorkloadIdentityException(
+                throw new WorkloadIdentityException(
                         "The workload registration recovery subject changed");
             }
             StoredRegistrationHandoff bound = new StoredRegistrationHandoff(
@@ -787,7 +787,7 @@ public final class FileRuntimeWorkloadCredentialStore
                     .limit(10_001)
                     .toList();
             if (clientIds.size() > 10_000) {
-                throw new RuntimeWorkloadIdentityException(
+                throw new WorkloadIdentityException(
                         "The workload registration handoff inventory exceeds its safe bound");
             }
             List<RegistrationHandoffEntry> entries = new ArrayList<>();
@@ -814,7 +814,7 @@ public final class FileRuntimeWorkloadCredentialStore
         Objects.requireNonNull(operation, "operation");
         RegistrationHandoffSecretSnapshot snapshot = locked(clientId, () -> {
             StoredRegistrationHandoff stored = readRegistrationHandoff(clientId)
-                    .orElseThrow(() -> new RuntimeWorkloadIdentityException(
+                    .orElseThrow(() -> new WorkloadIdentityException(
                             "The workload registration handoff is unavailable"));
             requireOwner(stored, ownerFingerprint);
             return new RegistrationHandoffSecretSnapshot(
@@ -841,7 +841,7 @@ public final class FileRuntimeWorkloadCredentialStore
             String clientId, String ownerFingerprint) {
         return locked(clientId, () -> {
             StoredRegistrationHandoff pending = readRegistrationHandoff(clientId)
-                    .orElseThrow(() -> new RuntimeWorkloadIdentityException(
+                    .orElseThrow(() -> new WorkloadIdentityException(
                             "The workload registration handoff is unavailable"));
             requireOwner(pending, ownerFingerprint);
             if (pending.phase() != RegistrationHandoffPhase.STAGED) {
@@ -869,7 +869,7 @@ public final class FileRuntimeWorkloadCredentialStore
             String expectedCapabilityFingerprint) {
         locked(clientId, () -> {
             StoredRegistrationHandoff current = readRegistrationHandoff(clientId)
-                    .orElseThrow(() -> new RuntimeWorkloadIdentityException(
+                    .orElseThrow(() -> new WorkloadIdentityException(
                             "The workload registration handoff is unavailable"));
             requireOwner(current, ownerFingerprint);
             requireCapability(current, expectedCapabilityFingerprint);
@@ -921,7 +921,7 @@ public final class FileRuntimeWorkloadCredentialStore
         return locked(clientId, () -> {
             StoredCredential credential = requireStored(clientId, ownerFingerprint);
             RegistrationAuthority authority = authority(credential)
-                    .orElseThrow(() -> new RuntimeWorkloadIdentityException(
+                    .orElseThrow(() -> new WorkloadIdentityException(
                             "The workload registration authority is unavailable"));
             StoredRegistrationDeletionIntent prepared =
                     new StoredRegistrationDeletionIntent(
@@ -942,7 +942,7 @@ public final class FileRuntimeWorkloadCredentialStore
                                 || !constantTimeEquals(
                                         observed.authorityFingerprint(),
                                         prepared.authorityFingerprint()))) {
-                    throw new RuntimeWorkloadIdentityException(
+                    throw new WorkloadIdentityException(
                             "A different workload registration deletion is already pending");
                 }
                 return deletionIntent(observed);
@@ -975,7 +975,7 @@ public final class FileRuntimeWorkloadCredentialStore
             if (!constantTimeEquals(
                     current.orElseThrow().authorityFingerprint(),
                     expectedAuthorityFingerprint)) {
-                throw new RuntimeWorkloadIdentityException(
+                throw new WorkloadIdentityException(
                         "The workload registration deletion changed concurrently");
             }
             deleteRegistrationDeletionIntent(clientId);
@@ -1015,7 +1015,7 @@ public final class FileRuntimeWorkloadCredentialStore
             StoredKey selected = current.keys().stream()
                     .filter(key -> key.keyId().equals(keyId))
                     .findFirst()
-                    .orElseThrow(() -> new RuntimeWorkloadIdentityException(
+                    .orElseThrow(() -> new WorkloadIdentityException(
                             "The workload credential key is unavailable"));
             byte[] encoded = mapper.writeValueAsBytes(selected.privateJwk());
             try {
@@ -1028,7 +1028,7 @@ public final class FileRuntimeWorkloadCredentialStore
 
     private StoredCredential requireStored(String clientId, String ownerFingerprint) {
         StoredCredential current = read(clientId)
-                .orElseThrow(() -> new RuntimeWorkloadIdentityException("The workload credential reference is unavailable"));
+                .orElseThrow(() -> new WorkloadIdentityException("The workload credential reference is unavailable"));
         requireOwner(current, ownerFingerprint);
         return current;
     }
@@ -1173,7 +1173,7 @@ public final class FileRuntimeWorkloadCredentialStore
             requireSecureRegularFile(path);
             long size = Files.size(path);
             if (size < 1 || size > MAX_SECRET_BYTES) {
-                throw new RuntimeWorkloadIdentityException("The SecretRef payload size is invalid");
+                throw new WorkloadIdentityException("The SecretRef payload size is invalid");
             }
             return Files.readAllBytes(path);
         } catch (IOException exception) {
@@ -1367,7 +1367,7 @@ public final class FileRuntimeWorkloadCredentialStore
                 || stored.keys().isEmpty()
                 || stored.keys().size() > 2
                 || stored.activeKeyId() == null) {
-            throw new RuntimeWorkloadIdentityException("The workload credential envelope is inconsistent");
+            throw new WorkloadIdentityException("The workload credential envelope is inconsistent");
         }
         boolean authorityAbsent = stored.registrationUri() == null
                 && stored.registrationAccessToken() == null
@@ -1387,7 +1387,7 @@ public final class FileRuntimeWorkloadCredentialStore
                 && validFingerprint(stored.personFingerprint())
                 && validFingerprint(stored.cellFingerprint());
         if (!authorityAbsent && !authorityPresent) {
-            throw new RuntimeWorkloadIdentityException(
+            throw new WorkloadIdentityException(
                     "The workload registration authority is inconsistent");
         }
         long active = stored.keys().stream().filter(key -> key.status() == KeyStatus.ACTIVE).count();
@@ -1398,22 +1398,22 @@ public final class FileRuntimeWorkloadCredentialStore
                 || (stored.keys().size() == 1 && (pending != 0 || previous != 0 || stored.rotationFingerprint() != null))
                 || (stored.keys().size() == 2
                     && (stored.rotationFingerprint() == null || pending + previous != 1))) {
-            throw new RuntimeWorkloadIdentityException("The workload credential rotation state is inconsistent");
+            throw new WorkloadIdentityException("The workload credential rotation state is inconsistent");
         }
         Set<String> ids = new LinkedHashSet<>();
         for (StoredKey key : stored.keys()) {
             validateKey(key);
             if (!ids.add(key.keyId())) {
-                throw new RuntimeWorkloadIdentityException("The workload credential contains duplicate key ids");
+                throw new WorkloadIdentityException("The workload credential contains duplicate key ids");
             }
         }
         if (stored.rotationFingerprint() != null
                 && !stored.rotationFingerprint().matches("sha256:[a-f0-9]{64}")) {
-            throw new RuntimeWorkloadIdentityException("The workload credential rotation fingerprint is invalid");
+            throw new WorkloadIdentityException("The workload credential rotation fingerprint is invalid");
         }
         if (stored.lastCompletedRotationFingerprint() != null
                 && !stored.lastCompletedRotationFingerprint().matches("sha256:[a-f0-9]{64}")) {
-            throw new RuntimeWorkloadIdentityException("The completed rotation fingerprint is invalid");
+            throw new WorkloadIdentityException("The completed rotation fingerprint is invalid");
         }
     }
 
@@ -1450,14 +1450,14 @@ public final class FileRuntimeWorkloadCredentialStore
                 || stored.attemptCount() < 0
                 || stored.attemptCount() > 100_000
                 || stored.createdAt() == null) {
-            throw new RuntimeWorkloadIdentityException(
+            throw new WorkloadIdentityException(
                     "The workload registration handoff is inconsistent");
         }
         byte[] capability;
         try {
             capability = Base64.getUrlDecoder().decode(stored.handoffCapability());
         } catch (IllegalArgumentException failure) {
-            throw new RuntimeWorkloadIdentityException(
+            throw new WorkloadIdentityException(
                     "The workload registration handoff capability is invalid", failure);
         }
         try {
@@ -1474,7 +1474,7 @@ public final class FileRuntimeWorkloadCredentialStore
                             && stored.currentAuthorityFingerprint() != null
                     || stored.operation() != RegistrationHandoffOperation.CREATE
                             && stored.currentAuthorityFingerprint() == null) {
-                throw new RuntimeWorkloadIdentityException(
+                throw new WorkloadIdentityException(
                         "The workload registration handoff state is inconsistent");
             }
         } finally {
@@ -1483,7 +1483,7 @@ public final class FileRuntimeWorkloadCredentialStore
         try {
             Instant.parse(stored.createdAt());
         } catch (RuntimeException failure) {
-            throw new RuntimeWorkloadIdentityException(
+            throw new WorkloadIdentityException(
                     "The workload registration handoff timestamp is invalid", failure);
         }
     }
@@ -1497,13 +1497,13 @@ public final class FileRuntimeWorkloadCredentialStore
                 || !validRegistrationUri(stored.registrationUri(), stored.clientId())
                 || !validFingerprint(stored.authorityFingerprint())
                 || stored.createdAt() == null) {
-            throw new RuntimeWorkloadIdentityException(
+            throw new WorkloadIdentityException(
                     "The workload registration deletion intent is inconsistent");
         }
         try {
             Instant.parse(stored.createdAt());
         } catch (RuntimeException failure) {
-            throw new RuntimeWorkloadIdentityException(
+            throw new WorkloadIdentityException(
                     "The workload registration deletion timestamp is invalid", failure);
         }
     }
@@ -1548,7 +1548,7 @@ public final class FileRuntimeWorkloadCredentialStore
                 || !"sig".equals(key.privateJwk().get("use"))
                 || !ALGORITHM.equals(key.privateJwk().get("alg"))
                 || !key.keyId().equals(key.privateJwk().get("kid"))) {
-            throw new RuntimeWorkloadIdentityException("The workload private JWK is invalid");
+            throw new WorkloadIdentityException("The workload private JWK is invalid");
         }
         try {
             Instant.parse(key.createdAt());
@@ -1561,10 +1561,10 @@ public final class FileRuntimeWorkloadCredentialStore
                     n, e, integer(jwk, "d"), integer(jwk, "p"), integer(jwk, "q"),
                     integer(jwk, "dp"), integer(jwk, "dq"), integer(jwk, "qi")));
             if (!key.keyId().equals(keyId(publicKey))) {
-                throw new RuntimeWorkloadIdentityException("The workload private JWK fingerprint is invalid");
+                throw new WorkloadIdentityException("The workload private JWK fingerprint is invalid");
             }
         } catch (GeneralSecurityException | RuntimeException exception) {
-            if (exception instanceof RuntimeWorkloadIdentityException identityException) {
+            if (exception instanceof WorkloadIdentityException identityException) {
                 throw identityException;
             }
             throw unavailable("The workload private JWK is invalid", exception);
@@ -1630,20 +1630,20 @@ public final class FileRuntimeWorkloadCredentialStore
 
     private static void requireRotation(StoredCredential stored, String rotation) {
         if (!rotation.equals(stored.rotationFingerprint())) {
-            throw new RuntimeWorkloadIdentityException("A different workload credential rotation is already in progress");
+            throw new WorkloadIdentityException("A different workload credential rotation is already in progress");
         }
     }
 
     private static void requireOwner(StoredCredential stored, String ownerFingerprint) {
         if (!stored.ownerFingerprint().equals(ownerFingerprint)) {
-            throw new RuntimeWorkloadIdentityException("The workload credential belongs to another immutable cell binding");
+            throw new WorkloadIdentityException("The workload credential belongs to another immutable cell binding");
         }
     }
 
     private static void requireOwner(
             StoredRegistrationHandoff stored, String ownerFingerprint) {
         if (!stored.ownerFingerprint().equals(ownerFingerprint)) {
-            throw new RuntimeWorkloadIdentityException(
+            throw new WorkloadIdentityException(
                     "The workload registration handoff belongs to another immutable cell binding");
         }
     }
@@ -1651,7 +1651,7 @@ public final class FileRuntimeWorkloadCredentialStore
     private static void requireOwner(
             StoredRegistrationDeletionIntent stored, String ownerFingerprint) {
         if (!stored.ownerFingerprint().equals(ownerFingerprint)) {
-            throw new RuntimeWorkloadIdentityException(
+            throw new WorkloadIdentityException(
                     "The workload registration deletion belongs to another immutable cell binding");
         }
     }
@@ -1662,7 +1662,7 @@ public final class FileRuntimeWorkloadCredentialStore
         try {
             if (!constantTimeEquals(
                     fingerprint(capability), expectedCapabilityFingerprint)) {
-                throw new RuntimeWorkloadIdentityException(
+                throw new WorkloadIdentityException(
                         "The workload registration handoff changed concurrently");
             }
         } finally {
@@ -1682,7 +1682,7 @@ public final class FileRuntimeWorkloadCredentialStore
             StoredCredential stored,
             RuntimeWorkloadBinding.AuthenticationMethod authenticationMethod) {
         if (!stored.authenticationMethod().equals(authenticationMethod.name())) {
-            throw new RuntimeWorkloadIdentityException("The workload credential authentication method cannot be rebound");
+            throw new WorkloadIdentityException("The workload credential authentication method cannot be rebound");
         }
     }
 
@@ -1696,7 +1696,7 @@ public final class FileRuntimeWorkloadCredentialStore
             try (FileChannel channel = openOwnerLockFile(lockPath);
                     FileLock ignored = channel.lock()) {
                 return operation.call();
-            } catch (RuntimeWorkloadIdentityException exception) {
+            } catch (WorkloadIdentityException exception) {
                 throw exception;
             } catch (Exception exception) {
                 throw unavailable("The workload credential lock is unavailable", exception);
@@ -1726,7 +1726,7 @@ public final class FileRuntimeWorkloadCredentialStore
                 .toAbsolutePath()
                 .normalize();
         if (!directory.startsWith(root)) {
-            throw new RuntimeWorkloadIdentityException(
+            throw new WorkloadIdentityException(
                     "The workload registration handoff path escaped its SecretRef root");
         }
         requireNoSymlinkAncestors(directory);
@@ -1737,7 +1737,7 @@ public final class FileRuntimeWorkloadCredentialStore
         requireClientId(clientId);
         Path path = handoffDirectory().resolve(clientId).toAbsolutePath().normalize();
         if (!path.startsWith(handoffDirectory())) {
-            throw new RuntimeWorkloadIdentityException(
+            throw new WorkloadIdentityException(
                     "The workload registration handoff path escaped its SecretRef root");
         }
         requireNoSymlinkAncestors(path.getParent());
@@ -1750,13 +1750,13 @@ public final class FileRuntimeWorkloadCredentialStore
                 .toAbsolutePath()
                 .normalize();
         if (!directory.startsWith(root)) {
-            throw new RuntimeWorkloadIdentityException(
+            throw new WorkloadIdentityException(
                     "The workload registration lifecycle lock path escaped its SecretRef root");
         }
         requireNoSymlinkAncestors(directory);
         Path path = directory.resolve(clientId + ".lock").toAbsolutePath().normalize();
         if (!path.startsWith(directory)) {
-            throw new RuntimeWorkloadIdentityException(
+            throw new WorkloadIdentityException(
                     "The workload registration lifecycle lock path escaped its SecretRef root");
         }
         return path;
@@ -1768,13 +1768,13 @@ public final class FileRuntimeWorkloadCredentialStore
                 .toAbsolutePath()
                 .normalize();
         if (!directory.startsWith(root)) {
-            throw new RuntimeWorkloadIdentityException(
+            throw new WorkloadIdentityException(
                     "The workload registration deletion path escaped its SecretRef root");
         }
         requireNoSymlinkAncestors(directory);
         Path path = directory.resolve(clientId).toAbsolutePath().normalize();
         if (!path.startsWith(directory)) {
-            throw new RuntimeWorkloadIdentityException(
+            throw new WorkloadIdentityException(
                     "The workload registration deletion path escaped its SecretRef root");
         }
         return path;
@@ -1811,27 +1811,27 @@ public final class FileRuntimeWorkloadCredentialStore
             requireNoSymlinkAncestors(path.getParent());
             return path;
         } catch (IllegalArgumentException exception) {
-            throw new RuntimeWorkloadIdentityException("The SecretRef is invalid", exception);
+            throw new WorkloadIdentityException("The SecretRef is invalid", exception);
         }
     }
 
     private void requireNoSymlinkAncestors(Path candidate) {
         Path current = root;
         if (Files.exists(current, LinkOption.NOFOLLOW_LINKS) && Files.isSymbolicLink(current)) {
-            throw new RuntimeWorkloadIdentityException("The SecretRef root must not be a symbolic link");
+            throw new WorkloadIdentityException("The SecretRef root must not be a symbolic link");
         }
         Path relative = root.relativize(candidate.toAbsolutePath().normalize());
         for (Path segment : relative) {
             current = current.resolve(segment);
             if (Files.exists(current, LinkOption.NOFOLLOW_LINKS) && Files.isSymbolicLink(current)) {
-                throw new RuntimeWorkloadIdentityException("A SecretRef path must not traverse symbolic links");
+                throw new WorkloadIdentityException("A SecretRef path must not traverse symbolic links");
             }
         }
     }
 
     private static void requireSecureRegularFile(Path path) throws IOException {
         if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(path)) {
-            throw new RuntimeWorkloadIdentityException("The SecretRef target must be a regular non-symlink file");
+            throw new WorkloadIdentityException("The SecretRef target must be a regular non-symlink file");
         }
         try {
             Set<PosixFilePermission> permissions = Files.getPosixFilePermissions(path, LinkOption.NOFOLLOW_LINKS);
@@ -1843,7 +1843,7 @@ public final class FileRuntimeWorkloadCredentialStore
                     PosixFilePermission.OTHERS_WRITE,
                     PosixFilePermission.OTHERS_EXECUTE);
             if (permissions.stream().anyMatch(forbidden::contains)) {
-                throw new RuntimeWorkloadIdentityException("The SecretRef target permissions are too broad");
+                throw new WorkloadIdentityException("The SecretRef target permissions are too broad");
             }
         } catch (UnsupportedOperationException ignored) {
             // Non-POSIX filesystems rely on their platform ACLs; symlink and regular-file checks still apply.
@@ -1853,7 +1853,7 @@ public final class FileRuntimeWorkloadCredentialStore
     private static void ensureDirectory(Path directory) {
         try {
             if (Files.exists(directory, LinkOption.NOFOLLOW_LINKS) && Files.isSymbolicLink(directory)) {
-                throw new RuntimeWorkloadIdentityException("SecretRef directories must not be symbolic links");
+                throw new WorkloadIdentityException("SecretRef directories must not be symbolic links");
             }
             try {
                 Files.createDirectories(directory,
@@ -1881,7 +1881,7 @@ public final class FileRuntimeWorkloadCredentialStore
         if (Files.exists(lockPath, LinkOption.NOFOLLOW_LINKS)
                 && (!Files.isRegularFile(lockPath, LinkOption.NOFOLLOW_LINKS)
                         || Files.isSymbolicLink(lockPath))) {
-            throw new RuntimeWorkloadIdentityException(
+            throw new WorkloadIdentityException(
                     "The SecretRef lock must be a regular non-symlink file");
         }
         Set<java.nio.file.OpenOption> options = Set.of(
@@ -1929,8 +1929,8 @@ public final class FileRuntimeWorkloadCredentialStore
         }
     }
 
-    private static RuntimeWorkloadIdentityException unavailable(String message, Throwable cause) {
-        return new RuntimeWorkloadIdentityException(message, cause);
+    private static WorkloadIdentityException unavailable(String message, Throwable cause) {
+        return new WorkloadIdentityException(message, cause);
     }
 
     private record StoredCredential(

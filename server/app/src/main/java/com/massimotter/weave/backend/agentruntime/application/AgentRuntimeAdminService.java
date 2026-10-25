@@ -1,12 +1,13 @@
 package com.massimotter.weave.backend.agentruntime.application;
 
+import com.massimotter.weave.backend.security.workload.domain.WorkloadReferences;
+
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCell;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCellState;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCommandReceipt;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementState;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeProvisioningPlan;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadBinding;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadOwnership;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCellRepository;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCommandConflictException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCommandRepository;
@@ -331,18 +332,18 @@ public final class AgentRuntimeAdminService {
 
     private static String semanticCommand(String operation, String reason) {
         requireReason(reason);
-        return operation + ":" + RuntimeWorkloadOwnership.fingerprint(reason).substring(7, 39);
+        return operation + ":" + WorkloadReferences.fingerprint(reason).substring(7, 39);
     }
 
     private static String reasonAuditRef(String operation, String reason, String requestAuditRef) {
         requireReason(reason);
-        return "audit:arc-" + operation + ":" + RuntimeWorkloadOwnership.fingerprint(
+        return "audit:arc-" + operation + ":" + WorkloadReferences.fingerprint(
                 requestAuditRef + "\u0000" + reason).substring(7);
     }
 
     private static String reasonRefHash(String organizationRef, String personRef, String reason) {
         requireReason(reason);
-        return RuntimeWorkloadOwnership.fingerprint(
+        return WorkloadReferences.fingerprint(
                 "weave.agent-runtime.admin-reason/v1\u0000" + organizationRef + "\u0000"
                         + personRef + "\u0000" + reason);
     }

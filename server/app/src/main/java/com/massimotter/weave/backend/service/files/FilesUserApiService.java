@@ -4,10 +4,10 @@ import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.AuditEvent;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditRedactionLevel;
-import com.massimotter.weave.backend.agentruntime.adapter.McpExchangedTokenPolicy;
-import com.massimotter.weave.backend.agentruntime.application.McpWorkloadAuthorizationService;
-import com.massimotter.weave.backend.agentruntime.domain.WeaverWorkloadPrincipal;
-import com.massimotter.weave.backend.agentruntime.port.McpWorkloadAuthorizationException;
+import com.massimotter.weave.backend.security.workload.jwt.McpExchangedTokenPolicy;
+import com.massimotter.weave.backend.security.workload.port.McpWorkloadAuthorization;
+import com.massimotter.weave.backend.security.workload.domain.WeaverWorkloadPrincipal;
+import com.massimotter.weave.backend.security.workload.port.McpWorkloadAuthorizationException;
 import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationRequest;
@@ -74,7 +74,7 @@ public class FilesUserApiService {
     private final FilesMutationIntentService intents;
     private final TransactionTemplate transactions;
     private final AuditEventPublisher auditEvents;
-    private final McpWorkloadAuthorizationService mcpWorkloads;
+    private final McpWorkloadAuthorization mcpWorkloads;
     private final McpExchangedTokenPolicy mcpTokens;
 
     @Autowired
@@ -89,7 +89,7 @@ public class FilesUserApiService {
             FilesMutationIntentService intents,
             TransactionTemplate transactions,
             AuditEventPublisher auditEvents,
-            ObjectProvider<McpWorkloadAuthorizationService> mcpWorkloads,
+            ObjectProvider<McpWorkloadAuthorization> mcpWorkloads,
             ObjectProvider<McpExchangedTokenPolicy> mcpTokens,
             SpaceAccessPort spaces) {
         this.identities = identities;
@@ -119,7 +119,7 @@ public class FilesUserApiService {
             FilesMutationIntentService intents,
             TransactionTemplate transactions,
             AuditEventPublisher auditEvents,
-            ObjectProvider<McpWorkloadAuthorizationService> mcpWorkloads,
+            ObjectProvider<McpWorkloadAuthorization> mcpWorkloads,
             ObjectProvider<McpExchangedTokenPolicy> mcpTokens) {
         this(identities, contextProperties, contextAuthorization, capabilities, bindings, providers,
                 resources, intents, transactions, auditEvents, mcpWorkloads, mcpTokens, null);

@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.service;
 
 import com.massimotter.weave.backend.config.MatrixChatProperties;
-import com.massimotter.weave.backend.config.PlatformContractProperties;
+import com.massimotter.weave.backend.discovery.config.PlatformContractProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.api.error.ApiErrorException;

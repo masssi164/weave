@@ -3,7 +3,7 @@ package com.massimotter.weave.backend.agentruntime.adapter;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCell;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCellState;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementState;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
+import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadBinding;
 import java.time.Instant;
 import java.util.UUID;
@@ -37,7 +37,7 @@ interface RuntimeCellPersistenceMapper {
 
   @Mapping(
       target = "memberBinding",
-      expression = "java(new RuntimeMemberBinding(row.memberIssuer(), row.memberSubject()))")
+      expression = "java(new MemberIdentityBinding(row.memberIssuer(), row.memberSubject()))")
   @Mapping(
       target = "workloadBinding",
       expression =

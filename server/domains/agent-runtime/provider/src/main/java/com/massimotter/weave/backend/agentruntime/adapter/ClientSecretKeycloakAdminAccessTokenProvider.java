@@ -1,9 +1,11 @@
 package com.massimotter.weave.backend.agentruntime.adapter;
 
+import com.massimotter.weave.backend.security.keycloak.port.KeycloakAdminAccessTokenProvider;
+
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
-import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityException;
-import com.massimotter.weave.backend.agentruntime.port.SecretRefAccess;
+import com.massimotter.weave.backend.security.workload.port.WorkloadIdentityException;
+import com.massimotter.weave.backend.security.secret.port.SecretRefAccess;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -92,7 +94,7 @@ public final class ClientSecretKeycloakAdminAccessTokenProvider implements Keycl
             HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
             body = response.body();
             if (response.statusCode() != 200) {
-                throw new RuntimeWorkloadIdentityException(
+                throw new WorkloadIdentityException(
                         "Keycloak workload administration authentication failed with sanitized status "
                                 + response.statusCode());
             }
@@ -100,17 +102,17 @@ public final class ClientSecretKeycloakAdminAccessTokenProvider implements Keycl
             String value = token.path("access_token").asText("");
             long lifetime = token.path("expires_in").asLong(0);
             if (value.isBlank() || lifetime < 1 || lifetime > 86_400) {
-                throw new RuntimeWorkloadIdentityException(
+                throw new WorkloadIdentityException(
                         "Keycloak returned an invalid workload administration token response");
             }
             long refreshIn = Math.max(1, lifetime - Math.min(15, Math.max(1, lifetime / 4)));
             return new CachedToken(value, now.plusSeconds(refreshIn));
         } catch (IOException exception) {
-            throw new RuntimeWorkloadIdentityException(
+            throw new WorkloadIdentityException(
                     "Keycloak workload administration authentication is unavailable", exception);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            throw new RuntimeWorkloadIdentityException(
+            throw new WorkloadIdentityException(
                     "Keycloak workload administration authentication was interrupted", exception);
         } finally {
             if (body != null) {
@@ -129,7 +131,7 @@ public final class ClientSecretKeycloakAdminAccessTokenProvider implements Keycl
             end--;
         }
         if (start == end) {
-            throw new RuntimeWorkloadIdentityException("The Keycloak administration SecretRef is empty");
+            throw new WorkloadIdentityException("The Keycloak administration SecretRef is empty");
         }
         return Arrays.copyOfRange(value, start, end);
     }

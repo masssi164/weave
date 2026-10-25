@@ -3,7 +3,7 @@ package com.massimotter.weave.backend.service;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContext;
 import com.massimotter.weave.backend.health.ProviderCapabilityHealthService;
-import com.massimotter.weave.backend.config.AgentRuntimeEntitlementProperties;
+import com.massimotter.weave.backend.security.workload.config.WorkloadEntitlementProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
@@ -69,7 +69,7 @@ public class WorkspaceCapabilityService {
     private final OAuth2ResourceServerProperties resourceServerProperties;
     private final WeaveSecurityProperties weaveSecurityProperties;
     private final WorkspaceCapabilityProperties workspaceCapabilityProperties;
-    private final AgentRuntimeEntitlementProperties runtimeEntitlementProperties;
+    private final WorkloadEntitlementProperties runtimeEntitlementProperties;
     private final ProviderCapabilityHealthService providerHealthService;
     private final OrganizationIdentityContextResolver identityContexts;
 
@@ -81,7 +81,7 @@ public class WorkspaceCapabilityService {
                 resourceServerProperties,
                 weaveSecurityProperties,
                 workspaceCapabilityProperties,
-                AgentRuntimeEntitlementProperties.disabled(),
+                WorkloadEntitlementProperties.disabled(),
                 (ProviderCapabilityHealthService) null,
                 OrganizationIdentityContextResolver.defaults());
     }
@@ -91,7 +91,7 @@ public class WorkspaceCapabilityService {
             OAuth2ResourceServerProperties resourceServerProperties,
             WeaveSecurityProperties weaveSecurityProperties,
             WorkspaceCapabilityProperties workspaceCapabilityProperties,
-            AgentRuntimeEntitlementProperties runtimeEntitlementProperties,
+            WorkloadEntitlementProperties runtimeEntitlementProperties,
             ObjectProvider<ProviderCapabilityHealthService> providerHealthServiceProvider,
             OrganizationIdentityContextResolver identityContexts) {
         this(
@@ -109,7 +109,7 @@ public class WorkspaceCapabilityService {
             OAuth2ResourceServerProperties resourceServerProperties,
             WeaveSecurityProperties weaveSecurityProperties,
             WorkspaceCapabilityProperties workspaceCapabilityProperties,
-            AgentRuntimeEntitlementProperties runtimeEntitlementProperties) {
+            WorkloadEntitlementProperties runtimeEntitlementProperties) {
         this(
                 resourceServerProperties,
                 weaveSecurityProperties,
@@ -123,7 +123,7 @@ public class WorkspaceCapabilityService {
             OAuth2ResourceServerProperties resourceServerProperties,
             WeaveSecurityProperties weaveSecurityProperties,
             WorkspaceCapabilityProperties workspaceCapabilityProperties,
-            AgentRuntimeEntitlementProperties runtimeEntitlementProperties,
+            WorkloadEntitlementProperties runtimeEntitlementProperties,
             ProviderCapabilityHealthService providerHealthService) {
         this(
                 resourceServerProperties,
@@ -138,7 +138,7 @@ public class WorkspaceCapabilityService {
             OAuth2ResourceServerProperties resourceServerProperties,
             WeaveSecurityProperties weaveSecurityProperties,
             WorkspaceCapabilityProperties workspaceCapabilityProperties,
-            AgentRuntimeEntitlementProperties runtimeEntitlementProperties,
+            WorkloadEntitlementProperties runtimeEntitlementProperties,
             ProviderCapabilityHealthService providerHealthService,
             OrganizationIdentityContextResolver identityContexts) {
         this.resourceServerProperties = resourceServerProperties;
@@ -158,7 +158,7 @@ public class WorkspaceCapabilityService {
                 resourceServerProperties,
                 weaveSecurityProperties,
                 workspaceCapabilityProperties,
-                AgentRuntimeEntitlementProperties.disabled(),
+                WorkloadEntitlementProperties.disabled(),
                 providerHealthService);
     }
 

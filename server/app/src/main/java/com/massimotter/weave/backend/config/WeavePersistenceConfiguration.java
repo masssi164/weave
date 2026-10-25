@@ -1,14 +1,12 @@
 package com.massimotter.weave.backend.config;
 
 import tools.jackson.databind.ObjectMapper;
-import com.massimotter.weave.backend.audit.JpaAuditEventPublisher;
 import com.massimotter.weave.backend.files.adapter.JpaFilesAuthorityRepository;
 import com.massimotter.weave.backend.files.application.FilesLockService;
 import com.massimotter.weave.backend.files.application.FilesMutationIntentService;
 import com.massimotter.weave.backend.identity.invitation.JpaProvisioningIntentRepository;
 import com.massimotter.weave.backend.operation.adapter.JpaOperationIntentRepository;
 import com.massimotter.weave.backend.operation.application.OperationIntentService;
-import com.massimotter.weave.backend.audit.persistence.AuditEventJpaRepository;
 import com.massimotter.weave.backend.identity.persistence.ProvisioningIntentJpaRepository;
 import com.massimotter.weave.backend.portability.persistence.MigrationRunEvidenceJpaRepository;
 import com.massimotter.weave.backend.identity.profile.persistence.ProductProfileOverrideJpaRepository;
@@ -69,12 +67,6 @@ public class WeavePersistenceConfiguration {
   JpaProductProfileOverrideRepository jpaProductProfileOverrideRepository(
       ProductProfileOverrideJpaRepository repository, ObjectMapper objectMapper) {
     return new JpaProductProfileOverrideRepository(repository, objectMapper);
-  }
-
-  @Bean
-  JpaAuditEventPublisher jpaAuditEventPublisher(
-      AuditEventJpaRepository repository, ObjectMapper objectMapper) {
-    return new JpaAuditEventPublisher(repository, objectMapper);
   }
 
   @Bean

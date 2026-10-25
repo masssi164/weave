@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.agentruntime.adapter;
 
 import tools.jackson.databind.JsonNode;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
+import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeProfile;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -46,9 +46,9 @@ final class RuntimeProfileJsonDecoder {
                 automationPolicy(object(root, "automation")));
     }
 
-    private static RuntimeMemberBinding memberBinding(JsonNode node) {
+    private static MemberIdentityBinding memberBinding(JsonNode node) {
         fields(node, Set.of("issuer", "subject"), Set.of());
-        return new RuntimeMemberBinding(text(node, "issuer"), text(node, "subject"));
+        return new MemberIdentityBinding(text(node, "issuer"), text(node, "subject"));
     }
 
     private static RuntimeProfile.WorkloadIdentity workload(JsonNode node) {

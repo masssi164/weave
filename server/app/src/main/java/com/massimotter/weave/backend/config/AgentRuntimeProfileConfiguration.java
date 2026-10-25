@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.discovery.config.PlatformContractProperties;
+
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.adapter.AgentRuntimeWorkloadTokenPolicy;
 import com.massimotter.weave.backend.agentruntime.adapter.Ed25519JcsRuntimeProfileVerifier;

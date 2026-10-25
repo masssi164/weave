@@ -1,10 +1,7 @@
 package com.massimotter.weave.backend.health;
 
 import com.massimotter.weave.backend.health.config.ProviderHealthProperties;
-import com.massimotter.weave.backend.health.ProviderHealthContribution;
 import com.massimotter.weave.backend.health.api.ProviderCapabilityHealthResponse;
-import com.massimotter.weave.backend.health.ProviderCapabilityProbeResult;
-import com.massimotter.weave.backend.health.ProviderCapabilityState;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;

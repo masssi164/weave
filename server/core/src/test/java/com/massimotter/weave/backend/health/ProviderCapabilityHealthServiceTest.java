@@ -1,8 +1,6 @@
 package com.massimotter.weave.backend.health;
 
 import com.massimotter.weave.backend.health.config.ProviderHealthProperties;
-import com.massimotter.weave.backend.health.ProviderHealthContribution;
-import com.massimotter.weave.backend.health.ProviderCapabilityProbeResult;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Clock;
 import java.time.Duration;

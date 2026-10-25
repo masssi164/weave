@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.agentruntime.port;
 
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
+import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBinding;
 
 /** Resolves an opaque Weave person reference through the authoritative IDM organization. */
 public interface RuntimePersonDirectory {
@@ -17,7 +17,7 @@ public interface RuntimePersonDirectory {
     record ResolvedRuntimePerson(
             String organizationRef,
             String personRef,
-            RuntimeMemberBinding memberBinding) {
+            MemberIdentityBinding memberBinding) {
         public ResolvedRuntimePerson {
             requireText(organizationRef, "organizationRef");
             requireText(personRef, "personRef");

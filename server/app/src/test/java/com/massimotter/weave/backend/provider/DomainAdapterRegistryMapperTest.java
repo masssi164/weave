@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.provider;
-
+import com.massimotter.weave.backend.discovery.provider.ProviderRealityLevel;
+import com.massimotter.weave.backend.discovery.provider.ProviderModule;
 import static org.assertj.core.api.Assertions.assertThat;
-
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
 import java.util.List;
 import java.util.Map;

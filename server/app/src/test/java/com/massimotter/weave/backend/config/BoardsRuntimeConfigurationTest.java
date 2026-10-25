@@ -1,18 +1,13 @@
 package com.massimotter.weave.backend.config;
 
-import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
-import com.massimotter.weave.backend.audit.JpaAuditEventPublisher;
-import com.massimotter.weave.backend.audit.FileAuditEventPublisher;
 import com.massimotter.weave.backend.boards.local.LocalWorkspaceBoardsRepository;
 import com.massimotter.weave.backend.boards.openproject.OpenProjectBoardsRepository;
-import com.massimotter.weave.backend.audit.persistence.AuditEventJpaRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.web.client.RestClient;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
 
 class BoardsRuntimeConfigurationTest {
 
@@ -56,14 +51,4 @@ class BoardsRuntimeConfigurationTest {
                 .run(context -> assertThat(context).doesNotHaveBean(AuditEventPublisher.class));
     }
 
-    @Test
-    void persistenceCompositionPublishesOnlyTheJpaAuditAuthority() {
-        JpaAuditEventPublisher publisher = new WeavePersistenceConfiguration()
-                .jpaAuditEventPublisher(
-                        mock(AuditEventJpaRepository.class),
-                        tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build());
-
-        assertThat(publisher).isInstanceOf(AuditEventPublisher.class);
-        assertThat(publisher).isNotInstanceOf(FileAuditEventPublisher.class);
-    }
 }

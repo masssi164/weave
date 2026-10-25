@@ -1,13 +1,14 @@
 package com.massimotter.weave.backend.agentruntime.application;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import com.massimotter.weave.backend.security.workload.domain.WorkloadReferences;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.adapter.FileRuntimeWorkloadCredentialStore;
 import com.massimotter.weave.backend.agentruntime.adapter.JpaRuntimeCellRepository;
 import com.massimotter.weave.backend.agentruntime.adapter.AgentRuntimeJpaTestFactory;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCell;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
+import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadCredentialState;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadOwnership;
@@ -75,7 +76,7 @@ class AgentRuntimeWorkloadReconciliationServiceTest {
                 CLIENT,
                 RuntimeWorkloadBinding.AuthenticationMethod.PRIVATE_KEY_JWT,
                 credential.credentialRef());
-        RuntimeMemberBinding memberBinding = new RuntimeMemberBinding(
+        MemberIdentityBinding memberBinding = new MemberIdentityBinding(
                 ISSUER, "member-example");
         var entitlement = AgentRuntimeJpaTestFactory.activateEntitlement(
                 persistence, ORGANIZATION, PERSON, memberBinding, NOW.minusSeconds(30));
@@ -152,7 +153,7 @@ class AgentRuntimeWorkloadReconciliationServiceTest {
         ClientObservation current = identity.observation("provider-exact");
         identity.put(new ClientObservation(
                 current.providerRef(), current.clientId(), true, ManagementState.MANAGED,
-                RuntimeWorkloadOwnership.fingerprint("another-owner"),
+                WorkloadReferences.fingerprint("another-owner"),
                 current.organizationFingerprint(), current.personFingerprint(), current.cellFingerprint(),
                 true, current.serviceAccountSubject(), current.authenticationMethod(), current.acceptedKeyIds()));
 
@@ -277,9 +278,9 @@ class AgentRuntimeWorkloadReconciliationServiceTest {
                 "provider-exact",
                 CLIENT,
                 owner(),
-                RuntimeWorkloadOwnership.fingerprint(ORGANIZATION),
-                RuntimeWorkloadOwnership.fingerprint(PERSON),
-                RuntimeWorkloadOwnership.fingerprint(CELL),
+                WorkloadReferences.fingerprint(ORGANIZATION),
+                WorkloadReferences.fingerprint(PERSON),
+                WorkloadReferences.fingerprint(CELL),
                 SUBJECT,
                 enabled,
                 credential.acceptedKeyIds());
@@ -353,7 +354,7 @@ class AgentRuntimeWorkloadReconciliationServiceTest {
                 throw new IllegalStateException("private-provider-diagnostic");
             }
             List<ClientObservation> values = new ArrayList<>(clients.values());
-            String revision = RuntimeWorkloadOwnership.fingerprint(values.toString());
+            String revision = WorkloadReferences.fingerprint(values.toString());
             return new Snapshot(revision, values);
         }
 

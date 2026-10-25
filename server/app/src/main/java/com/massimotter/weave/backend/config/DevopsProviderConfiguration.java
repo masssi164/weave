@@ -5,7 +5,7 @@ import com.massimotter.weave.backend.devops.port.IssueTrackerProvider;
 import com.massimotter.weave.backend.devops.port.ReleaseProvider;
 import com.massimotter.weave.backend.devops.port.SourceControlProvider;
 import com.massimotter.weave.backend.devops.support.DisabledDevopsProvider;
-import com.massimotter.weave.backend.provider.ProviderModule;
+import com.massimotter.weave.backend.discovery.provider.ProviderModule;
 import java.util.Set;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

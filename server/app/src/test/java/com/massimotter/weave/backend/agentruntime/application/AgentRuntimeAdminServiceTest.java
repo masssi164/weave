@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.agentruntime.application;
 
+import com.massimotter.weave.backend.security.workload.domain.WorkloadReferences;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -7,7 +9,6 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-
 import com.massimotter.weave.backend.agentruntime.adapter.JpaRuntimeCellRepository;
 import com.massimotter.weave.backend.agentruntime.adapter.JpaRuntimeCommandRepository;
 import com.massimotter.weave.backend.agentruntime.adapter.JpaRuntimeGovernanceRepository;
@@ -15,14 +16,13 @@ import com.massimotter.weave.backend.agentruntime.adapter.JpaRuntimeProfileRepos
 import com.massimotter.weave.backend.agentruntime.adapter.AgentRuntimeJpaTestFactory;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCell;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCellState;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementObservation;
+import com.massimotter.weave.backend.security.workload.domain.WorkloadEntitlementObservation;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementState;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
+import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeProvisioningPlan;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadBinding;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadOwnership;
 import com.massimotter.weave.backend.agentruntime.domain.SignedRuntimeProfile;
-import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementAuthority;
+import com.massimotter.weave.backend.security.workload.port.WorkloadEntitlementAuthority;
 import com.massimotter.weave.backend.agentruntime.port.RuntimePersonDirectory;
 import com.massimotter.weave.backend.agentruntime.port.RuntimePolicyAuthority;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeStateStoreAdmin;
@@ -41,7 +41,7 @@ class AgentRuntimeAdminServiceTest {
     private static final Instant NOW = Instant.parse("2026-07-20T10:00:00Z");
     private static final String ORGANIZATION = "tenant-default";
     private static final String PERSON = "acct_" + "a".repeat(32);
-    private static final RuntimeMemberBinding MEMBER = new RuntimeMemberBinding(
+    private static final MemberIdentityBinding MEMBER = new MemberIdentityBinding(
             "https://auth.weave.test/realms/weave", "keycloak-user-1");
     private static final AgentRuntimeAdminService.AdminContext ADMIN =
             new AgentRuntimeAdminService.AdminContext(
@@ -68,7 +68,7 @@ class AgentRuntimeAdminServiceTest {
         profiles = persistence.profiles();
         JpaRuntimeGovernanceRepository governance = persistence.governance();
         workloads = new CountingWorkloadAdmin();
-        RuntimeEntitlementAuthority entitlement = command -> new RuntimeEntitlementObservation(
+        WorkloadEntitlementAuthority entitlement = command -> new WorkloadEntitlementObservation(
                 command.organizationRef(), command.personRef(), command.memberBinding(), "test-member", "keycloak",
                 "sha256:" + "1".repeat(64), "sha256:" + "2".repeat(64),
                 NOW, NOW.plusSeconds(300));
@@ -91,7 +91,7 @@ class AgentRuntimeAdminServiceTest {
             RuntimeCell cell = invocation.getArgument(0);
             String issuanceRef = invocation.getArgument(1);
             Instant issuedAt = invocation.getArgument(2);
-            String fingerprint = RuntimeWorkloadOwnership.fingerprint(issuanceRef).substring(7);
+            String fingerprint = WorkloadReferences.fingerprint(issuanceRef).substring(7);
             SignedRuntimeProfile signed = new SignedRuntimeProfile(
                     "protected", "payload", "A".repeat(86), "sha256:" + fingerprint,
                     "rp_" + fingerprint, cell.cellRef(), "key-example",

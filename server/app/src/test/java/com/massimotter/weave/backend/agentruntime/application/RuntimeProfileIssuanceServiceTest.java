@@ -9,11 +9,10 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
-
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCell;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCellState;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementState;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
+import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeProfile;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadBinding;
 import com.massimotter.weave.backend.agentruntime.domain.SignedRuntimeProfile;
@@ -86,7 +85,7 @@ class RuntimeProfileIssuanceServiceTest {
     private static RuntimeCell cell(RuntimeEntitlementState entitlementState) {
         RuntimeCell active = RuntimeCell.provisioning(
                 "tenant-default", "acct_" + "a".repeat(32),
-                new RuntimeMemberBinding("https://auth.weave.test/realms/weave", "keycloak-user-1"),
+                new MemberIdentityBinding("https://auth.weave.test/realms/weave", "keycloak-user-1"),
                 "cell:example",
                 new RuntimeWorkloadBinding(
                         "https://auth.weave.test/realms/weave",

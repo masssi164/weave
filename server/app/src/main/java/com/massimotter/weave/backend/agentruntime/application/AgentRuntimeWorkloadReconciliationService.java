@@ -1,8 +1,9 @@
 package com.massimotter.weave.backend.agentruntime.application;
 
+import com.massimotter.weave.backend.security.workload.domain.WorkloadReferences;
+
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCell;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementState;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadOwnership;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadReconciliationReport;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadReconciliationReport.Blocker;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadReconciliationReport.Counts;
@@ -98,7 +99,7 @@ public final class AgentRuntimeWorkloadReconciliationService {
         this.jitterSource = Objects.requireNonNull(jitterSource, "jitterSource");
 
         Instant now = clock.instant();
-        String unobserved = RuntimeWorkloadOwnership.fingerprint("agent-runtime-workload-unobserved");
+        String unobserved = WorkloadReferences.fingerprint("agent-runtime-workload-unobserved");
         this.current = new AtomicReference<>(new RuntimeWorkloadReconciliationReport(
                 RuntimeWorkloadReconciliationReport.SCHEMA_VERSION,
                 RuntimeWorkloadReconciliationReport.GUARDED_CLAIM,
@@ -107,7 +108,7 @@ public final class AgentRuntimeWorkloadReconciliationService {
                 now.plusSeconds(1),
                 unobserved,
                 unobserved,
-                RuntimeWorkloadOwnership.fingerprint("agent-runtime-workload-awaiting-observation"),
+                WorkloadReferences.fingerprint("agent-runtime-workload-awaiting-observation"),
                 Counts.empty(),
                 null,
                 Set.of(Blocker.AWAITING_OBSERVATION)));
@@ -288,7 +289,7 @@ public final class AgentRuntimeWorkloadReconciliationService {
     }
 
     private String correlation(String auditRef, Instant observedAt, String authority, String provider) {
-        return RuntimeWorkloadOwnership.fingerprint(
+        return WorkloadReferences.fingerprint(
                 auditRef + "\u0000" + observedAt + "\u0000" + authority + "\u0000" + provider);
     }
 

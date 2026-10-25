@@ -1,20 +1,21 @@
 package com.massimotter.weave.backend.agentruntime.application;
 
+import com.massimotter.weave.backend.security.workload.domain.WorkloadReferences;
+
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeAuditCorrelation;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCell;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCommandReceipt;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementObservation;
+import com.massimotter.weave.backend.security.workload.domain.WorkloadEntitlementObservation;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementRef;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementState;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
+import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadBinding;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadOwnership;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCellRepository;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCommandConflictException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCommandRepository;
-import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementAuthority;
-import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementAuthorityException;
-import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementDeniedException;
+import com.massimotter.weave.backend.security.workload.port.WorkloadEntitlementAuthority;
+import com.massimotter.weave.backend.security.workload.port.WorkloadEntitlementAuthorityException;
+import com.massimotter.weave.backend.security.workload.port.WorkloadEntitlementDeniedException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementReconciler;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeGovernanceRepository;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileRepository;
@@ -36,7 +37,7 @@ public final class AgentRuntimeControlService implements RuntimeEntitlementRecon
   private final RuntimeCommandRepository commands;
   private final RuntimeProfileRepository profiles;
   private final RuntimeWorkloadIdentityAdmin workloadIdentityAdmin;
-  private final RuntimeEntitlementAuthority entitlementAuthority;
+  private final WorkloadEntitlementAuthority entitlementAuthority;
   private final RuntimeGovernanceRepository governance;
   private final Clock clock;
 
@@ -45,7 +46,7 @@ public final class AgentRuntimeControlService implements RuntimeEntitlementRecon
       RuntimeCommandRepository commands,
       RuntimeProfileRepository profiles,
       RuntimeWorkloadIdentityAdmin workloadIdentityAdmin,
-      RuntimeEntitlementAuthority entitlementAuthority,
+      WorkloadEntitlementAuthority entitlementAuthority,
       RuntimeGovernanceRepository governance,
       Clock clock) {
     this.cells = Objects.requireNonNull(cells, "cells");
@@ -104,9 +105,9 @@ public final class AgentRuntimeControlService implements RuntimeEntitlementRecon
             ? null
             : governance.findCurrent(command.organizationRef(), command.personRef()).orElse(null);
     try {
-      RuntimeEntitlementObservation observation =
+      WorkloadEntitlementObservation observation =
           entitlementAuthority.observe(
-              new RuntimeEntitlementAuthority.ObserveEntitlementCommand(
+              new WorkloadEntitlementAuthority.ObserveEntitlementCommand(
                   command.organizationRef(),
                   command.personRef(),
                   command.memberBinding(),
@@ -267,7 +268,7 @@ public final class AgentRuntimeControlService implements RuntimeEntitlementRecon
       }
       String revocationRef =
           "revocation:"
-              + RuntimeWorkloadOwnership.fingerprint(
+              + WorkloadReferences.fingerprint(
                       REVOKE
                           + "\u0000"
                           + command.organizationRef()
@@ -277,7 +278,7 @@ public final class AgentRuntimeControlService implements RuntimeEntitlementRecon
                           + command.idempotencyKey())
                   .substring(7);
       String workloadRefHash =
-          RuntimeWorkloadOwnership.fingerprint(
+          WorkloadReferences.fingerprint(
               existing.workloadBinding().issuer()
                   + "\u0000"
                   + existing.workloadBinding().subject()
@@ -292,7 +293,7 @@ public final class AgentRuntimeControlService implements RuntimeEntitlementRecon
           workloadRefHash,
           command.reasonCode(),
           command.reasonRefHash(),
-          RuntimeWorkloadOwnership.fingerprint(command.actorRef()),
+          WorkloadReferences.fingerprint(command.actorRef()),
           revocationRef,
           correlationRef,
           now);
@@ -338,16 +339,16 @@ public final class AgentRuntimeControlService implements RuntimeEntitlementRecon
       return repairOrFenceDivergedEntitlement(expectedCell, previous, auditRef, now);
     }
     try {
-      RuntimeEntitlementObservation observation =
+      WorkloadEntitlementObservation observation =
           entitlementAuthority.observe(
-              new RuntimeEntitlementAuthority.ObserveEntitlementCommand(
+              new WorkloadEntitlementAuthority.ObserveEntitlementCommand(
                   expectedCell.organizationRef(),
                   expectedCell.personRef(),
                   expectedCell.memberBinding(),
                   auditRef));
       String activationRef =
           "reconcile:"
-              + RuntimeWorkloadOwnership.fingerprint(
+              + WorkloadReferences.fingerprint(
                       expectedCell.cellRef()
                           + "\u0000"
                           + observation.sourceGroupRef()
@@ -385,9 +386,9 @@ public final class AgentRuntimeControlService implements RuntimeEntitlementRecon
             "the immutable workload identity changed during entitlement reconciliation");
       }
       return rebound;
-    } catch (RuntimeEntitlementDeniedException denied) {
+    } catch (WorkloadEntitlementDeniedException denied) {
       return fenceEntitlement(expectedCell, previous, "idm-entitlement-denied", auditRef, now);
-    } catch (RuntimeEntitlementAuthorityException unavailable) {
+    } catch (WorkloadEntitlementAuthorityException unavailable) {
       if (governance
           .findEffectiveRevision(
               expectedCell.organizationRef(),
@@ -505,7 +506,7 @@ public final class AgentRuntimeControlService implements RuntimeEntitlementRecon
     String correlationRef = correlation == null ? auditRef : correlation.correlationRef();
     String revocationRef =
         "revocation:"
-            + RuntimeWorkloadOwnership.fingerprint(
+            + WorkloadReferences.fingerprint(
                     cell.organizationRef()
                         + "\u0000"
                         + cell.personRef()
@@ -515,7 +516,7 @@ public final class AgentRuntimeControlService implements RuntimeEntitlementRecon
                         + reasonCode)
                 .substring(7);
     String workloadRefHash =
-        RuntimeWorkloadOwnership.fingerprint(
+        WorkloadReferences.fingerprint(
             cell.workloadBinding().issuer()
                 + "\u0000"
                 + cell.workloadBinding().subject()
@@ -529,9 +530,9 @@ public final class AgentRuntimeControlService implements RuntimeEntitlementRecon
         cell.runtimeProfileHash(),
         workloadRefHash,
         reasonCode,
-        RuntimeWorkloadOwnership.fingerprint(
+        WorkloadReferences.fingerprint(
             "weave.agent-runtime.revocation-reason/v1\u0000" + reasonCode),
-        RuntimeWorkloadOwnership.fingerprint("actor:agent-runtime-control"),
+        WorkloadReferences.fingerprint("actor:agent-runtime-control"),
         revocationRef,
         correlationRef,
         now);
@@ -552,7 +553,7 @@ public final class AgentRuntimeControlService implements RuntimeEntitlementRecon
     }
   }
 
-  private static String stableCellKey(String organizationRef, RuntimeMemberBinding memberBinding) {
+  private static String stableCellKey(String organizationRef, MemberIdentityBinding memberBinding) {
     String input =
         organizationRef + "\u0000" + memberBinding.issuer() + "\u0000" + memberBinding.subject();
     try {
@@ -589,11 +590,11 @@ public final class AgentRuntimeControlService implements RuntimeEntitlementRecon
             + "\u0000"
             + command.reasonRefHash()
             + "\u0000"
-            + RuntimeWorkloadOwnership.fingerprint(command.actorRef()));
+            + WorkloadReferences.fingerprint(command.actorRef()));
   }
 
   private static String semanticCommand(String operation, String semantics) {
-    return operation + ":" + RuntimeWorkloadOwnership.fingerprint(semantics).substring(7, 39);
+    return operation + ":" + WorkloadReferences.fingerprint(semantics).substring(7, 39);
   }
 
   private RuntimeAuditCorrelation appendCorrelation(
@@ -606,7 +607,7 @@ public final class AgentRuntimeControlService implements RuntimeEntitlementRecon
       Instant now) {
     String correlationRef =
         "correlation:"
-            + RuntimeWorkloadOwnership.fingerprint(
+            + WorkloadReferences.fingerprint(
                     operation
                         + "\u0000"
                         + organizationRef
@@ -621,14 +622,14 @@ public final class AgentRuntimeControlService implements RuntimeEntitlementRecon
         new RuntimeAuditCorrelation(
             UUID.randomUUID(),
             correlationRef,
-            RuntimeWorkloadOwnership.fingerprint(organizationRef),
-            RuntimeWorkloadOwnership.fingerprint(personRef),
+            WorkloadReferences.fingerprint(organizationRef),
+            WorkloadReferences.fingerprint(personRef),
             null,
-            RuntimeWorkloadOwnership.fingerprint(cellRef),
+            WorkloadReferences.fingerprint(cellRef),
             null,
             null,
             null,
-            RuntimeWorkloadOwnership.fingerprint(auditRef),
+            WorkloadReferences.fingerprint(auditRef),
             now,
             now));
   }
@@ -636,7 +637,7 @@ public final class AgentRuntimeControlService implements RuntimeEntitlementRecon
   public record ProvisionRuntimeCommand(
       String organizationRef,
       String personRef,
-      RuntimeMemberBinding memberBinding,
+      MemberIdentityBinding memberBinding,
       String workspaceRevision,
       String workspaceManifestRef,
       String runtimeStateStoreRef,

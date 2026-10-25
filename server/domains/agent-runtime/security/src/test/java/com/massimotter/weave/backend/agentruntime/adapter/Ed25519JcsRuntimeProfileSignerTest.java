@@ -2,10 +2,9 @@ package com.massimotter.weave.backend.agentruntime.adapter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
+import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeProfile;
 import com.massimotter.weave.backend.agentruntime.domain.SignedRuntimeProfile;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileSigningKeyProvider;
@@ -206,7 +205,7 @@ class Ed25519JcsRuntimeProfileSignerTest {
                 "rp_example_001",
                 "org:example",
                 "person:example",
-                new RuntimeMemberBinding("https://auth.weave.test/realms/weave", "member-example"),
+                new MemberIdentityBinding("https://auth.weave.test/realms/weave", "member-example"),
                 "cell:example",
                 new RuntimeProfile.WorkloadIdentity(
                         "https://auth.weave.test/realms/weave",

@@ -1,6 +1,5 @@
 package com.massimotter.weave.backend.health;
 
-import com.massimotter.weave.backend.health.ProviderCapabilityProbeResult;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;

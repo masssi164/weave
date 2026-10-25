@@ -1,7 +1,8 @@
 package com.massimotter.weave.backend.agentruntime.domain;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBinding;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
 
@@ -37,7 +38,7 @@ class RuntimeCellTest {
         return RuntimeCell.provisioning(
                 "org:example",
                 "person:example",
-                new RuntimeMemberBinding("https://auth.weave.test/realms/weave", "member-123"),
+                new MemberIdentityBinding("https://auth.weave.test/realms/weave", "member-123"),
                 "cell:example",
                 new RuntimeWorkloadBinding(
                         "https://auth.weave.test/realms/weave",

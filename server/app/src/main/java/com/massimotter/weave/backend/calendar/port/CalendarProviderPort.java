@@ -9,9 +9,9 @@ import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarWrit
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.EventId;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.EventVersion;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.FreeBusyWindow;
-import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
+import com.massimotter.weave.backend.providerbinding.contract.ProviderConformanceProfile;
 import com.massimotter.weave.backend.health.ProviderCapabilityProbeResult;
-import com.massimotter.weave.backend.portability.ProviderReadiness;
+import com.massimotter.weave.backend.providerbinding.contract.ProviderReadiness;
 import java.time.Instant;
 import java.util.List;
 

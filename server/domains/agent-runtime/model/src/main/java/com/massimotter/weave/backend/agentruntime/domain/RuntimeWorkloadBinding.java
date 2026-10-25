@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.agentruntime.domain;
 
+import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBinding;
+
 import java.util.regex.Pattern;
 
 public record RuntimeWorkloadBinding(
@@ -13,8 +15,8 @@ public record RuntimeWorkloadBinding(
     private static final Pattern CREDENTIAL_REF = Pattern.compile("credentialref://[A-Za-z0-9._~:/?#\\[\\]@!$&'()*+,;=%-]+");
 
     public RuntimeWorkloadBinding {
-        RuntimeMemberBinding.requireHttpsUri(issuer, "workload issuer");
-        RuntimeMemberBinding.requireText(subject, "workload subject");
+        MemberIdentityBinding.requireHttpsUri(issuer, "workload issuer");
+        MemberIdentityBinding.requireText(subject, "workload subject");
         if (clientId == null || !CLIENT_ID.matcher(clientId).matches()) {
             throw new IllegalArgumentException("workload clientId must use the weaver-cell-{id} namespace");
         }

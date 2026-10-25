@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.agentruntime.domain;
 
+import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBinding;
+
 import java.net.URI;
 import java.time.Instant;
 import java.util.List;
@@ -12,7 +14,7 @@ public record RuntimeProfile(
         String profileId,
         String organizationRef,
         String personRef,
-        RuntimeMemberBinding memberBinding,
+        MemberIdentityBinding memberBinding,
         String cellRef,
         WorkloadIdentity workloadIdentity,
         Instant issuedAt,

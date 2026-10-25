@@ -1,9 +1,10 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.security.secret.adapter.ExactFileSecretRefAccess;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
-import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityException;
+import com.massimotter.weave.backend.security.workload.port.WorkloadIdentityException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -30,7 +31,7 @@ class ExactFileSecretRefAccessTest {
     assertThat(observed).isEqualTo("private-jwk");
     assertThatThrownBy(
             () -> access.withSecret("credentialref://weave/keycloak/another", value -> null))
-        .isInstanceOf(RuntimeWorkloadIdentityException.class)
+        .isInstanceOf(WorkloadIdentityException.class)
         .hasMessage("The identity administration SecretRef is invalid");
   }
 
@@ -43,14 +44,14 @@ class ExactFileSecretRefAccessTest {
 
     assertThatThrownBy(
             () -> new ExactFileSecretRefAccess(REF, symlink).withSecret(REF, value -> null))
-        .isInstanceOf(RuntimeWorkloadIdentityException.class)
+        .isInstanceOf(WorkloadIdentityException.class)
         .hasMessage("The identity administration private JWK is unavailable");
 
     if (Files.getFileStore(target).supportsFileAttributeView("posix")) {
       Files.setPosixFilePermissions(target, PosixFilePermissions.fromString("rw-r-----"));
       assertThatThrownBy(
               () -> new ExactFileSecretRefAccess(REF, target).withSecret(REF, value -> null))
-          .isInstanceOf(RuntimeWorkloadIdentityException.class)
+          .isInstanceOf(WorkloadIdentityException.class)
           .hasMessage("The identity administration private JWK permissions are invalid");
     }
   }

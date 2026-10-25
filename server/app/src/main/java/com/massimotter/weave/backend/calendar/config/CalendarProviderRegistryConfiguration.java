@@ -1,10 +1,10 @@
 package com.massimotter.weave.backend.calendar.config;
 
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
-import com.massimotter.weave.backend.provider.ProviderModule;
-import com.massimotter.weave.backend.provider.ProviderPort;
-import com.massimotter.weave.backend.provider.RuntimeProviderStatus;
-import com.massimotter.weave.backend.provider.StaticProviderPort;
+import com.massimotter.weave.backend.discovery.provider.ProviderModule;
+import com.massimotter.weave.backend.discovery.provider.ProviderPort;
+import com.massimotter.weave.backend.discovery.provider.RuntimeProviderStatus;
+import com.massimotter.weave.backend.discovery.provider.StaticProviderPort;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;

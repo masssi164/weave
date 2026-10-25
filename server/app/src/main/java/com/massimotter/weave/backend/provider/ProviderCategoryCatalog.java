@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.provider;
-
+import com.massimotter.weave.backend.discovery.provider.ProviderModule;
+import com.massimotter.weave.backend.discovery.provider.ProviderStatusResponse;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;

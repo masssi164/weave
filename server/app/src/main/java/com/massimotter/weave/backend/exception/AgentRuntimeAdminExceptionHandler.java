@@ -4,14 +4,14 @@ import com.massimotter.weave.backend.api.error.ApiErrorException;
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.port.InvalidRuntimeProfileException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCommandConflictException;
-import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementAuthorityException;
-import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementDeniedException;
+import com.massimotter.weave.backend.security.workload.port.WorkloadEntitlementAuthorityException;
+import com.massimotter.weave.backend.security.workload.port.WorkloadEntitlementDeniedException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimePersonDirectoryException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimePersonNotFoundException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimePolicyException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileSigningKeyException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeStateStoreException;
-import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityException;
+import com.massimotter.weave.backend.security.workload.port.WorkloadIdentityException;
 import com.massimotter.weave.backend.agentruntime.port.StaleRuntimeCellException;
 import com.massimotter.weave.backend.config.AgentRuntimeErrorResponseWriter;
 import com.massimotter.weave.backend.controller.AgentRuntimeAdminController;
@@ -76,8 +76,8 @@ public final class AgentRuntimeAdminExceptionHandler {
                 "The Agent Runtime request conflicts with its current authoritative state.");
     }
 
-    @ExceptionHandler(RuntimeEntitlementDeniedException.class)
-    public void notEntitled(RuntimeEntitlementDeniedException failure, HttpServletRequest request,
+    @ExceptionHandler(WorkloadEntitlementDeniedException.class)
+    public void notEntitled(WorkloadEntitlementDeniedException failure, HttpServletRequest request,
             HttpServletResponse response) throws IOException {
         errors.write(request, response, HttpStatus.CONFLICT,
                 "agent-runtime-not-entitled", "not_entitled", false,
@@ -85,12 +85,12 @@ public final class AgentRuntimeAdminExceptionHandler {
     }
 
     @ExceptionHandler({
-            RuntimeEntitlementAuthorityException.class,
+            WorkloadEntitlementAuthorityException.class,
             RuntimePersonDirectoryException.class,
             RuntimePolicyException.class,
             RuntimeProfileSigningKeyException.class,
             RuntimeStateStoreException.class,
-            RuntimeWorkloadIdentityException.class,
+            WorkloadIdentityException.class,
             InvalidRuntimeProfileException.class,
             DataAccessException.class
     })

@@ -1,5 +1,8 @@
 package com.massimotter.weave.backend.provider;
-
+import com.massimotter.weave.backend.discovery.provider.ProviderRealityLevel;
+import com.massimotter.weave.backend.discovery.provider.ProviderState;
+import com.massimotter.weave.backend.discovery.provider.ProviderModule;
+import com.massimotter.weave.backend.discovery.provider.ProviderStatusResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;

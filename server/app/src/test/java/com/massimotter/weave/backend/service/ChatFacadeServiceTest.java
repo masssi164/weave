@@ -11,7 +11,7 @@ import com.massimotter.weave.backend.chat.domain.ChatHistoryPolicy;
 import com.massimotter.weave.backend.chat.domain.ChatMemberState;
 import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
-import com.massimotter.weave.backend.config.AgentRuntimeEntitlementProperties;
+import com.massimotter.weave.backend.security.workload.config.WorkloadEntitlementProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
@@ -178,8 +178,8 @@ class ChatFacadeServiceTest {
                 null);
     }
 
-    private AgentRuntimeEntitlementProperties runtimeEntitlementProperties(boolean enabled) {
-        return new AgentRuntimeEntitlementProperties(
+    private WorkloadEntitlementProperties runtimeEntitlementProperties(boolean enabled) {
+        return new WorkloadEntitlementProperties(
                 enabled,
                 null,
                 List.of("calendar.read"));
@@ -187,7 +187,7 @@ class ChatFacadeServiceTest {
 
     private WorkspaceCapabilityService workspaceCapabilityService(
             WorkspaceCapabilityProperties properties,
-            AgentRuntimeEntitlementProperties runtimeEntitlementProperties) {
+            WorkloadEntitlementProperties runtimeEntitlementProperties) {
         OAuth2ResourceServerProperties resourceServerProperties = new OAuth2ResourceServerProperties();
         resourceServerProperties.getJwt().setIssuerUri("https://auth.example.invalid/realms/acme");
         return new WorkspaceCapabilityService(

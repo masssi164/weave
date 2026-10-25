@@ -5,7 +5,7 @@ import com.massimotter.weave.backend.chat.domain.ChatEventContent;
 import com.massimotter.weave.backend.chat.port.ChatSouthboundProvider;
 import com.massimotter.weave.backend.config.ChatRuntimeProperties;
 import com.massimotter.weave.backend.health.ProviderCapabilityProbeResult;
-import com.massimotter.weave.backend.portability.ProviderReadiness;
+import com.massimotter.weave.backend.providerbinding.contract.ProviderReadiness;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;

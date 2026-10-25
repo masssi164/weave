@@ -1,9 +1,8 @@
 package com.massimotter.weave.backend.integrations.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
-
-import com.massimotter.weave.backend.provider.ProviderModule;
-import com.massimotter.weave.backend.provider.ProviderState;
+import com.massimotter.weave.backend.discovery.provider.ProviderModule;
+import com.massimotter.weave.backend.discovery.provider.ProviderState;
 import org.junit.jupiter.api.Test;
 
 class IntegrationProviderRegistryConfigurationTest {

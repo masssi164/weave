@@ -2,11 +2,10 @@ package com.massimotter.weave.backend.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakClientRegistrationTransport.RegistrationHandoffOperation;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakClientRegistrationTransport.RegistrationHandoffProof;
-import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityException;
+import com.massimotter.weave.backend.security.workload.port.WorkloadIdentityException;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
@@ -116,7 +115,7 @@ class SpringKeycloakClientRegistrationTransportTest {
                     new ObjectMapper().createObjectNode(),
                     "scope-policy-token",
                     proof(RegistrationHandoffOperation.CREATE)))
-        .isInstanceOf(RuntimeWorkloadIdentityException.class)
+        .isInstanceOf(WorkloadIdentityException.class)
         .hasMessageContaining("failureType=RegistrationPolicyClientScopes")
         .hasMessageNotContaining("Allowed Client Scopes")
         .hasMessageNotContaining("scope-policy-token");
@@ -176,7 +175,7 @@ class SpringKeycloakClientRegistrationTransportTest {
                     CLIENT_ID,
                     base.resolve("/admin/realms/weave/clients"),
                     "rat-three".getBytes(StandardCharsets.UTF_8)))
-        .isInstanceOf(RuntimeWorkloadIdentityException.class)
+        .isInstanceOf(WorkloadIdentityException.class)
         .hasMessageContaining("outside the configured realm boundary");
     assertThat(requests).hasValue(5);
   }
@@ -268,7 +267,7 @@ class SpringKeycloakClientRegistrationTransportTest {
                     registration,
                     "misleading-cache-control",
                     proof(RegistrationHandoffOperation.CREATE)))
-        .isInstanceOf(RuntimeWorkloadIdentityException.class)
+        .isInstanceOf(WorkloadIdentityException.class)
         .hasMessageContaining("unsafe registration handoff response")
         .hasMessageNotContaining("misleading-cache-control");
   }
@@ -290,7 +289,7 @@ class SpringKeycloakClientRegistrationTransportTest {
                     registration,
                     "unsafe-handoff-error",
                     proof(RegistrationHandoffOperation.CREATE)))
-        .isInstanceOf(RuntimeWorkloadIdentityException.class)
+        .isInstanceOf(WorkloadIdentityException.class)
         .hasMessageContaining("unsafe registration handoff response")
         .hasMessageNotContaining("unsafe-handoff-error");
   }
@@ -310,7 +309,7 @@ class SpringKeycloakClientRegistrationTransportTest {
                         "https://auth.weave.test/realms/weave/clients-registrations/"
                             + "openid-connect/weaver-cell-test/other"),
                     token))
-        .isInstanceOf(RuntimeWorkloadIdentityException.class)
+        .isInstanceOf(WorkloadIdentityException.class)
         .hasMessageContaining("outside the configured realm boundary");
     assertThatThrownBy(
             () ->
@@ -320,7 +319,7 @@ class SpringKeycloakClientRegistrationTransportTest {
                         "https://auth.weave.test/realms/weave/clients-registrations/"
                             + "openid-connect/weaver-cell-test%2Fother"),
                     token))
-        .isInstanceOf(RuntimeWorkloadIdentityException.class)
+        .isInstanceOf(WorkloadIdentityException.class)
         .hasMessageContaining("outside the configured realm boundary");
     assertThatThrownBy(
             () ->
@@ -330,7 +329,7 @@ class SpringKeycloakClientRegistrationTransportTest {
                         "https://auth.weave.test/realms/weave/clients-registrations/"
                             + "openid-connect/not-a-workload"),
                     token))
-        .isInstanceOf(RuntimeWorkloadIdentityException.class)
+        .isInstanceOf(WorkloadIdentityException.class)
         .hasMessageContaining("outside the configured realm boundary");
     assertThatThrownBy(
             () ->
@@ -340,7 +339,7 @@ class SpringKeycloakClientRegistrationTransportTest {
                         "https://auth.weave.test/realms/weave/clients-registrations/"
                             + "openid-connect/weaver-cell-test?destination=elsewhere"),
                     token))
-        .isInstanceOf(RuntimeWorkloadIdentityException.class)
+        .isInstanceOf(WorkloadIdentityException.class)
         .hasMessageContaining("outside the configured realm boundary");
     assertThatThrownBy(
             () ->
@@ -350,7 +349,7 @@ class SpringKeycloakClientRegistrationTransportTest {
                         "https://foreign.example/realms/weave/clients-registrations/"
                             + "openid-connect/weaver-cell-test"),
                     token))
-        .isInstanceOf(RuntimeWorkloadIdentityException.class)
+        .isInstanceOf(WorkloadIdentityException.class)
         .hasMessageContaining("outside the configured realm boundary");
     assertThatThrownBy(
             () ->
@@ -360,7 +359,7 @@ class SpringKeycloakClientRegistrationTransportTest {
                         "https://auth.weave.test/realms/weave/clients-registrations/"
                             + "openid-connect/weaver-cell-test"),
                     token))
-        .isInstanceOf(RuntimeWorkloadIdentityException.class)
+        .isInstanceOf(WorkloadIdentityException.class)
         .hasMessageContaining("outside the configured realm boundary");
     assertThat(requests).hasValue(0);
   }
@@ -377,7 +376,7 @@ class SpringKeycloakClientRegistrationTransportTest {
                     new ObjectMapper().createObjectNode(),
                     "rejected-administration-token",
                     proof(RegistrationHandoffOperation.CREATE)))
-        .isInstanceOf(RuntimeWorkloadIdentityException.class)
+        .isInstanceOf(WorkloadIdentityException.class)
         .hasMessageContaining("protocol request failed")
         .hasMessageNotContaining("rat-secret")
         .hasMessageNotContaining("rejected-administration-token");

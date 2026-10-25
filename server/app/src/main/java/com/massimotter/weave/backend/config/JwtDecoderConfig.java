@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.discovery.config.PlatformContractProperties;
+
 import com.massimotter.weave.backend.security.MemberSessionRevocationService;
 import com.massimotter.weave.backend.security.MemberSessionCutoffService;
 import com.nimbusds.jose.JOSEObjectType;

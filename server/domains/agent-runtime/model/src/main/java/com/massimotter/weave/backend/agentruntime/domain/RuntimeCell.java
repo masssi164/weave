@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.agentruntime.domain;
 
+import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBinding;
+
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
@@ -9,7 +11,7 @@ public record RuntimeCell(
         UUID recordId,
         String organizationRef,
         String personRef,
-        RuntimeMemberBinding memberBinding,
+        MemberIdentityBinding memberBinding,
         String cellRef,
         RuntimeWorkloadBinding workloadBinding,
         RuntimeEntitlementState entitlementState,
@@ -34,13 +36,13 @@ public record RuntimeCell(
 
     public RuntimeCell {
         Objects.requireNonNull(recordId, "recordId");
-        RuntimeMemberBinding.requireText(organizationRef, "organizationRef");
-        RuntimeMemberBinding.requireText(personRef, "personRef");
+        MemberIdentityBinding.requireText(organizationRef, "organizationRef");
+        MemberIdentityBinding.requireText(personRef, "personRef");
         Objects.requireNonNull(memberBinding, "memberBinding");
-        RuntimeMemberBinding.requireText(cellRef, "cellRef");
+        MemberIdentityBinding.requireText(cellRef, "cellRef");
         Objects.requireNonNull(workloadBinding, "workloadBinding");
         Objects.requireNonNull(entitlementState, "entitlementState");
-        RuntimeMemberBinding.requireText(entitlementRevision, "entitlementRevision");
+        MemberIdentityBinding.requireText(entitlementRevision, "entitlementRevision");
         Objects.requireNonNull(desiredState, "desiredState");
         Objects.requireNonNull(observedState, "observedState");
         requireOptionalPattern(runtimeProfileId, PROFILE_ID, "runtimeProfileId");
@@ -48,8 +50,8 @@ public record RuntimeCell(
         if ((runtimeProfileId == null) != (runtimeProfileHash == null)) {
             throw new IllegalArgumentException("runtime profile id and hash must be set together");
         }
-        RuntimeMemberBinding.requireText(workspaceRevision, "workspaceRevision");
-        RuntimeMemberBinding.requireText(workspaceManifestRef, "workspaceManifestRef");
+        MemberIdentityBinding.requireText(workspaceRevision, "workspaceRevision");
+        MemberIdentityBinding.requireText(workspaceManifestRef, "workspaceManifestRef");
         if (runtimeStateStoreRef == null || !runtimeStateStoreRef.startsWith("runtime-state://")) {
             throw new IllegalArgumentException("runtimeStateStoreRef must use runtime-state://");
         }
@@ -59,7 +61,7 @@ public record RuntimeCell(
         if ((leaseId == null) != (leaseExpiresAt == null)) {
             throw new IllegalArgumentException("lease id and expiry must be set together");
         }
-        RuntimeMemberBinding.requireText(auditRef, "auditRef");
+        MemberIdentityBinding.requireText(auditRef, "auditRef");
         Objects.requireNonNull(createdAt, "createdAt");
         Objects.requireNonNull(updatedAt, "updatedAt");
         if (updatedAt.isBefore(createdAt)) {
@@ -70,7 +72,7 @@ public record RuntimeCell(
     public static RuntimeCell provisioning(
             String organizationRef,
             String personRef,
-            RuntimeMemberBinding memberBinding,
+            MemberIdentityBinding memberBinding,
             String cellRef,
             RuntimeWorkloadBinding workloadBinding,
             String entitlementRevision,

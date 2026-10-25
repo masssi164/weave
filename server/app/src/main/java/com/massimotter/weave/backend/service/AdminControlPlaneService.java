@@ -39,7 +39,7 @@ import com.massimotter.weave.backend.provider.ProviderRegistry;
 import com.massimotter.weave.backend.provider.ProviderRegistryResponse;
 import com.massimotter.weave.backend.provider.ProviderSelection;
 import com.massimotter.weave.backend.provider.ProviderSelectionRepository;
-import com.massimotter.weave.backend.provider.ProviderStatusResponse;
+import com.massimotter.weave.backend.discovery.provider.ProviderStatusResponse;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
 import com.massimotter.weave.backend.domainfacade.CanonicalDomainDefinition;
 import com.massimotter.weave.backend.service.migration.MigrationRunEvidence;

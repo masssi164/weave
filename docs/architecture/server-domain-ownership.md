@@ -319,3 +319,56 @@ revisions/journals, progress, backups, rollback, and repeated delete/reinsert in
   6 proof/recovery, 1 backup concurrency, 2 Files/Calendar baseline), no failures/skips.
   Generated schema uniqueness/checks executed against PostgreSQL; previous timestamp
   projection and repeated-mutation failures were corrected and their regressions pass.
+
+### Shared provider contracts and Audit ownership
+
+Core Discovery owns shared provider status contracts and generic runtime-status construction;
+Core Provider Binding owns the framework-free conformance/readiness values. Shared redaction
+and HTTP Retry-After parsing belong to Core Security and HTTP respectively. The unused-by-serving
+portability report mapping remains buildable in future Portability rather than becoming a
+shared platform implementation. Domain-specific provider registry beans remain with domains.
+
+Core model now owns the cross-domain audit envelope, publication contract, redaction and
+required-publication rules. Core Audit persistence owns the real JPA sink, registered through
+module-local serving auto-configuration. Operator preparation keeps its explicit sink. Future
+connector/consent event builders are under Integrations, outside Core. Their existing tests
+remain there; four shared envelope/privacy/publication tests moved to Core.
+
+The old Boards fixture that directly called App's removed audit factory was retired: actual
+Core Boot-import discovery now asserts the singleton JPA audit authority. The Boards-specific
+no-persistence-fallback assertion remains. This strengthens ownership verification rather than
+retaining an App factory solely for an obsolete direct-construction test.
+
+### Release MCP ownership checkpoint
+
+Files/Calendar consume `McpWorkloadAuthorization`; the actual release implementation,
+protected binding reader, exchanged-token policy, current Keycloak entitlement, signed
+administrative token provider and shared SecretRef contracts live in Core Security. The
+future Agent Runtime implementation retains only cells/profiles/governance and future
+person-directory resolution. Its old nullable release branch is removed. The shared
+principal carries resolved binding/audit/policy metadata from its actual owner. Core
+production has no Agent Runtime, Files, Calendar or Chat implementation imports.
+
+Module-local servlet auto-configuration discovers release authorization without the future
+runtime on the classpath; non-web tooling does not construct that authority. Existing
+configuration keys/defaults and mutually exclusive release/future authorization modes are
+preserved. No token shape, permissions, Keycloak authority, provider selector or new public
+environment setting was introduced.
+
+- Final owning unit/check lane: whole Core 75, Core model 3, App 190 (workload/JWT/
+  Files/Calendar/Keycloak/config/architecture plus provider/audit/Boards regressions),
+  future model 4/provider 5/security 23: **300 passed, no skips**. Exact class filters
+  and logs are preserved in the associated commit/PR validation record.
+- PostgreSQL: Runtime Cell 7/Command 3/Governance 3/Profile 6 and audit publisher 1: **20
+  passed, no skips**, against disposable infrastructure. The separate existing audit
+  PostgreSQL class also passed after moving it from ordinary unit execution into the
+  registered PostgreSQL lane. No database data or migrations changed.
+
+- Combined foundation validation: `./gradlew coreArchitectureCi canonicalDataCi
+  checkOpenApiContractFresh specCorpusConformance --no-daemon --console=plain` with the
+  accepted corpus: **passed**. Actual full App handlers booted/exported and User/Admin
+  artifacts remained fresh. Current release workload libraries are independent of
+  Agent Runtime; real selected App composition is still pending.
+- Remaining transport cleanup includes suitable existing Keycloak REST integration under
+  the shared declarative HTTP standard, preserving bounded bodies, authentication,
+  allowlists, timeout and error behavior; no framework upgrade is authorized.

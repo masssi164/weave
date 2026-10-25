@@ -1,14 +1,13 @@
 package com.massimotter.weave.backend.files.config;
-
+import com.massimotter.weave.backend.discovery.provider.ProviderPort;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.config.FilesRuntimeProperties;
-import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
-import com.massimotter.weave.backend.portability.ProviderConformanceProfile.MappingClass;
-import com.massimotter.weave.backend.provider.ProviderStatusResponse;
+import com.massimotter.weave.backend.providerbinding.contract.ProviderConformanceProfile;
+import com.massimotter.weave.backend.providerbinding.contract.ProviderConformanceProfile.MappingClass;
+import com.massimotter.weave.backend.discovery.provider.ProviderStatusResponse;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -81,10 +80,10 @@ class FilesProviderRegistryConfigurationTest {
                 .withUserConfiguration(FilesProviderRegistryConfiguration.class)
                 .withBean(FilesRuntimeProperties.class, () -> new FilesRuntimeProperties("weave-native"))
                 .run(context -> {
-                    assertThat(context).hasNotFailed().hasSingleBean(com.massimotter.weave.backend.provider.ProviderPort.class);
+                    assertThat(context).hasNotFailed().hasSingleBean(com.massimotter.weave.backend.discovery.provider.ProviderPort.class);
                     assertThat(context).hasBean("filesProviderRegistrySeam").doesNotHaveBean("chatProviderRegistrySeam")
                             .doesNotHaveBean("calendarProviderRegistrySeam");
-                    var status = context.getBean(com.massimotter.weave.backend.provider.ProviderPort.class).status();
+                    var status = context.getBean(com.massimotter.weave.backend.discovery.provider.ProviderPort.class).status();
                     assertThat(status.configured()).isFalse();
                     assertThat(status.failClosed()).isTrue();
                 });

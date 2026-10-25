@@ -1,6 +1,10 @@
 package com.massimotter.weave.backend.config;
 
-import com.massimotter.weave.backend.agentruntime.adapter.KeycloakAdminAccessTokenProvider;
+import com.massimotter.weave.backend.security.secret.adapter.ExactFileSecretRefAccess;
+
+import com.massimotter.weave.backend.security.keycloak.provider.SpringSecurityKeycloakAdminAccessTokenProvider;
+
+import com.massimotter.weave.backend.security.keycloak.port.KeycloakAdminAccessTokenProvider;
 import java.net.http.HttpClient;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;

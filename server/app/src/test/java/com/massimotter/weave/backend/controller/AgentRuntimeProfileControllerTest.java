@@ -9,7 +9,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
 import com.massimotter.weave.backend.agentruntime.adapter.AgentRuntimeWorkloadTokenPolicy;
 import com.massimotter.weave.backend.agentruntime.application.RuntimeProfileDeliveryService;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeProfileJwkSet;
@@ -18,7 +17,7 @@ import com.massimotter.weave.backend.agentruntime.domain.SignedRuntimeProfile;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileTrustBundlePublisher;
 import com.massimotter.weave.backend.config.AgentRuntimeProfileSecurityConfiguration;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
-import com.massimotter.weave.backend.config.PlatformContractProperties;
+import com.massimotter.weave.backend.discovery.config.PlatformContractProperties;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import java.time.Instant;
 import java.util.List;

@@ -3,11 +3,10 @@ package com.massimotter.weave.backend.boards.config;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-
 import com.massimotter.weave.backend.boards.local.LocalWorkspaceBoardsRepository;
-import com.massimotter.weave.backend.provider.ProviderRealityLevel;
-import com.massimotter.weave.backend.provider.ProviderState;
-import com.massimotter.weave.backend.provider.ProviderStatusResponse;
+import com.massimotter.weave.backend.discovery.provider.ProviderRealityLevel;
+import com.massimotter.weave.backend.discovery.provider.ProviderState;
+import com.massimotter.weave.backend.discovery.provider.ProviderStatusResponse;
 import org.junit.jupiter.api.Test;
 
 class BoardsProviderRegistryConfigurationTest {

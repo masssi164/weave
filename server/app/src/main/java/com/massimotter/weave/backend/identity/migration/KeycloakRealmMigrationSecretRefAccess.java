@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.identity.migration;
 
-import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityException;
-import com.massimotter.weave.backend.agentruntime.port.SecretRefAccess;
+import com.massimotter.weave.backend.security.workload.port.WorkloadIdentityException;
+import com.massimotter.weave.backend.security.secret.port.SecretRefAccess;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
@@ -55,15 +55,15 @@ final class KeycloakRealmMigrationSecretRefAccess implements SecretRefAccess {
         throw unavailable();
       }
       return Files.readAllBytes(secretFile);
-    } catch (RuntimeWorkloadIdentityException failure) {
+    } catch (WorkloadIdentityException failure) {
       throw failure;
     } catch (IOException failure) {
       throw unavailable();
     }
   }
 
-  private static RuntimeWorkloadIdentityException unavailable() {
-    return new RuntimeWorkloadIdentityException(
+  private static WorkloadIdentityException unavailable() {
+    return new WorkloadIdentityException(
         "The Keycloak realm-migration bootstrap SecretRef is unavailable");
   }
 }

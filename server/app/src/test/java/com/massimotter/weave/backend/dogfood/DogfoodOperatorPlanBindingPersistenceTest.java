@@ -4,7 +4,7 @@ import static com.massimotter.weave.backend.dogfood.DogfoodPreparationProtocol.*
 import static com.massimotter.weave.backend.dogfood.DogfoodPreparationProtocolTest.*;
 import static org.assertj.core.api.Assertions.*;
 
-import com.massimotter.weave.backend.audit.JpaAuditEventPublisher;
+import com.massimotter.weave.backend.audit.persistence.JpaAuditEventPublisher;
 import com.massimotter.weave.backend.audit.persistence.AuditEventJpaRepository;
 import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import org.junit.jupiter.api.Test;

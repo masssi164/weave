@@ -1,7 +1,12 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.security.workload.config.WorkloadIdentityProperties;
+
+import com.massimotter.weave.backend.security.keycloak.provider.SpringSecurityKeycloakAdminAccessTokenProvider;
+
+import com.massimotter.weave.backend.security.workload.config.WorkloadEntitlementProperties;
+
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakAgentRuntimeWorkloadIdentityAdmin;
-import com.massimotter.weave.backend.agentruntime.adapter.KeycloakRuntimeIdentityAuthority;
 import java.net.URI;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -10,18 +15,11 @@ import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "weave.agent-runtime.workload-identity")
-public class AgentRuntimeWorkloadIdentityProperties {
+public class AgentRuntimeWorkloadIdentityProperties extends WorkloadIdentityProperties {
     private boolean enabled;
-    private URI keycloakAdminBaseUrl;
-    private URI issuer;
-    private String realm = "weave";
-    private String organizationRef = "tenant-default";
-    private String keycloakOrganizationId = "";
-    private String keycloakOrganizationAlias = "";
     private String adminClientId = "weave-agent-runtime-admin";
     private String adminCredentialRef = "";
     private Path secretRoot;
-    private Duration timeout = Duration.ofSeconds(10);
     private String workloadRole = "weaver-runtime";
     private List<String> defaultClientScopes = new ArrayList<>(List.of("weaver-runtime-workload"));
     private List<String> optionalClientScopes =
@@ -35,54 +33,6 @@ public class AgentRuntimeWorkloadIdentityProperties {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
-    }
-
-    public URI keycloakAdminBaseUrl() {
-        return keycloakAdminBaseUrl;
-    }
-
-    public void setKeycloakAdminBaseUrl(URI keycloakAdminBaseUrl) {
-        this.keycloakAdminBaseUrl = keycloakAdminBaseUrl;
-    }
-
-    public URI issuer() {
-        return issuer;
-    }
-
-    public void setIssuer(URI issuer) {
-        this.issuer = issuer;
-    }
-
-    public String realm() {
-        return realm;
-    }
-
-    public String organizationRef() {
-        return organizationRef;
-    }
-
-    public void setOrganizationRef(String organizationRef) {
-        this.organizationRef = organizationRef;
-    }
-
-    public String keycloakOrganizationId() {
-        return keycloakOrganizationId;
-    }
-
-    public void setKeycloakOrganizationId(String keycloakOrganizationId) {
-        this.keycloakOrganizationId = keycloakOrganizationId;
-    }
-
-    public String keycloakOrganizationAlias() {
-        return keycloakOrganizationAlias;
-    }
-
-    public void setKeycloakOrganizationAlias(String keycloakOrganizationAlias) {
-        this.keycloakOrganizationAlias = keycloakOrganizationAlias;
-    }
-
-    public void setRealm(String realm) {
-        this.realm = realm;
     }
 
     public String adminClientId() {
@@ -107,14 +57,6 @@ public class AgentRuntimeWorkloadIdentityProperties {
 
     public void setSecretRoot(Path secretRoot) {
         this.secretRoot = secretRoot;
-    }
-
-    public Duration timeout() {
-        return timeout;
-    }
-
-    public void setTimeout(Duration timeout) {
-        this.timeout = timeout;
     }
 
     public String workloadRole() {
@@ -162,10 +104,10 @@ public class AgentRuntimeWorkloadIdentityProperties {
 
     public KeycloakAgentRuntimeWorkloadIdentityAdmin.Settings workloadSettings() {
         return new KeycloakAgentRuntimeWorkloadIdentityAdmin.Settings(
-                keycloakAdminBaseUrl,
-                issuer,
-                realm,
-                timeout,
+                keycloakAdminBaseUrl(),
+                issuer(),
+                realm(),
+                timeout(),
                 workloadRole,
                 defaultClientScopes(),
                 optionalClientScopes(),
@@ -174,26 +116,12 @@ public class AgentRuntimeWorkloadIdentityProperties {
 
     public SpringSecurityKeycloakAdminAccessTokenProvider.Settings workloadAdminTokenSettings() {
         return new SpringSecurityKeycloakAdminAccessTokenProvider.Settings(
-                keycloakAdminBaseUrl,
-                realm,
+                keycloakAdminBaseUrl(),
+                realm(),
                 adminClientId,
                 adminCredentialRef,
-                issuer,
-                timeout);
+                issuer(),
+                timeout());
     }
 
-    public KeycloakRuntimeIdentityAuthority.Settings entitlementSettings(
-            AgentRuntimeEntitlementProperties entitlement) {
-        return new KeycloakRuntimeIdentityAuthority.Settings(
-                entitlement.enabled(),
-                keycloakAdminBaseUrl,
-                issuer,
-                organizationRef,
-                keycloakOrganizationId,
-                keycloakOrganizationAlias,
-                realm,
-                timeout,
-                entitlement.observationTtl(),
-                entitlement.allowedCapabilities());
-    }
 }

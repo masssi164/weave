@@ -8,24 +8,21 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-
-import com.massimotter.weave.backend.agentruntime.adapter.McpExchangedTokenPolicy;
-import com.massimotter.weave.backend.agentruntime.domain.ExchangedWorkloadToken;
-import com.massimotter.weave.backend.agentruntime.domain.ReleaseMcpBinding;
+import com.massimotter.weave.backend.security.workload.jwt.McpExchangedTokenPolicy;
+import com.massimotter.weave.backend.security.workload.domain.ExchangedWorkloadToken;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCell;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCellState;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementObservation;
+import com.massimotter.weave.backend.security.workload.domain.WorkloadEntitlementObservation;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementRef;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementState;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
+import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeProfile;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadBinding;
 import com.massimotter.weave.backend.agentruntime.domain.SignedRuntimeProfile;
-import com.massimotter.weave.backend.agentruntime.port.McpWorkloadAuthorizationException;
-import com.massimotter.weave.backend.agentruntime.port.ReleaseMcpBindingRepository;
+import com.massimotter.weave.backend.security.workload.port.McpWorkloadAuthorizationException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCellRepository;
-import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementAuthority;
-import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementAuthorityException;
+import com.massimotter.weave.backend.security.workload.port.WorkloadEntitlementAuthority;
+import com.massimotter.weave.backend.security.workload.port.WorkloadEntitlementAuthorityException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeGovernanceRepository;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileRepository;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileVerifier;
@@ -54,7 +51,7 @@ class McpWorkloadAuthorizationServiceTest {
     private static final String ENTITLEMENT_REVISION = "sha256:" + "3".repeat(64);
     private static final String SOURCE_GROUP = "sha256:" + "4".repeat(64);
     private static final String CAPABILITY_REVISION = "sha256:" + "5".repeat(64);
-    private static final RuntimeMemberBinding MEMBER = new RuntimeMemberBinding(ISSUER, "member-subject");
+    private static final MemberIdentityBinding MEMBER = new MemberIdentityBinding(ISSUER, "member-subject");
     private static final String RELEASE_PERSON = IdentityReferences.accountId(ISSUER, "member-subject");
 
     private RuntimeCellRepository cells;
@@ -62,7 +59,7 @@ class McpWorkloadAuthorizationServiceTest {
     private RuntimeProfileVerifier verifier;
     private RuntimeGovernanceRepository governance;
     private RuntimeWorkloadIdentityAdmin identities;
-    private RuntimeEntitlementAuthority entitlementAuthority;
+    private WorkloadEntitlementAuthority entitlementAuthority;
     private McpWorkloadAuthorizationService service;
     private McpExchangedTokenPolicy tokenPolicy;
     private RuntimeCell cell;
@@ -74,7 +71,7 @@ class McpWorkloadAuthorizationServiceTest {
         verifier = mock(RuntimeProfileVerifier.class);
         governance = mock(RuntimeGovernanceRepository.class);
         identities = mock(RuntimeWorkloadIdentityAdmin.class);
-        entitlementAuthority = mock(RuntimeEntitlementAuthority.class);
+        entitlementAuthority = mock(WorkloadEntitlementAuthority.class);
         cell = cell();
         SignedRuntimeProfile envelope = envelope();
         RuntimeProfile profile = profile();
@@ -110,6 +107,9 @@ class McpWorkloadAuthorizationServiceTest {
         assertThat(principal.scopes()).containsExactly("calendar.read");
         assertThat(principal.visibleToolClasses()).containsExactly("calendar.read");
         assertThat(principal.bindingAuditKey()).isEqualTo("cellRef");
+        assertThat(principal.bindingRef()).isEqualTo("cell:test");
+        assertThat(principal.policyRevision()).isEqualTo("runtime-profile:" + PROFILE_HASH);
+        assertThat(principal.memberEntitlementRevision()).isEqualTo("runtime-entitlement:" + ENTITLEMENT_REVISION);
         assertThat(principal.authorizationExpiresAt()).isEqualTo(NOW.plusSeconds(30));
         verify(identities).requireCurrentBinding(any());
         verify(entitlementAuthority).observe(any());
@@ -120,7 +120,7 @@ class McpWorkloadAuthorizationServiceTest {
     @Test
     void failsClosedWhenLiveKeycloakEntitlementCannotBeObserved() {
         when(entitlementAuthority.observe(any()))
-                .thenThrow(new RuntimeEntitlementAuthorityException("private provider diagnostic"));
+                .thenThrow(new WorkloadEntitlementAuthorityException("private provider diagnostic"));
 
         assertThatThrownBy(() -> service.authorize(token()))
                 .isInstanceOfSatisfying(McpWorkloadAuthorizationException.class,
@@ -136,7 +136,7 @@ class McpWorkloadAuthorizationServiceTest {
     void unavailableCurrentRoleAuthorityDeniesCalendarWrite() {
         when(verifier.verify(any(), any())).thenReturn(profile("calendar.write"));
         when(entitlementAuthority.currentWeaveRoles(any()))
-                .thenThrow(new RuntimeEntitlementAuthorityException("private role lookup diagnostic"));
+                .thenThrow(new WorkloadEntitlementAuthorityException("private role lookup diagnostic"));
 
         assertThatThrownBy(() -> service.authorize(token("calendar.write")))
                 .isInstanceOfSatisfying(McpWorkloadAuthorizationException.class,
@@ -173,156 +173,6 @@ class McpWorkloadAuthorizationServiceTest {
                 .hasMessageNotContaining(SUBJECT)
                 .hasMessageNotContaining("member-subject")
                 .hasMessageNotContaining("exchanged-secret-token");
-    }
-
-    @Test
-    void releaseBindingAuthorizesWithoutAnyRuntimeCellOrProfile() {
-        ReleaseMcpBindingRepository bindings = mock(ReleaseMcpBindingRepository.class);
-        when(bindings.findByWorkload(ISSUER, SUBJECT)).thenReturn(Optional.of(releaseBinding(true)));
-        when(entitlementAuthority.observe(any())).thenReturn(releaseObservation());
-        var release = new McpWorkloadAuthorizationService(
-                bindings, entitlementAuthority, Set.of("calendar.read", "calendar.write", "files.read"),
-                Clock.fixed(NOW, ZoneOffset.UTC));
-
-        var principal = release.authorize(token());
-
-        assertThat(principal.workloadClientId()).isEqualTo("weaver-cell-release-test");
-        assertThat(principal.memberBinding()).isEqualTo(MEMBER);
-        assertThat(principal.visibleToolClasses()).containsExactly("calendar.read");
-        assertThat(principal.bindingAuditKey()).isEqualTo("workloadBindingRef");
-        assertThat(principal.authorizationExpiresAt()).isEqualTo(NOW.plusSeconds(30));
-        verify(entitlementAuthority).observe(any());
-    }
-
-    @Test
-    void releaseBindingAcceptsObservationStampedDuringAuthoritativeLookup() {
-        ReleaseMcpBindingRepository bindings = mock(ReleaseMcpBindingRepository.class);
-        when(bindings.findByWorkload(ISSUER, SUBJECT)).thenReturn(Optional.of(releaseBinding(true)));
-        RuntimeEntitlementObservation current = releaseObservation();
-        when(entitlementAuthority.observe(any())).thenReturn(new RuntimeEntitlementObservation(
-                current.organizationRef(), current.personRef(), current.memberBinding(),
-                current.contextPrincipalClaim(), current.sourceProvider(), current.sourceGroupRef(),
-                current.capabilityRevision(), NOW.plusMillis(5), NOW.plusSeconds(60)));
-        Clock progressingClock = mock(Clock.class);
-        when(progressingClock.instant()).thenReturn(NOW, NOW.plusMillis(10));
-        var release = new McpWorkloadAuthorizationService(
-                bindings, entitlementAuthority, Set.of("calendar.read", "calendar.write", "files.read"),
-                progressingClock);
-
-        assertThat(release.authorize(token()).visibleToolClasses()).containsExactly("calendar.read");
-    }
-
-    @Test
-    void releaseBindingRevocationAndScopeChangesFailClosedWithoutCellFallback() {
-        ReleaseMcpBindingRepository bindings = mock(ReleaseMcpBindingRepository.class);
-        var release = new McpWorkloadAuthorizationService(
-                bindings, entitlementAuthority, Set.of("calendar.read", "calendar.write", "files.read"),
-                Clock.fixed(NOW, ZoneOffset.UTC));
-        when(bindings.findByWorkload(ISSUER, SUBJECT)).thenReturn(Optional.of(releaseBinding(false)));
-        assertThatThrownBy(() -> release.authorize(token()))
-                .isInstanceOfSatisfying(McpWorkloadAuthorizationException.class,
-                        failure -> assertThat(failure.reasonCode()).isEqualTo("identity-binding"));
-
-        when(bindings.findByWorkload(ISSUER, SUBJECT)).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> release.authorize(token()))
-                .isInstanceOfSatisfying(McpWorkloadAuthorizationException.class,
-                        failure -> assertThat(failure.reasonCode()).isEqualTo("identity-binding"));
-
-        when(bindings.findByWorkload(ISSUER, SUBJECT)).thenReturn(Optional.of(releaseBinding(true)));
-        assertThatThrownBy(() -> release.authorize(token("files.read")))
-                .isInstanceOfSatisfying(McpWorkloadAuthorizationException.class,
-                        failure -> assertThat(failure.reasonCode()).isEqualTo("identity-binding"));
-    }
-
-    @Test
-    void releaseCalendarWriteStillRequiresCurrentAdministrativeMemberRole() {
-        ReleaseMcpBindingRepository bindings = mock(ReleaseMcpBindingRepository.class);
-        when(entitlementAuthority.observe(any())).thenReturn(releaseObservation());
-        when(bindings.findByWorkload(ISSUER, SUBJECT)).thenReturn(Optional.of(new ReleaseMcpBinding(
-                "mcp-binding:test", ISSUER, SUBJECT, "weaver-cell-release-test",
-                "org:test", RELEASE_PERSON, MEMBER, PROFILE_HASH,
-                NOW.plusSeconds(60), Set.of("calendar.write"), true)));
-        var release = new McpWorkloadAuthorizationService(
-                bindings, entitlementAuthority, Set.of("calendar.read", "calendar.write", "files.read"),
-                Clock.fixed(NOW, ZoneOffset.UTC));
-
-        assertThatThrownBy(() -> release.authorize(token("calendar.write")))
-                .isInstanceOfSatisfying(McpWorkloadAuthorizationException.class,
-                        failure -> assertThat(failure.reasonCode()).isEqualTo("tool-scope"));
-        when(entitlementAuthority.currentWeaveRoles(any())).thenReturn(Set.of("admin"));
-        assertThat(release.authorize(token("calendar.write")).visibleToolClasses())
-                .containsExactly("calendar.write");
-    }
-
-    @Test
-    void releaseBindingCannotBroadenTheServerCapabilityCeiling() {
-        ReleaseMcpBindingRepository bindings = mock(ReleaseMcpBindingRepository.class);
-        when(bindings.findByWorkload(ISSUER, SUBJECT)).thenReturn(Optional.of(new ReleaseMcpBinding(
-                "mcp-binding:test", ISSUER, SUBJECT, "weaver-mcp-member-test",
-                "org:test", RELEASE_PERSON, MEMBER, PROFILE_HASH,
-                NOW.plusSeconds(60), Set.of("calendar.write"), true)));
-        var release = new McpWorkloadAuthorizationService(
-                bindings, entitlementAuthority, Set.of("files.read", "calendar.read"),
-                Clock.fixed(NOW, ZoneOffset.UTC));
-
-        assertThatThrownBy(() -> release.authorize(token("calendar.write")))
-                .isInstanceOfSatisfying(McpWorkloadAuthorizationException.class,
-                        failure -> assertThat(failure.reasonCode()).isEqualTo("identity-binding"));
-        verify(entitlementAuthority, never()).observe(any());
-    }
-
-    @Test
-    void releaseBindingAuthorityOutageDoesNotRevealPrivateCause() {
-        ReleaseMcpBindingRepository bindings = mock(ReleaseMcpBindingRepository.class);
-        when(bindings.findByWorkload(ISSUER, SUBJECT))
-                .thenThrow(new IllegalStateException("private binding path"));
-        var release = new McpWorkloadAuthorizationService(
-                bindings, entitlementAuthority, Set.of("calendar.read", "calendar.write", "files.read"),
-                Clock.fixed(NOW, ZoneOffset.UTC));
-
-        assertThatThrownBy(() -> release.authorize(token()))
-                .isInstanceOfSatisfying(McpWorkloadAuthorizationException.class,
-                        failure -> assertThat(failure.authorityUnavailable()).isTrue())
-                .hasMessageNotContaining("private binding path");
-    }
-
-    @Test
-    void releaseBindingRejectsCrossOrganizationObservationAndCurrentAuthorityLoss() {
-        ReleaseMcpBindingRepository bindings = mock(ReleaseMcpBindingRepository.class);
-        when(bindings.findByWorkload(ISSUER, SUBJECT)).thenReturn(Optional.of(releaseBinding(true)));
-        var release = new McpWorkloadAuthorizationService(
-                bindings, entitlementAuthority, Set.of("calendar.read", "calendar.write", "files.read"),
-                Clock.fixed(NOW, ZoneOffset.UTC));
-        RuntimeEntitlementObservation current = releaseObservation();
-        when(entitlementAuthority.observe(any())).thenReturn(new RuntimeEntitlementObservation(
-                "org:other", current.personRef(), current.memberBinding(), current.contextPrincipalClaim(),
-                current.sourceProvider(), current.sourceGroupRef(), current.capabilityRevision(),
-                current.observedAt(), current.expiresAt()));
-        assertThatThrownBy(() -> release.authorize(token()))
-                .isInstanceOfSatisfying(McpWorkloadAuthorizationException.class,
-                        failure -> assertThat(failure.reasonCode()).isEqualTo("entitlement-mismatch"));
-
-        when(entitlementAuthority.observe(any()))
-                .thenThrow(new RuntimeEntitlementAuthorityException("private Keycloak failure"));
-        assertThatThrownBy(() -> release.authorize(token()))
-                .isInstanceOfSatisfying(McpWorkloadAuthorizationException.class,
-                        failure -> assertThat(failure.authorityUnavailable()).isTrue())
-                .hasMessageNotContaining("private Keycloak failure");
-    }
-
-    private static ReleaseMcpBinding releaseBinding(boolean active) {
-        return new ReleaseMcpBinding(
-                "mcp-binding:test", ISSUER, SUBJECT, "weaver-cell-release-test",
-                "org:test", RELEASE_PERSON, MEMBER, PROFILE_HASH,
-                NOW.plusSeconds(60), Set.of("calendar.read"), active);
-    }
-
-    private static RuntimeEntitlementObservation releaseObservation() {
-        RuntimeEntitlementObservation current = observation();
-        return new RuntimeEntitlementObservation(
-                current.organizationRef(), RELEASE_PERSON, current.memberBinding(),
-                current.contextPrincipalClaim(), current.sourceProvider(), current.sourceGroupRef(),
-                current.capabilityRevision(), current.observedAt(), current.expiresAt());
     }
 
     private ExchangedWorkloadToken token() {
@@ -475,8 +325,8 @@ class McpWorkloadAuthorizationServiceTest {
                 NOW.minusSeconds(1));
     }
 
-    private static RuntimeEntitlementObservation observation() {
-        return new RuntimeEntitlementObservation(
+    private static WorkloadEntitlementObservation observation() {
+        return new WorkloadEntitlementObservation(
                 "org:test",
                 "person:test",
                 MEMBER,

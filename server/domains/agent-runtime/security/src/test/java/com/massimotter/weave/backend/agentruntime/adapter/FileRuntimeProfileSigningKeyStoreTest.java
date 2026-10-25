@@ -2,9 +2,8 @@ package com.massimotter.weave.backend.agentruntime.adapter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 import tools.jackson.databind.ObjectMapper;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
+import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeProfile;
 import com.massimotter.weave.backend.agentruntime.domain.SignedRuntimeProfile;
 import com.massimotter.weave.backend.agentruntime.port.InvalidRuntimeProfileException;
@@ -215,7 +214,7 @@ class FileRuntimeProfileSigningKeyStoreTest {
                 "rp_key_store_test",
                 "org:test",
                 "person:test",
-                new RuntimeMemberBinding("https://auth.weave.test/realms/weave", "member-test"),
+                new MemberIdentityBinding("https://auth.weave.test/realms/weave", "member-test"),
                 "cell:test",
                 new RuntimeProfile.WorkloadIdentity(
                         "https://auth.weave.test/realms/weave",

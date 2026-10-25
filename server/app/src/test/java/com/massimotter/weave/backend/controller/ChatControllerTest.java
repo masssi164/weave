@@ -28,7 +28,7 @@ import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
-import com.massimotter.weave.backend.config.AgentRuntimeEntitlementProperties;
+import com.massimotter.weave.backend.security.workload.config.WorkloadEntitlementProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
@@ -80,7 +80,7 @@ import org.springframework.test.web.servlet.MockMvc;
         ContextAuthorizationProperties.class,
         WorkspaceCapabilityProperties.class,
         WeaveSecurityProperties.class,
-        AgentRuntimeEntitlementProperties.class,
+        WorkloadEntitlementProperties.class,
         OAuth2ResourceServerProperties.class
 })
 class ChatControllerTest {

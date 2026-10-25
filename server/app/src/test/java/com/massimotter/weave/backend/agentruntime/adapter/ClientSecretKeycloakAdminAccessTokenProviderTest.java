@@ -2,9 +2,8 @@ package com.massimotter.weave.backend.agentruntime.adapter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 import tools.jackson.databind.ObjectMapper;
-import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityException;
+import com.massimotter.weave.backend.security.workload.port.WorkloadIdentityException;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
@@ -92,7 +91,7 @@ class ClientSecretKeycloakAdminAccessTokenProviderTest {
                 respond(exchange, 401, "private-provider-diagnostic admin-secret"));
 
         assertThatThrownBy(() -> provider().accessToken())
-                .isInstanceOf(RuntimeWorkloadIdentityException.class)
+                .isInstanceOf(WorkloadIdentityException.class)
                 .hasMessageContaining("sanitized status 401")
                 .hasMessageNotContaining("private-provider-diagnostic")
                 .hasMessageNotContaining("admin-secret");

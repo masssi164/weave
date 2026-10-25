@@ -4,10 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
-
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeProfile;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementRef;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
+import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadPrincipal;
 import com.massimotter.weave.backend.agentruntime.domain.SignedRuntimeProfile;
 import com.massimotter.weave.backend.agentruntime.port.InvalidRuntimeProfileException;
@@ -52,7 +51,7 @@ class RuntimeProfileDeliveryServiceTest {
         when(profile.organizationRef()).thenReturn("org:example");
         when(profile.personRef()).thenReturn("person:example");
         when(profile.entitlementRevision()).thenReturn("sha256:" + "e".repeat(64));
-        RuntimeMemberBinding memberBinding = new RuntimeMemberBinding(
+        MemberIdentityBinding memberBinding = new MemberIdentityBinding(
                 "https://auth.weave.test/realms/weave", "member-1");
         when(profile.memberBinding()).thenReturn(memberBinding);
         RuntimeEntitlementRef entitlement = mock(RuntimeEntitlementRef.class);

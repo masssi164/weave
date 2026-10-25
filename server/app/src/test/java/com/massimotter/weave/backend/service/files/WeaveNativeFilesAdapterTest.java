@@ -15,7 +15,7 @@ import com.massimotter.weave.backend.files.port.FilesAuthorityRepository;
 import com.massimotter.weave.backend.files.port.FilesProviderPort;
 import com.massimotter.weave.backend.files.port.FilesProviderPort.FilesRequestScope;
 import com.massimotter.weave.backend.files.port.StoredFileRecord;
-import com.massimotter.weave.backend.portability.ProviderConformanceProfile.MappingClass;
+import com.massimotter.weave.backend.providerbinding.contract.ProviderConformanceProfile.MappingClass;
 import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import java.nio.file.Path;
 import java.time.Clock;

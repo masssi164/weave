@@ -2,7 +2,6 @@ package com.massimotter.weave.backend.architecture;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarId;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarEvent;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarScope;
@@ -10,7 +9,7 @@ import com.massimotter.weave.backend.calendar.domain.CalendarDomain.EventId;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.RecurrenceFrequency;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.RecurrenceSet;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FilePath;
-import com.massimotter.weave.backend.portability.ProviderConformanceProfile.MappingClass;
+import com.massimotter.weave.backend.providerbinding.contract.ProviderConformanceProfile.MappingClass;
 import com.massimotter.weave.backend.portability.ProviderObjectMapping;
 import com.massimotter.weave.backend.portability.ProviderObjectMapping.ProviderRef;
 import java.time.LocalDateTime;

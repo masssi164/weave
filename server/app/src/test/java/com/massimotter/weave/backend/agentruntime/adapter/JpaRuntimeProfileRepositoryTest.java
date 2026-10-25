@@ -2,9 +2,8 @@ package com.massimotter.weave.backend.agentruntime.adapter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCell;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
+import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadBinding;
 import com.massimotter.weave.backend.agentruntime.domain.SignedRuntimeProfile;
 import com.massimotter.weave.backend.agentruntime.port.StaleRuntimeCellException;
@@ -30,7 +29,7 @@ class JpaRuntimeProfileRepositoryTest {
         var persistence = AgentRuntimeJpaTestFactory.create(database);
         cells = persistence.cells();
         profiles = persistence.profiles();
-        RuntimeMemberBinding memberBinding = new RuntimeMemberBinding(ISSUER, "member-example");
+        MemberIdentityBinding memberBinding = new MemberIdentityBinding(ISSUER, "member-example");
         var entitlement = AgentRuntimeJpaTestFactory.activateEntitlement(
                 persistence, "org:example", "person:example", memberBinding, NOW);
         cell = cells.insert(cell(memberBinding, entitlement.entitlementRevision()));
@@ -135,7 +134,7 @@ class JpaRuntimeProfileRepositoryTest {
     }
 
     private static RuntimeCell cell(
-            RuntimeMemberBinding memberBinding,
+            MemberIdentityBinding memberBinding,
             String entitlementRevision) {
         return RuntimeCell.provisioning(
                 "org:example", "person:example",

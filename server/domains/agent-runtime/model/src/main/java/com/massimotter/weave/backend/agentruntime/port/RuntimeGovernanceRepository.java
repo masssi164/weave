@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.agentruntime.port;
 
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeAuditCorrelation;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementObservation;
+import com.massimotter.weave.backend.security.workload.domain.WorkloadEntitlementObservation;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementRef;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeRevocation;
 import java.time.Instant;
@@ -9,7 +9,7 @@ import java.util.Optional;
 
 public interface RuntimeGovernanceRepository {
     RuntimeEntitlementRef activate(
-            RuntimeEntitlementObservation observation,
+            WorkloadEntitlementObservation observation,
             String activationRef,
             String auditRef,
             Instant now);

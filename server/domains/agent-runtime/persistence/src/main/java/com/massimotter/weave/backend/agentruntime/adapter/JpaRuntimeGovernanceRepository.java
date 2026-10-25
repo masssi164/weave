@@ -1,11 +1,12 @@
 package com.massimotter.weave.backend.agentruntime.adapter;
 
+import com.massimotter.weave.backend.security.workload.domain.WorkloadReferences;
+
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeAuditCorrelation;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementObservation;
+import com.massimotter.weave.backend.security.workload.domain.WorkloadEntitlementObservation;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementRef;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementState;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeRevocation;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadOwnership;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeGovernanceRepository;
 import jakarta.persistence.PersistenceException;
 import java.time.Instant;
@@ -17,7 +18,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
-
 import static java.util.Objects.requireNonNull;
 
 /** Relational authority facts with versioned entitlements and append-only evidence ledgers. */
@@ -47,7 +47,7 @@ public class JpaRuntimeGovernanceRepository
 
     @Override
     public RuntimeEntitlementRef activate(
-            RuntimeEntitlementObservation observation,
+            WorkloadEntitlementObservation observation,
             String activationRef,
             String auditRef,
             Instant now) {
@@ -246,14 +246,14 @@ public class JpaRuntimeGovernanceRepository
     }
 
     private RuntimeEntitlementRef proposedEntitlement(
-            RuntimeEntitlementObservation observation,
+            WorkloadEntitlementObservation observation,
             String activationRef,
             String auditRef,
             Instant now) {
         String identity = material(observation, activationRef);
         String entitlementRef = "entitlement:"
-                + RuntimeWorkloadOwnership.fingerprint(identity).substring(7);
-        String revision = RuntimeWorkloadOwnership.fingerprint(
+                + WorkloadReferences.fingerprint(identity).substring(7);
+        String revision = WorkloadReferences.fingerprint(
                 ENTITLEMENT_DOMAIN + "\u0000" + identity);
         return new RuntimeEntitlementRef(
                 UUID.randomUUID(),
@@ -277,7 +277,7 @@ public class JpaRuntimeGovernanceRepository
     }
 
     private static String material(
-            RuntimeEntitlementObservation observation,
+            WorkloadEntitlementObservation observation,
             String activationRef) {
         return observation.organizationRef() + "\u0000"
                 + observation.personRef() + "\u0000"

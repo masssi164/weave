@@ -1,12 +1,12 @@
 package com.massimotter.weave.backend.meetings.config;
 
 import com.massimotter.weave.backend.config.LiveKitSfuProviderProperties;
-import com.massimotter.weave.backend.provider.ProviderModule;
-import com.massimotter.weave.backend.provider.ProviderPort;
-import com.massimotter.weave.backend.provider.ProviderRealityLevel;
-import com.massimotter.weave.backend.provider.ProviderState;
-import com.massimotter.weave.backend.provider.ProviderStatusResponse;
-import com.massimotter.weave.backend.provider.StaticProviderPort;
+import com.massimotter.weave.backend.discovery.provider.ProviderModule;
+import com.massimotter.weave.backend.discovery.provider.ProviderPort;
+import com.massimotter.weave.backend.discovery.provider.ProviderRealityLevel;
+import com.massimotter.weave.backend.discovery.provider.ProviderState;
+import com.massimotter.weave.backend.discovery.provider.ProviderStatusResponse;
+import com.massimotter.weave.backend.discovery.provider.StaticProviderPort;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;

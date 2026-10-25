@@ -1,27 +1,32 @@
 package com.massimotter.weave.backend.config;
 
-import com.massimotter.weave.backend.health.config.ProviderHealthProperties;
+import com.massimotter.weave.backend.security.keycloak.provider.SpringSecurityKeycloakAdminAccessTokenProvider;
 
+import com.massimotter.weave.backend.discovery.config.PlatformContractProperties;
+
+import com.massimotter.weave.backend.security.workload.config.WorkloadEntitlementProperties;
+
+import com.massimotter.weave.backend.health.config.ProviderHealthProperties;
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.adapter.FileRuntimeWorkloadCredentialStore;
-import com.massimotter.weave.backend.agentruntime.adapter.KeycloakAdminAccessTokenProvider;
+import com.massimotter.weave.backend.security.keycloak.port.KeycloakAdminAccessTokenProvider;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakAgentRuntimeWorkloadIdentityAdmin;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakClientRegistrationTransport;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakRuntimeIdentityAuthority;
-import com.massimotter.weave.backend.agentruntime.adapter.McpExchangedTokenPolicy;
+import com.massimotter.weave.backend.security.workload.jwt.McpExchangedTokenPolicy;
 import com.massimotter.weave.backend.agentruntime.application.AgentRuntimeControlService;
 import com.massimotter.weave.backend.agentruntime.application.AgentRuntimeWorkloadReconciliationService;
 import com.massimotter.weave.backend.agentruntime.application.McpWorkloadAuthorizationService;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCellRepository;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeCommandRepository;
-import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementAuthority;
+import com.massimotter.weave.backend.security.workload.port.WorkloadEntitlementAuthority;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeGovernanceRepository;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileRepository;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeProfileVerifier;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadCredentialStore;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityAdmin;
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityInventory;
-import com.massimotter.weave.backend.agentruntime.port.SecretRefAccess;
+import com.massimotter.weave.backend.security.secret.port.SecretRefAccess;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -33,7 +38,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties({
   AgentRuntimeWorkloadIdentityProperties.class,
-  AgentRuntimeEntitlementProperties.class
+  WorkloadEntitlementProperties.class
 })
 @ConditionalOnExpression("'${weave.agent-runtime.workload-identity.enabled:false}' == 'true' && '${weave.mcp.release-binding-file:}' == ''")
 public class AgentRuntimeWorkloadIdentityConfiguration {
@@ -83,7 +88,7 @@ public class AgentRuntimeWorkloadIdentityConfiguration {
   @Bean
   KeycloakRuntimeIdentityAuthority runtimeIdentityAuthority(
       AgentRuntimeWorkloadIdentityProperties properties,
-      AgentRuntimeEntitlementProperties entitlement,
+      WorkloadEntitlementProperties entitlement,
       @Qualifier(KeycloakAdminClientConfiguration.KEYCLOAK_ADMIN_ACCESS_TOKENS)
           KeycloakAdminAccessTokenProvider accessTokens,
       ObjectMapper objectMapper) {
@@ -116,7 +121,7 @@ public class AgentRuntimeWorkloadIdentityConfiguration {
       RuntimeCommandRepository commands,
       RuntimeProfileRepository profiles,
       RuntimeWorkloadIdentityAdmin workloadIdentityAdmin,
-      RuntimeEntitlementAuthority entitlementAuthority,
+      WorkloadEntitlementAuthority entitlementAuthority,
       RuntimeGovernanceRepository governance) {
     return new AgentRuntimeControlService(
         cells,
@@ -140,7 +145,7 @@ public class AgentRuntimeWorkloadIdentityConfiguration {
       RuntimeProfileVerifier verifier,
       RuntimeGovernanceRepository governance,
       RuntimeWorkloadIdentityAdmin workloadIdentityAdmin,
-      RuntimeEntitlementAuthority entitlementAuthority) {
+      WorkloadEntitlementAuthority entitlementAuthority) {
     return new McpWorkloadAuthorizationService(
         cells,
         profiles,

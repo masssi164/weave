@@ -1,14 +1,17 @@
 package com.massimotter.weave.backend.agentruntime.adapter;
 
+import com.massimotter.weave.backend.security.workload.domain.WorkloadReferences;
+
+import com.massimotter.weave.backend.security.keycloak.port.KeycloakAdminAccessTokenProvider;
+
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementObservation;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadOwnership;
-import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementAuthority;
-import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementAuthorityException;
-import com.massimotter.weave.backend.agentruntime.port.RuntimeEntitlementDeniedException;
+import com.massimotter.weave.backend.security.workload.domain.WorkloadEntitlementObservation;
+import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBinding;
+import com.massimotter.weave.backend.security.workload.port.WorkloadEntitlementAuthority;
+import com.massimotter.weave.backend.security.workload.port.WorkloadEntitlementAuthorityException;
+import com.massimotter.weave.backend.security.workload.port.WorkloadEntitlementDeniedException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimePersonDirectory;
 import com.massimotter.weave.backend.agentruntime.port.RuntimePersonDirectoryException;
 import com.massimotter.weave.backend.agentruntime.port.RuntimePersonNotFoundException;
@@ -34,7 +37,7 @@ import java.util.Set;
 
 /** Read-only Keycloak 26.7 Admin REST adapter for current per-person Weaver entitlement. */
 public final class KeycloakRuntimeEntitlementAuthority
-    implements RuntimeEntitlementAuthority, RuntimePersonDirectory {
+    implements WorkloadEntitlementAuthority, RuntimePersonDirectory {
   private static final int PAGE_SIZE = 100;
   private static final int MAX_GROUPS = 10_000;
   private static final int MAX_ORGANIZATION_MEMBERS = 10_000;
@@ -71,18 +74,18 @@ public final class KeycloakRuntimeEntitlementAuthority
   }
 
   @Override
-  public RuntimeEntitlementObservation observe(ObserveEntitlementCommand command) {
+  public WorkloadEntitlementObservation observe(ObserveEntitlementCommand command) {
     Objects.requireNonNull(command, "command");
     if (!settings.enabled()) {
-      throw new RuntimeEntitlementDeniedException(
+      throw new WorkloadEntitlementDeniedException(
           "Agent Runtime Control entitlement is disabled by policy");
     }
     if (!settings.issuer().toString().equals(command.memberBinding().issuer())) {
-      throw new RuntimeEntitlementDeniedException(
+      throw new WorkloadEntitlementDeniedException(
           "The member identity is not bound to the configured IDM");
     }
     if (!settings.organizationRef().equals(command.organizationRef())) {
-      throw new RuntimeEntitlementDeniedException(
+      throw new WorkloadEntitlementDeniedException(
           "The member identity is not bound to the configured organization");
     }
 
@@ -95,7 +98,7 @@ public final class KeycloakRuntimeEntitlementAuthority
             Set.of(200, 404));
     if (organizationMember == null
         || !command.memberBinding().subject().equals(organizationMember.path("id").asString())) {
-      throw new RuntimeEntitlementDeniedException(
+      throw new WorkloadEntitlementDeniedException(
           "The authoritative identity is not a current organization member");
     }
 
@@ -103,7 +106,7 @@ public final class KeycloakRuntimeEntitlementAuthority
     if (user == null
         || !command.memberBinding().subject().equals(user.path("id").asString())
         || !user.path("enabled").asBoolean(false)) {
-      throw new RuntimeEntitlementDeniedException("The authoritative member is absent or disabled");
+      throw new WorkloadEntitlementDeniedException("The authoritative member is absent or disabled");
     }
 
     List<Group> eligible =
@@ -112,7 +115,7 @@ public final class KeycloakRuntimeEntitlementAuthority
             .sorted(Comparator.comparing(Group::path).thenComparing(Group::id))
             .toList();
     if (eligible.isEmpty()) {
-      throw new RuntimeEntitlementDeniedException(
+      throw new WorkloadEntitlementDeniedException(
           "The member has no current Weaver entitlement group");
     }
 
@@ -121,13 +124,13 @@ public final class KeycloakRuntimeEntitlementAuthority
       append(source, group.id());
       append(source, group.path());
     }
-    String sourceGroupRef = RuntimeWorkloadOwnership.fingerprint(source.toString());
+    String sourceGroupRef = WorkloadReferences.fingerprint(source.toString());
     StringBuilder capability = new StringBuilder("weave.agent-runtime.capability-policy/v1");
     append(capability, sourceGroupRef);
     settings.allowedCapabilities().forEach(value -> append(capability, value));
-    String capabilityRevision = RuntimeWorkloadOwnership.fingerprint(capability.toString());
+    String capabilityRevision = WorkloadReferences.fingerprint(capability.toString());
     Instant observedAt = clock.instant();
-    return new RuntimeEntitlementObservation(
+    return new WorkloadEntitlementObservation(
         command.organizationRef(),
         command.personRef(),
         command.memberBinding(),
@@ -177,10 +180,10 @@ public final class KeycloakRuntimeEntitlementAuthority
       return new ResolvedRuntimePerson(
           command.organizationRef(),
           command.personRef(),
-          new RuntimeMemberBinding(settings.issuer().toString(), subject));
+          new MemberIdentityBinding(settings.issuer().toString(), subject));
     } catch (RuntimePersonNotFoundException | RuntimePersonDirectoryException failure) {
       throw failure;
-    } catch (RuntimeEntitlementAuthorityException unavailable) {
+    } catch (WorkloadEntitlementAuthorityException unavailable) {
       throw new RuntimePersonDirectoryException(
           "The authoritative runtime person directory is unavailable", unavailable);
     }
@@ -199,7 +202,7 @@ public final class KeycloakRuntimeEntitlementAuthority
                   + PAGE_SIZE,
               Set.of(200));
       if (page == null || !page.isArray()) {
-        throw new RuntimeEntitlementAuthorityException(
+        throw new WorkloadEntitlementAuthorityException(
             "Keycloak returned an invalid organization member projection");
       }
       page.forEach(members::add);
@@ -207,7 +210,7 @@ public final class KeycloakRuntimeEntitlementAuthority
         return List.copyOf(members);
       }
     }
-    throw new RuntimeEntitlementAuthorityException(
+    throw new WorkloadEntitlementAuthorityException(
         "The Keycloak organization member projection exceeds its safe bound");
   }
 
@@ -224,7 +227,7 @@ public final class KeycloakRuntimeEntitlementAuthority
                   + PAGE_SIZE,
               Set.of(200));
       if (page == null || !page.isArray()) {
-        throw new RuntimeEntitlementAuthorityException(
+        throw new WorkloadEntitlementAuthorityException(
             "Keycloak returned an invalid entitlement group projection");
       }
       for (JsonNode item : page) {
@@ -240,7 +243,7 @@ public final class KeycloakRuntimeEntitlementAuthority
         return List.copyOf(groups);
       }
     }
-    throw new RuntimeEntitlementAuthorityException(
+    throw new WorkloadEntitlementAuthorityException(
         "The Keycloak entitlement group projection exceeds its safe bound");
   }
 
@@ -264,7 +267,7 @@ public final class KeycloakRuntimeEntitlementAuthority
       first = send(suffix, accessTokens.accessToken());
     }
     if (!acceptedStatuses.contains(first.status())) {
-      throw new RuntimeEntitlementAuthorityException(
+      throw new WorkloadEntitlementAuthorityException(
           "Keycloak entitlement lookup failed with sanitized status " + first.status());
     }
     if (first.status() == 404) {
@@ -273,14 +276,14 @@ public final class KeycloakRuntimeEntitlementAuthority
     try {
       return mapper.readTree(first.body());
     } catch (JacksonException invalid) {
-      throw new RuntimeEntitlementAuthorityException(
+      throw new WorkloadEntitlementAuthorityException(
           "Keycloak returned an invalid entitlement response", invalid);
     }
   }
 
   private Response send(String suffix, String accessToken) {
     if (accessToken == null || accessToken.isBlank()) {
-      throw new RuntimeEntitlementAuthorityException(
+      throw new WorkloadEntitlementAuthorityException(
           "The Keycloak administration token is unavailable");
     }
     HttpRequest request =
@@ -296,17 +299,17 @@ public final class KeycloakRuntimeEntitlementAuthority
       try (InputStream body = response.body()) {
         byte[] bytes = body.readNBytes(MAX_RESPONSE_BYTES + 1);
         if (bytes.length > MAX_RESPONSE_BYTES) {
-          throw new RuntimeEntitlementAuthorityException(
+          throw new WorkloadEntitlementAuthorityException(
               "Keycloak entitlement response exceeds its safe bound");
         }
         return new Response(response.statusCode(), bytes);
       }
     } catch (IOException unavailable) {
-      throw new RuntimeEntitlementAuthorityException(
+      throw new WorkloadEntitlementAuthorityException(
           "Keycloak entitlement lookup is unavailable", unavailable);
     } catch (InterruptedException interrupted) {
       Thread.currentThread().interrupt();
-      throw new RuntimeEntitlementAuthorityException(
+      throw new WorkloadEntitlementAuthorityException(
           "Keycloak entitlement lookup was interrupted", interrupted);
     }
   }
@@ -322,7 +325,7 @@ public final class KeycloakRuntimeEntitlementAuthority
   private static String text(JsonNode node, String field) {
     String value = node.path(field).asString("");
     if (value.isBlank()) {
-      throw new RuntimeEntitlementAuthorityException(
+      throw new WorkloadEntitlementAuthorityException(
           "Keycloak returned an incomplete entitlement projection");
     }
     return value;

@@ -12,12 +12,12 @@ import com.massimotter.weave.backend.calendar.domain.CalendarDomain.FreeBusyWind
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.WriteIntent;
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
 import com.massimotter.weave.backend.config.CalendarCalDavProperties;
-import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
-import com.massimotter.weave.backend.portability.ProviderConformanceProfile.MappingClass;
+import com.massimotter.weave.backend.providerbinding.contract.ProviderConformanceProfile;
+import com.massimotter.weave.backend.providerbinding.contract.ProviderConformanceProfile.MappingClass;
 import com.massimotter.weave.backend.health.ProviderCapabilityProbeResult;
 import com.massimotter.weave.backend.health.ProviderCapabilityState;
-import com.massimotter.weave.backend.portability.ProviderReadiness;
-import com.massimotter.weave.backend.portability.RetryAfterParser;
+import com.massimotter.weave.backend.providerbinding.contract.ProviderReadiness;
+import com.massimotter.weave.backend.http.retry.RetryAfterParser;
 import java.io.IOException;
 import java.io.StringReader;
 import java.net.URI;

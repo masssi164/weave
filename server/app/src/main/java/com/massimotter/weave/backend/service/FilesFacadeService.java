@@ -6,10 +6,10 @@ import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.AuditEvent;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditRedactionLevel;
-import com.massimotter.weave.backend.agentruntime.adapter.McpExchangedTokenPolicy;
-import com.massimotter.weave.backend.agentruntime.application.McpWorkloadAuthorizationService;
-import com.massimotter.weave.backend.agentruntime.domain.WeaverWorkloadPrincipal;
-import com.massimotter.weave.backend.agentruntime.port.McpWorkloadAuthorizationException;
+import com.massimotter.weave.backend.security.workload.jwt.McpExchangedTokenPolicy;
+import com.massimotter.weave.backend.security.workload.port.McpWorkloadAuthorization;
+import com.massimotter.weave.backend.security.workload.domain.WeaverWorkloadPrincipal;
+import com.massimotter.weave.backend.security.workload.port.McpWorkloadAuthorizationException;
 import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
@@ -99,7 +99,7 @@ public class FilesFacadeService {
     private final DeviceCredentialService deviceCredentialService;
     private final FilesLockService filesLockService;
     private final FilesMutationIntentService filesMutationIntentService;
-    private final McpWorkloadAuthorizationService mcpWorkloadAuthorizationService;
+    private final McpWorkloadAuthorization mcpWorkloadAuthorizationService;
     private final McpExchangedTokenPolicy mcpExchangedTokenPolicy;
 
     @Autowired
@@ -113,7 +113,7 @@ public class FilesFacadeService {
             AuditEventPublisher auditEventPublisher,
             FilesLockService filesLockService,
             FilesMutationIntentService filesMutationIntentService,
-            ObjectProvider<McpWorkloadAuthorizationService> mcpWorkloadAuthorizationServiceProvider,
+            ObjectProvider<McpWorkloadAuthorization> mcpWorkloadAuthorizationServiceProvider,
             ObjectProvider<McpExchangedTokenPolicy> mcpExchangedTokenPolicyProvider) {
         this(
                 filesProviderResolver,
@@ -138,7 +138,7 @@ public class FilesFacadeService {
             AuditEventPublisher auditEventPublisher,
             FilesLockService filesLockService,
             FilesMutationIntentService filesMutationIntentService,
-            McpWorkloadAuthorizationService mcpWorkloadAuthorizationService,
+            McpWorkloadAuthorization mcpWorkloadAuthorizationService,
             McpExchangedTokenPolicy mcpExchangedTokenPolicy) {
         this(
                 filesProviderResolver,
@@ -164,7 +164,7 @@ public class FilesFacadeService {
             AuditEventPublisher auditEventPublisher,
             FilesLockService filesLockService,
             FilesMutationIntentService filesMutationIntentService,
-            McpWorkloadAuthorizationService mcpWorkloadAuthorizationService,
+            McpWorkloadAuthorization mcpWorkloadAuthorizationService,
             McpExchangedTokenPolicy mcpExchangedTokenPolicy) {
         this.filesProviderResolver = Objects.requireNonNull(filesProviderResolver, "filesProviderResolver");
         this.contextAuthorizationPort = contextAuthorizationPort;
@@ -188,7 +188,7 @@ public class FilesFacadeService {
             AuditEventPublisher auditEventPublisher) {
         this(filesProviderResolver, contextAuthorizationPort, contextAuthorizationProperties,
                 workspaceCapabilityService, deviceCredentialService, auditEventPublisher, null, null,
-                (McpWorkloadAuthorizationService) null, (McpExchangedTokenPolicy) null);
+                (McpWorkloadAuthorization) null, (McpExchangedTokenPolicy) null);
     }
 
     public FilesFacadeService(
@@ -201,7 +201,7 @@ public class FilesFacadeService {
             FilesLockService filesLockService) {
         this(filesProviderResolver, contextAuthorizationPort, contextAuthorizationProperties,
                 workspaceCapabilityService, deviceCredentialService, auditEventPublisher, filesLockService, null,
-                (McpWorkloadAuthorizationService) null, (McpExchangedTokenPolicy) null);
+                (McpWorkloadAuthorization) null, (McpExchangedTokenPolicy) null);
     }
 
     FilesFacadeService(
@@ -211,7 +211,7 @@ public class FilesFacadeService {
             WorkspaceCapabilityService workspaceCapabilityService,
             DeviceCredentialService deviceCredentialService,
             AuditEventPublisher auditEventPublisher,
-            McpWorkloadAuthorizationService mcpWorkloadAuthorizationService,
+            McpWorkloadAuthorization mcpWorkloadAuthorizationService,
             McpExchangedTokenPolicy mcpExchangedTokenPolicy) {
         this(
                 filesProviderResolver,

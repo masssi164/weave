@@ -1,17 +1,17 @@
 package com.massimotter.weave.backend.agentruntime.adapter;
 
+import com.massimotter.weave.backend.security.workload.domain.WorkloadReferences;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeAuditCorrelation;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCell;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementObservation;
+import com.massimotter.weave.backend.security.workload.domain.WorkloadEntitlementObservation;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementRef;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementState;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
+import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeRevocation;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadBinding;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadOwnership;
 import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import java.time.Instant;
 import java.util.UUID;
@@ -91,16 +91,16 @@ class JpaRuntimeGovernanceRepositoryTest {
         assertThat(replay.correlationRef()).isEqualTo(first.correlationRef());
         RuntimeAuditCorrelation conflicting = new RuntimeAuditCorrelation(
                 UUID.randomUUID(), first.correlationRef(), HASH_ONE, HASH_TWO, null,
-                RuntimeWorkloadOwnership.fingerprint("different-cell"), null, null, null, HASH_ONE, NOW, NOW);
+                WorkloadReferences.fingerprint("different-cell"), null, null, null, HASH_ONE, NOW, NOW);
         assertThatThrownBy(() -> repository.appendCorrelation(conflicting))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("different evidence");
     }
 
-    private static RuntimeEntitlementObservation observation(Instant observedAt, Instant expiresAt) {
-        return new RuntimeEntitlementObservation(
+    private static WorkloadEntitlementObservation observation(Instant observedAt, Instant expiresAt) {
+        return new WorkloadEntitlementObservation(
                 "org:example", "person:example",
-                new RuntimeMemberBinding("https://auth.weave.test/realms/weave", "member-1"),
+                new MemberIdentityBinding("https://auth.weave.test/realms/weave", "member-1"),
                 "member-1", "keycloak", HASH_ONE, HASH_TWO, observedAt, expiresAt);
     }
 

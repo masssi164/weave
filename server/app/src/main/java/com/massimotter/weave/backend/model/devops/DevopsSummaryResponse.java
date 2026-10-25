@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.model.devops;
 
-import com.massimotter.weave.backend.provider.ProviderStatusResponse;
+import com.massimotter.weave.backend.discovery.provider.ProviderStatusResponse;
 import java.util.List;
 
 public record DevopsSummaryResponse(

@@ -5,10 +5,10 @@ import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationRe
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
 import com.massimotter.weave.backend.spaces.authorization.ContextGraphRelation;
 import com.massimotter.weave.backend.audit.*;
-import com.massimotter.weave.backend.agentruntime.adapter.McpExchangedTokenPolicy;
-import com.massimotter.weave.backend.agentruntime.application.McpWorkloadAuthorizationService;
-import com.massimotter.weave.backend.agentruntime.domain.WeaverWorkloadPrincipal;
-import com.massimotter.weave.backend.agentruntime.port.McpWorkloadAuthorizationException;
+import com.massimotter.weave.backend.security.workload.jwt.McpExchangedTokenPolicy;
+import com.massimotter.weave.backend.security.workload.port.McpWorkloadAuthorization;
+import com.massimotter.weave.backend.security.workload.domain.WeaverWorkloadPrincipal;
+import com.massimotter.weave.backend.security.workload.port.McpWorkloadAuthorizationException;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.*;
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
 import com.massimotter.weave.backend.service.calendar.CalendarProviderBindingReadiness.Bound;
@@ -49,7 +49,7 @@ public class CalendarUserApiService {
     private final ProviderBindingRepository bindings;
     private final CalendarProviderBindingReadiness calendarReadiness;
     private final AuditEventPublisher audit;
-    private final McpWorkloadAuthorizationService mcpWorkloads;
+    private final McpWorkloadAuthorization mcpWorkloads;
     private final McpExchangedTokenPolicy mcpTokens;
     private final CalendarOccurrenceEngine occurrences = new CalendarOccurrenceEngine(new Ical4jRecurrenceEngine());
     private final CalendarPreviewRegistry previews = new CalendarPreviewRegistry();
@@ -59,7 +59,7 @@ public class CalendarUserApiService {
             ContextAuthorizationProperties context, ContextAuthorizationPort authorization, SpaceAccessPort spaces,
             WorkspaceCapabilityService capabilities, ProviderBindingRepository bindings,
             List<CalendarProviderPort> providers, AuditEventPublisher audit,
-            ObjectProvider<McpWorkloadAuthorizationService> mcpWorkloads,
+            ObjectProvider<McpWorkloadAuthorization> mcpWorkloads,
             ObjectProvider<McpExchangedTokenPolicy> mcpTokens, CalendarProviderBindingReadiness calendarReadiness) {
         this(admission, identities, context, authorization, spaces, capabilities, bindings, providers, audit,
                 mcpWorkloads.getIfAvailable(), mcpTokens.getIfAvailable(), calendarReadiness);
@@ -70,7 +70,7 @@ public class CalendarUserApiService {
             WorkspaceCapabilityService capabilities, ProviderBindingRepository bindings,
             List<CalendarProviderPort> providers, AuditEventPublisher audit) {
         this(admission, identities, context, authorization, spaces, capabilities, bindings, providers, audit,
-                (McpWorkloadAuthorizationService) null, (McpExchangedTokenPolicy) null,
+                (McpWorkloadAuthorization) null, (McpExchangedTokenPolicy) null,
                 new CalendarProviderBindingReadiness(bindings, providers));
     }
 
@@ -78,7 +78,7 @@ public class CalendarUserApiService {
             ContextAuthorizationProperties context, ContextAuthorizationPort authorization, SpaceAccessPort spaces,
             WorkspaceCapabilityService capabilities, ProviderBindingRepository bindings,
             List<CalendarProviderPort> providers, AuditEventPublisher audit,
-            McpWorkloadAuthorizationService mcpWorkloads, McpExchangedTokenPolicy mcpTokens,
+            McpWorkloadAuthorization mcpWorkloads, McpExchangedTokenPolicy mcpTokens,
             CalendarProviderBindingReadiness calendarReadiness) {
         this.admission = admission; this.identities = identities; this.context = context; this.authorization = authorization;
         this.spaces = spaces;

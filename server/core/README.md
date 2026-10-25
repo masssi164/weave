@@ -8,6 +8,8 @@ persistence. Domain business entities, controllers, providers and SDKs belong to
 `model` contains framework-free identity values, Space authorization contracts/rules and
 shared operation/binding ports. The runtime library owns responsibility-scoped JPA mappings,
 Identity resolution, Security settings/session services and the shared provider-health cache.
+Core Discovery owns generic provider status contracts; Core Provider Binding owns pure
+conformance/readiness values. Redaction and HTTP retry parsing have their own responsibilities.
 Its `api.error` exception is the common HTTP error contract; health's safe response lives with
 that responsibility. Pure models do not depend on either transport contract.
 
@@ -16,6 +18,17 @@ Persistence is available to serving, schema and operator contexts. Security/Iden
 services and provider health are servlet-only. Their explicit beans consume required shared
 contracts; health consumes deferred domain probes and does not contact providers during
 construction. No domain component scan or optional feature implementation is required.
+
+Release MCP authorization depends on protected member bindings, exact exchanged-token shape
+and current Keycloak entitlement. Its narrow authorization contract is shared; future runtime
+cells/profiles/governance remain outside Core. Existing configuration keys/defaults retain
+their reviewed values, including historical `weave.agent-runtime` prefixes. The release
+binding-file setting selects the existing release authorization path; it does not choose an
+organization's provider. Construction defers binding/secret/provider access until required.
+
+Shared Audit owns the cross-domain envelope/redaction/publication contracts and durable JPA
+sink. Connector and Consent event construction belongs to future Integrations. Serving sink
+wiring is module-local; non-web preparation composes its explicit audit sink.
 
 Shared revocation retains the existing durable table and hashed key format, permanent member
 cutoffs, session expiry retention, transaction/retry boundaries and fail-closed behavior.

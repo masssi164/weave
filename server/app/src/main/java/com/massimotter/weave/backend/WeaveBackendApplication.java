@@ -2,7 +2,7 @@ package com.massimotter.weave.backend;
 
 import com.massimotter.weave.backend.agentruntime.operator.RuntimeProfileSigningKeyCli;
 import com.massimotter.weave.backend.agentruntime.operator.RuntimeStateWrappingKeyCli;
-import com.massimotter.weave.backend.config.AgentRuntimeEntitlementProperties;
+import com.massimotter.weave.backend.security.workload.config.WorkloadEntitlementProperties;
 import com.massimotter.weave.backend.config.CalendarCalDavProperties;
 import com.massimotter.weave.backend.config.ChatRuntimeProperties;
 import com.massimotter.weave.backend.config.ConnectorRuntimeProperties;
@@ -17,7 +17,7 @@ import com.massimotter.weave.backend.config.LiveKitSfuProviderProperties;
 import com.massimotter.weave.backend.config.MatrixChatProperties;
 import com.massimotter.weave.backend.config.MigrationToolkitProperties;
 import com.massimotter.weave.backend.config.NextcloudFilesProperties;
-import com.massimotter.weave.backend.config.PlatformContractProperties;
+import com.massimotter.weave.backend.discovery.config.PlatformContractProperties;
 import com.massimotter.weave.backend.config.WeaveNativeFilesProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
@@ -36,7 +36,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 @EnableConfigurationProperties({
         CalendarCalDavProperties.class,
-        AgentRuntimeEntitlementProperties.class,
+        WorkloadEntitlementProperties.class,
         ChatRuntimeProperties.class,
         ConnectorRuntimeProperties.class,
         DeploymentOrganizationProperties.class,

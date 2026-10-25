@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.agentruntime.domain;
 
+import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBinding;
+
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
@@ -11,7 +13,7 @@ public record RuntimeEntitlementRef(
         String entitlementRevision,
         String organizationRef,
         String personRef,
-        RuntimeMemberBinding memberBinding,
+        MemberIdentityBinding memberBinding,
         String sourceProvider,
         String sourceGroupRef,
         String capabilityRevision,

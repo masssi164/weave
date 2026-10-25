@@ -2,11 +2,10 @@ package com.massimotter.weave.backend.agentruntime.adapter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCell;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeCellState;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeEntitlementState;
-import com.massimotter.weave.backend.agentruntime.domain.RuntimeMemberBinding;
+import com.massimotter.weave.backend.security.workload.domain.MemberIdentityBinding;
 import com.massimotter.weave.backend.agentruntime.domain.RuntimeWorkloadBinding;
 import com.massimotter.weave.backend.agentruntime.port.StaleRuntimeCellException;
 import com.massimotter.weave.backend.testing.JpaTestDatabase;
@@ -160,7 +159,7 @@ class JpaRuntimeCellRepositoryTest {
     }
 
     private RuntimeCell cell(String id) {
-        RuntimeMemberBinding memberBinding = new RuntimeMemberBinding(
+        MemberIdentityBinding memberBinding = new MemberIdentityBinding(
                 "https://auth.weave.test/realms/weave", "member-" + id);
         var entitlement = AgentRuntimeJpaTestFactory.activateEntitlement(
                 persistence, "org:example", "person:" + id, memberBinding, NOW);

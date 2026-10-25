@@ -7,7 +7,7 @@ import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
-import com.massimotter.weave.backend.audit.JpaAuditEventPublisher;
+import com.massimotter.weave.backend.audit.persistence.JpaAuditEventPublisher;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.api.error.ApiErrorException;

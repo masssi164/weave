@@ -5,8 +5,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-
-import com.massimotter.weave.backend.agentruntime.adapter.KeycloakAdminAccessTokenProvider;
+import com.massimotter.weave.backend.security.keycloak.port.KeycloakAdminAccessTokenProvider;
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
 import java.net.URI;

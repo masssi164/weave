@@ -1,3 +1,5 @@
 com.massimotter.weave.core.autoconfigure.CorePersistenceAutoConfiguration
 com.massimotter.weave.core.autoconfigure.CoreProviderHealthAutoConfiguration
 com.massimotter.weave.core.autoconfigure.CoreSecurityAutoConfiguration
+com.massimotter.weave.core.autoconfigure.CoreAuditAutoConfiguration
+com.massimotter.weave.core.autoconfigure.ReleaseMcpSecurityAutoConfiguration
