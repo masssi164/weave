@@ -45,6 +45,23 @@ tasks.named('test') {
     systemProperty 'weave.matrix.protocol.library.path', matrixProtocolLibrary.absolutePath
 }
 
+tasks.register('javaAgentReferenceTest', Test) {
+    group = 'verification'
+    description = 'Run bounded JVM HTTP/bean and same-instance provider-routing examples without JNI or live infrastructure.'
+    dependsOn tasks.named('testClasses')
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    filter {
+        includeTestsMatching '*DeclarativeHttpClientReferenceTest'
+        includeTestsMatching '*ConfigurationPropertiesReferenceTest'
+        includeTestsMatching '*FilesProviderResolverTest'
+    }
+    useJUnitPlatform {
+        // Cucumber performs its own discovery outside Gradle class filters.
+        includeEngines 'junit-jupiter'
+    }
+}
+
 tasks.register('openApiContractExport', Test) {
     group = 'verification'
     description = 'Export the server-owned OpenAPI contract without mutating the main test results.'

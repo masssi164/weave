@@ -10,9 +10,14 @@ The server owns Weave product facades, authorization, audit, provider boundaries
 - Context/Space authorization is the gate for workspace-scoped provider data.
 - Prefer Cucumber/JUnit and facade contract tests for product behavior; map release-grade behavior back to `../e2e/scenario_mappings.json`.
 
-Validation from `server/`:
+## Java/Spring workflow
 
-- `./gradlew test`
+Read `docs/java-spring-standard.md` from the repository root and use the applicable `.agents/skills/weave-*` workflow. The shared standard owns package layout, declarative HTTP interfaces, concise functional/Stream API style, bean lifetimes, runtime provider state and native/AOT evidence. Do not duplicate its policy here or treat existing violations as templates.
+
+Validation from the repository root:
+
+- `./gradlew javaAgentContractCheck :server:javaAgentReferenceTest` for the bounded contract/examples; this does not qualify migration or native execution.
+- `./gradlew :server:test` and affected module architecture/security tests for implementation changes; use `serverCi` for the full server gate including authoritative PostgreSQL contracts.
 
 ## Global Weave agent baseline
 

@@ -178,6 +178,8 @@ Run `./gradlew releaseEvidenceCheck` before requesting review when release notes
 
 ## Architecture conventions
 
+For Java modules, use the [Java/Spring implementation standard](java-spring-standard.md) and [repository-local agent skills](agent-skills.md). They cover concise declarative/functional code, integration package layout, typed configuration and bean ownership, runtime provider routing, and native/AOT acceptance. The existing module architecture tests remain authoritative executable boundaries.
+
 Weave uses feature-first clean architecture under `lib/features/<feature>/`:
 
 - `presentation/` for screens, widgets, and UI composition.

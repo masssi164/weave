@@ -437,6 +437,37 @@ def prepare_actor_storage(actor: dict, udid: str, app: Path, input_data: dict, e
     return support, runtime_fixture
 
 
+def emit_actor_phase_stages(role: str, phase: str, flutter_output: str, browser_output: str) -> None:
+    """Keep the existing diagnostics and add only this caller's bounded assertion locations."""
+    if type(role) is not str or role not in ('A', 'B') or type(phase) is not str or phase not in ('initial', 'restore'):
+        return
+    ios.emit_phase_stages(phase, flutter_output, browser_output)
+    if 'The isolated simulator driver did not attach before authentication.' in flutter_output:
+        return
+    lines = flutter_output.split('\n')
+    assertion = 'EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK'
+    header = r'(?:flutter: )?(?:' + assertion + r'|══╡ ' + assertion + r' ╞═{1,200})'
+    if not any(len(line) <= 256 and re.fullmatch(header, line) for line in lines):
+        return
+    source = (r'(?:(?:file://)?/|package:[A-Za-z0-9_.-]{1,128}/)?'
+              r'(?:[^\x00-\x20\x7f()?#\\:]{1,1024}/)?dual_ios_collaboration_test\.dart')
+    location = source + r':([1-9][0-9]{0,5})(?::[1-9][0-9]{0,5})?'
+    patterns = [r'(?:flutter: )?' + location,
+                r'(?:flutter: )?#(?:0|[1-9][0-9]{0,3})[ \t]+'
+                r'[^\x00-\x20\x7f()][^\x00-\x1f\x7f()]{0,255}[ \t]+\(' + location + r'\)']
+    locations = set()
+    for line in lines:
+        if len(line) > 2048:
+            continue
+        match = next((match for pattern in patterns if (match := re.fullmatch(pattern, line))), None)
+        if match is not None and match[1] not in locations:
+            locations.add(match[1])
+            print(f'IOS_FLUTTER_DIAGNOSTIC journey={phase} actor={role} '
+                  f'file=dual_ios_collaboration_test.dart line={match[1]} supportSafe=true', flush=True)
+        if len(locations) >= 5:
+            break
+
+
 def run_actor(actor: dict, udid: str, runtime: Path, products: Path, temporary: Path, app: Path,
               input_data: dict, env: dict, build_digest: str, ready: queue.Queue, restart_barrier: threading.Barrier, restart_gate: threading.Event) -> dict:
     role = actor['role']
@@ -556,9 +587,9 @@ def run_actor(actor: dict, udid: str, runtime: Path, products: Path, temporary: 
                         if flutter is not None:
                             stop_flutter_process_group(flutter)
                     finally:
-                        ios.emit_phase_stages('initial', (temporary / 'flutter-initial.log').read_text(), (temporary / 'browser-initial.log').read_text())
+                        emit_actor_phase_stages(role, 'initial', (temporary / 'flutter-initial.log').read_text(), (temporary / 'browser-initial.log').read_text())
                         if (temporary / 'flutter-restore.log').is_file():
-                            ios.emit_phase_stages('restore', (temporary / 'flutter-restore.log').read_text(), '')
+                            emit_actor_phase_stages(role, 'restore', (temporary / 'flutter-restore.log').read_text(), '')
 
 
 def perform_owned_picker(udid, pid, products, env, mode, name, *, result_path=None):

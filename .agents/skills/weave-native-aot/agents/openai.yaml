@@ -1,0 +1,4 @@
+interface:
+  display_name: "Weave Native and AOT"
+  short_description: "Build and verify Weave native artifacts honestly"
+  default_prompt: "Use $weave-native-aot to assess and implement this bounded Weave native-image or AOT change."
