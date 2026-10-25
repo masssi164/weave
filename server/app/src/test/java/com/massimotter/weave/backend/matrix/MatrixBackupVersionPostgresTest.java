@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.matrix;
 
+import com.massimotter.weave.backend.chat.persistence.MatrixE2eeRelationalStore;
 import static org.assertj.core.api.Assertions.assertThat;
-
 import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import java.util.Map;
 import java.util.Set;
@@ -12,7 +12,6 @@ import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 
@@ -23,9 +22,9 @@ class MatrixBackupVersionPostgresTest {
         var dataSource = JpaTestDatabase.dataSource("matrix-backup-version-race");
         Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
         var jdbc = new JdbcTemplate(dataSource);
-        var transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
-        var first = new MatrixE2eeRelationalStore(jdbc, new ObjectMapper());
-        var second = new MatrixE2eeRelationalStore(jdbc, new ObjectMapper());
+        var transaction = new TransactionTemplate(JpaTestDatabase.transactionManager(dataSource));
+        var first = store(dataSource);
+        var second = store(dataSource);
         String tenant = "org-one";
         String user = "@member:api.weave.test";
         var start = new CountDownLatch(1);
@@ -55,4 +54,9 @@ class MatrixBackupVersionPostgresTest {
             workers.shutdownNow();
         }
     }
+    private MatrixE2eeRelationalStore store(javax.sql.DataSource dataSource) {
+        return JpaTestDatabase.transactional(dataSource,
+                new MatrixE2eeRelationalStore(JpaTestDatabase.entityManager(dataSource), new ObjectMapper()));
+    }
+
 }

@@ -120,7 +120,7 @@ workflow is removed as its own instructions required, resolving both current CI 
 | --- | --- | --- | --- |
 | 1. Ownership and contracts | Inventory source/resources/dependencies and assign actual owners; prepare Entity-first and selected-domain discovery corpus changes; retain this plan as the single execution record | Corpus lint/examples, resolver tests, source inspection | In progress; accepted pin remains unchanged pending normal corpus review |
 | 2. Domain composition | App is the sole executable; Core owns justified platform responsibilities; runtime modules own imports registration and scoped persistence; separate non-web tooling | Compile, dependency graph, real imports discovery and bean uniqueness | App executable split and scoped persistence imports/discovery implemented; domain runtime extraction still pending |
-| 3. Vertical extraction and ORM | Files/Calendar/Chat own services/controllers/providers/persistence; future domains remain buildable outside release; convert ordinary Calendar/Matrix JDBC CRUD | Domain units, PostgreSQL writes/isolation/constraints/transactions, no legacy copies | Calendar ORM conversion and persistence-library extraction implemented; runtime/API still open |
+| 3. Vertical extraction and ORM | Files/Calendar/Chat own services/controllers/providers/persistence; future domains remain buildable outside release; convert ordinary Calendar/Matrix JDBC CRUD | Domain units, PostgreSQL writes/isolation/constraints/transactions, no legacy copies | Calendar/Matrix ORM conversion and persistence-library extraction implemented; runtime/API still open |
 | 4. Core and build finalization | Remove feature dependencies from Core; one selection drives real checks, runtime, schema/API and identity; preserve data-safe initializer until qualified cutover | Architecture rules, selected JAR/SDK inspection, offline deterministic schema | Shared session/identity/policy and health implementations extracted into Core; runtime selection remains pending; schema cutover requires accepted corpus and integrity/recovery evidence |
 | 5. Runtime and clients | Release and three single-domain variants start with honest capabilities/endpoints; generated User/Admin contracts follow registered handlers; Flutter uses stable destinations | API/auth/client freshness, variants, Compose/two-member acceptance, ARM64/AOT/JNI where available | Pending; no live or native qualification claimed |
 | 6. Review and delivery | Consolidate docs/Skills/instructions; review combined diff; coherent commits/push and exact-revision PR evidence | Applicable combined CI, diff review, protected checks | Pending; no protected merge/deployment/data reset authorized |
@@ -142,7 +142,7 @@ workflow is removed as its own instructions required, resolving both current CI 
 | Global provider configuration and shared services importing features | Domain-owned contributions plus narrow Core contracts; split | Avoid reverse dependencies, fake readiness and required optional-domain beans |
 | Generated API clients, MCP, product E2E | Retain standalone projects | Independent public consumers/process/verification boundary; not Server-internal modules |
 
-The remaining legacy production roots contain 795 Java source types before runtime moves.
+The initial inventory counted 795 Java source types before the runtime moves.
 Move resources, source guards, build inputs and tests with their consumers. Verify call sites,
 bean registration, resource/reflection and native loading before removal. No broad source-set
 redirects, forwarding controllers or duplicate production copies are acceptable.
@@ -293,3 +293,29 @@ into Core test fixtures, with direct App test dependency rather than duplicate h
   tests, zero failures/skips. Core discovery asserts actual shared identity/policy/session
   beans are singletons with no optional domain on its test classpath, and absent in the
   non-web persistence context.
+
+### Matrix normalized persistence checkpoint
+
+The last ordinary collaboration JDBC store moved from App to Chat persistence and now uses
+typed JPA over 15 owning normalized mappings. The broad filename JDBC exemption is removed.
+Only the exact PostgreSQL transaction advisory fence for absent aggregate rows is allowed;
+negative architecture tests reject SQL/parameter changes, extra queries or copies elsewhere.
+JPA module discovery separates serving-store construction from non-web metadata tooling.
+
+The mapping graph retains the existing normalized tables, SQL-only integrity rules represented
+by supported checks/partial indexes, default values and synchronization version semantics.
+The generated schema remains a candidate: these source changes do not rewrite applied
+migrations or reset data. Existing proof/backup PostgreSQL tests now exercise the JPA adapter.
+New direct store regressions exercise tenant scope, bounded/locked claims, concurrent winners,
+revisions/journals, progress, backups, rollback, and repeated delete/reinsert in one transaction.
+
+- Final Chat ORM command with disposable PostgreSQL: `./gradlew
+  :server:domains:chat:persistence:check :server:app:test
+  --tests '*ServerArchitectureBoundaryTest' --tests '*MatrixE2eeStateService*'
+  :server:app:postgresJpaTest --tests '*MatrixE2eeRelationalStorePostgresTest'
+  --tests '*MatrixDeviceProofPostgresTest' --tests '*MatrixBackupVersionPostgresTest'
+  --tests '*EntityFirstBaselinePostgresTest' --console=plain`: **passed**. Chat 5, App 45
+  (25 architecture, 8 Matrix state, 12 existing Cucumber), PostgreSQL 18 (9 new store,
+  6 proof/recovery, 1 backup concurrency, 2 Files/Calendar baseline), no failures/skips.
+  Generated schema uniqueness/checks executed against PostgreSQL; previous timestamp
+  projection and repeated-mutation failures were corrected and their regressions pass.

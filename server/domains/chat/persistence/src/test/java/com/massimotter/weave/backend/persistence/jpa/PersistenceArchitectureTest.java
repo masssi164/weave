@@ -8,7 +8,9 @@ import com.tngtech.archunit.lang.ArchRule;
 
 @AnalyzeClasses(
     packages = {
-      "com.massimotter.weave.backend.chat.store"
+      "com.massimotter.weave.backend.chat.store",
+      "com.massimotter.weave.backend.chat.persistence",
+      "com.massimotter.weave.backend.matrix"
     })
 class PersistenceArchitectureTest {
 
@@ -27,7 +29,7 @@ class PersistenceArchitectureTest {
   static final ArchRule entitiesRemainPortableJpaTypes =
       noClasses()
           .that()
-          .haveSimpleNameEndingWith("Entity")
+          .areAnnotatedWith(jakarta.persistence.Entity.class)
           .should()
           .dependOnClassesThat()
           .resideInAnyPackage(

@@ -1,8 +1,9 @@
 package com.massimotter.weave.backend.architecture;
 
+
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -27,6 +28,13 @@ class ServerArchitectureBoundaryTest {
                     + "int insertIfAbsent(@Param(\"organizationRef\") String organizationRef, "
                     + "@Param(\"spaceRef\") String spaceRef, @Param(\"displayName\") String displayName, "
                     + "@Param(\"now\") OffsetDateTime now);";
+
+    private static final Path MATRIX_AGGREGATE_FENCE_SOURCE = Path.of(
+            "server/domains/chat/persistence/src/main/java/com/massimotter/weave/backend/chat/persistence/MatrixE2eeRelationalStore.java");
+    // Absent aggregate rows cannot be row-locked; this statement serializes only their writers.
+    private static final String MATRIX_AGGREGATE_FENCE_DECLARATION =
+            "entityManager.createNativeQuery(\"select pg_advisory_xact_lock(hashtext(?1),hashtext(?2))\", Object.class) "
+                    + ".setParameter(1, tenantId).setParameter(2, \"matrix:\" + aggregate).getSingleResult();";
 
     private static final List<String> DOMAIN_FORBIDDEN_IMPORT_PREFIXES = List.of(
             BACKEND_PACKAGE + "controller.",
@@ -488,24 +496,18 @@ class ServerArchitectureBoundaryTest {
             throws IOException {
         List<JavaSource> persistence = persistenceSources();
         List<JavaSource> dataAccessSources = persistence;
-        Set<String> nativeCollaborationSqlExceptions = Set.of(
-                "MatrixE2eeRelationalStore.java");
         assertThat(dataAccessSources.stream()
                         .filter(source -> source.text().contains("JdbcTemplate")
                                 || source.text().contains("org.springframework.jdbc.core"))
                         .map(source -> source.path().getFileName().toString())
                         .collect(java.util.stream.Collectors.toSet()))
-                .as("the pre-release native collaboration SQL exception stays exact")
-                .isEqualTo(nativeCollaborationSqlExceptions);
+                .as("ordinary product CRUD has no handwritten JDBC authority")
+                .isEmpty();
 
         assertThat(dataAccessSources.stream()
-                        .filter(source -> !nativeCollaborationSqlExceptions.contains(
-                                source.path().getFileName().toString()))
                         .toList())
                 .allSatisfy(ServerArchitectureBoundaryTest::assertNoUnreviewedNativeDataAccess);
         assertThat(dataAccessSources.stream()
-                        .filter(source -> !nativeCollaborationSqlExceptions.contains(
-                                source.path().getFileName().toString()))
                         .filter(source -> !source.packageName().equals(BACKEND_PACKAGE + "schema"))
                         .toList())
                 .allSatisfy(source -> assertThat(source.text())
@@ -572,6 +574,35 @@ class ServerArchitectureBoundaryTest {
         assertThatThrownBy(() -> assertNoUnreviewedNativeDataAccess(wrongPackage)).isInstanceOf(AssertionError.class);
     }
 
+    @Test
+    void matrixAggregateFenceIsExactAndCannotHideAnotherNativeDataAccess() throws IOException {
+        JavaSource source = persistenceSources().stream()
+                .filter(ServerArchitectureBoundaryTest::ownsMatrixAggregateFence).findFirst().orElseThrow();
+        assertNoUnreviewedNativeDataAccess(source);
+        for (String changed : List.of(
+                source.text().replace("pg_advisory_xact_lock", "pg_advisory_lock"),
+                source.text().replace(".setParameter(1, tenantId)", ".setParameter(1, \"fixed\")"),
+                source.text().replace("\"matrix:\" + aggregate", "aggregate"),
+                source.text() + "entityManager.createNativeQuery(\"select 1\");",
+                source.text() + "JdbcTemplate anotherExecutor;",
+                source.text() + MATRIX_AGGREGATE_FENCE_DECLARATION)) {
+            assertThatThrownBy(() -> assertNoUnreviewedNativeDataAccess(withText(source, changed)))
+                    .isInstanceOf(AssertionError.class);
+        }
+        for (Path path : List.of(source.path().resolveSibling("AnotherStore.java"),
+                Path.of("server/app/src/main/java/com/massimotter/weave/backend/chat/persistence/MatrixE2eeRelationalStore.java"))) {
+            JavaSource copied = new JavaSource(path, source.packageName(), source.imports(), source.text());
+            assertThatThrownBy(() -> assertNoUnreviewedNativeDataAccess(copied)).isInstanceOf(AssertionError.class);
+        }
+        assertThatThrownBy(() -> assertNoUnreviewedNativeDataAccess(new JavaSource(source.path(),
+                BACKEND_PACKAGE + "other", source.imports(), source.text()))).isInstanceOf(AssertionError.class);
+    }
+
+    private static boolean ownsMatrixAggregateFence(JavaSource source) {
+        return source.path().normalize().endsWith(MATRIX_AGGREGATE_FENCE_SOURCE)
+                && source.packageName().equals(BACKEND_PACKAGE + "chat.persistence");
+    }
+
     private static JavaSource withText(JavaSource source, String text) {
         return new JavaSource(source.path(), source.packageName(), source.imports(), text);
     }
@@ -592,6 +623,11 @@ class ServerArchitectureBoundaryTest {
             assertThat(guarded).as("exact reviewed Space creation-fence declaration")
                     .containsOnlyOnce(SPACE_CREATION_FENCE_DECLARATION);
             guarded = guarded.replace(SPACE_CREATION_FENCE_DECLARATION, "");
+        }
+        if (ownsMatrixAggregateFence(source)) {
+            assertThat(guarded).as("exact reviewed Matrix aggregate creation fence")
+                    .containsOnlyOnce(MATRIX_AGGREGATE_FENCE_DECLARATION);
+            guarded = guarded.replace(MATRIX_AGGREGATE_FENCE_DECLARATION, "");
         }
         assertThat(guarded).as(source.path().toString())
                 .doesNotContainPattern("createNativeQuery\\s*\\(")

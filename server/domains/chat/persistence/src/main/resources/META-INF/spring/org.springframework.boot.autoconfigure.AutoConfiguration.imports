@@ -1,1 +1,3 @@
 com.massimotter.weave.chat.autoconfigure.ChatPersistenceAutoConfiguration
+
+com.massimotter.weave.chat.autoconfigure.MatrixE2eeStoreAutoConfiguration

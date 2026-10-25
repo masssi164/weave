@@ -1,7 +1,7 @@
 package com.massimotter.weave.backend.matrix;
 
+import com.massimotter.weave.backend.chat.persistence.MatrixE2eeRelationalStore;
 import static org.assertj.core.api.Assertions.assertThat;
-
 import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import java.time.Instant;
 import java.util.UUID;
@@ -12,11 +12,8 @@ import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.RowMapper;
 import javax.sql.DataSource;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
-import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 
@@ -35,13 +32,10 @@ class MatrixDeviceProofPostgresTest {
     private void assertFirstOidcBindRace(boolean sameDevice) throws Exception {
         var dataSource = JpaTestDatabase.dataSource("matrix-oidc-binding-race");
         Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
-        var emptyReads = new CountDownLatch(2);
-        var observed = new AtomicInteger();
-        var inserts = new CountDownLatch(2);
-        var first = new MatrixE2eeRelationalStore(new FirstBindingJdbc(dataSource, emptyReads, observed, inserts), new ObjectMapper());
-        var second = new MatrixE2eeRelationalStore(new FirstBindingJdbc(dataSource, emptyReads, observed, inserts), new ObjectMapper());
-        var firstTransaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
-        var secondTransaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
+        var first = store(dataSource);
+        var second = store(dataSource);
+        var firstTransaction = new TransactionTemplate(JpaTestDatabase.transactionManager(dataSource));
+        var secondTransaction = new TransactionTemplate(JpaTestDatabase.transactionManager(dataSource));
         var jdbc = new JdbcTemplate(dataSource);
         String firstDevice = "OWNED-A";
         String secondDevice = sameDevice ? firstDevice : "OWNED-B";
@@ -67,55 +61,9 @@ class MatrixDeviceProofPostgresTest {
             List<String> winners = jdbc.query("select device_id from weave_matrix_oidc_device_bindings where tenant_id=? and user_id=? and oidc_session_hash=?",
                     (rs, ignored) -> rs.getString(1), "org-one", "@owned:api.weave.test", "owned-session");
             assertThat(winners).containsExactly(firstBound ? firstDevice : secondDevice);
-            var restarted = new MatrixE2eeRelationalStore(jdbc, new ObjectMapper());
+            var restarted = store(dataSource);
             assertThat(restarted.bindOidcSession("org-one", "@owned:api.weave.test", "owned-session", winners.getFirst())).isTrue();
             assertThat(restarted.bindOidcSession("org-one", "@owned:api.weave.test", "owned-session", "OTHER")).isFalse();
-        } finally {
-            System.out.println("OIDC_BINDING_RACE_OBSERVATION actualEmptyReads=" + observed.get());
-        }
-    }
-
-    /** Observe actual PostgreSQL reads; only the old missing-row SELECT enters this barrier. */
-    private static final class FirstBindingJdbc extends JdbcTemplate {
-        private final CountDownLatch emptyReads;
-        private final AtomicInteger observed;
-        private final CountDownLatch inserts;
-
-        private FirstBindingJdbc(DataSource source, CountDownLatch emptyReads, AtomicInteger observed, CountDownLatch inserts) {
-            super(source);
-            this.emptyReads = emptyReads;
-            this.observed = observed;
-            this.inserts = inserts;
-        }
-
-        @Override
-        public int update(String sql, Object... args) {
-            if (sql.startsWith("insert into weave_matrix_oidc_device_bindings")) {
-                inserts.countDown();
-                try {
-                    if (!inserts.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("First insert-entry barrier timed out");
-                } catch (InterruptedException interrupted) {
-                    Thread.currentThread().interrupt();
-                    throw new IllegalStateException(interrupted);
-                }
-            }
-            return super.update(sql, args);
-        }
-
-        @Override
-        public <T> List<T> query(String sql, RowMapper<T> mapper, Object... args) {
-            List<T> rows = super.query(sql, mapper, args);
-            if (sql.startsWith("select device_id from weave_matrix_oidc_device_bindings") && rows.isEmpty()) {
-                observed.incrementAndGet();
-                emptyReads.countDown();
-                try {
-                    if (!emptyReads.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("Actual empty-read barrier timed out");
-                } catch (InterruptedException interrupted) {
-                    Thread.currentThread().interrupt();
-                    throw new IllegalStateException(interrupted);
-                }
-            }
-            return rows;
         }
     }
 
@@ -124,9 +72,9 @@ class MatrixDeviceProofPostgresTest {
         var dataSource = JpaTestDatabase.dataSource("matrix-oidc-binding-scope");
         Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
         var jdbc = new JdbcTemplate(dataSource);
-        var first = new MatrixE2eeRelationalStore(jdbc, new ObjectMapper());
+        var first = store(dataSource);
         assertThat(first.bindOidcSession("org-one", "@one:api.weave.test", "session-one", "DEVICE-A")).isTrue();
-        var restarted = new MatrixE2eeRelationalStore(jdbc, new ObjectMapper());
+        var restarted = store(dataSource);
         assertThat(restarted.bindOidcSession("org-one", "@one:api.weave.test", "session-one", "DEVICE-A")).isTrue();
         assertThat(restarted.bindOidcSession("org-one", "@one:api.weave.test", "session-one", "DEVICE-B")).isFalse();
         assertThat(restarted.bindOidcSession("org-two", "@one:api.weave.test", "session-one", "DEVICE-B")).isTrue();
@@ -141,8 +89,8 @@ class MatrixDeviceProofPostgresTest {
         var dataSource = JpaTestDatabase.dataSource("matrix-device-proof");
         Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
         var jdbc = new JdbcTemplate(dataSource);
-        var first = new MatrixE2eeRelationalStore(jdbc, new ObjectMapper());
-        var restarted = new MatrixE2eeRelationalStore(jdbc, new ObjectMapper());
+        var first = store(dataSource);
+        var restarted = store(dataSource);
         String trusted = "a".repeat(64);
         String wrong = "b".repeat(64);
 
@@ -164,8 +112,8 @@ class MatrixDeviceProofPostgresTest {
         var dataSource = JpaTestDatabase.dataSource("matrix-device-recovery");
         Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
         var jdbc = new JdbcTemplate(dataSource);
-        var first = new MatrixE2eeRelationalStore(jdbc, new ObjectMapper());
-        var restarted = new MatrixE2eeRelationalStore(jdbc, new ObjectMapper());
+        var first = store(dataSource);
+        var restarted = store(dataSource);
         String user = "@member:api.weave.test";
         String device = "LEGACY";
         String publicKey = "public-device-key";
@@ -210,9 +158,9 @@ class MatrixDeviceProofPostgresTest {
         var dataSource = JpaTestDatabase.dataSource("matrix-device-recovery-race");
         Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
         var jdbc = new JdbcTemplate(dataSource);
-        var first = new MatrixE2eeRelationalStore(jdbc, new ObjectMapper());
-        var second = new MatrixE2eeRelationalStore(jdbc, new ObjectMapper());
-        var transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
+        var first = store(dataSource);
+        var second = store(dataSource);
+        var transaction = new TransactionTemplate(JpaTestDatabase.transactionManager(dataSource));
         String user = "@member:api.weave.test";
         String device = "RACE";
         String publicKey = "public-device-key";
@@ -245,4 +193,9 @@ class MatrixDeviceProofPostgresTest {
             workers.shutdownNow();
         }
     }
+    private MatrixE2eeRelationalStore store(javax.sql.DataSource dataSource) {
+        return JpaTestDatabase.transactional(dataSource,
+                new MatrixE2eeRelationalStore(JpaTestDatabase.entityManager(dataSource), new ObjectMapper()));
+    }
+
 }
