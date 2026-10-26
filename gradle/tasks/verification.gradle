@@ -8,7 +8,7 @@ registerRootCommandTask('synapseCompatibilityProbeTest', ['python3', 'tools/syna
 tasks.named('matrixRustCoreTest') {
     dependsOn 'matrixSdkVendorProvenanceCheck'
 }
-registerCommandTask('clientDeterministicCi', file('client'), ['bash', '-lc', 'flutter gen-l10n && dart run build_runner build --force-aot --delete-conflicting-outputs && dart format --output=none --set-exit-if-changed . && flutter analyze --fatal-infos && flutter test && make marketing-screenshots && git -C .. diff --exit-code -- client/lib client/test docs/assets/marketing docs/assets/roadmap && make offline-contract-test'], 'Run Flutter generated-code, format, analysis, tests, screenshots, and offline contract checks.')
+registerCommandTask('clientDeterministicCi', file('client'), ['bash', '-lc', 'flutter gen-l10n && dart run build_runner build --force-aot --delete-conflicting-outputs && dart format . && echo WEAVE_DART_FORMAT_DIFF_BEGIN && git -C .. --no-pager diff --no-ext-diff -- client/lib client/test && echo WEAVE_DART_FORMAT_DIFF_END && exit 1; flutter analyze --fatal-infos && flutter test && make marketing-screenshots && git -C .. diff --exit-code -- client/lib client/test docs/assets/marketing docs/assets/roadmap && make offline-contract-test'], 'Run Flutter generated-code, format, analysis, tests, screenshots, and offline contract checks.')
 tasks.register('serverCi') {
     group = 'verification'
     description = 'Run core and adapter architecture tests plus the authoritative PostgreSQL JPA contract gate.'
