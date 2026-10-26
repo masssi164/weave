@@ -12,7 +12,7 @@ jobs:
   files:
     if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/feat/1742-collaboration-files-root'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     permissions:
       contents: write
     steps:
@@ -53,6 +53,10 @@ jobs:
           for name, text in sources.items():
               Path(name).write_text(text)
           PY
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95
+        with:
+          distribution: temurin
+          java-version: '21'
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
         with:
           flutter-version: '3.41.6'
@@ -61,6 +65,7 @@ jobs:
       - name: Resolve pinned dependencies and format only the changed files
         run: |
           set -euo pipefail
+          rustup toolchain install 1.95.0 --profile minimal
           cd client
           flutter pub get --enforce-lockfile
           cd ..
@@ -68,8 +73,18 @@ jobs:
           git diff --check
       - name: Analyze the final source and test assertions
         working-directory: client
+        env:
+          RUSTUP_TOOLCHAIN: 1.95.0
         run: flutter analyze --fatal-infos
-      - name: Publish only the bounded metadata redaction
+      - name: Require complete Files location and directory regressions
+        env:
+          RUSTUP_TOOLCHAIN: 1.95.0
+        run: |
+          set -euo pipefail
+          mkdir -p build/files-finalization
+          cd client
+          flutter test test/features/files/presentation/files_locations_screen_test.dart test/features/files/files_screen_test.dart --reporter expanded 2>&1 | tee ../build/files-finalization/tests.log
+      - name: Publish only the tested redaction and retire temporary tools
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -80,8 +95,17 @@ jobs:
               raise SystemExit('Unexpected mutation set; refusing publication')
           PY
           git add -- client/lib/features/files/presentation/files_screen.dart client/test/features/files/files_screen_test.dart
-          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'fix(files): hide preview metadata when its original authorization is lost'
+          git rm -- .github/workflows/1742-files-diagnostics.yml tools/1742_scoped_files_dialog_patch.py
+          git diff --cached --check
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'fix(files): redact revoked preview metadata and retire development helpers'
           git push origin HEAD:refs/heads/feat/1742-collaboration-files-root
-          git rev-parse HEAD
+          git rev-parse HEAD | tee build/files-finalization/source.txt
           git diff HEAD^ HEAD --stat
-          echo 'Static validation passed. Full execution of the strengthened assertions remains required in normal Core CI.'
+      - name: Preserve bounded verification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: files-finalization-${{ github.run_id }}
+          path: build/files-finalization/
+          if-no-files-found: warn
+          retention-days: 3
