@@ -19,6 +19,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.http.client.autoconfigure.imperative.ImperativeHttpClientAutoConfiguration;
+import org.springframework.boot.http.client.autoconfigure.service.HttpServiceClientPropertiesAutoConfiguration;
+import org.springframework.boot.restclient.autoconfigure.RestClientAutoConfiguration;
+import org.springframework.boot.restclient.autoconfigure.service.HttpServiceClientAutoConfiguration;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpStatusCode;
@@ -26,6 +32,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
+import tools.jackson.databind.JsonNode;
 
 class KeycloakAuthConfigTest {
   private HttpServer server;
@@ -35,6 +42,24 @@ class KeycloakAuthConfigTest {
     if (server != null) {
       server.stop(0);
     }
+  }
+
+  @Test
+  void productionConfigurationRegistersTheClientThroughTheNamedBootGroup() {
+    new ApplicationContextRunner()
+        .withConfiguration(
+            AutoConfigurations.of(
+                HttpServiceClientPropertiesAutoConfiguration.class,
+                ImperativeHttpClientAutoConfiguration.class,
+                RestClientAutoConfiguration.class,
+                HttpServiceClientAutoConfiguration.class))
+        .withUserConfiguration(KeycloakAuthConfig.class)
+        .withBean(IdentityInvitationProperties.class, IdentityInvitationProperties::new)
+        .run(
+            context ->
+                assertThat(context)
+                    .hasNotFailed()
+                    .hasSingleBean(KeycloakAdminClient.class));
   }
 
   @Test
@@ -117,7 +142,7 @@ class KeycloakAuthConfigTest {
     KeycloakAuthConfig.configureTransport(builder, tokens, properties.keycloak());
     KeycloakAdminClient client = KeycloakAdminTestClient.proxy(builder.build());
 
-    assertThatThrownBy(() -> client.organizations("weave", 0, 100))
+    assertThatThrownBy(() -> client.organizations("weave", 0, 100, true))
         .isInstanceOf(KeycloakAdminException.class)
         .satisfies(failure -> assertThat(((KeycloakAdminException) failure).status()).isEqualTo(202));
     verify(tokens, never()).invalidate("short-lived-token");
@@ -133,7 +158,8 @@ class KeycloakAuthConfigTest {
         .andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
 
     KeycloakAuthConfig.configurePolicy(builder, URI.create(baseUrl));
-    assertThat(KeycloakAdminTestClient.proxy(builder.build()).humanUsers("weave")).isEqualTo("[]");
+    assertThat(KeycloakAdminTestClient.proxy(builder.build()).humanUsers("weave", 0, 1, true))
+        .satisfies(node -> assertThat(node.isArray()).isTrue());
     provider.verify();
   }
 
@@ -150,7 +176,8 @@ class KeycloakAuthConfigTest {
         .andRespond(request -> response);
 
     KeycloakAuthConfig.configurePolicy(builder, baseUrl);
-    assertThatThrownBy(() -> KeycloakAdminTestClient.proxy(builder.build()).humanUsers("weave"))
+    assertThatThrownBy(
+            () -> KeycloakAdminTestClient.proxy(builder.build()).humanUsers("weave", 0, 1, true))
         .isInstanceOf(KeycloakAdminException.class)
         .satisfies(failure -> assertThat(((KeycloakAdminException) failure).status()).isEqualTo(status));
     verify(response, never()).getBody();

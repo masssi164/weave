@@ -28,7 +28,7 @@ The canonical Java/Spring rules live in [`docs/java-spring-standard.md`](../../d
 
 ## Keycloak responsibility split
 
-1. **HTTP contract:** `KeycloakAdminClient` declares provider routes and media types.
+1. **HTTP contract:** `KeycloakAdminClient` declares provider routes, query/form parameters and media types. Spring owns query/form encoding and Jackson message conversion; the anti-corruption layer intentionally keeps `JsonNode` so strict provider field-type validation remains fail-closed rather than relying on coercing DTOs.
 2. **HTTP-service group:** `KeycloakAuthConfig` owns group registration, base URI/context-path handling, connect/read timeout, service bearer acquisition and 401 invalidation.
 3. **Security policy:** `KeycloakIdentityAdminOperationPolicy` is the closed method/path/status authority. Exact expected success codes—including rejection of unexpected 2xx—are intentional security behavior, not boilerplate.
 4. **Provider anti-corruption layer:** `KeycloakIdentityAdminClient` owns bounded inventories, domain normalization, fail-closed provider-shape validation, fixture sequencing and support-safe errors.
@@ -41,7 +41,7 @@ Managed-fixture methods require separate request-local admission. That marker is
 For Keycloak changes, preserve tests for:
 
 - Boot HTTP-service registration without credential access or provider contact during startup;
-- configured context paths and encoded path variables;
+- configured context paths, encoded path variables, exact query ordering and framework form encoding;
 - closed route/method admission and fixture-only denials before transport;
 - exact success status mapping, including unexpected 2xx rejection before body conversion;
 - service-owned `private_key_jwt`, exact SecretRef containment and 401 invalidation;
