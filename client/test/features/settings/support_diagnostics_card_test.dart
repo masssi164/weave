@@ -169,7 +169,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Support diagnostics'), findsOneWidget);
+    expect(find.text('App information'), findsOneWidget);
     expect(find.text('0.1.0 (1042)'), findsOneWidget);
     for (final privateValue in [
       'abc1234def5678abc1234def5678abc1234def56',
