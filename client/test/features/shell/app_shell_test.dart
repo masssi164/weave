@@ -25,6 +25,7 @@ import 'package:weave/features/files/domain/entities/file_entry.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/files/presentation/files_screen.dart';
+import 'package:weave/features/files/presentation/files_locations_screen.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
@@ -309,7 +310,7 @@ void main() {
         }
 
         await openWithKeyboard(Icons.folder_outlined);
-        expect(find.byType(FilesScreen), findsOneWidget);
+        expect(find.byType(FilesLocationsScreen), findsOneWidget);
 
         await openWithKeyboard(Icons.chat_bubble_outline);
         expect(find.byType(ChatScreen), findsOneWidget);
@@ -478,6 +479,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      expect(find.byType(FilesLocationsScreen), findsOneWidget);
+      await tester.tap(find.widgetWithText(ListTile, 'My private files'));
+      await tester.pumpAndSettle();
       expect(find.text('Roadmap.md'), findsOneWidget);
 
       await tester.tap(
