@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.config.keycloak.KeycloakAuthConfig;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
@@ -55,7 +57,7 @@ class ReleaseMcpBindingConfigurationTest {
                         tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build())
                 .withBean(PlatformContractProperties.class, () ->
                         new PlatformContractProperties(null, null, null, null, null, null, null, null))
-                .withBean(KeycloakAdminClientConfiguration.KEYCLOAK_ADMIN_ACCESS_TOKENS,
+                .withBean(KeycloakAuthConfig.KEYCLOAK_ADMIN_ACCESS_TOKENS,
                         KeycloakAdminAccessTokenProvider.class,
                         () -> mock(KeycloakAdminAccessTokenProvider.class));
     }

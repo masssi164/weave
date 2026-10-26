@@ -88,6 +88,8 @@ Historical issue drafts live under `docs/issues/`; do not treat them as current 
 
 ## Local development
 
+Java/Spring contributions follow the shared [implementation standard](../docs/java-spring-standard.md). The [repository-local skills](../docs/agent-skills.md) route coding agents to the same policy and tested HTTP/configuration examples. From the repository root, `./gradlew javaAgentContractCheck :server:javaAgentReferenceTest` runs their bounded checks without Docker or JNI; it does not replace full server/native qualification.
+
 Run tests with Java 21+:
 
 ```bash

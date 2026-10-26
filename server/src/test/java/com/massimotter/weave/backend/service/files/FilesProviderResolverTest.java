@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -21,6 +22,39 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class FilesProviderResolverTest {
+
+    @Test
+    void sameResolverObservesNewActiveBindingAndRetainsSourceForReconciliation() {
+        ProviderBindingRepository bindings = mock(ProviderBindingRepository.class);
+        ProviderBinding original = binding("org-a", 1, "nextcloud-webdav");
+        AtomicReference<ProviderBinding> active = new AtomicReference<>(original);
+        when(bindings.current("org-a", "files"))
+                .thenAnswer(invocation -> Optional.of(active.get()));
+        FilesProviderPort source = adapter("nextcloud-webdav", true);
+        FilesProviderPort target = adapter("weave-native", true);
+        FilesProviderResolver resolver = new FilesProviderResolver(bindings, List.of(source, target));
+
+        assertThat(resolver.current("org-a", "workspace-default")).isSameAs(source);
+        org.mockito.Mockito.verify(target, org.mockito.Mockito.never())
+                .scoped(org.mockito.ArgumentMatchers.any());
+
+        // Simulate repository state after an independently authorized cutover, not migration proof.
+        ProviderBinding retired = new ProviderBinding(original.organizationRef(), original.domain(),
+                original.revision(), original.adapterKey(), original.configurationRef(),
+                State.RETIRED, original.activatedAt());
+        when(bindings.revision("org-a", "files", 1)).thenReturn(Optional.of(retired));
+        active.set(binding("org-a", 2, "weave-native"));
+
+        assertThat(resolver.current("org-a", "workspace-default")).isSameAs(target);
+        assertThatThrownBy(() -> resolver.pinned(retired, "org-a", "workspace-default"))
+                .isInstanceOf(FilesProviderResolver.StaleBindingException.class);
+        assertThat(resolver.pinned(retired, "org-a", "workspace-default", true)).isSameAs(source);
+        assertThat(resolver.current("org-a", "workspace-default")).isSameAs(target);
+        verify(source, org.mockito.Mockito.times(2))
+                .scoped(new FilesRequestScope("org-a", "workspace-default", 1, "test:files"));
+        verify(target, org.mockito.Mockito.times(2))
+                .scoped(new FilesRequestScope("org-a", "workspace-default", 2, "test:files"));
+    }
 
     @Test
     void resolvesActiveProviderPerOrganizationAndPinsItsRevision() {

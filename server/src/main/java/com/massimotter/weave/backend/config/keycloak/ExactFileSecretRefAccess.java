@@ -1,4 +1,4 @@
-package com.massimotter.weave.backend.config;
+package com.massimotter.weave.backend.config.keycloak;
 
 import com.massimotter.weave.backend.agentruntime.port.RuntimeWorkloadIdentityException;
 import com.massimotter.weave.backend.agentruntime.port.SecretRefAccess;

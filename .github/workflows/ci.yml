@@ -84,6 +84,10 @@ jobs:
         run: |
           python3 -m unittest tools.test_provider_boundary_invariants -v
           python3 tools/provider_boundary_invariants.py
+      - name: Java agent and runtime selector contract
+        run: |
+          python3 -m unittest tools.test_java_agent_contract_check -v
+          python3 tools/java_agent_contract_check.py
       - run: python3 tools/core_docs_check.py
       - run: python3 tools/readme_release_notes_test.py
       - run: python3 -m unittest tools.test_verify_main_promotion_evidence -v

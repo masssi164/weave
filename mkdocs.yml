@@ -37,6 +37,8 @@ nav:
   - Admin/Operator Handbook: admin-operator-handbook.md
   - Developer Handbook:
       - Overview: developer-handbook.md
+      - Java and Spring standard: java-spring-standard.md
+      - Java agent skills: agent-skills.md
       - Weave operating model: weave-operating-model.md
       - Spec-driven development: spec-driven-development.md
       - Specification source of truth: specification-source-of-truth.md
