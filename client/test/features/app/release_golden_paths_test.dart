@@ -569,8 +569,13 @@ void main() {
 
         expect(find.text('Connect Files'), findsNothing);
         expect(filesRepository.connectCalls, 0);
-        expect(find.widgetWithText(ListTile, 'My private files'), findsOneWidget);
-        await tester.tap(find.widgetWithText(ListTile, 'My private files'));
+        expect(
+          find.widgetWithText(ListTile, 'My private files'),
+          findsOneWidget,
+        );
+        await tester.tap(
+          find.widgetWithText(ListTile, 'My private files'),
+        );
         await tester.pumpAndSettle();
         expect(find.text('Projects'), findsWidgets);
 
