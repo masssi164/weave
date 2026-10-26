@@ -23,7 +23,6 @@ import 'package:weave/features/app/presentation/providers/workspace_connection_p
 import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/core/persistence/secure_store.dart';
 import 'package:weave/core/widgets/success_state.dart';
-import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/data/dtos/auth_session_dto.dart';
