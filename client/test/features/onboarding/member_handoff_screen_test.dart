@@ -19,7 +19,6 @@ import 'package:weave/features/app/domain/use_cases/resolve_app_bootstrap.dart';
 import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:weave/features/auth/domain/entities/auth_failure.dart';
 import 'package:weave/features/auth/presentation/providers/auth_flow_controller.dart';
-import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
 import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
@@ -180,7 +179,6 @@ void main() {
                       repository: ref.watch(
                         serverConfigurationRepositoryProvider,
                       ),
-                      evidenceStore: store,
                       discoveryClient: AppStartDiscoveryClient(
                         httpClient: MockClient((request) async {
                           expect(
@@ -252,19 +250,17 @@ void main() {
                   ),
                 ),
               );
-              // The generated HTTP client consumes an asynchronous response stream;
-              // wait for its real event-loop work before inspecting the ready frame.
+              // Wait for the actual visible product state, not a private evidence key.
               for (var attempt = 0; attempt < 50; attempt++) {
                 await tester.runAsync(
                   () => Future<void>.delayed(const Duration(milliseconds: 10)),
                 );
                 await tester.pumpAndSettle();
-                final raw = store.rawString(dogfoodAuthStateStorageKey);
-                if (raw != null &&
-                    {
-                      'ready_for_sso',
-                      'recoverable_error',
-                    }.contains(jsonDecode(raw)['state'])) {
+                if (find
+                        .text(locale == 'de' ? 'Anmelden' : 'Sign In')
+                        .evaluate()
+                        .isNotEmpty ||
+                    find.byType(ErrorState).evaluate().isNotEmpty) {
                   break;
                 }
               }
@@ -291,12 +287,6 @@ void main() {
                 );
                 expect(current.validatedManifest, isNotNull);
                 expect(current.manifestValidatedAt, isNotNull);
-                expect(
-                  jsonDecode(
-                    store.rawString(dogfoodAuthStateStorageKey)!,
-                  )['state'],
-                  'ready_for_sso',
-                );
               } else {
                 expect(
                   nativeDualHandoffSignIn(
@@ -306,11 +296,6 @@ void main() {
                 );
                 expect(current, same(previous));
                 expect(
-                  jsonDecode(
-                    store.rawString(dogfoodAuthStateStorageKey)!,
-                  )['state'],
-                  'recoverable_error',
-                );
               }
             },
           );
@@ -319,7 +304,7 @@ void main() {
     }
 
     testWidgets(
-      'shows handoff-ready UI and records visible state after success',
+      'shows neutral handoff-ready UI without deployment metadata',
       (tester) async {
         final preferencesStore = InMemoryPreferencesStore();
         final container = ProviderContainer.test(
@@ -358,27 +343,11 @@ void main() {
         await tester.pump();
 
         expect(find.text('Workspace ready for sign-in'), findsOneWidget);
-        expect(find.textContaining('massimo-dogfood'), findsOneWidget);
+        expect(find.textContaining('massimo-dogfood'), findsNothing);
         expect(find.text('Sign In'), findsOneWidget);
         expect(nativeDualHandoffSignIn('Sign In'), findsOneWidget);
         expect(nativeDualHandoffSignIn('Anmelden'), findsNothing);
 
-        final rawVisibleState = preferencesStore.rawString(
-          dogfoodVisibleStateStorageKey,
-        );
-        expect(rawVisibleState, isNotNull);
-        final visibleState =
-            jsonDecode(rawVisibleState!) as Map<String, dynamic>;
-        expect(
-          visibleState['schemaVersion'],
-          'weave.client.dogfood_visible_state.v1',
-        );
-        expect(visibleState['state'], 'handoff_ready');
-        expect(visibleState['handoffRef'], 'handoff-s32-massimo-dogfood-home');
-        expect(visibleState['runId'], 's32-massimo-dogfood');
-        expect(visibleState['organizationSlug'], 'massimo-dogfood');
-        expect(visibleState['workspaceSlug'], 'home');
-        expect(visibleState['supportSafe'], isTrue);
       },
     );
 
@@ -475,24 +444,12 @@ void main() {
             );
             return;
           }
-          final rawAuthState = preferencesStore.rawString(
-            dogfoodAuthStateStorageKey,
-          );
-          expect(rawAuthState, isNotNull);
-          final authState = jsonDecode(rawAuthState!) as Map<String, dynamic>;
-          expect(
-            authState['schemaVersion'],
-            'weave.client.dogfood_auth_state.v1',
-          );
-          expect(authState['state'], 'sso_in_progress');
-          expect(authState['handoffRef'], 'handoff-s32-massimo-dogfood-home');
-          expect(authState['supportSafe'], isTrue);
         },
       );
     }
 
     testWidgets(
-      'records browser return and workspace-ready evidence after successful sign-in',
+      'opens the authenticated workspace after successful sign-in',
       (tester) async {
         final preferencesStore = InMemoryPreferencesStore();
         final signIn = _RecordingSignInWithOidc();
@@ -556,32 +513,6 @@ void main() {
 
         expect(find.text('Authenticated workspace shell'), findsOneWidget);
 
-        final rawAuthState = preferencesStore.rawString(
-          dogfoodAuthStateStorageKey,
-        );
-        expect(rawAuthState, isNotNull);
-        final authState = jsonDecode(rawAuthState!) as Map<String, dynamic>;
-        expect(authState['state'], 'workspace_ready');
-        expect(authState['handoffRef'], 'handoff-s32-massimo-dogfood-home');
-        expect(authState['supportSafe'], isTrue);
-
-        final rawHistory = preferencesStore.rawString(
-          dogfoodAuthStateHistoryStorageKey,
-        );
-        expect(rawHistory, isNotNull);
-        final history = jsonDecode(rawHistory!) as List<dynamic>;
-        expect(
-          history
-              .cast<Map<String, dynamic>>()
-              .map((entry) => entry['state'])
-              .toList(),
-          containsAllInOrder([
-            'sso_in_progress',
-            'authenticated',
-            'workspace_bootstrap_loading',
-            'workspace_ready',
-          ]),
-        );
       },
     );
 
@@ -641,17 +572,9 @@ void main() {
       );
       expect(find.textContaining('Offline tokens not allowed'), findsNothing);
 
-      final rawAuthState = preferencesStore.rawString(
-        dogfoodAuthStateStorageKey,
-      );
-      expect(rawAuthState, isNotNull);
-      final authState = jsonDecode(rawAuthState!) as Map<String, dynamic>;
-      expect(authState['state'], 'recoverable_error');
-      expect(authState['errorCode'], 'WEAVE-MOBILE-OFFLINE-SESSION-DENIED');
-      expect(authState['supportSafe'], isTrue);
     });
 
-    testWidgets('shows and records a support-safe handoff failure code', (
+    testWidgets('shows a support-safe handoff failure code', (
       tester,
     ) async {
       final preferencesStore = InMemoryPreferencesStore();
@@ -695,29 +618,6 @@ void main() {
       expect(find.textContaining('The invite may be expired'), findsNothing);
       expect(find.textContaining('WEAVE-APP-START-TLS-FAILED'), findsOneWidget);
 
-      final rawEvidence = preferencesStore.rawString(
-        lastHandoffConsumedStorageKey,
-      );
-      expect(rawEvidence, isNotNull);
-      final evidence = jsonDecode(rawEvidence!) as Map<String, dynamic>;
-      expect(
-        evidence['schemaVersion'],
-        'weave.client.last_handoff_consumed.v1',
-      );
-      expect(evidence['result'], 'failed');
-      expect(evidence['phase'], 'app_start_discovery');
-      expect(evidence['errorCode'], 'WEAVE-APP-START-TLS-FAILED');
-      expect(evidence['handoffRef'], 'handoff-s32-massimo-dogfood-home');
-      expect(evidence['supportSafe'], isTrue);
-
-      final rawVisibleState = preferencesStore.rawString(
-        dogfoodVisibleStateStorageKey,
-      );
-      expect(rawVisibleState, isNotNull);
-      final visibleState = jsonDecode(rawVisibleState!) as Map<String, dynamic>;
-      expect(visibleState['state'], 'handoff_error');
-      expect(visibleState['errorCode'], 'WEAVE-APP-START-TLS-FAILED');
-      expect(visibleState['supportSafe'], isTrue);
     });
   });
 }
