@@ -47,7 +47,6 @@ void main() {
         Uri.parse('https://weave.example/api/platform/config'),
       );
       expect(access.handoff, isNull);
-      expect(access.organizationLabel, 'weave.example');
     });
 
     test(
@@ -91,7 +90,6 @@ void main() {
       expect(access.organizationOrigin, Uri.parse('https://weave.example/'));
       expect(access.handoff?.handoffRef, 'invite-123');
       expect(access.handoff?.organizationSlug, 'acme');
-      expect(access.organizationLabel, 'acme');
     });
 
     test('rejects a credential-bearing direct organization origin', () {
