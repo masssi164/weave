@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.health.api.ProviderCapabilityHealthController;
+
 import com.massimotter.weave.backend.security.NativeOrganizationClaims;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import com.massimotter.weave.backend.security.http.ApiAccessDeniedHandler;
@@ -39,6 +41,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         controllers = ProviderCapabilityHealthController.class,
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
+        ProviderCapabilityHealthController.class,
         SecurityConfig.class,
         ApiAuthenticationEntryPoint.class,
         ApiAccessDeniedHandler.class,

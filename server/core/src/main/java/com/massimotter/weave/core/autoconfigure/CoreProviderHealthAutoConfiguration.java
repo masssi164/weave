@@ -1,6 +1,8 @@
 package com.massimotter.weave.core.autoconfigure;
 
 import com.massimotter.weave.backend.health.ProviderCapabilityHealthService;
+import com.massimotter.weave.backend.health.api.ProviderCapabilityHealthController;
+import org.springframework.context.annotation.Import;
 import com.massimotter.weave.backend.health.ProviderHealthContribution;
 import com.massimotter.weave.backend.health.config.ProviderHealthProperties;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -14,6 +16,7 @@ import org.springframework.context.annotation.Bean;
 @AutoConfiguration(afterName = "org.springframework.boot.micrometer.metrics.autoconfigure.MetricsAutoConfiguration")
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @EnableConfigurationProperties(ProviderHealthProperties.class)
+@Import(ProviderCapabilityHealthController.class)
 public class CoreProviderHealthAutoConfiguration {
     @Bean
     ProviderCapabilityHealthService providerCapabilityHealthService(

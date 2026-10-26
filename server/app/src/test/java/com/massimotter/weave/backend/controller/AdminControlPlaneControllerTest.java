@@ -32,15 +32,15 @@ import com.massimotter.weave.backend.capability.api.EffectivePolicyResponse;
 import com.massimotter.weave.backend.model.admin.ProviderSelectionRequest;
 import com.massimotter.weave.backend.office.provider.DisabledOfficeProvider;
 import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
-import com.massimotter.weave.backend.provider.ProviderRegistry;
+import com.massimotter.weave.backend.discovery.application.ProviderRegistry;
 import com.massimotter.weave.backend.providerbinding.selection.ProviderSelection;
 import com.massimotter.weave.backend.providerbinding.selection.ProviderSelectionRepository;
 import com.massimotter.weave.backend.providerbinding.domain.ProviderBinding;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
 import java.time.Instant;
 import com.massimotter.weave.backend.service.AdminControlPlaneService;
-import com.massimotter.weave.backend.service.InMemoryOrganizationBootstrapRepository;
-import com.massimotter.weave.backend.service.OrganizationBootstrapRepository;
+import com.massimotter.weave.backend.identity.organization.fixture.InMemoryOrganizationBootstrapRepository;
+import com.massimotter.weave.backend.identity.organization.port.OrganizationBootstrapRepository;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.identity.profile.port.ProductProfileOverrideRepository;
 import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
@@ -82,7 +82,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(
-        controllers = AdminControlPlaneController.class,
+        controllers = {AdminControlPlaneController.class, com.massimotter.weave.backend.identity.organization.api.OrganizationBootstrapController.class,
+                com.massimotter.weave.backend.portability.api.ProviderReplacementController.class},
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @org.springframework.boot.context.properties.EnableConfigurationProperties({
         com.massimotter.weave.backend.files.config.FilesRuntimeProperties.class,
@@ -104,6 +105,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         DevopsProviderConfiguration.class,
         DisabledOfficeProvider.class,
         AdminControlPlaneService.class,
+        com.massimotter.weave.backend.portability.application.ProviderReplacementDryRunService.class,
+        com.massimotter.weave.backend.portability.api.ProviderReplacementController.class,
+        com.massimotter.weave.backend.identity.organization.api.OrganizationBootstrapController.class,
+        com.massimotter.weave.backend.identity.organization.application.OrganizationBootstrapService.class,
         AdminControlPlaneControllerTest.AuditTestConfig.class
 })
 @TestPropertySource(properties = {
@@ -152,7 +157,7 @@ class AdminControlPlaneControllerTest {
                 capability(WorkspaceCapabilityReadiness.DEGRADED, WorkspaceCapabilityPolicyState.ALLOWED, "Calendar degraded."),
                 capability(WorkspaceCapabilityReadiness.BLOCKED, WorkspaceCapabilityPolicyState.POLICY_BLOCKED, "Boards blocked."),
                 capability(WorkspaceCapabilityReadiness.UNAVAILABLE, WorkspaceCapabilityPolicyState.DISABLED, "Weaver disabled."));
-        when(workspaceCapabilityService.snapshot()).thenReturn(capabilities);
+        com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation.stubCapabilities(workspaceCapabilityService, capabilities);
         when(workspaceCapabilityService.policySnapshot(org.mockito.ArgumentMatchers.any())).thenReturn(new WorkspaceCapabilityPolicyResponse(
                 "platform identity and security",
                 "Keycloak",
@@ -814,6 +819,20 @@ class AdminControlPlaneControllerTest {
 
     @TestConfiguration
     static class AuditTestConfig {
+        @Bean
+        com.massimotter.weave.backend.discovery.catalog.ProviderCategoryCatalog providerCategoryCatalog() {
+            return com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation.categories();
+        }
+        @Bean
+        com.massimotter.weave.backend.discovery.catalog.ProviderCapabilityContracts providerCapabilityContracts(
+                com.massimotter.weave.backend.discovery.catalog.ProviderCategoryCatalog categories) {
+            return new com.massimotter.weave.backend.discovery.catalog.ProviderCapabilityContracts(categories);
+        }
+        @Bean
+        com.massimotter.weave.backend.discovery.catalog.CanonicalDomainRegistry canonicalDomainRegistry() {
+            return com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation.canonicalDomains();
+        }
+
         @org.springframework.context.annotation.Bean
         com.massimotter.weave.backend.boards.port.BoardsRepository boardsRepository() {
             return new com.massimotter.weave.backend.boards.provider.local.LocalWorkspaceBoardsRepository();

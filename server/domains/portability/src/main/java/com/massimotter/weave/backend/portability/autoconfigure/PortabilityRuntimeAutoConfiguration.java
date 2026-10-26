@@ -12,5 +12,6 @@ import org.springframework.context.annotation.Import;
 @AutoConfiguration
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @EnableConfigurationProperties({com.massimotter.weave.backend.portability.config.MigrationToolkitProperties.class})
-@Import({MigrationController.class, MigrationDryRunService.class, MigrationApplyGateService.class})
+@Import({com.massimotter.weave.backend.portability.application.ProviderReplacementDryRunService.class,
+        com.massimotter.weave.backend.portability.api.ProviderReplacementController.class,MigrationController.class, MigrationDryRunService.class, MigrationApplyGateService.class})
 public class PortabilityRuntimeAutoConfiguration {}

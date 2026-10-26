@@ -701,7 +701,7 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/provider/DomainAdapterRegistryMapperTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/discovery/application/DomainAdapterRegistryMapperTest.java",
           "fragments": [
             "coreProductDomainsCarryExecutableAdapterFitContracts",
             "providerRegistryAdapterFitSupportsMixedProviderPostureWithoutMemberProviderIds",
@@ -1217,7 +1217,7 @@
           ]
         },
         {
-          "path": "server/app/src/main/java/com/massimotter/weave/backend/model/admin/ProviderReplacementDryRunResponse.java",
+          "path": "server/domains/portability/src/main/java/com/massimotter/weave/backend/portability/api/ProviderReplacementDryRunResponse.java",
           "fragments": [
             "PortableExportImportContract",
             "SwitchPlan",
@@ -1432,7 +1432,7 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/provider/DomainAdapterRegistryMapperTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/discovery/application/DomainAdapterRegistryMapperTest.java",
           "fragments": [
             "coreProductDomainsCarryExecutableAdapterFitContracts",
             "providerRegistryAdapterFitSupportsMixedProviderPostureWithoutMemberProviderIds",
@@ -4400,7 +4400,7 @@
           ]
         },
         {
-          "path": "server/app/src/main/java/com/massimotter/weave/backend/service/AdminControlPlaneService.java",
+          "path": "server/domains/portability/src/main/java/com/massimotter/weave/backend/portability/application/ProviderReplacementDryRunService.java",
           "fragments": [
             "baselineSnapshot",
             "readModelComparison",

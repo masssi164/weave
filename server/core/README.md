@@ -8,7 +8,11 @@ persistence. Domain business entities, controllers, providers and SDKs belong to
 `model` contains framework-free identity values, Space authorization contracts/rules and
 shared operation/binding ports. The runtime library owns responsibility-scoped JPA mappings,
 Identity resolution, Security settings/session services and the shared provider-health cache.
-Core Discovery owns generic provider status contracts; Core Provider Binding owns pure
+Core Discovery owns generic provider status contracts, instance category/canonical catalogs and their
+HTTP adapters. Domain-owned metadata is installed through each runtime’s imports; duplicate/conflicting
+owner, module or alias claims fail explicitly. Joint document categories merge Office and Integrations
+fragments without a required domain dependency. Core never recreates absent feature declarations.
+Core Provider Binding owns pure
 conformance/readiness values. Redaction and HTTP retry parsing have their own responsibilities.
 Its `api.error` exception is the common HTTP error contract; health's safe response lives with
 that responsibility. Pure models do not depend on either transport contract.
@@ -27,6 +31,12 @@ permission system or Agent Runtime SDK/runtime is required. Wire values/HTTP ada
 `identity.member.api`; durable side-effect claims live with Identity persistence. Remote Keycloak
 writes are never treated as rolled back by a local transaction. Claim/completion transactions
 commit independently; a losing unique insert finishes before reading a concurrent winner.
+
+Core Identity owns organization bootstrap under `identity.organization`: framework-free authority
+values/port, versioned JPA persistence, the authorization-aware recovery-administrator use case and
+its Admin HTTP/wire adapters. Non-web imports expose the real persistence adapter; servlet imports
+expose the use case/handler. It needs no Portability evidence store or optional provider runtime.
+The retired unused file adapter was a test fixture, never a supported authority fallback.
 
 Core Identity also owns invitation values/ports, transactional adapters and use cases, current
 member display-name queries and the shared identity/profile/invitation HTTP adapters. Human

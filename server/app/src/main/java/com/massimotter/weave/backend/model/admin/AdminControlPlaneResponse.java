@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.model.admin;
 
-import com.massimotter.weave.backend.provider.ProviderCategoryStatusResponse;
+import com.massimotter.weave.backend.discovery.api.ProviderCategoryStatusResponse;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 import java.util.List;

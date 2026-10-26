@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.service;
 
+
 import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation;
 import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.identity.profile.domain.ProductProfileOverride;
@@ -20,7 +21,7 @@ import com.massimotter.weave.backend.model.admin.CapabilityWhitelistUpdateReques
 import com.massimotter.weave.backend.capability.api.EffectivePolicySimulationRequest;
 import com.massimotter.weave.backend.audit.persistence.AuditEventJpaRepository;
 import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
-import com.massimotter.weave.backend.provider.ProviderRegistry;
+import com.massimotter.weave.backend.discovery.application.ProviderRegistry;
 import com.massimotter.weave.backend.providerbinding.selection.ProviderSelection;
 import com.massimotter.weave.backend.providerbinding.domain.ProviderBinding;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
@@ -59,12 +60,15 @@ class AdminControlPlaneServiceTest {
                 new ProviderBinding("weave-dogfood", "calendar", 2, "weave-native",
                         "configuration:calendar:deployment", ProviderBinding.State.ACTIVE, now)));
         AdminControlPlaneService service = new AdminControlPlaneService(
-                new ProviderRegistry(List.of(), workspaceCapabilityService(), selections),
-                workspaceCapabilityService(), selections,
-                new InMemoryOrganizationBootstrapRepository(), audit,
-                Clock.fixed(now, ZoneOffset.UTC), mock(ProductProfileOverrideRepository.class),
-                new InMemoryMigrationRunEvidenceRepository(),
-                OrganizationIdentityContextResolver.defaults(), bindings);
+                com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation.categories(),
+                com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation.contracts(),
+                com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation.registry(List.of(), workspaceCapabilityService(), selections),
+                workspaceCapabilityService(),
+                selections,
+                audit,
+                Clock.fixed(now, ZoneOffset.UTC),
+                OrganizationIdentityContextResolver.defaults(),
+                bindings);
 
         for (var candidate : List.of(Map.entry("chat", "matrix-synapse"),
                 Map.entry("calendar", "nextcloud-caldav"))) {
@@ -100,14 +104,13 @@ class AdminControlPlaneServiceTest {
     void whitelistEditsRemainAuthorizedButReadOnlyWithoutAuditMutation() {
         InMemoryAuditEventPublisher auditPublisher = new InMemoryAuditEventPublisher();
         AdminControlPlaneService service = new AdminControlPlaneService(
+                com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation.categories(),
+                com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation.contracts(),
                 mock(ProviderRegistry.class),
                 workspaceCapabilityService(),
                 new InMemoryProviderSelectionRepository(),
-                new InMemoryOrganizationBootstrapRepository(),
                 auditPublisher,
-                Clock.fixed(Instant.parse("2026-05-27T01:03:39Z"), ZoneOffset.UTC),
-                mock(ProductProfileOverrideRepository.class),
-                new InMemoryMigrationRunEvidenceRepository());
+                Clock.fixed(Instant.parse("2026-05-27T01:03:39Z"), ZoneOffset.UTC));
         CapabilityWhitelistUpdateRequest request = new CapabilityWhitelistUpdateRequest(
                 "workspace-admin",
                 List.of("admin.policy.edit", "admin.provider.configure"),
@@ -282,16 +285,15 @@ class AdminControlPlaneServiceTest {
                 false,
                 List.of()));
         WorkspaceCapabilityService workspaceCapabilityService = workspaceCapabilityService();
-        ProviderRegistry providerRegistry = new ProviderRegistry(List.of(), workspaceCapabilityService, selectionRepository);
+        ProviderRegistry providerRegistry = com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation.registry(List.of(), workspaceCapabilityService, selectionRepository);
         AdminControlPlaneService service = new AdminControlPlaneService(
+                com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation.categories(),
+                com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation.contracts(),
                 providerRegistry,
                 workspaceCapabilityService,
                 selectionRepository,
-                new InMemoryOrganizationBootstrapRepository(),
                 new InMemoryAuditEventPublisher(),
-                Clock.fixed(Instant.parse("2026-05-31T08:00:00Z"), ZoneOffset.UTC),
-                mock(ProductProfileOverrideRepository.class),
-                new InMemoryMigrationRunEvidenceRepository());
+                Clock.fixed(Instant.parse("2026-05-31T08:00:00Z"), ZoneOffset.UTC));
 
         var response = service.overview(jwt("admin"));
 
@@ -328,19 +330,21 @@ class AdminControlPlaneServiceTest {
                         Map.of("reducedMotion", "true"),
                         "workspace"));
         WorkspaceCapabilityService workspaceCapabilityService = workspaceCapabilityService();
-        ProviderRegistry providerRegistry = new ProviderRegistry(List.of(), workspaceCapabilityService, selectionRepository);
-        AdminControlPlaneService service = new AdminControlPlaneService(
+        ProviderRegistry providerRegistry = com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation.registry(List.of(), workspaceCapabilityService, selectionRepository);
+        var service = new com.massimotter.weave.backend.portability.application.ProviderReplacementDryRunService(
+                com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation.categories(),
+                com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation.contracts(),
                 providerRegistry,
                 workspaceCapabilityService,
                 selectionRepository,
-                new InMemoryOrganizationBootstrapRepository(),
-                auditPublisher,
-                Clock.fixed(Instant.parse("2026-05-31T08:00:00Z"), ZoneOffset.UTC),
                 profileRepository,
-                migrationEvidenceRepository);
+                auditPublisher,
+                migrationEvidenceRepository,
+                OrganizationIdentityContextResolver.defaults(),
+                Clock.fixed(Instant.parse("2026-05-31T08:00:00Z"), ZoneOffset.UTC));
 
         var response = service.dryRunProviderReplacement(
-                new com.massimotter.weave.backend.model.admin.ProviderReplacementDryRunRequest(
+                new com.massimotter.weave.backend.portability.api.ProviderReplacementDryRunRequest(
                         "chat",
                         "synapse-homeserver",
                         "weave-native",
@@ -402,14 +406,13 @@ class AdminControlPlaneServiceTest {
         InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
         InMemoryMigrationRunEvidenceRepository migrations = new InMemoryMigrationRunEvidenceRepository();
         AdminControlPlaneService service = new AdminControlPlaneService(
-                new ProviderRegistry(List.of(), workspaceCapabilityService(), selections),
+                com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation.categories(),
+                com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation.contracts(),
+                com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation.registry(List.of(), workspaceCapabilityService(), selections),
                 workspaceCapabilityService(),
                 selections,
-                new InMemoryOrganizationBootstrapRepository(),
                 auditPublisher,
-                Clock.fixed(Instant.parse("2026-05-31T08:00:00Z"), ZoneOffset.UTC),
-                mock(ProductProfileOverrideRepository.class),
-                migrations);
+                Clock.fixed(Instant.parse("2026-05-31T08:00:00Z"), ZoneOffset.UTC));
 
         assertThatThrownBy(() -> service.selectProvider(
                 new com.massimotter.weave.backend.model.admin.ProviderSelectionRequest(
@@ -423,8 +426,15 @@ class AdminControlPlaneServiceTest {
         assertThat(selections.findByCategory("files")).isEmpty();
         assertThat(auditPublisher.events()).isEmpty();
 
-        var report = service.dryRunProviderReplacement(
-                new com.massimotter.weave.backend.model.admin.ProviderReplacementDryRunRequest(
+        var replacements = new com.massimotter.weave.backend.portability.application.ProviderReplacementDryRunService(
+                com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation.categories(),
+                com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation.contracts(),
+                com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation.registry(List.of(), workspaceCapabilityService(), selections),
+                workspaceCapabilityService(), selections, mock(ProductProfileOverrideRepository.class), auditPublisher,
+                migrations, OrganizationIdentityContextResolver.defaults(),
+                Clock.fixed(Instant.parse("2026-05-31T08:00:00Z"), ZoneOffset.UTC));
+        var report = replacements.dryRunProviderReplacement(
+                new com.massimotter.weave.backend.portability.api.ProviderReplacementDryRunRequest(
                         "files", "nextcloud-files", "weave-native",
                         "recommended_self_hosted_default",
                         "secretref://weave/provider/nextcloud-files", "weave-files-domain",
@@ -455,10 +465,13 @@ class AdminControlPlaneServiceTest {
         var capabilities = workspaceCapabilityService();
         var selections = new InMemoryProviderSelectionRepository();
         var service = new AdminControlPlaneService(
-                new ProviderRegistry(List.of(), capabilities, selections), capabilities, selections,
-                new InMemoryOrganizationBootstrapRepository(), new InMemoryAuditEventPublisher(),
-                Clock.fixed(Instant.parse("2026-05-31T08:00:00Z"), ZoneOffset.UTC),
-                mock(ProductProfileOverrideRepository.class), new InMemoryMigrationRunEvidenceRepository());
+                com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation.categories(),
+                com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation.contracts(),
+                com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation.registry(List.of(), capabilities, selections),
+                capabilities,
+                selections,
+                new InMemoryAuditEventPublisher(),
+                Clock.fixed(Instant.parse("2026-05-31T08:00:00Z"), ZoneOffset.UTC));
         for (String role : List.of("owner", "admin")) {
             Jwt admitted = jwt(role);
             var expected = OrganizationIdentityContextResolver.defaults().resolve(admitted);
@@ -490,16 +503,15 @@ class AdminControlPlaneServiceTest {
                 true,
                 false,
                 List.of()));
-        ProviderRegistry providerRegistry = new ProviderRegistry(List.of(), workspaceCapabilityService, selectionRepository);
+        ProviderRegistry providerRegistry = com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation.registry(List.of(), workspaceCapabilityService, selectionRepository);
         AdminControlPlaneService service = new AdminControlPlaneService(
+                com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation.categories(),
+                com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation.contracts(),
                 providerRegistry,
                 workspaceCapabilityService,
                 selectionRepository,
-                new InMemoryOrganizationBootstrapRepository(),
                 new InMemoryAuditEventPublisher(),
-                Clock.fixed(Instant.parse("2026-05-31T08:00:00Z"), ZoneOffset.UTC),
-                mock(ProductProfileOverrideRepository.class),
-                new InMemoryMigrationRunEvidenceRepository());
+                Clock.fixed(Instant.parse("2026-05-31T08:00:00Z"), ZoneOffset.UTC));
 
         var response = service.overview(jwt("admin"));
 
@@ -552,14 +564,13 @@ class AdminControlPlaneServiceTest {
 
     private AdminControlPlaneService adminControlPlaneService(AuditEventPublisher auditPublisher) {
         return new AdminControlPlaneService(
+                com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation.categories(),
+                com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation.contracts(),
                 mock(ProviderRegistry.class),
                 workspaceCapabilityService(),
                 new InMemoryProviderSelectionRepository(),
-                new InMemoryOrganizationBootstrapRepository(),
                 auditPublisher,
-                Clock.fixed(Instant.parse("2026-05-27T01:03:39Z"), ZoneOffset.UTC),
-                mock(ProductProfileOverrideRepository.class),
-                new InMemoryMigrationRunEvidenceRepository());
+                Clock.fixed(Instant.parse("2026-05-27T01:03:39Z"), ZoneOffset.UTC));
     }
 
     private DriverManagerDataSource migratedDataSource() {

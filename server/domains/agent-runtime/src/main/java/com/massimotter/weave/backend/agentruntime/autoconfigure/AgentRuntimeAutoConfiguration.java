@@ -23,11 +23,13 @@ import com.massimotter.weave.agentruntime.autoconfigure.AgentRuntimePersistenceA
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Import;
+import com.massimotter.weave.backend.agentruntime.discovery.AgentRuntimeDiscoveryConfiguration;
 
 /** Actual future control-plane graph; schema and operator contexts construct no serving providers. */
 @AutoConfiguration(after = AgentRuntimePersistenceAutoConfiguration.class)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @Import({
+        AgentRuntimeDiscoveryConfiguration.class,
         AgentRuntimeAdminController.class,
         AgentRuntimeAdminExceptionHandler.class,
         AgentRuntimeErrorResponseWriter.class,

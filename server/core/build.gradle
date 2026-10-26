@@ -47,3 +47,6 @@ dependencies {
     testImplementation libs.archunit.junit5
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
+
+// Shared model invariants are prerequisites of the real Core runtime checks.
+tasks.named('check') { dependsOn ':server:core:model:check' }

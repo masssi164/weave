@@ -45,6 +45,10 @@ class FilesRuntimeDiscoveryTest {
                             .hasSingleBean(FilesWebDavController.class);
                     assertThat(context.getBean(WorkspaceCapabilityService.class).installedDefinitions())
                             .extracting(value -> value.domainId()).containsExactly("files");
+                    assertThat(context.getBean(com.massimotter.weave.backend.discovery.catalog.ProviderCategoryCatalog.class)
+                            .categories()).extracting(value -> value.key()).containsExactly("files", "admin-control-plane");
+                    assertThat(context.getBean(com.massimotter.weave.backend.discovery.catalog.CanonicalDomainRegistry.class)
+                            .domains()).extracting(value -> value.key()).containsExactly("people", "spaces", "files", "health");
                     var paths = context.getBean("requestMappingHandlerMapping", RequestMappingHandlerMapping.class).getHandlerMethods().keySet().stream()
                             .flatMap(mapping -> mapping.getPatternValues().stream()).toList();
                     assertThat(paths).contains("/api/files/readiness", "/api/files/items", "/dav/files", "/dav/files/**");

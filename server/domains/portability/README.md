@@ -1,12 +1,18 @@
 # Portability and transfer runtime ownership
 
-Owns the existing migration dry-run/apply-gate orchestration and HTTP/wire boundary, durable
+Owns the existing migration dry-run/apply-gate orchestration, provider-replacement planning and
+HTTP/wire boundaries, durable
 migration evidence adapter and port, canonical resumable transfer adapter, pure transfer/evidence
 values, JPA mappings, constraints/repositories, typed settings and contract resources. Transfer and
 portability JPA mappings are consolidated under `portability.persistence`, preserving package-private
 access, existing table identities, optimistic versions and locking. The model library remains pure.
 Serving imports are separate from reusable persistence imports; schema/operator discovery does not
 construct HTTP/provider graphs. Ordinary product persistence uses JPA, with no parallel JDBC CRUD.
+
+The provider-replacement dry-run handler and its evidence-writing use case are owned here; shared
+App administration no longer requires the Portability evidence repository. Full-runtime request,
+response, authorization and blocked-apply semantics are preserved. The accepted endpoint path
+remains `/api/admin/providers/replacements/dry-run`; runtime ownership controls its inclusion.
 
 The former App migration services/controllers/values and transfer adapter are deleted at their old
 locations. Core Operations owns the shared stable idempotency-key formatter, independently used by

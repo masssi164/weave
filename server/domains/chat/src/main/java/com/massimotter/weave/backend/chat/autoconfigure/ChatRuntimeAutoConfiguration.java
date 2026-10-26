@@ -38,6 +38,7 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Import;
+import com.massimotter.weave.backend.chat.discovery.ChatDiscoveryConfiguration;
 
 /** Installs the actual Chat serving graph independently of App component scanning. */
 @AutoConfiguration(afterName = {
@@ -51,6 +52,7 @@ import org.springframework.context.annotation.Import;
         ChatE2eProofProperties.class
 })
 @Import({
+        ChatDiscoveryConfiguration.class,
         ChatController.class,
         MatrixClientServerProjectionController.class,
         ChatConversationAdmissionService.class,

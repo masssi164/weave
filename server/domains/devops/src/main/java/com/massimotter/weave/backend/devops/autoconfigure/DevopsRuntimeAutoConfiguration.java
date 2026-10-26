@@ -7,9 +7,11 @@ import com.massimotter.weave.backend.devops.config.DevopsProviderConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Import;
+import com.massimotter.weave.backend.devops.discovery.DevopsDiscoveryConfiguration;
 
 /** Owns existing future feature behavior; release inclusion is an explicit composition decision. */
 @AutoConfiguration
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@Import({DevopsController.class, DevopsFacadeService.class, DevopsWorkspaceCapabilityConfiguration.class, DevopsProviderConfiguration.class})
+@Import({
+        DevopsDiscoveryConfiguration.class,DevopsController.class, DevopsFacadeService.class, DevopsWorkspaceCapabilityConfiguration.class, DevopsProviderConfiguration.class})
 public class DevopsRuntimeAutoConfiguration {}

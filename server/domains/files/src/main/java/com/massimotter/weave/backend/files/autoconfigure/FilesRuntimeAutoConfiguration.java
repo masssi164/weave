@@ -39,6 +39,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import com.massimotter.weave.backend.files.discovery.FilesDiscoveryConfiguration;
 
 /** Installs the actual Files serving graph without App scanning or live provider probes. */
 @AutoConfiguration(after = FilesPersistenceAutoConfiguration.class)
@@ -52,6 +53,7 @@ import org.springframework.context.annotation.Import;
         ProviderBindingBootstrapProperties.class
 })
 @Import({
+        FilesDiscoveryConfiguration.class,
         FilesUserItemsController.class,
         FilesController.class,
         FilesWebDavController.class,

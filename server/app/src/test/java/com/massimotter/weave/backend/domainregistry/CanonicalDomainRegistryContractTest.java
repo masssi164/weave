@@ -1,5 +1,10 @@
 package com.massimotter.weave.backend.domainregistry;
 
+import com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation;
+import com.massimotter.weave.backend.discovery.catalog.CanonicalDomainRegistry;
+import com.massimotter.weave.backend.discovery.api.CanonicalDomainRegistryEntryResponse;
+import com.massimotter.weave.backend.discovery.api.CanonicalDomainRegistryResponse;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 import tools.jackson.databind.JsonNode;
@@ -30,7 +35,7 @@ class CanonicalDomainRegistryContractTest {
 
     @Test
     void registryDefinesCanonicalDomainsStatesAliasesAndPortabilityMetadata() {
-        CanonicalDomainRegistryResponse registry = CanonicalDomainRegistry.snapshot();
+        CanonicalDomainRegistryResponse registry = ProviderDiscoveryTestInstallation.canonicalDomains().snapshot();
 
         assertThat(registry.registryVersion()).isEqualTo("canonical-domain-registry-v1");
         assertThat(registry.memberStates()).containsExactly(
@@ -126,7 +131,7 @@ class CanonicalDomainRegistryContractTest {
 
     @Test
     void sprintNineFoundationalDomainsExposeProductReadyCanonicalObjects() {
-        CanonicalDomainRegistryResponse registry = CanonicalDomainRegistry.snapshot();
+        CanonicalDomainRegistryResponse registry = ProviderDiscoveryTestInstallation.canonicalDomains().snapshot();
 
         assertThat(objects(registry, "spaces")).contains("Space", "SpaceMembership", "RoleBinding", "LinkedChannel", "LinkedBoard", "LinkedCalendar", "LinkedFileRoot", "DecisionLedgerRef");
         assertThat(objects(registry, "people")).contains("Person", "Membership", "Profile", "ContactMethod", "Team", "Guest", "ServiceAccountRef");

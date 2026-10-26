@@ -29,7 +29,8 @@ import org.springframework.context.annotation.Import;
 })
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @EnableConfigurationProperties(IdentityInvitationProperties.class)
-@Import({com.massimotter.weave.backend.identity.persistence.IdentityAdminOperationStore.class,
+@Import({com.massimotter.weave.backend.identity.organization.application.OrganizationBootstrapService.class,
+        com.massimotter.weave.backend.identity.organization.api.OrganizationBootstrapController.class,com.massimotter.weave.backend.identity.persistence.IdentityAdminOperationStore.class,
         com.massimotter.weave.backend.identity.member.application.OrganizationMemberAdministrationService.class,
         com.massimotter.weave.backend.identity.member.api.OrganizationMemberAdministrationController.class,
         KeycloakAuthConfig.class, KeycloakIdentityAdminClient.class,

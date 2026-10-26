@@ -2,6 +2,10 @@ package com.massimotter.weave.core.autoconfigure;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import jakarta.persistence.EntityManagerFactory;
+import com.massimotter.weave.backend.identity.organization.port.OrganizationBootstrapRepository;
+import com.massimotter.weave.backend.identity.organization.domain.OrganizationBootstrapRecord;
+import java.time.Instant;
+import java.util.List;
 import com.massimotter.weave.backend.security.port.MemberSessionStateStore;
 import com.massimotter.weave.backend.health.ProviderCapabilityHealthService;
 import com.massimotter.weave.backend.health.ProviderHealthContribution;
@@ -51,6 +55,8 @@ class CorePersistenceDiscoveryTest {
                 .run(context -> {
                     assertThat(context).hasNotFailed().hasSingleBean(CorePersistenceAutoConfiguration.class);
                     assertThat(context).hasSingleBean(EntityManagerFactory.class);
+                    assertThat(context).hasSingleBean(CoreOrganizationPersistenceAutoConfiguration.class)
+                            .hasSingleBean(OrganizationBootstrapRepository.class);
                     assertThat(context).hasSingleBean(MemberSessionStateStore.class);
                     assertThat(context).doesNotHaveBean(ProviderCapabilityHealthService.class);
                     assertThat(context).doesNotHaveBean(CoreSecurityAutoConfiguration.class);
@@ -74,6 +80,29 @@ class CorePersistenceDiscoveryTest {
     }
 
     @Test
+    void organizationAuthorityWorksWithoutServletOrOptionalDomains() {
+        new ApplicationContextRunner().withUserConfiguration(Discovery.class)
+                .withPropertyValues(
+                        "spring.datasource.url=jdbc:h2:mem:organization-discovery;DB_CLOSE_DELAY=-1",
+                        "spring.jpa.hibernate.ddl-auto=create-drop", "spring.flyway.enabled=false")
+                .run(context -> {
+                    assertThat(context).hasNotFailed().hasSingleBean(OrganizationBootstrapRepository.class);
+                    var repository = context.getBean(OrganizationBootstrapRepository.class);
+                    var timestamp = Instant.parse("2026-08-01T20:00:00Z");
+                    var initial = new OrganizationBootstrapRecord(" ORG-WEAVE ", "fresh-start", "issuer#owner",
+                            List.of("issuer#owner"), timestamp);
+                    var updated = new OrganizationBootstrapRecord("org-weave", "fresh-start-verified", "issuer#owner",
+                            List.of("issuer#owner", "issuer#admin"), timestamp.plusSeconds(60));
+                    repository.save(initial);
+                    repository.save(updated);
+                    assertThat(repository.findByOrganizationId(" ORG-WEAVE ")).contains(updated);
+                    assertThat(repository.findByOrganizationId("other-organization")).isEmpty();
+                    assertThat(repository.findByOrganizationId(null)).isEmpty();
+                    assertThat(repository.findByOrganizationId(" ")).isEmpty();
+                });
+    }
+
+    @Test
     void discoversServingHealthWithoutAnyOptionalDomainAndDefersProviderAccess() {
         AtomicInteger probes = new AtomicInteger();
         new WebApplicationContextRunner().withUserConfiguration(Discovery.class)
@@ -89,6 +118,8 @@ class CorePersistenceDiscoveryTest {
                             .hasSingleBean(ProviderCapabilityHealthService.class)
                             .hasSingleBean(CoreSecurityAutoConfiguration.class)
                             .hasSingleBean(OrganizationIdentityContextResolver.class)
+                            .hasSingleBean(com.massimotter.weave.backend.identity.organization.application.OrganizationBootstrapService.class)
+                            .hasSingleBean(com.massimotter.weave.backend.identity.organization.api.OrganizationBootstrapController.class)
                             .hasSingleBean(ContextAuthorizationPort.class)
                             .hasSingleBean(MemberSessionCutoffService.class)
                             .hasSingleBean(MemberSessionRevocationService.class);

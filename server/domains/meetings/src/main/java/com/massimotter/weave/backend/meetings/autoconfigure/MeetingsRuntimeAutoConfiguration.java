@@ -9,6 +9,7 @@ import com.massimotter.weave.backend.meetings.config.MeetingsProviderRegistryCon
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Import;
+import com.massimotter.weave.backend.meetings.discovery.MeetingsDiscoveryConfiguration;
 
 /** Installs implemented future-domain behavior; release inclusion remains explicit. */
 @AutoConfiguration(afterName = "com.massimotter.weave.backend.chat.autoconfigure.ChatRuntimeAutoConfiguration")
@@ -16,6 +17,7 @@ import org.springframework.context.annotation.Import;
 @org.springframework.boot.context.properties.EnableConfigurationProperties(
         LiveKitSfuProviderProperties.class)
 @Import({
+        MeetingsDiscoveryConfiguration.class,
         MeetingCapsuleService.class,
         MeetingCapsuleController.class,
         MeetingsWorkspaceCapabilityConfiguration.class,

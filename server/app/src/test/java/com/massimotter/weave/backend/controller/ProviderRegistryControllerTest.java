@@ -1,5 +1,9 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation;
+
+import com.massimotter.weave.backend.discovery.api.ProviderRegistryController;
+
 import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation;
 import com.massimotter.weave.backend.security.NativeOrganizationClaims;
 import com.massimotter.weave.backend.chat.config.ChatProviderRegistryConfiguration;
@@ -15,7 +19,7 @@ import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.devops.config.DevopsProviderConfiguration;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.config.AdminApiSecurityConfiguration;
-import com.massimotter.weave.backend.service.AdminProviderRegistryService;
+import com.massimotter.weave.backend.discovery.application.AdminProviderRegistryService;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
 import com.massimotter.weave.backend.files.application.FilesProviderResolver;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
@@ -26,7 +30,7 @@ import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityReadiness
 import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityStatusResponse;
 import com.massimotter.weave.backend.office.provider.DisabledOfficeProvider;
 import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
-import com.massimotter.weave.backend.provider.ProviderRegistry;
+import com.massimotter.weave.backend.discovery.application.ProviderRegistry;
 import com.massimotter.weave.backend.providerbinding.selection.ProviderSelection;
 import com.massimotter.weave.backend.providerbinding.selection.ProviderSelectionRepository;
 import java.time.Instant;
@@ -65,6 +69,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         controllers = ProviderRegistryController.class,
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({
+        ProviderRegistryController.class,
         SecurityConfig.class,
         AdminApiSecurityConfiguration.class,
         AdminProviderRegistryService.class,
@@ -74,6 +79,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         ApiErrorResponseWriter.class,
         ApiExceptionHandler.class,
         ProviderRegistry.class,
+        ProviderRegistryControllerTest.RegistryMetadata.class,
         InMemoryProviderSelectionRepository.class,
         ChatProviderRegistryConfiguration.class,
         FilesProviderRegistryConfiguration.class,
@@ -93,6 +99,24 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "weave.calls.sfu.livekit.token-endpoint="
 })
 class ProviderRegistryControllerTest {
+
+    @org.springframework.boot.test.context.TestConfiguration
+    static class RegistryMetadata {
+        @org.springframework.context.annotation.Bean
+        com.massimotter.weave.backend.discovery.catalog.ProviderCategoryCatalog categories() {
+            return ProviderDiscoveryTestInstallation.categories();
+        }
+
+        @org.springframework.context.annotation.Bean
+        com.massimotter.weave.backend.discovery.catalog.ProviderCapabilityContracts contracts() {
+            return ProviderDiscoveryTestInstallation.contracts();
+        }
+
+        @org.springframework.context.annotation.Bean
+        com.massimotter.weave.backend.discovery.catalog.CanonicalDomainRegistry canonicalDomains() {
+            return ProviderDiscoveryTestInstallation.canonicalDomains();
+        }
+    }
 
     // V01_ADMIN_HEALTH_POLICY_ENFORCEMENT
 
@@ -143,7 +167,7 @@ class ProviderRegistryControllerTest {
     void setUpWorkspaceCapabilitySnapshot() {
         selectDefaultProviders();
         enforceEffectiveCapabilityPolicy();
-        when(workspaceCapabilityService.snapshot()).thenReturn(WorkspaceCapabilityTestInstallation.snapshot(
+        ProviderDiscoveryTestInstallation.stubCapabilities(workspaceCapabilityService, WorkspaceCapabilityTestInstallation.snapshot(
                 capability(WorkspaceCapabilityReadiness.READY, WorkspaceCapabilityPolicyState.ALLOWED, "Weave SSO shell access is available."),
                 capability(WorkspaceCapabilityReadiness.READY, WorkspaceCapabilityPolicyState.ALLOWED, "Chat is available through Weave."),
                 capability(WorkspaceCapabilityReadiness.READY, WorkspaceCapabilityPolicyState.ALLOWED, "Files are available through Weave."),

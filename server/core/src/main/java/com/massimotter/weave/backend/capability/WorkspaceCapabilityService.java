@@ -127,13 +127,22 @@ public class WorkspaceCapabilityService {
                 states.get("chat"), states.get("files"), states.get("calendar"), states.get("boards"),
                 states.get("meetings"), states.get("office"), states.get("decisions"),
                 states.get("manuals"), states.get("devops"),
-                status(workspaceCapabilityProperties.adminControlPlane(),
+                adminControlPlaneStatus(policy),
+                states.get("agent-runtime"));
+    }
+
+    /** Built-in platform policy, distinct from the installed optional-domain snapshot map. */
+    public WorkspaceCapabilityStatusResponse adminControlPlaneSnapshot() {
+        return adminControlPlaneStatus(effectivePolicy((Jwt) null));
+    }
+
+    private WorkspaceCapabilityStatusResponse adminControlPlaneStatus(EffectivePolicy policy) {
+        return status(workspaceCapabilityProperties.adminControlPlane(),
                         workspaceCapabilityProperties.adminControlPlane().readiness() == null
                                 ? WorkspaceCapabilityReadiness.READY : workspaceCapabilityProperties.adminControlPlane().readiness(),
 
                         "admin control plane", List.of("admin_control_plane.readiness_read"), policy,
-                        "Workspace Health exposes support-safe admin readiness without provider credentials."),
-                states.get("agent-runtime"));
+                        "Workspace Health exposes support-safe admin readiness without provider credentials.");
     }
 
     public WorkspaceCapabilityPolicyResponse policySnapshot(Jwt jwt) {

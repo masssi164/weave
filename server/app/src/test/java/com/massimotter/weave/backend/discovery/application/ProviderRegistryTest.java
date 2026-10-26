@@ -1,0 +1,250 @@
+package com.massimotter.weave.backend.discovery.application;
+
+import com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation;
+
+import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
+
+import com.massimotter.weave.backend.discovery.api.ProviderCategoryStatusResponse;
+
+import com.massimotter.weave.backend.discovery.api.ProviderCategoryReadiness;
+
+import com.massimotter.weave.backend.discovery.api.ProviderRegistryResponse;
+
+import com.massimotter.weave.backend.discovery.application.ProviderRegistry;
+
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation;
+import com.massimotter.weave.backend.providerbinding.selection.ProviderSelection;
+import com.massimotter.weave.backend.discovery.provider.RuntimeProviderStatus;
+import com.massimotter.weave.backend.discovery.provider.StaticProviderPort;
+import com.massimotter.weave.backend.discovery.provider.ProviderRealityLevel;
+import com.massimotter.weave.backend.discovery.provider.ProviderState;
+import com.massimotter.weave.backend.discovery.provider.ProviderModule;
+import com.massimotter.weave.backend.discovery.provider.ProviderStatusResponse;
+import com.massimotter.weave.backend.discovery.provider.ProviderPort;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilitiesResponse;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityPolicyState;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityReadiness;
+import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityStatusResponse;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+
+class ProviderRegistryTest {
+
+    @Test
+    void bootstrapDefaultsRemainSuggestionsUntilAdminSelection() {
+        ProviderRegistry registry = ProviderDiscoveryTestInstallation.registry(
+                List.of(StaticProviderPort.pending(
+                        ProviderModule.MATRIX,
+                        "synapse-homeserver",
+                        "Chat adapter candidate.",
+                        Set.of("chat.read"),
+                        Set.of("direct-flutter-provider-api"),
+                        List.of("synapse", "slack", "microsoft-teams"),
+                        Map.of())),
+                capabilityService(),
+                new InMemoryProviderSelectionRepository());
+
+        ProviderRegistryResponse response = registry.status();
+
+        assertThat(response.providerConfigSource()).isEqualTo("admin-control-plane-selected-provider-mappings");
+        assertThat(response.bootstrapDefaultsAreSuggestionsOnly()).isTrue();
+        assertThat(response.adminSelectedMappingsRequired()).isTrue();
+        assertThat(response.selectedProviderMappings()).isEmpty();
+        ProviderCategoryStatusResponse chat = response.categories().stream()
+                .filter(category -> category.category().equals("chat"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(chat.readiness()).isEqualTo(ProviderCategoryReadiness.MISCONFIGURED);
+        assertThat(chat.selectedByAdmin()).isFalse();
+        assertThat(chat.bootstrapSuggestionOnly()).isTrue();
+        assertThat(chat.selectedProviderKey()).isEqualTo("awaiting_admin_selection");
+        assertThat(chat.diagnostics()).containsEntry("selectionRequiredBeforeProviderUse", true);
+        assertThat(chat.adapterEvidence()).singleElement().satisfies(evidence -> {
+            assertThat(evidence.domain()).isEqualTo("chat");
+            assertThat(evidence.adapterKey()).isEqualTo("synapse-homeserver");
+            assertThat(evidence.configured()).isFalse();
+            assertThat(evidence.failClosed()).isTrue();
+            assertThat(evidence.supportSafeDiagnostics())
+                    .containsEntry("secretsReturned", false)
+                    .containsEntry("rawProviderErrorsReturned", false)
+                    .doesNotContainKeys("endpoint", "rawProviderError", "authorization");
+        });
+        ProviderCategoryStatusResponse runtimeControl = response.categories().stream()
+                .filter(category -> category.category().equals("agent-runtime-control"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(runtimeControl.providerCandidates()).containsExactly("weaver-openclaw");
+        assertThat(response.providers().get(0).enabled()).isFalse();
+        assertThat(response.providers().get(0).diagnostics()).containsEntry("selectedByAdmin", false);
+    }
+
+    @Test
+    void adminSelectionBecomesSourceOfTruthWithoutExposingSecrets() {
+        InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
+        selections.save(new ProviderSelection(
+                "chat",
+                "slack",
+                "external_existing_provider",
+                "secretref://weave/provider/slack",
+                "actor:admin",
+                Instant.parse("2026-05-24T18:00:00Z"),
+                true,
+                true,
+                true,
+                List.of("Thread and channel semantics require migration dry-run.")));
+        ProviderRegistry registry = ProviderDiscoveryTestInstallation.registry(
+                List.of(StaticProviderPort.pending(
+                        ProviderModule.MATRIX,
+                        "synapse-homeserver",
+                        "Chat adapter candidate.",
+                        Set.of("chat.read"),
+                        Set.of("direct-flutter-provider-api"),
+                        List.of("synapse", "slack", "microsoft-teams"),
+                        Map.of("rawProviderErrorsReturned", false))),
+                capabilityService(),
+                selections);
+
+        ProviderRegistryResponse response = registry.status();
+
+        assertThat(response.selectedProviderMappings()).extracting(ProviderSelection::providerKey).containsExactly("slack");
+        ProviderCategoryStatusResponse chat = response.categories().stream()
+                .filter(category -> category.category().equals("chat"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(chat.readiness()).isEqualTo(ProviderCategoryReadiness.MISCONFIGURED);
+        assertThat(chat.providerRealityLevel()).isEqualTo(ProviderRealityLevel.CONTRACT_ONLY);
+        assertThat(chat.memberCapabilityState()).isEqualTo("coming_later");
+        assertThat(chat.realityLevelRemediation()).contains("Contract-only");
+        assertThat(chat.selectedByAdmin()).isTrue();
+        assertThat(chat.selectedProviderKey()).isEqualTo("slack");
+        assertThat(chat.choiceModel()).isEqualTo("external_existing_provider");
+        assertThat(chat.lossyMappingNotes()).contains("Thread and channel semantics require migration dry-run.");
+        assertThat(response.providers().get(0).enabled()).isTrue();
+        assertThat(response.providers().get(0).configured()).isFalse();
+        assertThat(response.providers().get(0).providerRealityLevel()).isEqualTo(ProviderRealityLevel.CONTRACT_ONLY);
+        assertThat(response.providers().get(0).diagnostics())
+                .containsEntry("selectedByAdmin", true)
+                .containsEntry("secretsReturned", false)
+                .containsEntry("rawProviderErrorsReturned", false);
+    }
+
+    @Test
+    void localLiveSelectionDoesNotInventRuntimeConfigurationOrReachability() {
+        InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
+        selections.save(new ProviderSelection(
+                "chat",
+                "synapse-homeserver",
+                "recommended_self_hosted_default",
+                "secretref://weave/provider/synapse-homeserver/signing-key",
+                "actor:local-live-bootstrap",
+                Instant.parse("2026-01-01T00:00:00Z"),
+                true,
+                true,
+                false,
+                List.of()));
+        ProviderRegistry registry = ProviderDiscoveryTestInstallation.registry(
+                List.of(StaticProviderPort.pending(
+                        ProviderModule.MATRIX,
+                        "synapse-homeserver",
+                        "Chat adapter candidate.",
+                        Set.of("chat.read"),
+                        Set.of("direct-flutter-provider-api"),
+                        List.of("synapse", "slack", "microsoft-teams"),
+                        Map.of())),
+                capabilityService(),
+                selections);
+
+        ProviderRegistryResponse response = registry.status();
+
+        ProviderStatusResponse provider = response.providers().get(0);
+        assertThat(provider.enabled()).isTrue();
+        assertThat(provider.configured()).isFalse();
+        assertThat(provider.state()).isEqualTo(ProviderState.NOT_CONFIGURED);
+        assertThat(provider.readiness()).isEqualTo("admin_selected_pending_backend_configuration");
+        assertThat(provider.diagnostics())
+                .containsEntry("selectedByAdmin", true)
+                .containsEntry("choiceModel", "recommended_self_hosted_default")
+                .containsEntry("secretsReturned", false);
+        ProviderCategoryStatusResponse chat = response.categories().stream()
+                .filter(category -> category.category().equals("chat"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(chat.readiness()).isEqualTo(ProviderCategoryReadiness.MISCONFIGURED);
+        assertThat(chat.adapterEvidence()).singleElement().satisfies(evidence -> {
+            assertThat(evidence.configured()).isFalse();
+            assertThat(evidence.reachable()).isFalse();
+            assertThat(evidence.health()).isEqualTo("admin_selected_pending_backend_configuration");
+        });
+    }
+
+    @Test
+    void configuredRuntimeBindingStillDefersReachabilityToCachedHealthEvidence() {
+        InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
+        selections.save(new ProviderSelection(
+                "boards-tasks",
+                "local-workspace",
+                "recommended_self_hosted_default",
+                null,
+                "actor:admin",
+                Instant.parse("2026-07-16T12:00:00Z"),
+                true,
+                true,
+                false,
+                List.of()));
+        ProviderPort boards = RuntimeProviderStatus.fixed(
+                ProviderModule.BOARDS,
+                "local-workspace",
+                true,
+                "Canonical Boards runtime binding.",
+                Set.of("task-create", "task-move"),
+                Set.of(),
+                List.of("local-workspace", "openproject-primary"),
+                ProviderRealityLevel.LIVE_WRITE,
+                Map.of());
+
+        ProviderCategoryStatusResponse category = ProviderDiscoveryTestInstallation.registry(
+                        List.of(boards), capabilityService(), selections)
+                .status()
+                .categories().stream()
+                .filter(value -> value.category().equals("boards-tasks"))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(category.readiness()).isEqualTo(ProviderCategoryReadiness.READY);
+        assertThat(category.providerRealityLevel()).isEqualTo(ProviderRealityLevel.LIVE_WRITE);
+        assertThat(category.adapterEvidence()).singleElement().satisfies(evidence -> {
+            assertThat(evidence.configured()).isTrue();
+            assertThat(evidence.reachable()).isFalse();
+            assertThat(evidence.health()).isEqualTo("configured_pending_cached_health");
+        });
+    }
+
+    private WorkspaceCapabilityService capabilityService() {
+        WorkspaceCapabilityService service = Mockito.mock(WorkspaceCapabilityService.class);
+        var enabled = capability();
+        var disabled = new WorkspaceCapabilityStatusResponse(false, WorkspaceCapabilityReadiness.UNAVAILABLE,
+                WorkspaceCapabilityPolicyState.DISABLED, "test-profile", "Weaver disabled.", List.of());
+        when(service.installedSnapshots(null)).thenReturn(Map.of("chat", enabled, "files", enabled,
+                "calendar", enabled, "boards", enabled, "decisions", enabled, "manuals", enabled,
+                "devops", enabled, "agent-runtime", disabled));
+        when(service.adminControlPlaneSnapshot()).thenReturn(enabled);
+        return service;
+    }
+
+    private WorkspaceCapabilityStatusResponse capability() {
+        return new WorkspaceCapabilityStatusResponse(
+                true,
+                WorkspaceCapabilityReadiness.READY,
+                WorkspaceCapabilityPolicyState.ALLOWED,
+                "test-profile",
+                "Ready through Weave.",
+                List.of("test.capability"));
+    }
+}

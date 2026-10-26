@@ -39,3 +39,8 @@ Identity/Security independently of Agent Runtime execution. Preserve the shared 
 last-owner protection, opaque handles, version preconditions and durable session cutoffs. A failed
 idempotency insert transaction must end before its recovery read; claims/receipts survive caller
 rollback because they fence remote side effects. Test concurrency against PostgreSQL.
+
+Discovery validates installed owner declarations. Optional-domain provider/category/canonical metadata
+belongs to those domains; Core owns generic catalog/status policy and shared Identity/Spaces/Health
+declarations. Joint categories use explicit owner fragments, never hidden required domain dependencies.
+Unknown policy, duplicate owner/module claims and canonical alias collisions must fail explicitly.

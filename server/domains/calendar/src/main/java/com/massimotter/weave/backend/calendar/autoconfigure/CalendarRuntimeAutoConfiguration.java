@@ -23,12 +23,14 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Import;
+import com.massimotter.weave.backend.calendar.discovery.CalendarDiscoveryConfiguration;
 
 /** Installs the actual Calendar serving graph without App scanning or live provider probes. */
 @AutoConfiguration(after = CalendarPersistenceAutoConfiguration.class)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @EnableConfigurationProperties(CalendarCalDavProperties.class)
 @Import({
+        CalendarDiscoveryConfiguration.class,
         CalendarController.class,
         CalendarDavSetupController.class,
         CalendarUserController.class,

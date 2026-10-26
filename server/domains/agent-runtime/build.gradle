@@ -33,7 +33,7 @@ dependencies {
 }
 
 tasks.named('check') {
-    dependsOn ':server:domains:agent-runtime:model:check',
+    dependsOn ':server:core:check', ':server:domains:agent-runtime:model:check',
             ':server:domains:agent-runtime:persistence:check',
             ':server:domains:agent-runtime:provider:check',
             ':server:domains:agent-runtime:security:check'

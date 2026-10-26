@@ -11,3 +11,5 @@ com.massimotter.weave.core.autoconfigure.CoreWorkspaceCapabilityAutoConfiguratio
 com.massimotter.weave.core.autoconfigure.CoreSpaceAutoConfiguration
 com.massimotter.weave.core.autoconfigure.CoreHttpSecurityAutoConfiguration
 com.massimotter.weave.core.autoconfigure.CoreIdentityAdminAutoConfiguration
+com.massimotter.weave.core.autoconfigure.CoreOrganizationPersistenceAutoConfiguration
+com.massimotter.weave.core.autoconfigure.CoreProviderDiscoveryAutoConfiguration

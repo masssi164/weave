@@ -108,7 +108,6 @@ class ServerArchitectureBoundaryTest {
     private static final List<String> LEGACY_FILE_RUNTIME_STORE_ALLOWLIST = List.of(
             "/audit/FileAuditEventPublisher.java",
             "/provider/FileProviderSelectionRepository.java",
-            "/service/FileOrganizationBootstrapRepository.java",
             "/service/FileProductProfileOverrideRepository.java",
             "/service/migration/FileMigrationRunEvidenceRepository.java");
     private static final List<String> ACCEPTED_FILE_KEY_CUSTODY_ALLOWLIST = List.of(
@@ -292,7 +291,7 @@ class ServerArchitectureBoundaryTest {
         assertThat(sourceEndingWith(Path.of("controller", "AdminControlPlaneController.java")).text())
                 .doesNotContain("/api/v1/admin");
         assertThat(sourceEndingWith(
-                Path.of("controller", "ProviderCapabilityHealthController.java")).text())
+                Path.of("health", "api", "ProviderCapabilityHealthController.java")).text())
                 .doesNotContain("/api/v1/admin");
     }
 

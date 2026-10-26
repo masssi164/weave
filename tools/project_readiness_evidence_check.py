@@ -58,7 +58,7 @@ REQUIRED_SOURCE_FRAGMENTS = {
         "adminReadinessTestsAndPolicyUpdatesAreAuditedAndRedacted",
         "migrationDryRunRequired",
     ],
-    "server/app/src/test/java/com/massimotter/weave/backend/provider/DomainAdapterRegistryMapperTest.java": [
+    "server/app/src/test/java/com/massimotter/weave/backend/discovery/application/DomainAdapterRegistryMapperTest.java": [
         "coreProductDomainsCarryExecutableAdapterFitContracts",
         "providerRegistryAdapterFitSupportsMixedProviderPostureWithoutMemberProviderIds",
     ],
