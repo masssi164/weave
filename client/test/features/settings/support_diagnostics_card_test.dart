@@ -131,7 +131,7 @@ void main() {
     );
   }
 
-  testWidgets('shows installed candidate and support-safe server identity', (
+  testWidgets('shows product version without deployment evidence', (
     tester,
   ) async {
     final container = ProviderContainer.test(
@@ -170,22 +170,23 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Support diagnostics'), findsOneWidget);
-    expect(find.text('https://api.home.internal'), findsOneWidget);
-    expect(
-      find.text('abc1234def5678abc1234def5678abc1234def56'),
-      findsOneWidget,
-    );
     expect(find.text('0.1.0 (1042)'), findsOneWidget);
-    expect(find.text('com.massimotter.weave'), findsOneWidget);
-    expect(find.text('dogfood/1042/manifest-v1'), findsOneWidget);
-    expect(find.text('Candidate identity is complete'), findsOneWidget);
-    expect(find.textContaining('unsafe'), findsNothing);
+    for (final privateValue in [
+      'abc1234def5678abc1234def5678abc1234def56',
+      'dogfood/1042/manifest-v1',
+      'com.massimotter.weave',
+      'https://api.home.internal',
+      'Candidate identity is complete',
+      'unsafe',
+    ]) {
+      expect(find.textContaining(privateValue), findsNothing);
+    }
     expect(
       find.bySemanticsLabel(
         'Candidate commit: abc1234def5678abc1234def5678abc1234def56',
         skipOffstage: false,
       ),
-      findsOneWidget,
+      findsNothing,
     );
   });
 }
