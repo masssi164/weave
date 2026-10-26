@@ -295,7 +295,7 @@ void main() {
                   findsNothing,
                 );
                 expect(current, same(previous));
-                expect(
+                expect(find.byType(ErrorState), findsOneWidget);
               }
             },
           );

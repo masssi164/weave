@@ -280,7 +280,7 @@
       ],
       "additionalEvidence": [
         {
-          "path": "docs/iso-9241-110-dogfood-ux-gate.md",
+          "path": "docs/iso-9241-110-product-interaction.md",
           "fragments": [
             "Preview is not a release-scope state",
             "First-use acceptance criteria",
@@ -338,16 +338,16 @@
         {
           "path": "client/test/features/onboarding/discover_organization_access_test.dart",
           "fragments": [
-            "ready_for_sso",
-            "recoverable_error",
-            "weave.client.dogfood_auth_state.v1"
+            "manual server URI discovers without synthetic invitation metadata",
+            "saves DNS-first weave.test app-start configuration",
+            "surfaces a stable error when app-start discovery is unreachable"
           ]
         },
         {
           "path": "client/test/features/onboarding/member_handoff_screen_test.dart",
           "fragments": [
-            "sso_in_progress",
-            "WEAVE-MOBILE-OFFLINE-SESSION-DENIED",
+            "starts interactive sign-in from the handoff ready action",
+            "localizes sign-in failures on the handoff ready action",
             "Offline tokens not allowed"
           ]
         },

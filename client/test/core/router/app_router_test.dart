@@ -255,7 +255,10 @@ void main() {
       'weave://join?organization_origin=https%3A%2F%2Fweave.test%2F&dogfood_reset=app_state',
     );
     expect(normalizedJoinRouteLocation(link), isNull);
-    expect(initialLocationForDefaultRoute(link.toString()), AppRoutes.organizationAccess);
+    expect(
+      initialLocationForDefaultRoute(link.toString()),
+      AppRoutes.organizationAccess,
+    );
   });
 
   group('AppRouter', () {

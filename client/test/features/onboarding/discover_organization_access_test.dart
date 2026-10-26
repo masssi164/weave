@@ -143,7 +143,6 @@ void main() {
       expect(access.organizationOrigin, Uri.parse('https://weave.example/'));
       expect(access.handoff, isNull);
       expect(repository.saved, isNotNull);
-
     },
   );
 
@@ -236,7 +235,7 @@ void main() {
       await DiscoverOrganizationAccess(
         repository: repository,
         discoveryClient: AppStartDiscoveryClient(httpClient: httpClient),
-        ).call(
+      ).call(
         Uri.parse(
           'weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fapi.weave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
         ),
@@ -264,7 +263,7 @@ void main() {
         DiscoverOrganizationAccess(
           repository: repository,
           discoveryClient: AppStartDiscoveryClient(httpClient: httpClient),
-            ).call(
+        ).call(
           Uri.parse(
             'weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fapi.weave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
           ),
@@ -478,7 +477,7 @@ void main() {
         DiscoverOrganizationAccess(
           repository: repository,
           discoveryClient: AppStartDiscoveryClient(httpClient: httpClient),
-        ).call(Uri.parse('https://join.weave.example')),
+      ).call(Uri.parse('https://join.weave.example')),
         throwsA(
           isA<AppFailure>().having(
             (failure) => failure.message,

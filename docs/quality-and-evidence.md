@@ -145,6 +145,6 @@ belongs to this lane.
 - [Product acceptance flows](product-acceptance-flows.md)
 - [Beta readiness slice and claim gates](beta-readiness-claim-gates.md)
 - [Accessibility Release Gate](accessibility-release-gate.md)
-- [ISO 9241-110 Dogfood UX Gate](iso-9241-110-dogfood-ux-gate.md)
+- [ISO 9241-110 Product Interaction Standard](iso-9241-110-product-interaction.md)
 - [Roadmap and guarded surfaces](roadmap-and-guarded-surfaces.md)
 - [Enterprise release foundation](enterprise-release-foundation.md)

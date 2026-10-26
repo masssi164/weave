@@ -71,8 +71,11 @@ class WeaveMotionTheme extends ThemeExtension<WeaveMotionTheme> {
   }
 
   @override
-  WeaveMotionTheme lerp(covariant WeaveMotionTheme? other, double t) {
-    if (other == null) return this;
+  WeaveMotionTheme lerp(
+    covariant ThemeExtension<WeaveMotionTheme>? other,
+    double t,
+  ) {
+    if (other is! WeaveMotionTheme) return this;
     return WeaveMotionTheme(
       profileReducedMotion:
           t < 0.5 ? profileReducedMotion : other.profileReducedMotion,
