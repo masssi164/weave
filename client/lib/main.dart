@@ -32,16 +32,36 @@ class WeaveApp extends ConsumerStatefulWidget {
 }
 
 class _WeaveAppState extends ConsumerState<WeaveApp> {
+  final AppLinks _appLinks = AppLinks();
   StreamSubscription<Uri>? _linkSubscription;
+  Uri? _firstNativeLink;
   bool _hasResolvedBootstrap = false;
 
   @override
   void initState() {
     super.initState();
-    _linkSubscription = AppLinks().uriLinkStream.listen(
-      (uri) => unawaited(_openAppLink(uri)),
+    _linkSubscription = _appLinks.uriLinkStream.listen(
+      (uri) {
+        if (_firstNativeLink == uri) {
+          _firstNativeLink = null;
+          return;
+        }
+        unawaited(_openAppLink(uri));
+      },
       onError: (_) {},
     );
+    unawaited(_openInitialAppLink());
+  }
+
+  Future<void> _openInitialAppLink() async {
+    try {
+      final uri = await _appLinks.getInitialLink();
+      if (!mounted || uri == null) return;
+      _firstNativeLink = uri;
+      await _openAppLink(uri);
+    } catch (_) {
+      // A platform-link failure must not block ordinary in-app organization entry.
+    }
   }
 
   @override
@@ -53,6 +73,10 @@ class _WeaveAppState extends ConsumerState<WeaveApp> {
   Future<void> _openAppLink(Uri uri) async {
     final location = initialLocationForDefaultRoute(uri.toString());
     if (location == AppRoutes.organizationAccess || !mounted) {
+      return;
+    }
+    if (!_hasResolvedBootstrap) {
+      setStartupInitialLocation(location);
       return;
     }
     try {

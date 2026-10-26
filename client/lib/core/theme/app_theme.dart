@@ -33,25 +33,28 @@ abstract final class AppTheme {
     ),
   );
 
+  static final _reducedLight =
+      _buildTheme(light.colorScheme, reducedMotion: true);
+  static final _reducedDark =
+      _buildTheme(dark.colorScheme, reducedMotion: true);
+  static final _reducedHighContrastLight =
+      _buildTheme(highContrastLight.colorScheme, reducedMotion: true);
+  static final _reducedHighContrastDark =
+      _buildTheme(highContrastDark.colorScheme, reducedMotion: true);
+
   static ThemeData lightFor(
     AppThemeSelection selection, {
     bool reducedMotion = false,
-  }) {
-    final scheme = selection.usesHighContrastPalette
-        ? highContrastLight.colorScheme
-        : light.colorScheme;
-    return _buildTheme(scheme, reducedMotion: reducedMotion);
-  }
+  }) => selection.usesHighContrastPalette
+      ? (reducedMotion ? _reducedHighContrastLight : highContrastLight)
+      : (reducedMotion ? _reducedLight : light);
 
   static ThemeData darkFor(
     AppThemeSelection selection, {
     bool reducedMotion = false,
-  }) {
-    final scheme = selection.usesHighContrastPalette
-        ? highContrastDark.colorScheme
-        : dark.colorScheme;
-    return _buildTheme(scheme, reducedMotion: reducedMotion);
-  }
+  }) => selection.usesHighContrastPalette
+      ? (reducedMotion ? _reducedHighContrastDark : highContrastDark)
+      : (reducedMotion ? _reducedDark : dark);
 
   static ThemeData _buildTheme(
     ColorScheme colorScheme, {
