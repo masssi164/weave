@@ -213,9 +213,7 @@ void main() {
           find.widgetWithText(ListTile, 'My private files'),
           findsOneWidget,
         );
-        await tester.tap(
-          find.widgetWithText(ListTile, 'My private files'),
-        );
+        await tester.tap(find.widgetWithText(ListTile, 'My private files'));
         await tester.pumpAndSettle();
         expect(find.widgetWithText(ListTile, 'Documents'), findsOneWidget);
         expect(find.widgetWithText(ListTile, 'Readme.md'), findsOneWidget);
@@ -281,9 +279,7 @@ void main() {
           find.widgetWithText(ListTile, 'My private files'),
           findsOneWidget,
         );
-        await tester.tap(
-          find.widgetWithText(ListTile, 'My private files'),
-        );
+        await tester.tap(find.widgetWithText(ListTile, 'My private files'));
         await tester.pumpAndSettle();
         expect(
           filesRepository.lastConfiguredBaseUrl.toString(),

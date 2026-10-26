@@ -573,9 +573,7 @@ void main() {
           find.widgetWithText(ListTile, 'My private files'),
           findsOneWidget,
         );
-        await tester.tap(
-          find.widgetWithText(ListTile, 'My private files'),
-        );
+        await tester.tap(find.widgetWithText(ListTile, 'My private files'));
         await tester.pumpAndSettle();
         expect(find.text('Projects'), findsWidgets);
 
