@@ -23,13 +23,18 @@ class BackendProfileClient {
       httpClient: _httpClient,
     );
     return _send('load the profile', () async {
-      final response = await user_api.IdentityApi(api).me();
-      if (response == null) {
+      final identity = await user_api.IdentityApi(api).me();
+      final productProfile = await user_api.ProfileApi(
+        api,
+      ).getProductProfile();
+      if (identity == null || productProfile == null) {
         throw const AppFailure.unknown(
           'The Weave backend returned an invalid profile payload.',
         );
       }
-      return response.toDomain();
+      return identity.toDomain(
+        accessibilityPreferences: productProfile.accessibilityPreferences,
+      );
     });
   }
 

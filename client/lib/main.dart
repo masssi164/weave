@@ -9,16 +9,13 @@ import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provid
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/l10n/app_locale_preference.dart';
 import 'package:weave/core/l10n/app_locale_preference_provider.dart';
-import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/core/router/app_router.dart';
 import 'package:weave/core/theme/app_theme.dart';
 import 'package:weave/core/theme/app_theme_preference.dart';
 import 'package:weave/core/theme/app_theme_preference_provider.dart';
-import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
-import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 Future<void> main() async {
@@ -104,19 +101,24 @@ class _WeaveAppState extends ConsumerState<WeaveApp> {
           data: (selection) => selection,
           orElse: () => const AppLocaleSelection(),
         );
-    final profileLocale = _profileLocale(
-      ref
-          .watch(userProfileProvider)
-          .maybeWhen(data: (profile) => profile?.locale, orElse: () => null),
-    );
+    final profile = ref
+        .watch(userProfileProvider)
+        .maybeWhen(data: (profile) => profile, orElse: () => null);
+    final profileLocale = _profileLocale(profile?.locale);
     final appLocale = localeSelection.userPreference == null
         ? profileLocale
         : localeSelection.locale;
     return MaterialApp.router(
       title: 'Weave',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightFor(themeSelection),
-      darkTheme: AppTheme.darkFor(themeSelection),
+      theme: AppTheme.lightFor(
+        themeSelection,
+        reducedMotion: profile?.prefersReducedMotion ?? false,
+      ),
+      darkTheme: AppTheme.darkFor(
+        themeSelection,
+        reducedMotion: profile?.prefersReducedMotion ?? false,
+      ),
       themeMode: themeSelection.themeMode,
       locale: appLocale,
       routerConfig: router,

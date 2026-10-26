@@ -34,7 +34,6 @@ class OrganizationAccess {
   Uri get platformConfigUrl =>
       organizationOrigin.replace(path: '/api/platform/config');
   final MemberHandoff? handoff;
-
 }
 
 class OrganizationAccessParser {
@@ -134,7 +133,6 @@ class MemberHandoffParser {
       runId: runId,
       organizationSlug: org,
       workspaceSlug: workspace,
-
       productBaseUrl: productBaseUrl,
     );
   }

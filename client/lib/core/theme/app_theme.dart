@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:weave/core/theme/app_theme_preference.dart';
+import 'package:weave/core/theme/weave_motion_theme.dart';
 
 /// Centralised Material 3 theme definitions for the Weave app.
 ///
@@ -32,20 +33,38 @@ abstract final class AppTheme {
     ),
   );
 
-  static ThemeData lightFor(AppThemeSelection selection) {
-    return selection.usesHighContrastPalette ? highContrastLight : light;
+  static ThemeData lightFor(
+    AppThemeSelection selection, {
+    bool reducedMotion = false,
+  }) {
+    final scheme = selection.usesHighContrastPalette
+        ? highContrastLight.colorScheme
+        : light.colorScheme;
+    return _buildTheme(scheme, reducedMotion: reducedMotion);
   }
 
-  static ThemeData darkFor(AppThemeSelection selection) {
-    return selection.usesHighContrastPalette ? highContrastDark : dark;
+  static ThemeData darkFor(
+    AppThemeSelection selection, {
+    bool reducedMotion = false,
+  }) {
+    final scheme = selection.usesHighContrastPalette
+        ? highContrastDark.colorScheme
+        : dark.colorScheme;
+    return _buildTheme(scheme, reducedMotion: reducedMotion);
   }
 
-  static ThemeData _buildTheme(ColorScheme colorScheme) {
+  static ThemeData _buildTheme(
+    ColorScheme colorScheme, {
+    bool reducedMotion = false,
+  }) {
     return ThemeData(
       useMaterial3: true,
       colorScheme: colorScheme,
       visualDensity: VisualDensity.adaptivePlatformDensity,
       textTheme: _textTheme,
+      extensions: <ThemeExtension<dynamic>>[
+        WeaveMotionTheme(profileReducedMotion: reducedMotion),
+      ],
     );
   }
 

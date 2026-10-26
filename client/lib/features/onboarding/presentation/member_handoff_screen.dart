@@ -3,9 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
-import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
+import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/router/app_routes.dart';
+import 'package:weave/core/theme/weave_motion_theme.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/core/widgets/success_state.dart';
@@ -57,17 +58,12 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
       final access = await ref
           .read(discoverOrganizationAccessProvider)
           .call(widget.uri);
-      if (mounted) {
-        // Discovery has committed the canonical profile. Refresh existing readers
-        // before exposing the action that starts OIDC and workspace consumers.
-        ref.invalidate(savedServerConfigurationProvider);
-        setState(() => _access = access);
-      }
+      if (!mounted) return;
+      ref.invalidate(savedServerConfigurationProvider);
+      setState(() => _access = access);
     } catch (error) {
       if (!mounted) return;
-      if (mounted) {
-        setState(() => _failure = error);
-      }
+      setState(() => _failure = error);
     }
   }
 
@@ -80,9 +76,8 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
             'The organization workspace is not ready.',
           );
     }
-    if (bootstrap.phase != BootstrapPhase.ready) {
-      return false;
-    }
+    if (bootstrap.phase != BootstrapPhase.ready) return false;
+
     final access = const OrganizationAccessParser().parse(widget.uri);
     final selected = await ref
         .read(serverConfigurationRepositoryProvider)
@@ -96,6 +91,7 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
         'The organization workspace is not ready.',
       );
     }
+
     final origin = selected?.organizationOrigin;
     final incoming = access.organizationOrigin;
     if (origin == null ||
@@ -110,7 +106,7 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
         'WEAVE-ORGANIZATION-ACCESS-INVALID: This link does not match the signed-in organization.',
       );
     }
-    if (!mounted) return true;
+
     if (mounted) context.go(AppRoutes.home);
     return true;
   }
@@ -118,91 +114,75 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final motion = context.weaveMotion;
     final busy = _signInBusy || ref.watch(authFlowControllerProvider).isBusy;
-    final setupNavigation = AppBar(
-      title: Text(l10n.setupTitle),
-      leading: IconButton(
-        tooltip: l10n.signInBackToSetupButton,
-        icon: const Icon(Icons.arrow_back),
-        onPressed: busy
-            ? null
-            : () {
-                if (context.canPop()) {
-                  context.pop();
-                } else {
-                  context.go(AppRoutes.organizationAccess);
-                }
-              },
-      ),
-    );
+
+    final Widget state;
     final failure = _failure;
+    final signInFailure = _signInFailure;
     if (failure != null) {
       final errorCode = supportSafeHandoffErrorCode(failure);
-      final errorCodeText = l10n.memberHandoffErrorCode(errorCode);
       final guidance = errorCode == 'WEAVE-APP-START-TLS-FAILED'
           ? l10n.memberHandoffTlsErrorGuidance
           : l10n.memberHandoffErrorGuidance;
-      return Scaffold(
-        appBar: setupNavigation,
-        body: SafeArea(
-          child: Center(
-            child: ErrorState(
-              message: l10n.memberHandoffErrorTitle,
-              guidance: '$guidance\n$errorCodeText',
-              semanticLabel:
-                  '${l10n.memberHandoffErrorTitle}. $guidance. $errorCodeText',
-              retryLabel: l10n.retryButton,
-              onRetry: () {
-                setState(() => _failure = null);
-                _consume();
-              },
-            ),
-          ),
-        ),
+      state = ErrorState(
+        key: const ValueKey('handoff-error'),
+        message: l10n.memberHandoffErrorTitle,
+        guidance: '${guidance}\n${l10n.memberHandoffErrorCode(errorCode)}',
+        retryLabel: l10n.retryButton,
+        onRetry: () {
+          setState(() => _failure = null);
+          _consume();
+        },
+      );
+    } else if (_access != null && signInFailure != null) {
+      state = ErrorState(
+        key: const ValueKey('handoff-sign-in-error'),
+        message: authFailureMessage(l10n, signInFailure),
+        guidance: l10n.memberHandoffSignInRetryGuidance,
+        retryLabel: l10n.signInButton,
+        onRetry: busy ? null : () => _startSignIn(context),
+      );
+    } else if (_access != null) {
+      state = SuccessState(
+        key: const ValueKey('handoff-ready'),
+        message: l10n.memberHandoffReadyTitle,
+        guidance: l10n.signInDescription,
+        actionLabel: busy ? l10n.signInInProgress : l10n.signInButton,
+        liveRegion: false,
+        onAction: busy ? null : () => _startSignIn(context),
+      );
+    } else {
+      state = LoadingState(
+        key: const ValueKey('handoff-loading'),
+        message: l10n.memberHandoffLoadingTitle,
+        hint: l10n.memberHandoffLoadingHint,
       );
     }
-    final access = _access;
-    if (access != null) {
-      final signInFailure = _signInFailure;
-      return Scaffold(
-        appBar: setupNavigation,
-        body: SafeArea(
-          child: Center(
-            child: signInFailure == null
-                ? SuccessState(
-                    message: l10n.memberHandoffReadyTitle,
-                    guidance: l10n.signInDescription,
-                    actionLabel: busy
-                        ? l10n.signInInProgress
-                        : l10n.signInButton,
-                    liveRegion: false,
-                    onAction: busy
-                        ? null
-                        : () {
-                            _startSignIn(context);
-                          },
-                  )
-                : ErrorState(
-                    message: authFailureMessage(l10n, signInFailure),
-                    guidance: l10n.memberHandoffSignInRetryGuidance,
-                    retryLabel: l10n.signInButton,
-                    onRetry: busy
-                        ? null
-                        : () {
-                            _startSignIn(context);
-                          },
-                  ),
-          ),
-        ),
-      );
-    }
+
     return Scaffold(
+      appBar: AppBar(
+        title: Text(l10n.setupTitle),
+        leading: IconButton(
+          tooltip: l10n.signInBackToSetupButton,
+          icon: const Icon(Icons.arrow_back),
+          onPressed: busy
+              ? null
+              : () {
+                  if (context.canPop()) {
+                    context.pop();
+                  } else {
+                    context.go(AppRoutes.organizationAccess);
+                  }
+                },
+        ),
+      ),
       body: SafeArea(
-        child: Center(
-          child: LoadingState(
-            message: l10n.memberHandoffLoadingTitle,
-            hint: l10n.memberHandoffLoadingHint,
-          ),
+        child: AnimatedSwitcher(
+          duration: motion.standard,
+          switchInCurve: motion.standardCurve,
+          switchOutCurve: motion.standardCurve,
+          child: Center(child: state),
         ),
       ),
     );
@@ -222,53 +202,41 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
         final failure =
             ref.read(authFlowControllerProvider).failure ??
             const AuthFailure.unknown('Unable to sign in right now.');
-        if (mounted) {
-          setState(() {
-            _signInBusy = false;
-            _signInFailure = failure;
-          });
-        }
+        setState(() {
+          _signInBusy = false;
+          _signInFailure = failure;
+        });
         return;
       }
+
       final bootstrap = ref.read(appBootstrapProvider).asData?.value;
-      final workspaceReady = bootstrap?.phase == BootstrapPhase.ready;
-      if (!workspaceReady) {
-        const failure = AuthFailure.protocol(
-          'The authenticated workspace did not become ready.',
-        );
-        if (mounted) {
-          setState(() {
-            _signInBusy = false;
-            _signInFailure = failure;
-          });
-        }
+      if (bootstrap?.phase != BootstrapPhase.ready) {
+        setState(() {
+          _signInBusy = false;
+          _signInFailure = const AuthFailure.protocol(
+            'The authenticated workspace did not become ready.',
+          );
+        });
         return;
       }
-      if (mounted && context.mounted) {
-        setState(() => _signInBusy = false);
-        context.go(AppRoutes.home);
-      }
+
+      setState(() => _signInBusy = false);
+      if (context.mounted) context.go(AppRoutes.home);
     } on AuthFailure catch (failure) {
-      if (mounted) {
-        if (!mounted) return;
-        setState(() {
-          _signInBusy = false;
-          _signInFailure = failure;
-        });
-      }
-    } catch (error) {
-      final failure = AuthFailure.unknown(
-        'Unable to sign in right now.',
-        cause: error,
-      );
       if (!mounted) return;
-        if (mounted) {
-        setState(() {
-          _signInBusy = false;
-          _signInFailure = failure;
-        });
-      }
+      setState(() {
+        _signInBusy = false;
+        _signInFailure = failure;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _signInBusy = false;
+        _signInFailure = AuthFailure.unknown(
+          'Unable to sign in right now.',
+          cause: error,
+        );
+      });
     }
   }
-
 }
