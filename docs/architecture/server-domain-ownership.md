@@ -200,7 +200,9 @@ Run repository-pinned Java/Gradle and Flutter 3.41.6, initialize client dependen
 The accepted corpus checkout must match `specs/weave-specs.lock.json`. The implementation commits
 are `3a553dbeb5` (Calendar) and `a285644ac8` (workspace/clients/test ownership/service cohesion).
 Test follow-up `5ceb23944f` preserves experimental selections without inventing workspace
-contributions for modules that do not declare them. The PR records the exact final command outcomes and per-selection reports; earlier checkpoint
+contributions for modules that do not declare them. The public User bridge used by the Admin console is regenerated alongside Dart/JVM consumers.
+The projection guard retains required protocols and enforces conditional Matrix/typed domain fields.
+The PR records the exact final command outcomes and per-selection reports; earlier checkpoint
 logs and counts remain in Git history rather than competing current instructions.
 
 ```sh
@@ -214,6 +216,7 @@ done
   specCorpusConformance acceptanceContract checkOpenApiContractFresh checkClientUserApiFresh \
   :weave-user-api-client:check :weave-admin-api-client:check infraStatic docsCheck \
   javaAgentContractCheck :server:app:javaAgentReferenceTest coreDocsCheck -Pdomains=all --console=plain
+./gradlew generatedApiContractCi generatedApiConsumerCi adminDeterministicCi -Pdomains=all --console=plain
 # From client/:
 flutter analyze --no-pub
 flutter test --no-pub

@@ -20,18 +20,17 @@ import { mapValues } from '../runtime';
  */
 export interface Protocols {
     /**
-     *
+     * Required exactly when Chat is installed; otherwise absent.
      * @type {string}
      * @memberof Protocols
      */
-    matrixClientServerBaseUrl: string;
+    matrixClientServerBaseUrl?: string;
 }
 
 /**
  * Check if a given object implements the Protocols interface.
  */
 export function instanceOfProtocols(value: object): value is Protocols {
-    if (!('matrixClientServerBaseUrl' in value) || value['matrixClientServerBaseUrl'] === undefined) return false;
     return true;
 }
 
@@ -45,7 +44,7 @@ export function ProtocolsFromJSONTyped(json: any, ignoreDiscriminator: boolean):
     }
     return {
 
-        'matrixClientServerBaseUrl': json['matrixClientServerBaseUrl'],
+        'matrixClientServerBaseUrl': json['matrixClientServerBaseUrl'] == null ? undefined : json['matrixClientServerBaseUrl'],
     };
 }
 

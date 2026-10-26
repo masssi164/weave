@@ -22,7 +22,7 @@ import {
 } from './WorkspaceCapabilityStatusResponse';
 
 /**
- * Workspace capability snapshot exposed to Weave clients.
+ * Required Core policy and typed statuses of installed domains, keyed by stable domain identity. Presence means installation, independently of readiness and member authorization.
  * @export
  * @interface WorkspaceCapabilitiesResponse
  */
@@ -35,64 +35,10 @@ export interface WorkspaceCapabilitiesResponse {
     adminControlPlane: WorkspaceCapabilityStatusResponse;
     /**
      *
-     * @type {WorkspaceCapabilityStatusResponse}
+     * @type {{ [key: string]: WorkspaceCapabilityStatusResponse; }}
      * @memberof WorkspaceCapabilitiesResponse
      */
-    agentRuntimeControl: WorkspaceCapabilityStatusResponse;
-    /**
-     *
-     * @type {WorkspaceCapabilityStatusResponse}
-     * @memberof WorkspaceCapabilitiesResponse
-     */
-    boards: WorkspaceCapabilityStatusResponse;
-    /**
-     *
-     * @type {WorkspaceCapabilityStatusResponse}
-     * @memberof WorkspaceCapabilitiesResponse
-     */
-    calendar: WorkspaceCapabilityStatusResponse;
-    /**
-     *
-     * @type {WorkspaceCapabilityStatusResponse}
-     * @memberof WorkspaceCapabilitiesResponse
-     */
-    chat: WorkspaceCapabilityStatusResponse;
-    /**
-     *
-     * @type {WorkspaceCapabilityStatusResponse}
-     * @memberof WorkspaceCapabilitiesResponse
-     */
-    decisionsEvidence: WorkspaceCapabilityStatusResponse;
-    /**
-     *
-     * @type {WorkspaceCapabilityStatusResponse}
-     * @memberof WorkspaceCapabilitiesResponse
-     */
-    documentsCollaboration: WorkspaceCapabilityStatusResponse;
-    /**
-     *
-     * @type {WorkspaceCapabilityStatusResponse}
-     * @memberof WorkspaceCapabilitiesResponse
-     */
-    files: WorkspaceCapabilityStatusResponse;
-    /**
-     *
-     * @type {WorkspaceCapabilityStatusResponse}
-     * @memberof WorkspaceCapabilitiesResponse
-     */
-    manualsHelp: WorkspaceCapabilityStatusResponse;
-    /**
-     *
-     * @type {WorkspaceCapabilityStatusResponse}
-     * @memberof WorkspaceCapabilitiesResponse
-     */
-    meetingsCalls: WorkspaceCapabilityStatusResponse;
-    /**
-     *
-     * @type {WorkspaceCapabilityStatusResponse}
-     * @memberof WorkspaceCapabilitiesResponse
-     */
-    releaseEvidence: WorkspaceCapabilityStatusResponse;
+    domains: { [key: string]: WorkspaceCapabilityStatusResponse; };
     /**
      *
      * @type {WorkspaceCapabilityStatusResponse}
@@ -106,16 +52,7 @@ export interface WorkspaceCapabilitiesResponse {
  */
 export function instanceOfWorkspaceCapabilitiesResponse(value: object): value is WorkspaceCapabilitiesResponse {
     if (!('adminControlPlane' in value) || value['adminControlPlane'] === undefined) return false;
-    if (!('agentRuntimeControl' in value) || value['agentRuntimeControl'] === undefined) return false;
-    if (!('boards' in value) || value['boards'] === undefined) return false;
-    if (!('calendar' in value) || value['calendar'] === undefined) return false;
-    if (!('chat' in value) || value['chat'] === undefined) return false;
-    if (!('decisionsEvidence' in value) || value['decisionsEvidence'] === undefined) return false;
-    if (!('documentsCollaboration' in value) || value['documentsCollaboration'] === undefined) return false;
-    if (!('files' in value) || value['files'] === undefined) return false;
-    if (!('manualsHelp' in value) || value['manualsHelp'] === undefined) return false;
-    if (!('meetingsCalls' in value) || value['meetingsCalls'] === undefined) return false;
-    if (!('releaseEvidence' in value) || value['releaseEvidence'] === undefined) return false;
+    if (!('domains' in value) || value['domains'] === undefined) return false;
     if (!('shellAccess' in value) || value['shellAccess'] === undefined) return false;
     return true;
 }
@@ -131,16 +68,7 @@ export function WorkspaceCapabilitiesResponseFromJSONTyped(json: any, ignoreDisc
     return {
 
         'adminControlPlane': WorkspaceCapabilityStatusResponseFromJSON(json['adminControlPlane']),
-        'agentRuntimeControl': WorkspaceCapabilityStatusResponseFromJSON(json['agentRuntimeControl']),
-        'boards': WorkspaceCapabilityStatusResponseFromJSON(json['boards']),
-        'calendar': WorkspaceCapabilityStatusResponseFromJSON(json['calendar']),
-        'chat': WorkspaceCapabilityStatusResponseFromJSON(json['chat']),
-        'decisionsEvidence': WorkspaceCapabilityStatusResponseFromJSON(json['decisionsEvidence']),
-        'documentsCollaboration': WorkspaceCapabilityStatusResponseFromJSON(json['documentsCollaboration']),
-        'files': WorkspaceCapabilityStatusResponseFromJSON(json['files']),
-        'manualsHelp': WorkspaceCapabilityStatusResponseFromJSON(json['manualsHelp']),
-        'meetingsCalls': WorkspaceCapabilityStatusResponseFromJSON(json['meetingsCalls']),
-        'releaseEvidence': WorkspaceCapabilityStatusResponseFromJSON(json['releaseEvidence']),
+        'domains': (mapValues(json['domains'], WorkspaceCapabilityStatusResponseFromJSON)),
         'shellAccess': WorkspaceCapabilityStatusResponseFromJSON(json['shellAccess']),
     };
 }
@@ -157,16 +85,7 @@ export function WorkspaceCapabilitiesResponseToJSONTyped(value?: WorkspaceCapabi
     return {
 
         'adminControlPlane': WorkspaceCapabilityStatusResponseToJSON(value['adminControlPlane']),
-        'agentRuntimeControl': WorkspaceCapabilityStatusResponseToJSON(value['agentRuntimeControl']),
-        'boards': WorkspaceCapabilityStatusResponseToJSON(value['boards']),
-        'calendar': WorkspaceCapabilityStatusResponseToJSON(value['calendar']),
-        'chat': WorkspaceCapabilityStatusResponseToJSON(value['chat']),
-        'decisionsEvidence': WorkspaceCapabilityStatusResponseToJSON(value['decisionsEvidence']),
-        'documentsCollaboration': WorkspaceCapabilityStatusResponseToJSON(value['documentsCollaboration']),
-        'files': WorkspaceCapabilityStatusResponseToJSON(value['files']),
-        'manualsHelp': WorkspaceCapabilityStatusResponseToJSON(value['manualsHelp']),
-        'meetingsCalls': WorkspaceCapabilityStatusResponseToJSON(value['meetingsCalls']),
-        'releaseEvidence': WorkspaceCapabilityStatusResponseToJSON(value['releaseEvidence']),
+        'domains': (mapValues(value['domains'], WorkspaceCapabilityStatusResponseToJSON)),
         'shellAccess': WorkspaceCapabilityStatusResponseToJSON(value['shellAccess']),
     };
 }
