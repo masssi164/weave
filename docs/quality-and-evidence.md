@@ -8,7 +8,7 @@ Weave uses layered evidence so contributors can move quickly while release claim
 | --- | --- | --- |
 | Offline Flutter checks | Formatting, static analysis, unit/widget behavior, generated code consistency, and no-network contract checks. | `.github/workflows/ci.yml`, local `flutter` commands, `make offline-contract-test`. |
 | Accessibility gate | Automated checks and the manual assistive-technology evidence required before release sign-off. | [Accessibility Release Gate](accessibility-release-gate.md). |
-| ISO 9241-110 dogfood UX gate | Product dialogue quality, release-scope capability states, banned preview/scaffold wording, and role separation for member vs admin/operator surfaces. | [ISO 9241-110 Dogfood UX Gate](iso-9241-110-dogfood-ux-gate.md), `test/release_1/ux_release_copy_contract_test.dart`. |
+| ISO 9241-110 product interaction standard | Product interaction quality across all deployment lanes: the seven interaction principles, release-scope states, motion/reduced-motion policy, and member/admin separation. Dogfood may collect evidence but does not define another UX. | [ISO 9241-110 Product Interaction Standard](iso-9241-110-product-interaction.md), `client/test/release_1/ux_release_copy_contract_test.dart`. |
 | Deterministic screenshots | README and roadmap SVG assets match the checked-in generator and do not drift silently. | `make marketing-screenshots`, `docs/assets/screenshot-evidence.json`, `docs/assets/marketing/`, `docs/assets/roadmap/`, CI screenshot drift step. |
 | Spec contract guard | Repo-local specs keep required metadata, lifecycle status, evidence gates, and implementation-ready clarification discipline. | [Spec-driven development for Weave](spec-driven-development.md), `.specify/memory/constitution.md`, `specs/`, `./gradlew specContract`, `./gradlew specContractTest`. |
 | Acceptance contract guard | Gherkin acceptance scenarios stay mapped to executable frontend/live-stack tests. | [Acceptance contracts](acceptance-contracts.md), [Product acceptance flows](product-acceptance-flows.md), `test/live_stack_feature_mapping_test.dart`. |
@@ -61,6 +61,8 @@ These checks are intentionally cheap enough for normal pull requests and do
 not require human credentials.
 
 ## Full Compose E2E and dogfood evidence
+
+Dogfood is an external delivery/qualification environment. The ordinary product app must not contain a Dogfood mode, private qualification ledger, hidden reset deep link, or deployment-derived member copy. Automation prepares the environment and observes the real product through supported UI/API/process boundaries.
 
 The live-stack path is expensive and runs on a dedicated self-hosted macOS ARM64 runner. Mandatory qualification runs on the exact protected Dogfood candidate; ordinary Dev PRs use deterministic checks.
 
