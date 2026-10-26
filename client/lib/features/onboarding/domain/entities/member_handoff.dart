@@ -35,10 +35,6 @@ class OrganizationAccess {
       organizationOrigin.replace(path: '/api/platform/config');
   final MemberHandoff? handoff;
 
-  String get organizationLabel =>
-      handoff?.organizationSlug ?? organizationOrigin.host;
-
-  String get workspaceLabel => handoff?.workspaceSlug ?? organizationLabel;
 }
 
 class OrganizationAccessParser {
