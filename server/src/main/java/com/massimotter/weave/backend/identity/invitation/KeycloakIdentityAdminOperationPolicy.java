@@ -15,7 +15,7 @@ import org.springframework.http.HttpMethod;
  * offboarding; credential, required-action, impersonation, and general session routes have no
  * rule.
  */
-final class KeycloakIdentityAdminOperationPolicy {
+public final class KeycloakIdentityAdminOperationPolicy {
   private static final String REALM = "/admin/realms/[^/?]+";
   private static final String ORGANIZATION = REALM + "/organizations/[^/?]+";
   private static final String MEMBER = ORGANIZATION + "/members/[^/?]+";
@@ -89,6 +89,20 @@ final class KeycloakIdentityAdminOperationPolicy {
           "/consents");
 
   private KeycloakIdentityAdminOperationPolicy() {}
+
+  /** Admits an outgoing operation before transport and defines its one successful status. */
+  public static AllowedResponse admit(HttpMethod method, String uri, boolean managedFixture) {
+    String operation = managedFixture
+        ? requireManagedFixtureAllowed(method, uri)
+        : requireAllowed(method, uri);
+    int expectedStatus = HttpMethod.GET.equals(method) ? 200 : switch (operation) {
+      case "managed-test-identity-create", "managed-test-membership-create" -> 201;
+      default -> 204;
+    };
+    return new AllowedResponse(operation, expectedStatus);
+  }
+
+  public record AllowedResponse(String operation, int expectedStatus) {}
 
   static String requireAllowed(HttpMethod method, String uri) {
     if (method == null || uri == null || uri.isBlank()) {

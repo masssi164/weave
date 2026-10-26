@@ -11,6 +11,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.config.IdentityInvitationProperties;
+import com.massimotter.weave.backend.config.keycloak.KeycloakAdminTestClient;
 import java.net.URI;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,7 +37,7 @@ class KeycloakIdentityAdminClientTest {
 
     RestClient.Builder builder = RestClient.builder().baseUrl(properties.keycloak().baseUrl());
     provider = MockRestServiceServer.bindTo(builder).build();
-    client = new KeycloakIdentityAdminClient(properties, new ObjectMapper(), builder.build());
+    client = new KeycloakIdentityAdminClient(properties, new ObjectMapper(), KeycloakAdminTestClient.create(builder, properties.keycloak().baseUrl()));
   }
 
   @Test
@@ -128,7 +129,7 @@ class KeycloakIdentityAdminClientTest {
     properties.keycloak().setOrganizationId("");
     RestClient.Builder builder = RestClient.builder().baseUrl(properties.keycloak().baseUrl());
     provider = MockRestServiceServer.bindTo(builder).build();
-    client = new KeycloakIdentityAdminClient(properties, new ObjectMapper(), builder.build());
+    client = new KeycloakIdentityAdminClient(properties, new ObjectMapper(), KeycloakAdminTestClient.create(builder, properties.keycloak().baseUrl()));
 
     provider
         .expect(
@@ -280,6 +281,19 @@ class KeycloakIdentityAdminClientTest {
                         ((KeycloakIdentityAdminClient.KeycloakAdminException) failure)
                             .operation())
                     .isEqualTo("human-user-inventory"));
+    provider.verify();
+  }
+
+  @Test
+  void unexpectedSuccessfulStatusIsRejectedBeforeProviderBodyIsUsed() {
+    provider.expect(requestTo(
+            "https://identity.internal/admin/realms/weave/users?first=0&max=1&briefRepresentation=true"))
+        .andRespond(withStatus(HttpStatus.ACCEPTED).body("[]"));
+
+    assertThatThrownBy(client::hasHumanUsers)
+        .isInstanceOf(KeycloakIdentityAdminClient.KeycloakAdminException.class)
+        .satisfies(failure -> assertThat(
+            ((KeycloakIdentityAdminClient.KeycloakAdminException) failure).status()).isEqualTo(202));
     provider.verify();
   }
 
