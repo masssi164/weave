@@ -1,7 +1,5 @@
 package com.massimotter.weave.backend.chat.provider.synapse;
 
-import com.massimotter.weave.backend.config.synapse.SynapseHttpConfig;
-
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -58,7 +56,7 @@ final class SynapseApplicationServiceClient {
                 properties.requiredServerName(),
                 secrets.asBearerValue(),
                 properties.requestTimeout(),
-                SynapseHttpConfig.client(properties),
+                HttpClient.newBuilder().connectTimeout(properties.connectTimeout()).build(),
                 objectMapper,
                 clock);
     }

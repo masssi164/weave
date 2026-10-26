@@ -36,7 +36,15 @@ class KeycloakIdentityAdminClientTest {
 
     RestClient.Builder builder = RestClient.builder().baseUrl(properties.keycloak().baseUrl());
     provider = MockRestServiceServer.bindTo(builder).build();
-    client = new KeycloakIdentityAdminClient(properties, new ObjectMapper(), builder.build());
+    client = new KeycloakIdentityAdminClient(properties, new ObjectMapper(), keycloakClient(builder, properties));
+  }
+
+  private static KeycloakAdminClient keycloakClient(
+      RestClient.Builder builder, IdentityInvitationProperties properties) {
+    KeycloakAuthConfig.configurePolicy(builder, properties.keycloak().baseUrl());
+    return HttpServiceProxyFactory.builderFor(RestClientAdapter.create(builder.build()))
+        .build()
+        .createClient(KeycloakAdminClient.class);
   }
 
   @Test
@@ -128,7 +136,7 @@ class KeycloakIdentityAdminClientTest {
     properties.keycloak().setOrganizationId("");
     RestClient.Builder builder = RestClient.builder().baseUrl(properties.keycloak().baseUrl());
     provider = MockRestServiceServer.bindTo(builder).build();
-    client = new KeycloakIdentityAdminClient(properties, new ObjectMapper(), builder.build());
+    client = new KeycloakIdentityAdminClient(properties, new ObjectMapper(), keycloakClient(builder, properties));
 
     provider
         .expect(

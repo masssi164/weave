@@ -58,9 +58,9 @@ class KeycloakAuthConfigTest {
     properties
         .keycloak()
         .setBaseUrl(URI.create("http://127.0.0.1:" + server.getAddress().getPort()));
-    RestClient client =
-        new KeycloakAuthConfig()
-            .keycloakIdentityAdminRestClient(RestClient.builder(), tokens, properties);
+    RestClient.Builder builder = RestClient.builder();
+    KeycloakAuthConfig.configureTransport(builder, tokens, properties.keycloak());
+    RestClient client = builder.build();
 
     int status =
         client
@@ -90,9 +90,9 @@ class KeycloakAuthConfigTest {
     properties
         .keycloak()
         .setBaseUrl(URI.create("http://127.0.0.1:" + server.getAddress().getPort()));
-    RestClient client =
-        new KeycloakAuthConfig()
-            .keycloakIdentityAdminRestClient(RestClient.builder(), tokens, properties);
+    RestClient.Builder builder = RestClient.builder();
+    KeycloakAuthConfig.configureTransport(builder, tokens, properties.keycloak());
+    RestClient client = builder.build();
 
     client.get().uri("/admin/realms/weave/organizations").retrieve().toBodilessEntity();
 
@@ -112,9 +112,10 @@ class KeycloakAuthConfigTest {
     when(tokens.accessToken()).thenReturn("short-lived-token");
     var properties = new IdentityInvitationProperties();
     properties.keycloak().setBaseUrl(URI.create("http://127.0.0.1:" + server.getAddress().getPort()));
-    RestClient transport = new KeycloakAuthConfig()
-        .keycloakIdentityAdminRestClient(RestClient.builder(), tokens, properties);
-    KeycloakAdminClient client = KeycloakAuthConfig.proxy(transport, properties.keycloak().baseUrl());
+    RestClient.Builder builder = RestClient.builder();
+    KeycloakAuthConfig.configurePolicy(builder, properties.keycloak().baseUrl());
+    KeycloakAuthConfig.configureTransport(builder, tokens, properties.keycloak());
+    KeycloakAdminClient client = proxy(builder.build());
 
     assertThatThrownBy(() -> client.organizations("weave", 0, 100))
         .isInstanceOf(KeycloakAdminException.class)
@@ -131,8 +132,8 @@ class KeycloakAuthConfigTest {
             + "/admin/realms/weave/users?first=0&max=1&briefRepresentation=true"))
         .andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
 
-    assertThat(KeycloakAuthConfig.proxy(builder.build(), URI.create(baseUrl)).humanUsers("weave"))
-        .isEqualTo("[]");
+    KeycloakAuthConfig.configurePolicy(builder, URI.create(baseUrl));
+    assertThat(proxy(builder.build()).humanUsers("weave")).isEqualTo("[]");
     provider.verify();
   }
 
@@ -148,7 +149,8 @@ class KeycloakAuthConfigTest {
             + "/admin/realms/weave/users?first=0&max=1&briefRepresentation=true"))
         .andRespond(request -> response);
 
-    assertThatThrownBy(() -> KeycloakAuthConfig.proxy(builder.build(), baseUrl).humanUsers("weave"))
+    KeycloakAuthConfig.configurePolicy(builder, baseUrl);
+    assertThatThrownBy(() -> proxy(builder.build()).humanUsers("weave"))
         .isInstanceOf(KeycloakAdminException.class)
         .satisfies(failure -> assertThat(((KeycloakAdminException) failure).status()).isEqualTo(status));
     verify(response, never()).getBody();
@@ -161,7 +163,8 @@ class KeycloakAuthConfigTest {
     URI baseUrl = URI.create("https://identity.internal");
     RestClient.Builder builder = RestClient.builder().baseUrl(baseUrl);
     var provider = MockRestServiceServer.bindTo(builder).build();
-    KeycloakAdminClient client = KeycloakAuthConfig.proxy(builder.build(), baseUrl);
+    KeycloakAuthConfig.configurePolicy(builder, baseUrl);
+    KeycloakAdminClient client = proxy(builder.build());
 
     assertThatThrownBy(() -> client.managedCredentials("weave", "subject-1", false))
         .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("guarded boundary");
@@ -176,7 +179,15 @@ class KeycloakAuthConfigTest {
     provider.expect(requestTo(baseUrl + "/admin/realms/weave/users/subject%2Fsegment"))
         .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
 
-    KeycloakAuthConfig.proxy(builder.build(), baseUrl).user("weave", "subject/segment");
+    KeycloakAuthConfig.configurePolicy(builder, baseUrl);
+    proxy(builder.build()).user("weave", "subject/segment");
     provider.verify();
   }
+
+  private static KeycloakAdminClient proxy(RestClient restClient) {
+    return HttpServiceProxyFactory.builderFor(RestClientAdapter.create(restClient))
+        .build()
+        .createClient(KeycloakAdminClient.class);
+  }
 }
+

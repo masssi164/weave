@@ -56,12 +56,6 @@ public class KeycloakIdentityAdminClient {
     this.restClient = restClient;
   }
 
-  /** Compatibility seam for focused standalone tests with a stub HTTP transport. */
-  KeycloakIdentityAdminClient(
-      IdentityInvitationProperties properties, ObjectMapper mapper, RestClient transport) {
-    this(properties, mapper, KeycloakAuthConfig.proxy(transport, properties.keycloak().baseUrl()));
-  }
-
   public ProviderInvitation issue(String organizationId, String email, String displayName) {
     Set<String> previousInvitationIds = invitationIds(list(organizationId, email));
     String[] names = splitName(displayName);
