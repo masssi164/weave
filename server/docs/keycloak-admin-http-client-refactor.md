@@ -1,6 +1,6 @@
 # Provider-scoped outbound HTTP clients
 
-Status: **Keycloak implementation active in PR #1732; exact-head protected CI passed, independent review follow-up in progress.** Issue: [#1730](https://github.com/masssi164/weave/issues/1730).
+Status: **Keycloak implementation active in PR #1732; merge requires green protected CI on the current head and follow-up review.** Issue: [#1730](https://github.com/masssi164/weave/issues/1730).
 
 ## Design rule
 
