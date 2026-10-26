@@ -283,6 +283,7 @@ def assert_development_startup_uses_import_only() -> None:
         context = SimpleNamespace(environment=environment, profile=environment, active_profiles=())
         roots = ("keycloak",) if environment == "dev" else ("backend", "mcp-server")
         with (
+            tempfile.TemporaryDirectory() as temporary,
             mock.patch.object(compose_runtime, "script"),
             mock.patch.object(compose_runtime, "prepare"),
             mock.patch.object(compose_runtime, "compose") as compose,
@@ -293,6 +294,7 @@ def assert_development_startup_uses_import_only() -> None:
                               side_effect=AssertionError("development must not create a migration backup")) as backup,
             mock.patch.object(compose_runtime, "verify_dogfood_identity") as readiness,
         ):
+            context.generated_root = Path(temporary) / "generated"
             compose_runtime.execute(context, "up", [])
         receipt.assert_not_called()
         backup.assert_not_called()
@@ -304,9 +306,37 @@ def assert_development_startup_uses_import_only() -> None:
         assert not any("keycloak-realm-migration" in str(call) for call in compose.call_args_list)
 
 
+def assert_incomplete_dogfood_session_blocks_startup() -> None:
+    with tempfile.TemporaryDirectory() as temporary:
+        context = SimpleNamespace(environment="dogfood", profile="dogfood",
+                                  active_profiles=(), generated_root=Path(temporary) / "generated")
+        operations = context.generated_root / "operations"
+        operations.mkdir(parents=True, mode=0o700)
+        marker = operations / "session-reset.pending.json"
+        compose_runtime._private_json(marker, {"schemaVersion": "weave.dogfood-session-reset/v1",
+                                               "environment": "dogfood", "supportSafe": True})
+        with (
+            mock.patch.object(compose_runtime, "script") as script,
+            mock.patch.object(compose_runtime, "prepare") as prepare,
+            mock.patch.object(compose_runtime, "compose") as compose,
+            mock.patch.object(compose_runtime, "require_completed_migration") as migration,
+            mock.patch.object(compose_runtime, "verify_dogfood_identity") as readiness,
+        ):
+            try:
+                compose_runtime.execute(context, "up", [])
+            except ContractError as error:
+                assert str(error) == "dogfood-session-reset-incomplete"
+            else:
+                raise AssertionError("incomplete Dogfood reset allowed startup")
+            for boundary in (script, prepare, compose, migration, readiness):
+                boundary.assert_not_called()
+            assert marker.is_file()
+
+
 def main() -> None:
     assert_application_startup_requires_completed_migration()
     assert_development_startup_uses_import_only()
+    assert_incomplete_dogfood_session_blocks_startup()
     claims = base64.urlsafe_b64encode(
         json.dumps({"realm_access": {"roles": ["weaver-runtime"]}, "resource_access": {"realm-management": {"roles": ["create-client"]}}}, separators=(",", ":")).encode()
     ).rstrip(b"=").decode()
