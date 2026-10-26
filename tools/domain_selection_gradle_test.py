@@ -1,4 +1,4 @@
-"""Real Gradle wiring regressions. Run after the normal JVM dependency setup."""
+"""Real Gradle graph probes using the normal pinned dependency resolution path."""
 from __future__ import annotations
 
 import json
@@ -13,8 +13,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class DomainGradleWiringTest(unittest.TestCase):
     def gradle(self, *arguments, success=True):
+        # Owning checks resolve their own libraries, not App-only dependencies.
+        # A cold CI cache must resolve the App/export graph normally; --offline
+        # makes these guard assertions depend on unrelated earlier builds.
         result = subprocess.run([str(ROOT / 'gradlew'), '--no-daemon', '--console=plain',
-                                 '--offline', *arguments], cwd=ROOT,
+                                 '--stacktrace', *arguments], cwd=ROOT,
                                 text=True, capture_output=True, timeout=180)
         output = result.stdout + result.stderr
         self.assertEqual(result.returncode == 0, success, output)
