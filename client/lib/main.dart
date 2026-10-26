@@ -14,7 +14,6 @@ import 'package:weave/core/router/app_router.dart';
 import 'package:weave/core/theme/app_theme.dart';
 import 'package:weave/core/theme/app_theme_preference.dart';
 import 'package:weave/core/theme/app_theme_preference_provider.dart';
-import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 

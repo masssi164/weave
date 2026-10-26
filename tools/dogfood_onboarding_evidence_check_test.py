@@ -16,7 +16,7 @@ from tools.dogfood_functional_smoke_test import receipt
 
 
 class NativeOnboardingEvidenceTest(unittest.TestCase):
-    def check(self, stage, evidence):
+    def check_native_receipt(self, stage, evidence):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'functional-evidence.json'
             path.write_text(json.dumps(evidence))
@@ -42,7 +42,7 @@ class NativeOnboardingEvidenceTest(unittest.TestCase):
                 evidence = receipt(stage=stage)
                 if stage == 'physical':
                     evidence['ownerEntryObserved'] = True
-                exit_code, output = self.check(stage, evidence)
+                exit_code, output = self.check_native_receipt(stage, evidence)
                 self.assertEqual(exit_code, 0)
                 self.assertIn('DOGFOOD_MEMBER_ONBOARDING_RESULT status=passed', output)
                 self.assertIn('DOGFOOD_POST_LOGIN_CHAT_FILES_RESULT chatState=usable filesState=usable', output)
@@ -56,12 +56,12 @@ class NativeOnboardingEvidenceTest(unittest.TestCase):
             with self.subTest(field=field):
                 evidence = receipt(stage='deployment')
                 evidence[field] = value
-                exit_code, output = self.check('deployment', evidence)
+                exit_code, output = self.check_native_receipt('deployment', evidence)
                 self.assertNotEqual(exit_code, 0)
                 self.assertEqual(output, '')
 
     def test_observed_owner_entry_is_required_for_physical_stage(self):
-        exit_code, output = self.check('physical', receipt(stage='physical'))
+        exit_code, output = self.check_native_receipt('physical', receipt(stage='physical'))
         self.assertNotEqual(exit_code, 0)
         self.assertEqual(output, '')
 

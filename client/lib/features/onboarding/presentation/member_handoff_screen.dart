@@ -128,7 +128,7 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
       state = ErrorState(
         key: const ValueKey('handoff-error'),
         message: l10n.memberHandoffErrorTitle,
-        guidance: '${guidance}\n${l10n.memberHandoffErrorCode(errorCode)}',
+        guidance: '$guidance\n${l10n.memberHandoffErrorCode(errorCode)}',
         retryLabel: l10n.retryButton,
         onRetry: () {
           setState(() => _failure = null);

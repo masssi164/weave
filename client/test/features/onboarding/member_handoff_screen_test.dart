@@ -14,6 +14,7 @@ import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
+import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/features/app/domain/use_cases/sign_in_with_oidc.dart';
 import 'package:weave/features/app/domain/use_cases/resolve_app_bootstrap.dart';
 import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
@@ -94,20 +95,17 @@ class _SignInThenReadyResolveAppBootstrap implements ResolveAppBootstrap {
 }
 
 void main() {
-  test('dual onboarding diagnostics bound counts and discard private values', () {
+  test('dual onboarding diagnostics report bounded visible widgets only', () {
     final safe = nativeDualOnboardingDiagnostic(
       role: 'A',
-      authState: 'ready_for_sso',
-      visibleState: 'handoff_ready',
-      errorCode: 'none',
-      counts: {'organization': -1, 'handoff': 10000, 'ready': 1, 'signIn': 1},
+      visibleWidgetCounts: {
+        'organization': -1,
+        'handoff': 10000,
+        'ready': 1,
+        'signIn': 1,
+      },
     );
-    expect(
-      safe,
-      contains(
-        'actor=A authState=ready_for_sso visibleState=handoff_ready errorCode=none',
-      ),
-    );
+    expect(safe, contains('actor=A'));
     expect(
       safe,
       contains(
@@ -116,18 +114,10 @@ void main() {
     );
     final private = nativeDualOnboardingDiagnostic(
       role: 'private-role',
-      authState: 'private-token',
-      visibleState: 'https://private.invalid',
-      errorCode: 'private-password',
-      counts: {},
+      visibleWidgetCounts: {},
     );
     expect(private, isNot(contains('private')));
-    expect(
-      private,
-      contains(
-        'actor=unavailable authState=unavailable visibleState=unavailable errorCode=unavailable',
-      ),
-    );
+    expect(private, contains('actor=unavailable'));
   });
 
   test(
