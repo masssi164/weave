@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.boards.discovery;
 
+import com.massimotter.weave.backend.discovery.catalog.ProviderCategorySelectionPolicy;
 import com.massimotter.weave.backend.discovery.catalog.CanonicalDomainContribution;
 import com.massimotter.weave.backend.discovery.catalog.CanonicalDomainRegistry;
 import com.massimotter.weave.backend.discovery.catalog.ProviderCategoryContract;
@@ -15,9 +16,16 @@ public final class BoardsDiscoveryMetadata {
     private BoardsDiscoveryMetadata() {}
 
     public static ProviderCategoryFragment boardsTasksCategory() {
-        return new ProviderCategoryFragment("boards", 3, "boards-tasks", "boards/tasks",
-                "boards", true, null,
-                ProviderRealityLevel.RELEASE_READY, Set.of(ProviderModule.BOARDS),
+        return new ProviderCategoryFragment("boards",
+                3,
+                "boards-tasks",
+                "boards/tasks",
+                "boards",
+                true,
+                null,
+                ProviderRealityLevel.RELEASE_READY,
+                Set.of(ProviderModule.BOARDS),
+                ProviderCategorySelectionPolicy.metadataOnly(),
                 new ProviderCategoryContract(
                     List.of("boards.read", "boards.update_task", "boards.sync_workspace"),
                     List.of("openproject-primary"),

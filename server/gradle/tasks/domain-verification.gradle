@@ -1,20 +1,70 @@
-def weaveDomainCatalog = project(':server').ext.weaveDomainCatalog
-def weaveDomainSelection = project(':server').ext.weaveDomainSelection
+def selectedDomainNames = project(':server').ext.weaveDomainSelection.domains
+ext.weaveSelectionIdentity = selectedDomainNames.join('-')
 
-def selectedDomainNames = weaveDomainSelection.domains
-def availableDomainNames = weaveDomainCatalog.domains.keySet().sort()
-def verifyFullDomainPackaging = tasks.register('verifyFullDomainPackaging') {
+def verifySelectedRuntime = tasks.register('verifySelectedRuntime') {
     group = 'verification'
-    description = 'Reject partial App artifacts/API/schema exports until selected runtime composition is implemented.'
+    description = 'Verify that serving/export dependencies contain precisely the resolved domain runtimes.'
     inputs.property('domains', selectedDomainNames)
-    // No outputs: this prerequisite must still run when packaging is UP-TO-DATE.
     doLast {
-        if (selectedDomainNames != availableDomainNames) {
-            throw new GradleException('Partial -Pdomains selects owning JVM checks only; '
-                    + 'selected App runtime/API/schema composition is not implemented. Use -Pdomains=all for serving artifacts and exports.')
+        def actual = configurations.runtimeClasspath.incoming.resolutionResult.allComponents
+                .collect { it.id }
+                .findAll { it instanceof org.gradle.api.artifacts.component.ProjectComponentIdentifier }
+                .collect { it.projectPath }
+                .findAll { it.startsWith(':server:domains:') }
+                .collect { it.split(':')[3] }.unique().sort()
+        if (actual != selectedDomainNames.sort(false)) {
+            throw new GradleException("Selected runtime mismatch: expected ${selectedDomainNames}; found ${actual}")
         }
     }
 }
 tasks.matching { it.name in ['bootJar', 'bootBuildImage', 'nativeCompile', 'openApiContractExport', 'entitySchemaExport'] }.configureEach {
-    dependsOn verifyFullDomainPackaging
+    dependsOn verifySelectedRuntime
+    inputs.property('domains', selectedDomainNames)
+}
+tasks.named('bootJar') {
+    manifest.attributes('Weave-Domains': selectedDomainNames.join(','))
+}
+
+tasks.register('verifySelectedArtifact') {
+    group = 'verification'
+    description = 'Inspect the executable JAR for selected domain libraries and duplicate Weave class ownership.'
+    dependsOn tasks.named('bootJar')
+    inputs.file(tasks.named('bootJar').flatMap { it.archiveFile })
+    inputs.property('domains', selectedDomainNames)
+    doLast {
+        def owners = [:]
+        def archive = tasks.named('bootJar').get().archiveFile.get().asFile
+        new java.util.zip.ZipFile(archive).withCloseable { jar ->
+            def manifest = new java.util.jar.Manifest(jar.getInputStream(jar.getEntry('META-INF/MANIFEST.MF')))
+            if (manifest.mainAttributes.getValue('Weave-Domains') != selectedDomainNames.join(',')) {
+                throw new GradleException('Executable domain manifest differs from the resolved selection')
+            }
+            def libraries = jar.entries().toList().findAll { it.name.startsWith('BOOT-INF/lib/') }
+            project(':server').ext.weaveDomainCatalog.domains.keySet().each { domain ->
+                def artifactName = project(":server:domains:${domain}").tasks.named('jar').get().archiveFileName.get()
+                if (libraries.any { it.name == "BOOT-INF/lib/${artifactName}" } != selectedDomainNames.contains(domain)) {
+                    throw new GradleException("Executable library ownership mismatch: ${domain}")
+                }
+            }
+            def claim = { name, owner ->
+                if (name.startsWith('com/massimotter/weave/') && name.endsWith('.class')) {
+                    def previous = owners.putIfAbsent(name, owner)
+                    if (previous != null) throw new GradleException("Duplicate production class ${name}: ${previous}, ${owner}")
+                }
+            }
+            jar.entries().toList().findAll { it.name.startsWith('BOOT-INF/classes/') }.each {
+                claim(it.name.substring('BOOT-INF/classes/'.length()), 'app')
+            }
+            libraries.each { library ->
+                new java.util.zip.ZipInputStream(jar.getInputStream(library)).withCloseable { nested ->
+                    def entry
+                    while ((entry = nested.nextEntry) != null) claim(entry.name, library.name)
+                }
+            }
+            if (!selectedDomainNames.contains('chat') && jar.entries().toList().any {
+                it.name.toLowerCase(Locale.ROOT).contains('weave_matrix_protocol')
+            }) throw new GradleException('No-Chat executable contains the Chat JNI library')
+        }
+        logger.lifecycle("Verified selected executable: ${selectedDomainNames.join(',')}; ${owners.size()} unique Weave classes")
+    }
 }

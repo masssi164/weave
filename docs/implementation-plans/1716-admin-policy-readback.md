@@ -44,7 +44,7 @@ silently enroll all members, expose private resources, replace roles or change p
 
 ## Owning implementation
 
-- `server/app/src/main/java/com/massimotter/weave/backend/service/AdminControlPlaneService.java`:
+- `server/core/src/main/java/com/massimotter/weave/backend/admin/application/AdminControlPlaneService.java`:
   `whitelist`, `updateWhitelist` and `enforceLastAdminGuard`.
 - `server/core/src/main/java/com/massimotter/weave/backend/capability/WorkspaceCapabilityService.java`:
   effective policy, member projection and operation admission.

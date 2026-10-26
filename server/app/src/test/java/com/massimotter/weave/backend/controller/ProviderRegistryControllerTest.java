@@ -249,8 +249,9 @@ class ProviderRegistryControllerTest {
                 .andExpect(jsonPath("$.canonicalDomainRegistry.registryVersion").value("canonical-domain-registry-v1"))
                 .andExpect(jsonPath("$.canonicalDomainRegistry.providerNamesInMemberContractsAllowed").value(false))
                 .andExpect(jsonPath("$.canonicalDomainRegistry.domains[*].key", hasItems(
-                        "people", "spaces", "chat", "files", "documents", "calendar", "boards", "calls", "decisions", "notifications", "health", "agent-runtime-control")))
+                        "people", "spaces", "chat", "files", "documents", "calendar", "boards", "calls", "decisions", "health", "agent-runtime-control")))
                 .andExpect(jsonPath("$.canonicalDomainRegistry.domains[?(@.key == 'identity')]").isEmpty())
+                .andExpect(jsonPath("$.canonicalDomainRegistry.domains[?(@.key == 'notifications')]").isEmpty())
                 .andExpect(jsonPath("$.canonicalDomainRegistry.memberStates[*]", hasItems("available", "disabled_by_policy", "not_configured", "degraded", "unavailable", "coming_later")))
                 .andExpect(jsonPath("$.canonicalDomainRegistry.adminStates[*]", hasItems("provider_not_configured", "dry_run_required", "lossy_mapping_pending", "apply_blocked", "migration_ready")))
                 .andExpect(jsonPath("$.canonicalDomainRegistry.lossClasses[*]", hasItems("lossless_canonical", "lossy_with_report", "blocked_nonportable", "provider_unexportable")))

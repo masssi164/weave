@@ -38,6 +38,13 @@ The active initializer remains unchanged until generated-baseline integrity/reco
 | Several provider implementations | Adapter catalog and runtime resolver | `@Qualifier` disambiguates injection; `@Primary` is not organization routing |
 | Request-bound credentials | Existing request scope or explicit per-call context | No mutable member credentials in a singleton |
 
+Production dependency composition, schema export and API export use the same resolved domain selection.
+Selected export contexts must compile against selected production output/resources, never the full App
+integration-test classpath. Keep separate User/Admin contracts and output identities; reduced generation
+cannot overwrite the tracked full contract. Verify actual executable libraries and duplicate ownership,
+not only skipped tasks or absent beans. Domain settings/resources load through their owner integration;
+application-wide deployment overrides retain normal Spring property precedence.
+
 Runtime libraries register actual integration through their module-local Boot imports, independently
 of App scanning. Keep controller stereotypes required for handler discovery and meaningful
 `@Repository` exception-translation metadata; prevent duplicate scanning rather than deleting

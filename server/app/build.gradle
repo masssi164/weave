@@ -15,3 +15,5 @@ apply from: "${rootProject.projectDir}/server/gradle/tasks/verification.gradle"
 apply from: "${rootProject.projectDir}/server/gradle/tasks/domain-verification.gradle"
 apply from: "${rootProject.projectDir}/server/gradle/tasks/operations.gradle"
 apply from: "${rootProject.projectDir}/server/gradle/tasks/entity-schema.gradle"
+
+apply from: "${rootProject.projectDir}/server/gradle/tasks/api-export.gradle"

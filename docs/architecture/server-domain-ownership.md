@@ -23,9 +23,11 @@ Boards, Office, DevOps, Agent Runtime, Integrations, Guest Access, Portability, 
 Meetings implementations have real owning runtime projects. Their incomplete implementations
 remain explicit future scope. Core owns independently useful platform capabilities.
 
-**Still open:** remaining shared App/Core administration and future App declarations; actual selected App/schema/API/artifact composition; future-runtime release
-exclusion; accepted reduced/no-Chat discovery and coordinated client activation; final variants
-and platform/integration qualification. Partial App packaging/API/schema export guards remain.
+**Still open:** the required closed workspace/Matrix wire projection and App Manuals declarations;
+accepted reduced/no-Chat discovery and coordinated client activation; the initializer/schema cutover;
+platform/image integration and qualification. Production dependencies and
+schema/API export now use selected runtimes; a real classpath/artifact check replaces the former
+blanket partial-packaging refusal. This does not establish a clean release capability projection.
 A green full experimental `all` build is not a qualified three-domain release candidate.
 
 ## Living six-phase execution plan
@@ -33,11 +35,11 @@ A green full experimental `all` build is not a qualified three-domain release ca
 | Phase | Concrete milestone / decision | Required checks | State and remaining blockers |
 | --- | --- | --- | --- |
 | 1. Ownership and contracts | Inventory production classes, resources, SDK/native inputs and tests; assign actual owners before moves; reconcile corpus through normal review | Accepted corpus, call sites, bean/resource/reflection/generated consumers, ownership/source inspection | Inventory and explicit proposal implemented; acceptance of #172 pending |
-| 2. Runtime architecture | Sole executable App; justified Core responsibilities; real domain Gradle runtimes with module-local imports and separate non-web persistence | Compiled graph, real Boot imports discovery, singleton beans, no App dependency | Runtime owners extracted; generic catalogs now compose owner declarations; remaining Admin ownership open |
-| 3. Vertical extraction and ORM | Move actual controllers/use cases/providers/settings/resources/JPA; preserve future functionality; remove ordinary Calendar/Matrix JDBC CRUD | Owning units; PostgreSQL reads/writes/isolation/constraints/rollback/locking/concurrency; no legacy copies | Actual release and existing future runtimes extracted; provider-replacement planning now owned by Portability; shared Admin/catalog projection still transitional |
-| 4. Core and build finalization | Remove optional implementation dependencies from shared workflows; one resolver drives checks, runtime, schema/API and identity | Architecture, selected artifact/SDK inspection, deterministic schema, real Gradle wiring | Shared session/Identity/Spaces/HTTP/policy/health/readiness contracts implemented; selected App composition unfinished |
-| 5. Runtime and clients | Actual release plus Files-only/Calendar-only/Chat-only startup, honest endpoints/capabilities, generated User/Admin consumers and stable Flutter navigation | API/auth/freshness, reduced variants, actual absence of omitted SDK/JNI, Compose/two members, ARM64/AOT where available | Full experimental runtime checks only; reduced discovery acceptance and live/platform qualification pending |
-| 6. Review and delivery | Consolidate canonical docs/scoped instructions/Skills; review combined source; coherent commits/push and PR evidence | Applicable combined gates, diff/source review, exact revision, hosted results | Checkpoints pushed; latest future-runtime combined verification passed; final selected runtime work remains; PR stays draft |
+| 2. Runtime architecture | Sole executable App; justified Core responsibilities; real domain Gradle runtimes with module-local imports and separate non-web persistence | Compiled graph, real Boot imports discovery, singleton beans, no App dependency | Runtime owners extracted; generic catalogs, Home, Platform and Admin compose owner declarations |
+| 3. Vertical extraction and ORM | Move actual controllers/use cases/providers/settings/resources/JPA; preserve future functionality; remove ordinary Calendar/Matrix JDBC CRUD | Owning units; PostgreSQL reads/writes/isolation/constraints/rollback/locking/concurrency; no legacy copies | Actual release and existing future runtimes extracted; provider-replacement planning now owned by Portability; generic Admin extracted; accepted closed workspace projection still transitional |
+| 4. Core and build finalization | Remove optional implementation dependencies from shared workflows; one resolver drives checks, runtime, schema/API and identity | Architecture, selected artifact/SDK inspection, deterministic schema, real Gradle wiring | Shared session/Identity/Spaces/HTTP/policy/health/readiness contracts implemented; selected production/schema/API composition implemented; public projection/cutover qualification open |
+| 5. Runtime and clients | Actual release plus Files-only/Calendar-only/Chat-only startup, honest endpoints/capabilities, generated User/Admin consumers and stable Flutter navigation | API/auth/freshness, reduced variants, actual absence of omitted SDK/JNI, Compose/two members, ARM64/AOT where available | Selected real HTTP/schema/JAR and all four packaged PostgreSQL variants pass; reduced discovery acceptance and live/platform qualification pending |
+| 6. Review and delivery | Consolidate canonical docs/scoped instructions/Skills; review combined source; coherent commits/push and PR evidence | Applicable combined gates, diff/source review, exact revision, hosted results | Checkpoints pushed; prior combined verification passed; selected/Admin combined verification passed; final review and image integration remain; PR stays draft |
 
 ## Ownership map and dependency direction
 
@@ -55,13 +57,16 @@ A green full experimental `all` build is not a qualified three-domain release ca
 | Migration planning/evidence + canonical resumable transfer | `portability` runtime + model/persistence; consolidate | One portability/transfer owner; pure values/ports, existing mappings and transactional adapters remain distinct boundaries |
 | Organization bootstrap App persistence/use case/HTTP/wire | Core `identity.organization` + framework-free values/port; move | Shared organization authority works without optional domains; preserve recovery keys, versioned JPA updates, audit and exact HTTP contract |
 | App Admin provider-replacement planning + migration evidence dependency | Portability application/API; split | Future planning and evidence are excluded together; generic Admin no longer requires the optional evidence repository |
+| Global Admin service/controller/17 wire types and suite feature constants | Core `admin.application/api` + actual domain declarations; split | Shared admission/audit/selection policy remains Core; Files owns required unverified-activation policy; optional suites, API links and disabled MCP preview disappear with owners |
+| App feature defaults/environment aliases | Nine owning domain resources; move | Preserve all 124 scalar keys/values and normal deployment override precedence; reusable capability configuration loads its owner defaults |
+| Unsupported Notifications metadata only | Retire production declaration and matching conformance fixtures | No implemented backend, handler or accepted bounded context; future product scope remains, without a fabricated project/readiness claim |
 | Shared member/session revocation formerly Matrix-named | Core Security | Required without Chat; preserve table/hash semantics, tenant authorization and fail-closed behavior |
 | Global provider/category and canonical metadata registries | Generic policy/HTTP/DTOs in Core Discovery; actual module metadata in each owner | Instance catalogs reject duplicate/conflicting ownership and compose installed declarations; Office/Integrations contribute separate document-category fragments without a new domain dependency |
 | Home HTTP/use case and Files recent activity | Core Home composition + Files activity source | Generic shell consumes installed owner contributions; Files owns its audit projection/privacy policy |
 | Platform HTTP/manifest/status assembly | Core Discovery + Chat Matrix and Files/Calendar diagnostics | Shared assembly has no optional implementation import; provider-specific checks remain with consumers |
 | App workload decoder/public-route/operator branches | Files/Calendar security, Chat/Agent route declarations, Agent ServiceLoader commands | Exact security semantics and offline command behavior preserved; omitted implementations can leave the artifact |
 | Identity/member/invitation/profile, org admission, Spaces, audit, operation intents, binding policy, health | Core responsibility packages | Independently useful platform capabilities; no optional-domain implementation dependency |
-| Ordinary global metadata facades with empty item lists | Retire unused service/guard graph; retain consumed Admin metadata as `discovery.admin.SuiteDomainDefinition` | No production handler/consumer used the facade graph; Admin response values remain unchanged |
+| Ordinary global metadata facades with empty item lists | Retire unused service/guard graph; retain consumed Admin metadata as owner-declared suite fragments | No production handler/consumer used the facade graph; Admin response values remain unchanged |
 | Standalone generated clients, MCP and product-test projects | Retain outside Server | Separate consumer/process/test ownership; sharing Java does not make them Server internals |
 
 App composes Core and runtime libraries. Domains use Core contracts and explicitly required narrow
@@ -84,7 +89,7 @@ Manuals/notifications Gradle project merely to relocate declaration metadata. Re
 declarations must be reconciled with accepted composition before claiming release exclusion complete.
 Generic provider/category/canonical catalogs no longer embed optional-domain declarations. The full
 experimental installation preserves twelve ordered status categories, eight selectable provider
-categories and twelve canonical entries; these are distinct from the twelve selectable Gradle runtimes.
+categories and eleven canonical entries after unsupported Notifications metadata retirement; these are distinct from the twelve selectable Gradle runtimes.
 Unknown catalog policy and duplicate owner/module/alias claims fail explicitly. Office and Integrations
 share a category through independently owned fragments; neither acquires a new required dependency.
 
@@ -161,10 +166,14 @@ PostgreSQL and expensive integration lanes remain separate. Selected or per-doma
 include explicit dependency closures and distinguish source/domain reports. Forward shell arguments with
 `"$@"`, never `eval`; workflow input has no literal `all` default that suppresses pins.
 
-Actual selected App runtime dependencies, schema/API export and artifact identity remain unfinished and
-guarded. The required final chain is selection → compiled selected sources/resources → real registered
-handlers → separate User/Admin exports → generated consumers/freshness. Use task prerequisites, not ordering
-hints. Never reuse a stale full-domain contract or treat hidden beans/skipped tasks as artifact exclusion.
+Selected App production dependencies and isolated schema/API export now use the existing resolver.
+All-domain integration libraries/fixtures are test-only. The implemented chain is selection → compiled
+selected sources/resources → real registered handlers → separate User/Admin exports → consumer checks. Use task prerequisites, not ordering
+hints. Exports have selection-specific output/report directories; full tracked freshness explicitly requires
+`all`, while reduced normalization stays in build output. The executable manifest records normalized
+`Weave-Domains`. `verifySelectedRuntime` rejects excluded transitive projects; `verifySelectedArtifact`
+checks actual JAR libraries, manifest and duplicate Weave classes. BootRun builds JNI only with Chat.
+Never reuse a stale full-domain contract or treat hidden beans/skipped tasks as artifact exclusion.
 Cache/signing inputs include actual source/resources/build/native pins, source/spec identity and platform/flavor.
 
 Flutter uses stable shell destination identities for routing/navigation/semantics/member refresh. Its accepted
@@ -214,11 +223,47 @@ six cases, and default/Files+Chat owning checks. Hosted earlier API/protocol/Adm
 corpus/infra jobs passed; selected owning checks passed on Linux ARM64. The separate hosted reduced
 export wiring probe repeatedly failed reading an ephemeral Gradle binary store and remains open.
 
-Actual App `bootJar -Pdomains=files,chat,calendar` and `bootJar -Pdomains=files` still reject at the
-partial-packaging guard. Selected production dependencies, isolated API export, artifact contents
-and startup must pass before retiring it. All-domain integration test dependencies must never
-pollute selected export/runtime classpaths. Remaining shared Admin logic and unconditional future
-metadata still need actual ownership review. No Compose lifecycle/provider URL/persistent data changed.
+Selected `bootJar`, offline schema and isolated API export now pass for Files-only, Calendar-only,
+Chat-only and the three-domain release. Artifact inspection reports 714 unique Weave classes for
+Files-only, 793 for Chat-only and 1,109 for the release composition, with no duplicate ownership.
+Files-only contains no Calendar/Chat/Agent implementation libraries. Initial selected HTTP contexts
+also passed on PostgreSQL; their container teardown exposed Hibernate cleanup ordering. The replacement
+`selectedRuntimePostgresTest` launches the actual JAR in a child JVM and terminates serving/pools
+before stopping its disposable database. All four representative variants pass with clean shutdown
+(`/tmp/weave-selected-<selection>-final.log`). The lane declares the actual executable as a test input,
+retains startup logs on failure and never uses the full integration classpath.
+
+The first combined Admin follow-up found stale architecture/controller-slice references plus slices
+that relied on former App-owned defaults. The architecture guard now inspects the relocated actual
+Admin handler, signed admission imports its actual transport adapter, and reusable domain capability
+configuration loads the owning defaults. Assertions are retained. A remaining Notifications fixture
+assertion was replaced with explicit absence of the retired unsupported declaration. Focused regression
+passes (16s). The next combined run passed owning/App/PostgreSQL/schema/architecture/corpus checks;
+static acceptance then found a relocated Identity lifecycle test path and obsolete README text marker.
+Both evidence references now point to the actual owning test/current description. Two infrastructure
+source checks likewise follow the actual loaded Chat/Calendar default resources. The combined command
+passed in 47s (`/tmp/weave-selected-admin-full-candidate6.log`), reusing the preceding fresh unchanged
+App/PostgreSQL results: Core model 10, Core 319 unit/18 context, App 834 with 23 explicit lane skips,
+and separate PostgreSQL 204 with no skips/failures/errors. Schema, architecture, corpus, 270-scenario
+static acceptance mapping, full API freshness, Flutter User freshness, generated JVM User/Admin
+reproducibility, infrastructure static and strict documentation builds pass. MkDocs was initially
+unavailable locally; installing the repository-pinned requirements in the ignored build venv resolved
+it without dependency changes. Eight actual Gradle wiring cases pass (42s), including excluded
+transitive dependency rejection and export-classpath separation. Resolver/workflow/inventory plus
+normalization units pass 59 cases. The full experimental JAR has 1,655 unique Weave classes.
+
+Remaining internal/public composition boundary: App Manuals still advertises its existing required
+workspace slot and metadata, and the accepted closed wire projection still contains required optional
+feature fields. Required Matrix discovery fails support-safely when Chat is absent. These prevent a
+claim of complete release capability purity or usable reduced bootstrap until the coordinated #172
+contract/server/generated-client changes are accepted and implemented. Existing handwritten migration
+resources/initializer remain transitional pending integrity/recovery cutover; selected schema export
+does not silently reset owner data or make that deployment lifecycle complete.
+
+Remaining image integration: Docker still includes Chat JNI unconditionally, and the SHA-checkout
+hosted producer must pass asserted source identity/selection into Gradle, artifact reuse keys and
+image metadata. These are concrete internal follow-ups, not passed container exclusion. Related #1733
+must be inspected/reconciled before immutable GHCR consumption; do not enable publication here.
 
 Remaining external qualification: accepted #172 where affected; Linux ARM64 JVM/AOT/native/JNI;
 exact-candidate Compose and two ordinary members/two real Flutter iOS apps; physical preparation and

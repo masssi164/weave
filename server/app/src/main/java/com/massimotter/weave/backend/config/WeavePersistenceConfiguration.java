@@ -1,6 +1,5 @@
 package com.massimotter.weave.backend.config;
 
-import com.massimotter.weave.backend.operation.application.OperationIntentService;
 import com.massimotter.weave.backend.readiness.persistence.JpaPersistenceReadinessProbe;
 import com.massimotter.weave.backend.schema.persistence.SchemaAuthorityJpaRepository;
 import jakarta.persistence.EntityManagerFactory;
@@ -12,7 +11,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 
 /**
- * Explicit composition of domain persistence ports.
+ * Composition of the application-wide persistence readiness probe.
  *
  * <p>Spring Boot owns the DataSource, Hibernate and transaction manager. No persistence
  * adapter is allowed to create infrastructure beans.

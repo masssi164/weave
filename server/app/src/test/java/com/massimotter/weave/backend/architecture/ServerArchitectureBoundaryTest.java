@@ -290,7 +290,7 @@ class ServerArchitectureBoundaryTest {
         assertThat(sourceEndingWith(Path.of("chat", "api", "ChatController.java")).text())
                 .doesNotContain("/api/v1/chat")
                 .doesNotContain("/api/v1/admin/chat");
-        assertThat(sourceEndingWith(Path.of("controller", "AdminControlPlaneController.java")).text())
+        assertThat(sourceEndingWith(Path.of("admin", "api", "AdminControlPlaneController.java")).text())
                 .doesNotContain("/api/v1/admin");
         assertThat(sourceEndingWith(
                 Path.of("health", "api", "ProviderCapabilityHealthController.java")).text())

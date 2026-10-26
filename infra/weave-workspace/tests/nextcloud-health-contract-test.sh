@@ -34,7 +34,9 @@ require "${REPO_ROOT}/server/domains/calendar/src/main/java/com/massimotter/weav
 require "${REPO_ROOT}/server/domains/files/src/main/java/com/massimotter/weave/backend/files/application/FilesFacadeService.java" 'FilesProviderPort'
 require "${REPO_ROOT}/server/domains/calendar/src/main/java/com/massimotter/weave/backend/calendar/application/CalendarFacadeService.java" 'CalendarProviderPort'
 require "${REPO_ROOT}/server/app/src/main/resources/application.yml" 'import: classpath:application-base.yml'
-require "${REPO_ROOT}/server/app/src/main/resources/application-base.yml" 'calendar-path-template: ${WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE:'
+require "${REPO_ROOT}/server/domains/calendar/src/main/resources/weave/domain/calendar-defaults.properties" 'weave.calendar.caldav.calendar-path-template=${WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE:'
+
+require "${REPO_ROOT}/server/domains/calendar/src/main/java/com/massimotter/weave/backend/calendar/capability/CalendarWorkspaceCapabilityConfiguration.java" 'classpath:weave/domain/calendar-defaults.properties'
 
 reject "${ROOT_DIR}/compose.yaml" 'TRUSTED_PROXIES='
 reject "${ROOT_DIR}/compose.yaml" 'WEAVE_NEXTCLOUD_BACKEND_ACTOR_TOKEN='

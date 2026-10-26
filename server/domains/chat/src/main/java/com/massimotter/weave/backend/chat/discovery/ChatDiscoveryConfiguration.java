@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.chat.discovery;
 
+import com.massimotter.weave.backend.admin.domain.AdminCapabilityDeclaration;
 import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.chat.config.MatrixChatProperties;
 import com.massimotter.weave.backend.discovery.catalog.CanonicalDomainContribution;
@@ -12,6 +13,11 @@ import org.springframework.context.annotation.Configuration;
 @Configuration(proxyBeanMethods = false)
 @org.springframework.context.annotation.Import(ChatPublicRoutesConfiguration.class)
 public class ChatDiscoveryConfiguration {
+
+    @Bean
+    AdminCapabilityDeclaration chatAdminCapabilities() {
+        return ChatAdminMetadata.capabilities();
+    }
 
     @Bean
     ChatMatrixPlatformContribution chatMatrixPlatformContribution(

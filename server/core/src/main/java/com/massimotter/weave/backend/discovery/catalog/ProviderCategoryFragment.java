@@ -16,6 +16,7 @@ public record ProviderCategoryFragment(
         String memberImpact,
         ProviderRealityLevel defaultReality,
         Set<ProviderModule> modules,
+        ProviderCategorySelectionPolicy selectionPolicy,
         ProviderCategoryContract contract) {
     public ProviderCategoryFragment {
         if (owner == null || owner.isBlank() || key == null || key.isBlank() || label == null || label.isBlank()) {
@@ -26,6 +27,7 @@ public record ProviderCategoryFragment(
         }
         defaultReality = Objects.requireNonNull(defaultReality, "defaultReality");
         modules = Set.copyOf(modules);
+        selectionPolicy = Objects.requireNonNull(selectionPolicy, "selectionPolicy");
         contract = Objects.requireNonNull(contract, "contract");
     }
 }

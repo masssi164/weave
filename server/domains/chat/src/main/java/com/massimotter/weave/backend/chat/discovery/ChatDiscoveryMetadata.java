@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.chat.discovery;
 
+import com.massimotter.weave.backend.discovery.catalog.ProviderCategorySelectionPolicy;
 import com.massimotter.weave.backend.discovery.catalog.CanonicalDomainContribution;
 import com.massimotter.weave.backend.discovery.catalog.CanonicalDomainRegistry;
 import com.massimotter.weave.backend.discovery.catalog.ProviderCategoryContract;
@@ -15,9 +16,16 @@ public final class ChatDiscoveryMetadata {
     private ChatDiscoveryMetadata() {}
 
     public static ProviderCategoryFragment chatCategory() {
-        return new ProviderCategoryFragment("chat", 0, "chat", "chat",
-                "chat", true, null,
-                ProviderRealityLevel.LIVE_WRITE, Set.of(ProviderModule.MATRIX),
+        return new ProviderCategoryFragment("chat",
+                0,
+                "chat",
+                "chat",
+                "chat",
+                true,
+                null,
+                ProviderRealityLevel.LIVE_WRITE,
+                Set.of(ProviderModule.MATRIX),
+                ProviderCategorySelectionPolicy.boundMetadataOnly(),
                 new ProviderCategoryContract(
                     List.of("chat.read", "chat.send", "chat.channels"),
                     List.of("weave-native"),

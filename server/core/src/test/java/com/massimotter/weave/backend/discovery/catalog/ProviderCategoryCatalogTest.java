@@ -58,8 +58,16 @@ class ProviderCategoryCatalogTest {
 
     private static ProviderCategoryFragment fragment(String owner, String key, int order,
             Set<ProviderModule> modules, List<String> adapters, boolean selectable) {
-        return new ProviderCategoryFragment(owner, order, key, key, null, selectable, "Member impact",
-                ProviderRealityLevel.CONTRACT_ONLY, modules,
+        return new ProviderCategoryFragment(owner,
+                order,
+                key,
+                key,
+                null,
+                selectable,
+                "Member impact",
+                ProviderRealityLevel.CONTRACT_ONLY,
+                modules,
+                ProviderCategorySelectionPolicy.metadataOnly(),
                 new ProviderCategoryContract(List.of(), adapters, List.of(), List.of(),
                         "Declared source", List.of(), "Declared export boundary", "Declared replacement boundary"));
     }

@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.decisions.discovery;
 
+import com.massimotter.weave.backend.discovery.catalog.ProviderCategorySelectionPolicy;
 import com.massimotter.weave.backend.discovery.catalog.CanonicalDomainContribution;
 import com.massimotter.weave.backend.discovery.catalog.CanonicalDomainRegistry;
 import com.massimotter.weave.backend.discovery.catalog.ProviderCategoryContract;
@@ -14,9 +15,16 @@ public final class DecisionsDiscoveryMetadata {
     private DecisionsDiscoveryMetadata() {}
 
     public static ProviderCategoryFragment decisionsEvidenceCategory() {
-        return new ProviderCategoryFragment("decisions", 6, "decisions-evidence", "decisions/evidence",
-                "decisions", false, null,
-                ProviderRealityLevel.RELEASE_READY, Set.of(),
+        return new ProviderCategoryFragment("decisions",
+                6,
+                "decisions-evidence",
+                "decisions/evidence",
+                "decisions",
+                false,
+                null,
+                ProviderRealityLevel.RELEASE_READY,
+                Set.of(),
+                ProviderCategorySelectionPolicy.metadataOnly(),
                 new ProviderCategoryContract(
                     List.of("decisions.read", "decisions.record", "evidence.attach", "evidence.audit_read"),
                     List.of("weave-decision-ledger"),

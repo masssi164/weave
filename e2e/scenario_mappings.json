@@ -640,7 +640,7 @@
           ]
         },
         {
-          "path": "server/app/src/main/java/com/massimotter/weave/backend/controller/AdminControlPlaneController.java",
+          "path": "server/core/src/main/java/com/massimotter/weave/backend/admin/api/AdminControlPlaneController.java",
           "fragments": [
             "/api/admin/control-plane",
             "/api/admin/policies/capability-whitelist",
@@ -649,7 +649,7 @@
           ]
         },
         {
-          "path": "server/app/src/main/java/com/massimotter/weave/backend/service/AdminControlPlaneService.java",
+          "path": "server/core/src/main/java/com/massimotter/weave/backend/admin/application/AdminControlPlaneService.java",
           "fragments": [
             "denyByDefault",
             "secretref://weave/provider/",
@@ -658,7 +658,7 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/service/AdminControlPlaneServiceTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/admin/application/AdminControlPlaneServiceTest.java",
           "fragments": [
             "whitelistEditsRemainAuthorizedButReadOnlyWithoutAuditMutation"
           ]
@@ -992,7 +992,7 @@
         {
           "path": "server/README.md",
           "fragments": [
-            "Chat domain facade",
+            "Chat control and context APIs",
             "provider replacement dry-run",
             "chat.read",
             "chat.send"
@@ -1583,7 +1583,7 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/identity/lifecycle/IdentityLifecycleContractsTest.java",
+          "path": "server/core/model/src/test/java/com/massimotter/weave/backend/identity/lifecycle/IdentityLifecycleContractsTest.java",
           "fragments": [
             "reconcileUsesStableIdsAndFailsClosedForUnknownGroupsOrRoles",
             "offboardingDryRunRequiresOwnershipTransferBeforeDestructiveRemoval"
@@ -3775,7 +3775,7 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/service/AdminControlPlaneServiceTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/admin/application/AdminControlPlaneServiceTest.java",
           "fragments": [
             "supportSafe",
             "provider"
@@ -3871,7 +3871,7 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/service/AdminControlPlaneServiceTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/admin/application/AdminControlPlaneServiceTest.java",
           "fragments": [
             "providerReplacementDryRunRecordsNoDriftEvidenceAgainstPersistedReadModels",
             "boundedProof",
@@ -4377,7 +4377,7 @@
       "tag": "@enterprise-target-provider-switch-no-drift-foundation",
       "scenario": "Provider replacement dry-run remains a prerequisite rather than cutover proof",
       "feature": "e2e/features/enterprise_target_architecture.feature",
-      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/service/AdminControlPlaneServiceTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/admin/application/AdminControlPlaneServiceTest.java",
       "evidenceMarkers": [
         "ENTERPRISE_TARGET_PROVIDER_SWITCH_NO_DRIFT_FOUNDATION"
       ],
@@ -4392,7 +4392,7 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/service/AdminControlPlaneServiceTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/admin/application/AdminControlPlaneServiceTest.java",
           "fragments": [
             "ENTERPRISE_TARGET_PROVIDER_SWITCH_NO_DRIFT_FOUNDATION",
             "providerReplacementDryRunRecordsNoDriftEvidenceAgainstPersistedReadModels",
@@ -6354,7 +6354,7 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/service/AdminControlPlaneServiceTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/admin/application/AdminControlPlaneServiceTest.java",
           "fragments": [
             "currentActorUsesTheCanonicalAdmittedIdentityWithoutProviderSubjectOrSessionFields"
           ]

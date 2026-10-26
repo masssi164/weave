@@ -29,6 +29,8 @@ class CoreProviderDiscoveryTest {
                 .run(context -> {
                     assertThat(context).hasNotFailed().hasSingleBean(CoreProviderDiscoveryAutoConfiguration.class)
                             .hasSingleBean(PlatformContractService.class).hasSingleBean(PlatformController.class)
+                            .hasSingleBean(com.massimotter.weave.backend.admin.application.AdminControlPlaneService.class)
+                            .hasSingleBean(com.massimotter.weave.backend.admin.api.AdminControlPlaneController.class)
                             .hasSingleBean(ProviderRegistry.class).hasSingleBean(AdminProviderRegistryService.class)
                             .hasSingleBean(ProviderRegistryController.class)
                             .hasSingleBean(ProviderCapabilityHealthController.class);
@@ -40,10 +42,14 @@ class CoreProviderDiscoveryTest {
                             .containsExactly("people", "spaces", "health");
                     assertThatThrownBy(context.getBean(PlatformContractService.class)::config)
                             .isInstanceOf(ApiErrorException.class);
+                    assertThat(context.getBean(com.massimotter.weave.backend.admin.application.AdminCapabilityCatalog.class)
+                            .knownCapabilities()).doesNotContain("files.read", "manuals.read", "chat.send");
+                    assertThat(context.getBean(com.massimotter.weave.backend.admin.application.SuiteDomainCatalog.class).groups()).isEmpty();
+                    assertThat(context.getBeansOfType(com.massimotter.weave.backend.admin.api.McpServerBindingResponse.class)).isEmpty();
                     var paths = context.getBean("requestMappingHandlerMapping", RequestMappingHandlerMapping.class)
                             .getHandlerMethods().keySet().stream()
                             .flatMap(mapping -> mapping.getPatternValues().stream()).toList();
-                    assertThat(paths).contains("/api/admin/providers/status", "/api/admin/provider-capability-health", "/api/platform/config", "/api/platform/status");
+                    assertThat(paths).contains("/api/admin/providers/status", "/api/admin/provider-capability-health", "/api/platform/config", "/api/platform/status", "/api/admin/control-plane");
                     assertThat(ClassUtils.isPresent("com.massimotter.weave.backend.WeaveBackendApplication",
                             context.getClassLoader())).isFalse();
                     assertThat(ClassUtils.isPresent("com.massimotter.weave.backend.files.application.FilesUserApiService",
@@ -55,7 +61,9 @@ class CoreProviderDiscoveryTest {
     void nonWebContextsDoNotInstallServingDiscoveryOrHealthHandlers() {
         new ApplicationContextRunner().withUserConfiguration(Discovery.class)
                 .withPropertyValues("spring.jpa.hibernate.ddl-auto=none", "spring.flyway.enabled=false")
-                .run(context -> assertThat(context).hasNotFailed().doesNotHaveBean(ProviderRegistry.class)
+                .run(context -> assertThat(context).hasNotFailed().doesNotHaveBean(com.massimotter.weave.backend.admin.application.AdminControlPlaneService.class)
+                        .doesNotHaveBean(com.massimotter.weave.backend.admin.api.AdminControlPlaneController.class)
+                        .doesNotHaveBean(ProviderRegistry.class)
                         .doesNotHaveBean(PlatformContractService.class).doesNotHaveBean(PlatformController.class)
                         .doesNotHaveBean(ProviderRegistryController.class)
                         .doesNotHaveBean(ProviderCapabilityHealthController.class));

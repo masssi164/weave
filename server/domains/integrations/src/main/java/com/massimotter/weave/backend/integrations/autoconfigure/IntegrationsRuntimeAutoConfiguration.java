@@ -14,6 +14,7 @@ import org.springframework.context.annotation.Import;
 import com.massimotter.weave.backend.integrations.discovery.IntegrationsDiscoveryConfiguration;
 
 /** Installs existing future behavior without changing product readiness or release inclusion. */
+@org.springframework.context.annotation.PropertySource("classpath:weave/domain/integrations-defaults.properties")
 @AutoConfiguration
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @EnableConfigurationProperties({com.massimotter.weave.backend.integrations.config.ConnectorRuntimeProperties.class, com.massimotter.weave.backend.integrations.config.InteropGatewayProperties.class})

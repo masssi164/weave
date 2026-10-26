@@ -8,6 +8,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Import;
 
 /** Installs existing future behavior without changing product readiness or release inclusion. */
+@org.springframework.context.annotation.PropertySource("classpath:weave/domain/guest-defaults.properties")
 @AutoConfiguration
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @EnableConfigurationProperties({com.massimotter.weave.backend.guest.config.GuestAccessProperties.class})

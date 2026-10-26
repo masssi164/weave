@@ -1,4 +1,4 @@
-# Weave Backend
+# Weave Server
 
 [![CI](https://github.com/masssi164/weave/actions/workflows/ci.yml/badge.svg)](https://github.com/masssi164/weave/actions/workflows/ci.yml)
 
@@ -30,7 +30,12 @@ It is intentionally not a generic proxy for Matrix, Nextcloud, Keycloak, OpenPro
 
 The approved release is tracked in [#1470](https://github.com/masssi164/weave/issues/1470). The inventory below includes older compatibility code; its presence does not establish current release acceptance. Public northbound DAV, Calls and private runtime execution are outside this release. Provider adoption and migration are tracked separately in [#1498](https://github.com/masssi164/weave/issues/1498). Matrix compatibility is bounded by the [normative support profile](../docs/reference/matrix-client-server-support-profile.md); one member OIDC/PKCE session at the Weave Matrix facade, current authorization and real Weave-owned client journeys still require integrated acceptance evidence. Independent third-party Matrix clients and their separate OAuth profile are deferred. E2EE remains a per-room policy with client-owned cryptographic state when enabled.
 
-Current implementation inventory:
+The release composition is Files, Calendar and Chat. Existing Boards, Office, DevOps, Agent Runtime,
+Integrations, Guest Access, Portability, Decisions and Meetings remain separately owned experimental
+runtimes; compiling one does not make it release-ready. See the [ownership map and living execution
+plan](../docs/architecture/server-domain-ownership.md) for exact implementation and qualification gaps.
+
+Current implementation inventory (routes exist only when their owner is selected):
 
 - Public health/platform bootstrap endpoints for gateways and smoke checks.
 - `GET /api/me` caller snapshot.
@@ -38,10 +43,10 @@ Current implementation inventory:
 - `GET /api/workspace/capabilities` and `GET /api/workspace/release-readiness`.
 - OIDC-gated Matrix Client-Server facade at `/_matrix/client/**`: member room sync, encrypted timeline/send, receipts, typing, reactions, redaction, room lifecycle, device keys, cross-signing, to-device traffic, room-key backup, recovery, and identity operations project the canonical Chat domain through the shared Rust/Ruma JNI core. Spring authorization and `chat.read`/`chat.send` capability checks run before the replaceable southbound `ChatProviderPort`; writes are audited without exposing provider payloads. This is a Weave protocol facade, not a northbound Synapse or other homeserver.
 - Matrix private keys, Olm/Megolm sessions, decrypted bodies, verification state machines, and recovery secrets belong to the Flutter-side Apache-2.0 Matrix Rust SDK. The backend persists public keys and opaque protocol envelopes only and rejects plaintext writes to encrypted rooms.
-- Chat control and context APIs at `/api/chat/readiness`, `/api/v1/chat/**`, `/api/admin/chat/**`, and `/api/v1/admin/chat/**`: member routes retain support-safe readiness, decisions, and meeting capsules; admin routes retain selected Chat mapping and audited migration dry-run/preflight reports. Deprecated REST conversation/message data-plane and Weaver Scout routes are unavailable.
+- Chat control and context APIs expose `/api/chat/readiness` and owning `/api/admin/chat/**` routes for support-safe readiness, selected Chat mapping and audited replacement reports. The existing `/api/chat/conversations/{conversationId}/decisions` and `/meeting-capsules` paths belong to the separately selected future Decisions and Meetings runtimes, each requiring Chat; they are absent from the three-domain release. Deprecated REST conversation/message data-plane and Weaver Scout routes are unavailable.
 - Admin/operator Chat provider replacement dry-run at `/api/admin/chat/provider-replacements/dry-run` with lossy-mapping warnings, conflict evidence, and redacted provider diagnostics.
-- Canonical domain registry v1 in `/api/admin/providers/status` from `app/src/main/resources/canonical-domain-registry-v1.json`, copied deterministically from `specs/0004-domain-registry/canonical-domain-registry-v1.json` and guarded by `./gradlew domainRegistryCheck`, covering identity, people, spaces, chat, files, documents, calendar, boards, calls, decisions, notifications, health, and Weaver with member/admin states, compatibility aliases, portability metadata, and no-unaccounted-data-loss migration primitives.
-- Canonical non-Chat domain facade contracts for Files/Documents, Calendar/Meetings, Boards/Tasks, and Identity/Admin/Policy. These server-side seams evaluate Weave capability policy before provider lookup, fail closed for unknown capabilities, expose SecretRef-only admin mappings, and return empty Weave-domain skeleton collections until concrete adapters are promoted.
+- Provider/canonical discovery is assembled by Core from actual installed owner declarations. Module-local discovery metadata owns provider categories and canonical domain entries; App JSON registry resources are compatibility/evidence fixtures, not serving registration. Unsupported future metadata is not production readiness.
+- Files/Documents, Calendar/Meetings and Boards/Tasks share narrow Admin metadata contributions. The unused global empty-collection facade graph was retired; actual use cases remain in their owning runtime projects.
 - Generated User Files routes under `/api/files/items` list and inspect explicitly Weave-attached items and dispatch supported operations through the active Files binding. The native adapter supports root-folder creation, absent-name upload, identity-bound bounded downloads and atomic identity/version content updates. Responses keep an opaque Weave `FileId`, a display-only logical path and current `allowedActions`. Creation requires an explicit idempotency key and `If-None-Match: *`; downloads return a strong content ETag and `Content-Digest`. Binary transfers are limited to 25 MiB. Other adapters without the required conditional guarantees fail closed for those operations.
 - Files exposes only resources with a known Weave Space and owner grant. Service-account-visible, unmapped provider objects remain hidden. Nextcloud root creation checks the returned `OC-FileId` against `oc:id` readback before publishing a mapping. Its path-bound conditional DAV GET cannot atomically guarantee object identity, so the User API does **not** advertise or serve Nextcloud downloads. Creation beneath a mapped folder also fails closed before intent/provider access; those folders do not advertise upload or create actions. Root creation assumes the binding's validated provider root remains the same namespace during the request; an out-of-band remount is not atomically fenced.
 - Files sharing, rename/move, copy, delete and general permission inspection remain unfinished in this User slice. A binding with existing mappings currently blocks credential rotation and replacement until verified identity carry-forward exists. These limitations are not evidence of completed #1472 or #1498 acceptance.
@@ -54,7 +59,14 @@ Current implementation inventory:
 
 ### Code-first OpenAPI
 
-Controller annotations, transport DTOs and validation own the HTTP artifacts. From the repository root, run `./gradlew generateOpenApiContract` after a contract change and `./gradlew checkOpenApiContractFresh` to verify the committed projections. Do not edit `contracts/openapi/*.json` by hand. Every currently exported User/Admin operation has an explicit ID; export tests compare it with the actual Spring handler, check uniqueness and require equality across grouped and combined documents. Normalization preserves ordered examples, schema meaning, security metadata, response headers and error responses.
+Controller annotations, transport DTOs and validation own the HTTP artifacts. From the repository root, run `./gradlew generateOpenApiContract -Pdomains=all` after an accepted full contract change and `./gradlew checkOpenApiContractFresh -Pdomains=all` to verify the committed projections. Do not edit `contracts/openapi/*.json` by hand. Every currently exported User/Admin operation has an explicit ID; export tests compare it with the actual Spring handler, check uniqueness and require equality across grouped and combined documents. Normalization preserves ordered examples, schema meaning, security metadata, response headers and error responses.
+
+The exporter compiles an isolated `apiExport` source set against selected production output/resources
+and runtime dependencies. All-domain integration fixtures never enter it. `openApiContractExport`
+starts the actual selected HTTP graph and writes separate User/Admin documents beneath
+`build/openapi/<normalized-domain-identity>/`. `selectedApiContractCheck` normalizes/validates reduced
+contracts in that same build directory; it cannot overwrite tracked full contracts. The independent
+full API integration suite retains its behavior, authorization and handler/operation assertions.
 
 JVM consumers use `weave-user-api-client` and `weave-admin-api-client`; their `check` tasks regenerate and compare the pinned client output. The User client includes a guarded generator correction for binary request bodies, verified against actual HTTP bytes. Generated transport consistency does not replace independent authorization and behavioral assertions. The product E2E uses that same User client to verify Files identity, exact bytes, validators, retry conflicts, outsider denial and persistence after service restart.
 
@@ -82,7 +94,7 @@ The provider stack is backend-owned by design:
 - [Context/Space ADR](docs/context-space-adr.md): flexible collaboration context model and authorization seam.
 - [Boards workspace contract](docs/boards-workspace-contract.md): provider-neutral Boards/Tasks workspace contract; OpenProject is optional provider-backed workspace-sync behind the Weave backend facade.
 - [Audit/Consent seam](docs/audit-consent-seam.md): internal safety layer for future writes.
-- `src/main/resources/contracts/`: contract artifacts for boards workspace, connector manifests, context/space, and audit/consent.
+- Module-owned runtime resources and App compatibility/evidence fixtures are identified in the ownership map; do not use a fixture as a second specification authority.
 
 Historical issue drafts live under `docs/issues/`; do not treat them as current public product docs without checking the active contracts above.
 
@@ -90,10 +102,28 @@ Historical issue drafts live under `docs/issues/`; do not treat them as current 
 
 Java/Spring contributions follow the shared [implementation standard](../docs/java-spring-standard.md). The [repository-local skills](../docs/agent-skills.md) route coding agents to the same policy and tested HTTP/configuration examples. From the repository root, `./gradlew javaAgentContractCheck :server:app:javaAgentReferenceTest` runs their bounded checks without Docker or JNI; it does not replace full server/native qualification.
 
-Run tests with Java 21+:
+Use the pinned Java 21 toolchain and repository root wrapper. Common entry points:
+
+```sh
+./gradlew :server:domains:check
+./gradlew :server:domains:check -Pdomains=all
+./gradlew :server:domains:check -Pdomains=files,chat
+./gradlew :server:app:bootJar :server:app:verifySelectedArtifact -Pdomains=files,chat,calendar
+./gradlew :server:app:bootJar :server:app:verifySelectedArtifact -Pdomains=files
+./gradlew :server:app:selectedApiContractCheck -Pdomains=calendar
+./gradlew :server:app:selectedRuntimePostgresTest -Pdomains=chat
+```
+
+Selection precedence and required domain dependencies live in the existing resolver/catalog,
+explained in the ownership plan. `all` expands the full selectable catalog; the configured automatic
+release source pin selects `files,chat,calendar`. An explicit selection overrides the pin, and an
+explicit `all` requests an experimental wider build. App unit/integration tests remain a separate
+all-domain test classpath. Domain checks execute owning tests without compiling App.
+
+Run the full App regression suite explicitly:
 
 ```bash
-./gradlew test
+./gradlew :server:app:test -Pdomains=all
 ```
 
 When Docker is available, the optional S3 adapter integration test uses the verified
@@ -115,13 +145,14 @@ docker run --rm \
   -v "$PWD:/workspace" \
   -w /workspace \
   eclipse-temurin:21-jdk \
-  ./gradlew test
+  ./gradlew :server:app:test -Pdomains=all
 ```
 
 Build the local image used by monorepo `infra/` live-stack runs:
 
 ```bash
-docker build -t weave-backend:e2e .
+./gradlew :server:app:bootJar -Pdomains=files,chat,calendar
+docker build -f server/Dockerfile -t weave-backend:e2e .
 ```
 
 ## Canonical local/dev contract

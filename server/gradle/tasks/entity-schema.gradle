@@ -11,7 +11,7 @@ sourceSets.test.runtimeClasspath += sourceSets.schemaExport.output
 tasks.named('compileSchemaExportJava') { dependsOn tasks.named('classes') }
 tasks.named('compileTestJava') { dependsOn tasks.named('schemaExportClasses') }
 
-def entityBaseline = layout.buildDirectory.file('generated/entity-schema/V1__entity_baseline.sql')
+def entityBaseline = layout.buildDirectory.file("generated/entity-schema/${weaveSelectionIdentity}/V1__entity_baseline.sql")
 tasks.register('entitySchemaExport', JavaExec) {
     group = 'build'
     description = 'Generate a candidate PostgreSQL baseline from compiled JPA entities, without a database.'

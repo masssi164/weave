@@ -72,7 +72,7 @@ From repository root:
 ./gradlew :server:domains:calendar:check
 ./gradlew :server:domains:check -Pdomains=calendar
 ./gradlew :server:app:test checkOpenApiContractFresh -Pdomains=all
-DOCKER_HOST=unix:///Users/flotterotter/.orbstack/run/docker.sock ./gradlew :server:app:postgresJpaTest -Pdomains=all
+DOCKER_HOST=<observed-disposable-engine> ./gradlew :server:app:postgresJpaTest -Pdomains=all
 ```
 
 The owning checks run independent provider/parser/mapper/recurrence/readiness/bootstrap/
@@ -84,9 +84,10 @@ CalDAV construction, actual HTTP mappings, singleton beans, absent other domain 
 and non-web separation. Full App/API checks remain required for the assembled product.
 
 Calendar's resolver entry now schedules genuine owning tasks rather than the old filtered
-App verification bridge. Partial App packaging/API/schema composition remains explicitly
-guarded pending actual selected assembly and accepted contracts. An independently buildable
-Calendar runtime is not a claim of a qualified Calendar-only serving executable.
+App verification bridge. App now composes selected production dependencies and isolated API/schema
+exports, with actual library/handler inspection. `selectedRuntimePostgresTest -Pdomains=calendar`
+starts the packaged executable on disposable PostgreSQL. See the living ownership plan for final
+results and the remaining accepted bootstrap/client/schema/platform qualification boundary.
 
 ## Cleanup record
 

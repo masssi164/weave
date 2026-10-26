@@ -26,7 +26,8 @@ class NormalizeOpenApiContractsTest(unittest.TestCase):
             for name in ("check_openapi_contract_fresh.sh", "normalize_openapi_contracts.py"):
                 shutil.copyfile(Path(__file__).parent / name, root / "tools" / name)
             command = ["bash", str(root / "tools/check_openapi_contract_fresh.sh")]
-            environment = {**os.environ, "WEAVE_OPENAPI_SKIP_EXPORT": "true"}
+            environment = {**os.environ, "WEAVE_OPENAPI_SKIP_EXPORT": "true",
+                           "WEAVE_OPENAPI_EXPORT_DIR": str(root / "build/openapi")}
             fresh = subprocess.run(command, env=environment, capture_output=True)
             self.assertEqual(fresh.returncode, 0, fresh.stderr.decode())
             stale = root / "contracts/openapi/weave-user-openapi.json"

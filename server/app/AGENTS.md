@@ -4,14 +4,17 @@ App is the only Boot executable. Read `server/AGENTS.md` and the root Java stand
 Use the repository root wrapper and `:server:app:` task paths. Shared build mechanics
 remain under `server/gradle`; the parent resolves domain selection once.
 
-App owns composition and application-wide entry points. Existing feature implementations
-are still transitional here; move each with its tests, resources and dependencies into
-its real domain, with module-local auto-configuration. Do not add optional business logic
-to App or introduce domain-to-App dependencies. Keep the packaging guard until excluded
-production classes, SDKs and controllers are absent from actual artifacts.
+App owns composition and application-wide entry points. Actual domain runtimes own their
+services, controllers, persistence, providers and resources through module-local imports.
+Do not add optional business logic or domain-to-App dependencies. Core platform integration
+also registers through Core imports; App scanning must not duplicate those handlers.
 
-Files now registers its actual runtime through module-local Boot imports. The transitional
-App scan excludes its business namespace, retaining Boot's test/auto-configuration filters.
-Do not import Files private services to implement platform business behavior; use narrow
-Core contributions and preserve API projections at the transport boundary. Partial App API/
-schema exports reject until real selected composition is available, just like partial packaging.
+Production dependencies, schema export and isolated API export use the same resolver.
+All-domain integration fixtures stay test-only. `verifySelectedRuntime` rejects excluded
+transitive projects; `verifySelectedArtifact` inspects the executable libraries, manifest and
+class ownership. Reduced API/schema outputs have selection-specific paths. Never substitute
+hidden beans, skipped tasks or a manual export facade for actual artifact exclusion.
+
+See the living ownership plan for current checks and blockers. The required closed workspace/
+Matrix projection, remaining App Manuals declaration, schema initializer cutover and coordinated
+client activation are unfinished; selected packaging alone does not qualify reduced product behavior.

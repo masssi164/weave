@@ -26,10 +26,24 @@ registerRootCommandTask('openApiNormalizationContractTest', ['python3', '-m', 'u
 tasks.named('generateOpenApiContract') {
     dependsOn ':server:app:openApiContractExport'
     environment 'WEAVE_OPENAPI_SKIP_EXPORT', 'true'
+    environment 'WEAVE_OPENAPI_EXPORT_DIR', project(':server:app').ext.weaveApiExportDirectory.get().asFile.absolutePath
+    doFirst {
+        def server = project(':server')
+        if (server.ext.weaveDomainSelection.domains != server.ext.weaveDomainCatalog.domains.keySet().sort()) {
+            throw new GradleException('Tracked full API contracts require -Pdomains=all; use :server:app:selectedApiContractCheck for a reduced export.')
+        }
+    }
 }
 tasks.named('checkOpenApiContractFresh') {
     dependsOn ':server:app:openApiContractExport', 'openApiNormalizationContractTest'
     environment 'WEAVE_OPENAPI_SKIP_EXPORT', 'true'
+    environment 'WEAVE_OPENAPI_EXPORT_DIR', project(':server:app').ext.weaveApiExportDirectory.get().asFile.absolutePath
+    doFirst {
+        def server = project(':server')
+        if (server.ext.weaveDomainSelection.domains != server.ext.weaveDomainCatalog.domains.keySet().sort()) {
+            throw new GradleException('Tracked full API contracts require -Pdomains=all; use :server:app:selectedApiContractCheck for a reduced export.')
+        }
+    }
 }
 configurations { adminOpenApiGenerator }
 dependencies { adminOpenApiGenerator 'org.openapitools:openapi-generator-cli:7.17.0' }

@@ -6,7 +6,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 REGISTRY=ROOT/'specs/0004-domain-registry/canonical-domain-registry-v1.json'
 SERVER_COPY=ROOT/'server/app/src/main/resources/canonical-domain-registry-v1.json'
-REQUIRED_KEYS=['people','spaces','chat','files','documents','calendar','boards','calls','decisions','notifications','health','agent-runtime-control']
+REQUIRED_KEYS=['people','spaces','chat','files','documents','calendar','boards','calls','decisions','health','agent-runtime-control']
 MEMBER=['available','disabled_by_policy','not_configured','degraded','unavailable','coming_later']
 ADMIN=['provider_not_configured','secret_missing','ready','degraded','dry_run_required','lossy_mapping_pending','apply_blocked','migration_ready']
 MANIFEST=['adapterKey','domainKeys','apiProfile','canonicalObjects','capabilityKeys','readinessChecks','unsupportedFields','migrationLimits','auditEvents','secretBoundary']
@@ -35,6 +35,7 @@ def main():
  domains=data.get('domains')
  if not isinstance(domains,list): fail('domains must be a list')
  by_key={d.get('key'):d for d in domains if isinstance(d,dict)}
+ if 'notifications' in by_key: fail('unimplemented Notifications metadata must not advertise a serving backend')
  if list(by_key.keys())!=REQUIRED_KEYS: fail(f'domain keys/order mismatch: {list(by_key.keys())}')
  aliases={}
  for key,d in by_key.items():

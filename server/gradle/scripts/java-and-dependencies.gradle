@@ -20,26 +20,18 @@ dependencies {
     implementation libs.flyway.postgresql
 
 
-    implementation project(':server:core:model')
-    implementation project(':server:domains:files')
-    implementation project(':server:domains:calendar')
     implementation project(':server:core')
-    implementation project(':server:domains:agent-runtime')
+    // One resolver supplies production composition. Broad integration fixtures are test-only.
+    project(':server').ext.weaveDomainSelection.domains.each { domain ->
+        implementation project(":server:domains:${domain}")
+    }
+    project(':server').ext.weaveDomainCatalog.domains.keySet().each { domain ->
+        testImplementation project(":server:domains:${domain}")
+    }
     testImplementation testFixtures(project(':server:domains:agent-runtime'))
     testImplementation testFixtures(project(':server:domains:portability'))
     testImplementation testFixtures(project(':server:core'))
     testImplementation testFixtures(project(':server:domains:chat'))
-    implementation project(':server:domains:chat')
-    implementation project(':server:domains:decisions')
-    implementation project(':server:domains:meetings')
-    implementation project(':server:domains:boards')
-    implementation project(':server:domains:office')
-    implementation project(':server:domains:devops')
-    implementation project(':server:domains:integrations')
-    implementation project(':server:domains:guest')
-    implementation project(':server:domains:portability')
-    implementation project(':server:domains:portability:persistence')
-    implementation project(':server:domains:portability:model')
     runtimeOnly 'org.postgresql:postgresql'
     developmentOnly 'com.h2database:h2'
 

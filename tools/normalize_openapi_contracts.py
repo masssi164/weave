@@ -48,8 +48,8 @@ def operation_ids(document: dict, label: str) -> set[str]:
     return seen
 
 
-def normalize(root: Path, output_dir: Path | None = None) -> None:
-    export_dir = root / "build/openapi"
+def normalize(root: Path, output_dir: Path | None = None, export_dir: Path | None = None) -> None:
+    export_dir = export_dir if export_dir is not None else root / "build/openapi"
     target_dir = output_dir if output_dir is not None else root / "contracts/openapi"
     documents = {
         label: read_document(export_dir / f"{name}.raw.json")
@@ -83,5 +83,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--output-dir", type=Path, help="Write comparison artifacts outside the tracked contract tree")
+    parser.add_argument("--export-dir", type=Path, help="Read only the resolved selection export directory")
     args = parser.parse_args()
-    normalize(args.root, args.output_dir)
+    normalize(args.root, args.output_dir, args.export_dir)

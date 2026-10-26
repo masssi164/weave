@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.calendar.discovery;
 
+import com.massimotter.weave.backend.discovery.catalog.ProviderCategorySelectionPolicy;
 import com.massimotter.weave.backend.discovery.catalog.CanonicalDomainContribution;
 import com.massimotter.weave.backend.discovery.catalog.CanonicalDomainRegistry;
 import com.massimotter.weave.backend.discovery.catalog.ProviderCategoryContract;
@@ -15,9 +16,16 @@ public final class CalendarDiscoveryMetadata {
     private CalendarDiscoveryMetadata() {}
 
     public static ProviderCategoryFragment calendarCategory() {
-        return new ProviderCategoryFragment("calendar", 2, "calendar", "calendar",
-                "calendar", true, null,
-                ProviderRealityLevel.RELEASE_READY, Set.of(ProviderModule.CALENDAR),
+        return new ProviderCategoryFragment("calendar",
+                2,
+                "calendar",
+                "calendar",
+                "calendar",
+                true,
+                null,
+                ProviderRealityLevel.RELEASE_READY,
+                Set.of(ProviderModule.CALENDAR),
+                ProviderCategorySelectionPolicy.boundMetadataOnly(),
                 new ProviderCategoryContract(
                     List.of("calendar.read", "calendar.manage_events", "calendar.thread_refs"),
                     List.of("weave-native"),

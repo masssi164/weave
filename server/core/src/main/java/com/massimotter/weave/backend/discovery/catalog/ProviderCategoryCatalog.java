@@ -38,6 +38,7 @@ public final class ProviderCategoryCatalog {
             for (var entry : entries) {
                 if (first.order() != entry.order() || !first.label().equals(entry.label())
                         || !Objects.equals(first.capabilityDomain(), entry.capabilityDomain())
+                        || !first.selectionPolicy().equals(entry.selectionPolicy())
                         || first.selectable() != entry.selectable() || first.defaultReality() != entry.defaultReality()
                         || !Objects.equals(first.memberImpact(), entry.memberImpact())
                         || !first.contract().sourceOfTruth().equals(entry.contract().sourceOfTruth())
@@ -59,7 +60,7 @@ public final class ProviderCategoryCatalog {
                     merge(entries, ProviderCategoryContract::lossyMappingRisks),
                     first.contract().exportDeleteExpectation(), first.contract().replacementRequirement());
             resolved.add(new Category(first.key(), first.label(), Set.copyOf(modules), first.capabilityDomain(),
-                    first.selectable(), first.order(), first.memberImpact(), first.defaultReality(), contract));
+                    first.selectable(), first.order(), first.memberImpact(), first.defaultReality(), first.selectionPolicy(), contract));
         }
         this.categories = List.copyOf(resolved);
         Map<String, Category> indexed = new LinkedHashMap<>();
@@ -102,7 +103,7 @@ public final class ProviderCategoryCatalog {
 
     public record Category(String key, String label, Set<ProviderModule> modules, String capabilityDomain,
             boolean selectable, int order, String memberImpact, ProviderRealityLevel defaultReality,
-            ProviderCategoryContract contract) {
+            ProviderCategorySelectionPolicy selectionPolicy, ProviderCategoryContract contract) {
         public boolean capabilityBacked() {
             return capabilityDomain != null;
         }

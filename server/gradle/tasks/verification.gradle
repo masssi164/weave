@@ -62,29 +62,6 @@ tasks.register('javaAgentReferenceTest', Test) {
     }
 }
 
-tasks.register('openApiContractExport', Test) {
-    group = 'verification'
-    description = 'Export the server-owned OpenAPI contract without mutating the main test results.'
-    dependsOn tasks.named('testClasses')
-    testClassesDirs = sourceSets.test.output.classesDirs
-    classpath = sourceSets.test.runtimeClasspath
-    maxParallelForks = 1
-    systemProperty 'weave.openapi.export.path', rootProject.layout.buildDirectory
-            .file('openapi/weave-openapi.raw.json')
-            .get()
-            .asFile
-            .absolutePath
-    filter {
-        includeTestsMatching '*OpenApiDocumentationTest'
-    }
-    useJUnitPlatform {
-        // Cucumber suites discover their own scenarios outside the class filter.
-        // Export runs only the Jupiter metadata tests, never runtime journeys.
-        includeEngines 'junit-jupiter'
-    }
-    outputs.upToDateWhen { false }
-}
-
 tasks.register('postgresJpaTest', Test) {
     group = 'verification'
     description = 'Run the authoritative JPA repository, constraint, transaction, migration, and restore contracts against PostgreSQL.'

@@ -28,7 +28,9 @@ Weave needs a stable, provider-neutral registry of product domains so server, ad
 ### In scope
 
 - Canonical collaboration/product domains: people, spaces, chat, files, documents,
-  calendar, boards, calls, decisions, notifications, health, and agent runtime control.
+  calendar, boards, calls, decisions, health, and agent runtime control.
+- Notifications remains future product scope. Its unimplemented server metadata was retired;
+  this implementation fixture does not establish a backend capability or provider catalog.
 - Authentication, credentials, realm/client desired state, upstream LDAP/AD federation,
   and OIDC/SAML brokering are fixed platform-security concerns owned by Keycloak and
   Identity Ops. They are intentionally absent from the provider-neutral domain registry.

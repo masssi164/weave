@@ -36,11 +36,17 @@ servlet controllers or provider clients. Real discovery tests use Boot's import 
 not a manual import of the configuration under test. H2 proves this wiring only; PostgreSQL
 remains authoritative for persistence semantics.
 
-The remaining executable is still transitional: services, controllers and provider integration
-must finish moving to runtime domain owners before selected executable packaging is complete.
-The partial-packaging guard remains active. Library checks and persistence discovery are not
-reduced-runtime qualification. App composition must replace broad executable scanning with
-explicit Core/domain wiring and preserve non-web tooling contexts.
+Actual Files, Calendar, Chat and existing future runtime services/controllers/providers now
+belong to their domain projects. App composes only the resolved runtime libraries; broad integration
+fixtures stay on the test classpath. Core Home, Platform, discovery and Admin consume narrow installed
+owner declarations. Module-local imports and explicit wiring retain separate non-web tooling graphs.
+
+The former blanket partial-packaging refusal is replaced by resolved classpath and executable JAR
+checks. Isolated API export uses selected production output/resources, boots real handlers and writes
+separate User/Admin documents. Schema export sees only selected compiled mappings. Outputs/reports
+carry selection identity; actual packaged PostgreSQL startup is a separate lane. These checks do not
+remove the accepted closed workspace/Matrix wire constraints, remaining App Manuals declaration,
+schema cutover or coordinated client/platform qualification described in the living plan.
 
 Shared health uses narrow domain contributions; the scheduler owns caching, backoff, metrics
 and redaction while each domain owns its actual probe and provider lookup. Authentication

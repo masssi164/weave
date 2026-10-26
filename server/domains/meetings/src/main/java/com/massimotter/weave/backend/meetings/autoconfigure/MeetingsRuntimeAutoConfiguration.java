@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Import;
 import com.massimotter.weave.backend.meetings.discovery.MeetingsDiscoveryConfiguration;
 
 /** Installs implemented future-domain behavior; release inclusion remains explicit. */
+@org.springframework.context.annotation.PropertySource("classpath:weave/domain/meetings-defaults.properties")
 @AutoConfiguration(afterName = "com.massimotter.weave.backend.chat.autoconfigure.ChatRuntimeAutoConfiguration")
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @org.springframework.boot.context.properties.EnableConfigurationProperties(

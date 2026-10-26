@@ -29,7 +29,6 @@ class CanonicalDomainRegistryContractTest {
             "boards",
             "calls",
             "decisions",
-            "notifications",
             "health",
             "agent-runtime-control");
 
@@ -79,7 +78,7 @@ class CanonicalDomainRegistryContractTest {
         assertThat(registry.compatibilityAliases()).doesNotContainKey("identity-idm");
         assertThat(registry.domains())
                 .extracting(CanonicalDomainRegistryEntryResponse::key)
-                .doesNotContain("identity");
+                .doesNotContain("identity", "notifications");
         assertThat(registry.providerNamesInMemberContractsAllowed()).isFalse();
         assertThat(providerRealityLevels(registry, "calendar"))
                 .containsEntry("weave-native", "live_write")
@@ -135,7 +134,7 @@ class CanonicalDomainRegistryContractTest {
 
         assertThat(objects(registry, "spaces")).contains("Space", "SpaceMembership", "RoleBinding", "LinkedChannel", "LinkedBoard", "LinkedCalendar", "LinkedFileRoot", "DecisionLedgerRef");
         assertThat(objects(registry, "people")).contains("Person", "Membership", "Profile", "ContactMethod", "Team", "Guest", "ServiceAccountRef");
-        assertThat(objects(registry, "notifications")).contains("Notification", "Preference", "Channel", "Digest", "DeliveryAttempt", "Subscription");
+        assertThat(registry.domains()).noneMatch(domain -> domain.key().equals("notifications"));
         assertThat(objects(registry, "decisions")).contains("Decision", "Proposal", "Approval", "Rationale", "DecisionLink", "EvidenceRef", "Supersession");
         assertThat(objects(registry, "health")).contains("ReadinessCard", "Diagnostic", "SupportBundle", "BackupJob", "RestoreDrill", "EvidenceItem", "AuditRef");
         assertThat(objects(registry, "chat")).contains("WeaveSpace", "WeaveConversation", "WeaveMessage", "WeaveThread", "WeaveReaction", "WeaveAttachment", "WeaveMembership", "WeaveHistoryPolicy", "ProviderRef", "MigrationReceipt", "RollbackReceipt", "LossyFieldReport");

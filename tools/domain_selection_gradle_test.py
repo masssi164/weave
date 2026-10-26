@@ -62,14 +62,14 @@ class DomainGradleWiringTest(unittest.TestCase):
                 self.assertIn(f':server:domains:{domain}:contextTest SKIPPED', output)
                 self.assertNotIn(f':server:domains:{domain}:model:contextTest', output)
 
-    def test_boot_jar_has_an_independent_packaging_guard(self):
+    def test_boot_jar_verifies_the_selected_runtime(self):
         output = self.gradle(':server:app:bootJar', '-Pdomains=files', '--dry-run')
-        self.assertIn(':server:app:verifyFullDomainPackaging SKIPPED', output)
+        self.assertIn(':server:app:verifySelectedRuntime SKIPPED', output)
 
-    def test_reduced_exports_schedule_the_same_packaging_guard(self):
+    def test_reduced_exports_schedule_the_same_runtime_verification(self):
         for task in ('openApiContractExport', 'entitySchemaExport'):
             output = self.gradle(f':server:app:{task}', '-Pdomains=files', '--dry-run')
-            self.assertIn(':server:app:verifyFullDomainPackaging SKIPPED', output)
+            self.assertIn(':server:app:verifySelectedRuntime SKIPPED', output)
 
     def test_guard_runs_even_when_its_packaging_consumer_is_up_to_date(self):
         with tempfile.TemporaryDirectory(prefix='weave-domain-gradle-') as tmp:
@@ -78,7 +78,7 @@ class DomainGradleWiringTest(unittest.TestCase):
             init.write_text('''gradle.projectsEvaluated {
     def server = gradle.rootProject.project(':server:app')
     server.tasks.register('domainPackagingGuardProbe') {
-        dependsOn ':server:app:verifyFullDomainPackaging'
+        dependsOn ':server:app:verifySelectedRuntime'
         def marker = new File(MARKER)
         outputs.file(marker)
         doLast { marker.text = 'test-only packaging probe' }
@@ -89,11 +89,31 @@ class DomainGradleWiringTest(unittest.TestCase):
             self.gradle(*args, '-Pdomains=all')
             repeat = self.gradle(*args, '-Pdomains=all')
             self.assertIn(':server:app:domainPackagingGuardProbe UP-TO-DATE', repeat)
-            self.assertIn('> Task :server:app:verifyFullDomainPackaging', repeat)
-            self.assertNotIn(':server:app:verifyFullDomainPackaging UP-TO-DATE', repeat)
-            refused = self.gradle(*args, '-Pdomains=files', success=False)
-            self.assertIn('selected App runtime/API/schema composition is not implemented', refused)
+            self.assertIn('> Task :server:app:verifySelectedRuntime', repeat)
+            self.assertNotIn(':server:app:verifySelectedRuntime UP-TO-DATE', repeat)
+            reduced = self.gradle(*args, '-Pdomains=files')
+            self.assertIn('> Task :server:app:verifySelectedRuntime', reduced)
             self.assertEqual(marker.read_text(), 'test-only packaging probe')
+
+    def test_omitted_runtime_dependency_is_rejected(self):
+        with tempfile.TemporaryDirectory(prefix='weave-domain-gradle-') as tmp:
+            init = Path(tmp) / 'extra-domain.gradle'
+            init.write_text("""gradle.projectsEvaluated {
+    def app = gradle.rootProject.project(':server:app')
+    app.dependencies.add('implementation', gradle.rootProject.project(':server:domains:chat'))
+}
+""")
+            output = self.gradle('-I', str(init), ':server:app:verifySelectedRuntime',
+                                 '-Pdomains=files', success=False)
+            self.assertIn('Selected runtime mismatch', output)
+
+    def test_reduced_export_never_compiles_the_all_domain_integration_suite(self):
+        output = self.gradle(':server:app:openApiContractExport', '-Pdomains=files', '--dry-run')
+        self.assertIn(':server:app:compileApiExportJava SKIPPED', output)
+        self.assertNotIn(':server:app:compileTestJava', output)
+        self.assertNotIn(':server:domains:chat:', output)
+        self.assertNotIn(':server:domains:calendar:', output)
+        self.assertNotIn('buildMatrixRustCoreJni', output)
 
 
 if __name__ == '__main__':

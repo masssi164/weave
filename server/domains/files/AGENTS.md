@@ -12,7 +12,7 @@ Files is a feature module. Its model stays Spring-free. Its entities, Spring Dat
 - Favor immutable records and declarative Spring interfaces; no blanket Lombok `@Data` on JPA entities.
 - Record each obsolete path, replacement and removal reason in this domain's README and the commit. No commented-out duplicate implementations.
 
-Current extraction: the actual runtime, pure model, JPA mappings/repositories and both transactional adapters are Files-owned. Runtime imports register actual services/providers/controllers, while App excludes the Files business namespace from its transitional scan. Selected App packaging and reduced API/client activation remain separate integration work; do not claim a complete Files-only executable from library checks.
+Current extraction: the actual runtime, pure model, JPA mappings/repositories and both transactional adapters are Files-owned. Runtime imports register actual services/providers/controllers, while App excludes the Files business namespace from its transitional scan. Selected App production/schema/API composition and actual executable inspection now exist. Reduced bootstrap/client activation and schema/platform qualification remain separate; use the living ownership plan for exact results, and do not infer complete product readiness from packaging checks.
 
 The resource entity now declares the active-path unique constraint, lifecycle/path check and parent index previously expressed only in V9 SQL. These annotations preserve existing behavior while making generated schemas usable; they are not a new parallel migration catalog.
 

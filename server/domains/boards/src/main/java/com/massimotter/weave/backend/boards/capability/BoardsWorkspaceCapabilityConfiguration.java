@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /** Wires the owning domain's capability declaration into shared workspace policy. */
+@org.springframework.context.annotation.PropertySource("classpath:weave/domain/boards-defaults.properties")
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties({BoardsWorkspaceCapabilityProperties.class})
 public class BoardsWorkspaceCapabilityConfiguration {

@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.meetings.discovery;
 
+import com.massimotter.weave.backend.discovery.catalog.ProviderCategorySelectionPolicy;
 import com.massimotter.weave.backend.discovery.catalog.CanonicalDomainContribution;
 import com.massimotter.weave.backend.discovery.catalog.CanonicalDomainRegistry;
 import com.massimotter.weave.backend.discovery.catalog.ProviderCategoryContract;
@@ -15,9 +16,16 @@ public final class MeetingsDiscoveryMetadata {
     private MeetingsDiscoveryMetadata() {}
 
     public static ProviderCategoryFragment meetingsCallsCategory() {
-        return new ProviderCategoryFragment("meetings", 4, "meetings-calls", "meetings/calls",
-                null, true, "Meetings and calls are available only when the configured media provider is ready behind the backend token facade.",
-                ProviderRealityLevel.CONFIGURED, Set.of(ProviderModule.MEETINGS),
+        return new ProviderCategoryFragment("meetings",
+                4,
+                "meetings-calls",
+                "meetings/calls",
+                null,
+                true,
+                "Meetings and calls are available only when the configured media provider is ready behind the backend token facade.",
+                ProviderRealityLevel.CONFIGURED,
+                Set.of(ProviderModule.MEETINGS),
+                ProviderCategorySelectionPolicy.metadataOnly(),
                 new ProviderCategoryContract(
                     List.of("meetings.join", "meetings.host", "meetings.recording_policy"),
                     List.of("livekit"),

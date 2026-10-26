@@ -10,9 +10,16 @@ public final class CoreDiscoveryMetadata {
     private CoreDiscoveryMetadata() {}
 
     public static ProviderCategoryFragment adminControlPlaneCategory() {
-        return new ProviderCategoryFragment("core", 9, "admin-control-plane", "admin control plane",
-                "admin-control-plane", false, null,
-                ProviderRealityLevel.RELEASE_READY, Set.of(),
+        return new ProviderCategoryFragment("core",
+                9,
+                "admin-control-plane",
+                "admin control plane",
+                "admin-control-plane",
+                false,
+                null,
+                ProviderRealityLevel.RELEASE_READY,
+                Set.of(),
+                ProviderCategorySelectionPolicy.metadataOnly(),
                 new ProviderCategoryContract(
                     List.of("admin_control_plane.readiness_read", "admin_control_plane.adapter_select", "admin_control_plane.support_bundle"),
                     List.of("weave-health-facade"),

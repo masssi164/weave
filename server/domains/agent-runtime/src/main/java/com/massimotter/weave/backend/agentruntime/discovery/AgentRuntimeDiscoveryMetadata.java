@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.agentruntime.discovery;
 
+import com.massimotter.weave.backend.discovery.catalog.ProviderCategorySelectionPolicy;
 import com.massimotter.weave.backend.discovery.catalog.CanonicalDomainContribution;
 import com.massimotter.weave.backend.discovery.catalog.CanonicalDomainRegistry;
 import com.massimotter.weave.backend.discovery.catalog.ProviderCategoryContract;
@@ -14,9 +15,16 @@ public final class AgentRuntimeDiscoveryMetadata {
     private AgentRuntimeDiscoveryMetadata() {}
 
     public static ProviderCategoryFragment modelCategory() {
-        return new ProviderCategoryFragment("agent-runtime", 10, "model", "model provider",
-                null, true, "Model provider selection is admin-owned and exposed only through support-safe aliases to entitled Agent Runtime Control workloads.",
-                ProviderRealityLevel.CONFIGURED, Set.of(),
+        return new ProviderCategoryFragment("agent-runtime",
+                10,
+                "model",
+                "model provider",
+                null,
+                true,
+                "Model provider selection is admin-owned and exposed only through support-safe aliases to entitled Agent Runtime Control workloads.",
+                ProviderRealityLevel.CONFIGURED,
+                Set.of(),
+                ProviderCategorySelectionPolicy.metadataOnly(),
                 new ProviderCategoryContract(
                     List.of("model.chat_completion", "model.embedding", "model.admin_select"),
                     List.of("lmstudio", "lmstudio-openai-compatible"),
@@ -29,9 +37,16 @@ public final class AgentRuntimeDiscoveryMetadata {
     }
 
     public static ProviderCategoryFragment agentRuntimeControlCategory() {
-        return new ProviderCategoryFragment("agent-runtime", 11, "agent-runtime-control", "Agent Runtime Control",
-                "agent-runtime", true, null,
-                ProviderRealityLevel.CONTRACT_ONLY, Set.of(),
+        return new ProviderCategoryFragment("agent-runtime",
+                11,
+                "agent-runtime-control",
+                "Agent Runtime Control",
+                "agent-runtime",
+                true,
+                null,
+                ProviderRealityLevel.CONTRACT_ONLY,
+                Set.of(),
+                ProviderCategorySelectionPolicy.metadataOnly(),
                 new ProviderCategoryContract(
                     List.of("agent-runtime.entitled", "agent-runtime.profile.read", "agent-runtime.lifecycle.write", "agent-runtime.wake", "agent-runtime.approval.attest"),
                     List.of("weaver-openclaw"),

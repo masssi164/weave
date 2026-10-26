@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.files.discovery;
 
+import com.massimotter.weave.backend.admin.domain.AdminCapabilityDeclaration;
+import com.massimotter.weave.backend.admin.domain.SuiteDomainDeclaration;
 import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.discovery.catalog.CanonicalDomainContribution;
 import com.massimotter.weave.backend.discovery.catalog.ProviderCategoryFragment;
@@ -9,6 +11,16 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration(proxyBeanMethods = false)
 public class FilesDiscoveryConfiguration {
+
+    @Bean
+    SuiteDomainDeclaration filesAdminSuite() {
+        return FilesAdminMetadata.suite();
+    }
+
+    @Bean
+    AdminCapabilityDeclaration filesAdminCapabilities() {
+        return FilesAdminMetadata.capabilities();
+    }
 
     @Bean
     NextcloudPlatformDiagnostics nextcloudPlatformDiagnostics(

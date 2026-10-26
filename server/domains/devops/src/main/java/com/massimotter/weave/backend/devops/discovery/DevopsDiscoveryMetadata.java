@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.devops.discovery;
 
+import com.massimotter.weave.backend.discovery.catalog.ProviderCategorySelectionPolicy;
 import com.massimotter.weave.backend.discovery.catalog.ProviderCategoryContract;
 import com.massimotter.weave.backend.discovery.catalog.ProviderCategoryFragment;
 import com.massimotter.weave.backend.discovery.provider.ProviderModule;
@@ -12,9 +13,16 @@ public final class DevopsDiscoveryMetadata {
     private DevopsDiscoveryMetadata() {}
 
     public static ProviderCategoryFragment releaseEvidenceCategory() {
-        return new ProviderCategoryFragment("devops", 8, "release-evidence", "release evidence",
-                "devops", false, null,
-                ProviderRealityLevel.RELEASE_READY, Set.of(ProviderModule.RELEASE),
+        return new ProviderCategoryFragment("devops",
+                8,
+                "release-evidence",
+                "release evidence",
+                "devops",
+                false,
+                null,
+                ProviderRealityLevel.RELEASE_READY,
+                Set.of(ProviderModule.RELEASE),
+                ProviderCategorySelectionPolicy.metadataOnly(),
                 new ProviderCategoryContract(
                     List.of("release_evidence.read", "release_evidence.manage", "release_notes.draft"),
                     List.of("release-evidence"),

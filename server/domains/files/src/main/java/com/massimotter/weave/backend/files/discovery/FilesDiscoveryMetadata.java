@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.files.discovery;
 
+import com.massimotter.weave.backend.discovery.catalog.ProviderCategorySelectionPolicy;
 import com.massimotter.weave.backend.discovery.catalog.CanonicalDomainContribution;
 import com.massimotter.weave.backend.discovery.catalog.CanonicalDomainRegistry;
 import com.massimotter.weave.backend.discovery.catalog.ProviderCategoryContract;
@@ -15,9 +16,18 @@ public final class FilesDiscoveryMetadata {
     private FilesDiscoveryMetadata() {}
 
     public static ProviderCategoryFragment filesCategory() {
-        return new ProviderCategoryFragment("files", 1, "files", "files",
-                "files", true, null,
-                ProviderRealityLevel.RELEASE_READY, Set.of(ProviderModule.FILES),
+        return new ProviderCategoryFragment("files",
+                1,
+                "files",
+                "files",
+                "files",
+                true,
+                null,
+                ProviderRealityLevel.RELEASE_READY,
+                Set.of(ProviderModule.FILES),
+                new ProviderCategorySelectionPolicy(true, false, "blocked-unverified",
+                        "files-provider-activation-unverified",
+                        "Files provider activation requires a verified organization-scoped replacement run."),
                 new ProviderCategoryContract(
                     List.of("files.read", "files.upload", "files.download", "files.delete"),
                     List.of("weave-native"),

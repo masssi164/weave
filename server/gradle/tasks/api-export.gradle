@@ -1,0 +1,74 @@
+// Export uses selected production classes/resources, never the broad integration-test classpath.
+sourceSets {
+    apiExport {
+        compileClasspath += sourceSets.main.output + configurations.runtimeClasspath
+        runtimeClasspath += sourceSets.main.output + configurations.runtimeClasspath
+    }
+}
+configurations.apiExportImplementation.extendsFrom(configurations.implementation)
+dependencies {
+    apiExportImplementation 'org.springframework.boot:spring-boot-starter-test'
+    apiExportImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    apiExportImplementation libs.testcontainers.junit
+    apiExportImplementation libs.testcontainers.postgresql
+    apiExportRuntimeOnly libs.h2.test
+    apiExportRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+def exportDirectory = rootProject.layout.buildDirectory.dir("openapi/${weaveSelectionIdentity}")
+ext.weaveApiExportDirectory = exportDirectory
+
+tasks.register('openApiContractExport', Test) {
+    group = 'verification'
+    description = 'Boot selected production handlers and export separate User/Admin OpenAPI documents offline.'
+    dependsOn tasks.named('apiExportClasses'), tasks.named('verifySelectedRuntime')
+    testClassesDirs = sourceSets.apiExport.output.classesDirs
+    classpath = sourceSets.apiExport.runtimeClasspath
+    systemProperty 'weave.openapi.export.directory', exportDirectory.get().asFile.absolutePath
+    systemProperty 'weave.domains', project(':server').ext.weaveDomainSelection.domains.join(',')
+    if ('chat' in project(':server').ext.weaveDomainSelection.domains) {
+        dependsOn tasks.named('buildMatrixRustCoreJni')
+        systemProperty 'weave.matrix.protocol.library.path', matrixProtocolLibrary.get().absolutePath
+    }
+    useJUnitPlatform { includeEngines 'junit-jupiter'; excludeTags 'postgres' }
+    outputs.dir(exportDirectory)
+    // Context/export validation must run even when another selection produced an earlier document.
+    outputs.upToDateWhen { false }
+}
+
+tasks.register('selectedApiContractCheck', Exec) {
+    group = 'verification'
+    description = 'Normalize and validate selected User/Admin contracts outside the tracked full contract tree.'
+    dependsOn tasks.named('openApiContractExport')
+    workingDir rootProject.projectDir
+    commandLine 'python3', rootProject.file('tools/normalize_openapi_contracts.py'),
+            '--root', rootProject.projectDir, '--export-dir', exportDirectory.get().asFile,
+            '--output-dir', exportDirectory.get().dir('normalized').asFile
+    inputs.files(provider {
+        fileTree(exportDirectory.get().asFile) { include '*.raw.json' }
+    })
+    outputs.dir(exportDirectory.map { it.dir('normalized') })
+}
+
+tasks.register('selectedRuntimePostgresTest', Test) {
+    group = 'verification'
+    description = 'Start the selected executable JAR on disposable PostgreSQL and validate its actual HTTP APIs.'
+    dependsOn tasks.named('apiExportClasses'), tasks.named('verifySelectedRuntime')
+    dependsOn tasks.named('verifySelectedArtifact')
+    inputs.file(tasks.named('bootJar').flatMap { it.archiveFile }).withPropertyName('selectedExecutable')
+    systemProperty 'weave.selected.jar', tasks.named('bootJar').get().archiveFile.get().asFile.absolutePath
+    testClassesDirs = sourceSets.apiExport.output.classesDirs
+    classpath = sourceSets.apiExport.runtimeClasspath
+    systemProperty 'weave.openapi.export.directory', layout.buildDirectory.dir("selected-runtime-postgres/${weaveSelectionIdentity}").get().asFile.absolutePath
+    systemProperty 'weave.domains', project(':server').ext.weaveDomainSelection.domains.join(',')
+    if ('chat' in project(':server').ext.weaveDomainSelection.domains) {
+        dependsOn tasks.named('buildMatrixRustCoreJni')
+        systemProperty 'weave.matrix.protocol.library.path', matrixProtocolLibrary.get().absolutePath
+    }
+    useJUnitPlatform { includeEngines 'junit-jupiter'; includeTags 'postgres' }
+}
+
+// Preserve representative variant reports independently in a single checkout/CI artifact.
+tasks.matching { it.name in ['openApiContractExport', 'selectedRuntimePostgresTest'] }.configureEach {
+    reports.junitXml.outputLocation = layout.buildDirectory.dir("test-results/${name}/${weaveSelectionIdentity}")
+    reports.html.outputLocation = layout.buildDirectory.dir("reports/tests/${name}/${weaveSelectionIdentity}")
+}

@@ -15,9 +15,9 @@ Declare constraints, indexes, relations and versioning in the mappings. ORM remo
 ./gradlew :server:app:entitySchemaExport
 ```
 
-Spring managed-type discovery and Boot naming defaults supply the actual compiled production runtime model to Hibernate's standard schema-generation API. There is no second hand-maintained entity/table inventory. Managed-type order is canonicalized. The application is still the transitional full Server; this is not proof of final `-Pdomains` runtime composition.
+Spring managed-type discovery and Boot naming defaults supply the actual compiled production runtime model to Hibernate's standard schema-generation API. There is no second hand-maintained entity/table inventory. Managed-type order is canonicalized. The existing domain resolver selects the production dependency graph; omitted entity libraries cannot enter the exporter through all-domain test fixtures.
 
-Output: `server/app/build/generated/entity-schema/V1__entity_baseline.sql`. Edit entities, not this derived candidate artifact. The task requires compiled classes/resources but starts no web application, provider clients, schedulers or database. Database actions and JDBC metadata discovery are disabled; a rejecting DataSource prevents unexpected connections. No application environment credentials are read. Tests execute actual Hibernate generation.
+Output: `server/app/build/generated/entity-schema/<normalized-domain-identity>/V1__entity_baseline.sql`. Edit entities, not this derived candidate artifact. The task requires compiled classes/resources but starts no web application, provider clients, schedulers or database. Database actions and JDBC metadata discovery are disabled; a rejecting DataSource prevents unexpected connections. No application environment credentials are read. Tests execute actual Hibernate generation.
 
 The exporter belongs to the `schemaExport` source set, not the serving bootJar or native executable. The root architecture gate includes export and isolated contracts. OpenAPI remains a distinct generation path requiring compiled controllers and registered handlers.
 

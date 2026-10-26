@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.office.discovery;
 
+import com.massimotter.weave.backend.discovery.catalog.ProviderCategorySelectionPolicy;
 import com.massimotter.weave.backend.discovery.catalog.CanonicalDomainContribution;
 import com.massimotter.weave.backend.discovery.catalog.CanonicalDomainRegistry;
 import com.massimotter.weave.backend.discovery.catalog.ProviderCategoryContract;
@@ -15,9 +16,16 @@ public final class OfficeDiscoveryMetadata {
     private OfficeDiscoveryMetadata() {}
 
     public static ProviderCategoryFragment documentsCollaborationCategory() {
-        return new ProviderCategoryFragment("office", 5, "documents-collaboration", "documents/collaboration",
-                null, true, "Document collaboration is available only through backend-owned launch/capability facades.",
-                ProviderRealityLevel.CONTRACT_ONLY, Set.of(ProviderModule.OFFICE),
+        return new ProviderCategoryFragment("office",
+                5,
+                "documents-collaboration",
+                "documents/collaboration",
+                null,
+                true,
+                "Document collaboration is available only through backend-owned launch/capability facades.",
+                ProviderRealityLevel.CONTRACT_ONLY,
+                Set.of(ProviderModule.OFFICE),
+                ProviderCategorySelectionPolicy.metadataOnly(),
                 new ProviderCategoryContract(
                     List.of("documents.view", "documents.edit", "documents.comment", "documents.collaborate"),
                     List.of("onlyoffice"),

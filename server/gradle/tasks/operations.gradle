@@ -1,6 +1,8 @@
 tasks.named('bootRun') {
-    dependsOn tasks.named('buildMatrixRustCoreJni')
-    systemProperty 'weave.matrix.protocol.library.path', matrixProtocolLibrary.get().absolutePath
+    if ('chat' in project(':server').ext.weaveDomainSelection.domains) {
+        dependsOn tasks.named('buildMatrixRustCoreJni')
+        systemProperty 'weave.matrix.protocol.library.path', matrixProtocolLibrary.get().absolutePath
+    }
 }
 
 tasks.register('runtimeProfileSigningKeys', JavaExec) {

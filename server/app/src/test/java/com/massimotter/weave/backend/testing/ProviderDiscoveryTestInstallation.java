@@ -11,7 +11,6 @@ import com.massimotter.weave.backend.chat.discovery.ChatDiscoveryMetadata;
 import com.massimotter.weave.backend.calendar.discovery.CalendarDiscoveryMetadata;
 import com.massimotter.weave.backend.devops.discovery.DevopsDiscoveryMetadata;
 import com.massimotter.weave.backend.discovery.catalog.CoreDiscoveryMetadata;
-import com.massimotter.weave.backend.notifications.discovery.NotificationsDiscoveryMetadata;
 import com.massimotter.weave.backend.manuals.discovery.ManualsDiscoveryMetadata;
 import com.massimotter.weave.backend.discovery.catalog.CanonicalDomainRegistry;
 import com.massimotter.weave.backend.discovery.catalog.ProviderCategoryCatalog;
@@ -59,8 +58,7 @@ public final class ProviderDiscoveryTestInstallation {
                 CalendarDiscoveryMetadata.calendarDomain(),
                 CoreDiscoveryMetadata.peopleDomain(),
                 CoreDiscoveryMetadata.spacesDomain(),
-                CoreDiscoveryMetadata.healthDomain(),
-                NotificationsDiscoveryMetadata.notificationsDomain()));
+                CoreDiscoveryMetadata.healthDomain()));
     }
 
     public static void stubCapabilities(WorkspaceCapabilityService service,
@@ -87,5 +85,39 @@ public final class ProviderDiscoveryTestInstallation {
         var catalog = categories();
         return new ProviderRegistry(providers, capabilities, selections, catalog,
                 new ProviderCapabilityContracts(catalog), canonicalDomains());
+    }
+
+    public static com.massimotter.weave.backend.admin.application.AdminCapabilityCatalog adminCapabilities() {
+        return new com.massimotter.weave.backend.admin.application.AdminCapabilityCatalog(List.of(
+                com.massimotter.weave.backend.admin.domain.CoreAdminMetadata.capabilities(),
+                com.massimotter.weave.backend.chat.discovery.ChatAdminMetadata.capabilities(),
+                com.massimotter.weave.backend.files.discovery.FilesAdminMetadata.capabilities(),
+                com.massimotter.weave.backend.calendar.discovery.CalendarAdminMetadata.capabilities(),
+                com.massimotter.weave.backend.boards.discovery.BoardsAdminMetadata.capabilities(),
+                com.massimotter.weave.backend.meetings.discovery.MeetingsAdminMetadata.capabilities(),
+                com.massimotter.weave.backend.office.discovery.OfficeAdminMetadata.capabilities(),
+                com.massimotter.weave.backend.decisions.discovery.DecisionsAdminMetadata.capabilities(),
+                com.massimotter.weave.backend.manuals.discovery.ManualsAdminMetadata.capabilities(),
+                com.massimotter.weave.backend.devops.discovery.DevopsAdminMetadata.capabilities()));
+    }
+
+    public static com.massimotter.weave.backend.admin.application.SuiteDomainCatalog adminSuites() {
+        return new com.massimotter.weave.backend.admin.application.SuiteDomainCatalog(List.of(
+                com.massimotter.weave.backend.files.discovery.FilesAdminMetadata.suite(),
+                com.massimotter.weave.backend.office.discovery.OfficeAdminMetadata.suite(),
+                com.massimotter.weave.backend.boards.discovery.BoardsAdminMetadata.suite(),
+                com.massimotter.weave.backend.calendar.discovery.CalendarAdminMetadata.suite(),
+                com.massimotter.weave.backend.meetings.discovery.MeetingsAdminMetadata.suite()));
+    }
+
+    public static List<com.massimotter.weave.backend.admin.api.McpServerBindingResponse> mcpBindings() {
+        return List.of(com.massimotter.weave.backend.agentruntime.discovery.AgentRuntimeAdminMetadata.mcpBinding());
+    }
+
+    public static List<com.massimotter.weave.backend.admin.domain.AdminApiLink> adminApiLinks() {
+        return List.of(new com.massimotter.weave.backend.admin.domain.AdminApiLink(
+                        "agentRuntimes", "/api/admin/agent-runtimes/{personRef}"),
+                new com.massimotter.weave.backend.admin.domain.AdminApiLink(
+                        "providerReplacementDryRun", "/api/admin/providers/replacements/dry-run"));
     }
 }

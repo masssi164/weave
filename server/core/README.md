@@ -124,3 +124,19 @@ owners retain explicit disabled states. Duplicate ownership or undeclared grants
 Actual serving policy/readiness beans register through Core's imports resource and remain
 absent from non-web schema/operator discovery. The accepted full twelve-field API projection
 is preserved while reduced-runtime publication awaits the reviewed contract/composition work.
+
+
+Shared Admin policy lives in `admin.application` and its HTTP/wire contracts in `admin.api`.
+Installed domains declare their existing simulation grants, profile capabilities and grouped suite
+readiness metadata; Core validates ownership and assembles them without optional implementations.
+Category selection policy is required in each owning provider-category fragment. Files retains its
+unverified-activation refusal, and current binding conflicts remain protected for the scoped domains.
+Missing bindings cannot be hidden by a default identity or nullable repository constructor.
+
+The old App `discovery.admin.SuiteDomainDefinition` global feature constants moved to actual Files,
+Office, Calendar, Meetings and Boards declarations. The disabled future MCP preview belongs to Agent
+Runtime and disappears when that runtime is omitted. The unsupported App Notifications declaration
+and matching registry fixture entry were retired: no handler, use case, repository or accepted
+backend bounded context implemented it. Future notification product work remains separate scope;
+no replacement backend or provider implementation is claimed. Manuals still has an accepted required
+workspace wire slot and remains an explicit composition blocker until coordinated contract changes.

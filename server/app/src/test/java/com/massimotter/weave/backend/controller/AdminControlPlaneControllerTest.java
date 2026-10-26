@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.admin.api.AdminControlPlaneController;
 import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation;
 import com.massimotter.weave.backend.identity.profile.port.ProductProfileOverrideRepository;
 
@@ -29,7 +30,7 @@ import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityReadiness
 import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityStatusResponse;
 import com.massimotter.weave.backend.capability.api.EffectivePolicyDenyResponse;
 import com.massimotter.weave.backend.capability.api.EffectivePolicyResponse;
-import com.massimotter.weave.backend.model.admin.ProviderSelectionRequest;
+import com.massimotter.weave.backend.admin.api.ProviderSelectionRequest;
 import com.massimotter.weave.backend.office.provider.DisabledOfficeProvider;
 import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
 import com.massimotter.weave.backend.discovery.application.ProviderRegistry;
@@ -38,7 +39,7 @@ import com.massimotter.weave.backend.providerbinding.selection.ProviderSelection
 import com.massimotter.weave.backend.providerbinding.domain.ProviderBinding;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
 import java.time.Instant;
-import com.massimotter.weave.backend.service.AdminControlPlaneService;
+import com.massimotter.weave.backend.admin.application.AdminControlPlaneService;
 import com.massimotter.weave.backend.identity.organization.fixture.InMemoryOrganizationBootstrapRepository;
 import com.massimotter.weave.backend.identity.organization.port.OrganizationBootstrapRepository;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
@@ -89,6 +90,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         com.massimotter.weave.backend.files.config.FilesRuntimeProperties.class,
         com.massimotter.weave.backend.meetings.config.LiveKitSfuProviderProperties.class})
 @Import({
+        AdminControlPlaneController.class,
         OrganizationIdentityContextResolver.class,
         SecurityConfig.class,
         ApiAuthenticationEntryPoint.class,
@@ -819,6 +821,36 @@ class AdminControlPlaneControllerTest {
 
     @TestConfiguration
     static class AuditTestConfig {
+        @Bean
+        com.massimotter.weave.backend.admin.domain.AdminApiLink agentRuntimeAdminApiLink() {
+            return new com.massimotter.weave.backend.admin.domain.AdminApiLink(
+                    "agentRuntimes", "/api/admin/agent-runtimes/{personRef}");
+        }
+
+        @Bean
+        com.massimotter.weave.backend.admin.domain.AdminApiLink providerReplacementAdminApiLink() {
+            return new com.massimotter.weave.backend.admin.domain.AdminApiLink(
+                    "providerReplacementDryRun", "/api/admin/providers/replacements/dry-run");
+        }
+
+        @Bean
+        java.time.Clock adminControlPlaneClock() { return java.time.Clock.systemUTC(); }
+
+        @Bean
+        com.massimotter.weave.backend.admin.application.AdminCapabilityCatalog adminCapabilityCatalog() {
+            return com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation.adminCapabilities();
+        }
+
+        @Bean
+        com.massimotter.weave.backend.admin.application.SuiteDomainCatalog adminSuiteDomainCatalog() {
+            return com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation.adminSuites();
+        }
+
+        @Bean
+        com.massimotter.weave.backend.admin.api.McpServerBindingResponse adminMcpBinding() {
+            return com.massimotter.weave.backend.agentruntime.discovery.AgentRuntimeAdminMetadata.mcpBinding();
+        }
+
         @Bean
         com.massimotter.weave.backend.discovery.catalog.ProviderCategoryCatalog providerCategoryCatalog() {
             return com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation.categories();

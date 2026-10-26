@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.integrations.discovery;
 
+import com.massimotter.weave.backend.discovery.catalog.ProviderCategorySelectionPolicy;
 import com.massimotter.weave.backend.discovery.catalog.ProviderCategoryContract;
 import com.massimotter.weave.backend.discovery.catalog.ProviderCategoryFragment;
 import com.massimotter.weave.backend.discovery.provider.ProviderModule;
@@ -12,9 +13,16 @@ public final class IntegrationsDiscoveryMetadata {
     private IntegrationsDiscoveryMetadata() {}
 
     public static ProviderCategoryFragment documentsFragment() {
-        return new ProviderCategoryFragment("integrations", 5, "documents-collaboration", "documents/collaboration",
-                null, true, "Document collaboration is available only through backend-owned launch/capability facades.", ProviderRealityLevel.CONTRACT_ONLY,
+        return new ProviderCategoryFragment("integrations",
+                5,
+                "documents-collaboration",
+                "documents/collaboration",
+                null,
+                true,
+                "Document collaboration is available only through backend-owned launch/capability facades.",
+                ProviderRealityLevel.CONTRACT_ONLY,
                 Set.of(ProviderModule.CONTACTS, ProviderModule.FORMS),
+                ProviderCategorySelectionPolicy.metadataOnly(),
                 new ProviderCategoryContract(List.of(),
                         List.of(),
                         List.of(),
