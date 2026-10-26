@@ -57,3 +57,13 @@ Monorepo alignment:
 - Follow `docs/developer-handbook.md`, `docs/gitflow-pr-workflow.md`, `docs/weave-operating-model.md`, and relevant domain docs before coding, opening PRs, merging, or declaring work complete.
 - If the user asks to finish a sprint/milestone, derive acceptance from GitHub issues/milestones, repo specs/tasks, docs, CI policy, and evidence; do not require the user to restate issue acceptance criteria.
 - Use protected `main`, short-lived branches, exactly one `release-notes-*` label per PR, smallest meaningful local gates, green CI, fallback review evidence, and GitHub closure verification before reporting completion.
+
+## Installed workspace domains
+
+Consume the generated required Core statuses and typed domain-status map. Presence identifies
+installation; readiness and member authorization do not remove an installed navigation entry.
+Use stable domain IDs for destinations and route guards, preserve the router across membership
+refresh, and send omitted-domain retained/deep links to Home without invoking absent APIs.
+The manifest protocols container stays required; Matrix metadata is conditional on installed
+Chat and remains strictly validated when Chat is present. Do not invent a Matrix URL for no-Chat
+servers. Coordinated #172 acceptance remains separate from implementation test readiness.

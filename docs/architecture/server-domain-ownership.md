@@ -13,7 +13,7 @@ unrelated work and incorporate upstream normally. Never reset to a historical ch
 The accepted corpus remains `f049c0b1879414eb529a3df83a18224407f1a436`. Entity-first ownership
 was approved through weave-specs#170. Explicit persistence/composition/no-Chat and Linux
 ARM64/GHCR reconciliation is proposed in [weave-specs#172](https://github.com/masssi164/weave-specs/pull/172),
-proposal `e38e9ba`; its hosted conformance passed and it is ready for review; acceptance remains pending. A proposal does not
+proposal `caf3d00` (including typed installed workspace statuses and consumer behavior); local corpus lint passes, acceptance remains pending. A proposal does not
 silently replace the accepted pin. No placeholder Matrix URL, owner-data reset, applied-history
 rewrite, protected merge, deployment or release publication is authorized by this refactor.
 
@@ -23,23 +23,31 @@ Boards, Office, DevOps, Agent Runtime, Integrations, Guest Access, Portability, 
 Meetings implementations have real owning runtime projects. Their incomplete implementations
 remain explicit future scope. Core owns independently useful platform capabilities.
 
-**Still open:** the required closed workspace/Matrix wire projection and App Manuals declarations;
-accepted reduced/no-Chat discovery and coordinated client activation; the initializer/schema cutover;
-automatic ARM64/GHCR integration and platform/live qualification. Production dependencies and
-schema/API export now use selected runtimes; a real classpath/artifact check replaces the former
-blanket partial-packaging refusal. This does not establish a clean release capability projection.
-A green full experimental `all` build is not a qualified three-domain release candidate.
+**Review fixes implemented:** the workspace wire uses required Core statuses and a typed
+installed-domain map. No-Chat manifest/status omit conditional Matrix metadata; Chat validates it.
+Generated Dart and the single Flutter shell consume stable installed identities independently of
+readiness or member permission. App's fabricated Manuals backend declarations are retired; Help
+remains a client shell entry. Calendar candidate bounds, batching and cohesive service ownership
+have owning PostgreSQL/unit coverage. These changes are prepared against pending #172; acceptance
+and live release qualification remain distinct. The initializer/schema cutover, Linux ARM64/GHCR
+and full live/native qualification remain separate work. A green experimental `all` build is not a
+qualified three-domain release candidate.
 
-## Living six-phase execution plan
+## Current review-fix execution
 
-| Phase | Concrete milestone / decision | Required checks | State and remaining blockers |
+Continue from the fetched branch; review reference `f2aabb1c5f` is not a reset target.
+Scope is the four source findings in review 5647885198 and follow-ups 6423999001/6424005994.
+Prepare the coordinated pending #172 contract and executable implementation/tests without repinning
+or claiming formal acceptance. Preserve the existing extraction and selection authority.
+
+| Phase | Concrete milestone and decision | Checks | Current state / remaining blocker |
 | --- | --- | --- | --- |
-| 1. Ownership and contracts | Inventory production classes, resources, SDK/native inputs and tests; assign actual owners before moves; reconcile corpus through normal review | Accepted corpus, call sites, bean/resource/reflection/generated consumers, ownership/source inspection | Inventory and explicit proposal implemented; acceptance of #172 pending |
-| 2. Runtime architecture | Sole executable App; justified Core responsibilities; real domain Gradle runtimes with module-local imports and separate non-web persistence | Compiled graph, real Boot imports discovery, singleton beans, no App dependency | Runtime owners extracted; generic catalogs, Home, Platform and Admin compose owner declarations |
-| 3. Vertical extraction and ORM | Move actual controllers/use cases/providers/settings/resources/JPA; preserve future functionality; remove ordinary Calendar/Matrix JDBC CRUD | Owning units; PostgreSQL reads/writes/isolation/constraints/rollback/locking/concurrency; no legacy copies | Actual release and existing future runtimes extracted; provider-replacement planning now owned by Portability; generic Admin extracted; accepted closed workspace projection still transitional |
-| 4. Core and build finalization | Remove optional implementation dependencies from shared workflows; one resolver drives checks, runtime, schema/API and identity | Architecture, selected artifact/SDK inspection, deterministic schema, real Gradle wiring | Shared session/Identity/Spaces/HTTP/policy/health/readiness contracts implemented; selected production/schema/API composition implemented; public projection/cutover qualification open |
-| 5. Runtime and clients | Actual release plus Files-only/Calendar-only/Chat-only startup, honest endpoints/capabilities, generated User/Admin consumers and stable Flutter navigation | API/auth/freshness, reduced variants, actual absence of omitted SDK/JNI, Compose/two members, ARM64/AOT where available | Selected real HTTP/schema/JAR and all four packaged PostgreSQL variants pass; reduced discovery acceptance and live/platform qualification pending |
-| 6. Review and delivery | Consolidate canonical docs/scoped instructions/Skills; review combined source; coherent commits/push and PR evidence | Applicable combined gates, diff/source review, exact revision, hosted results | Checkpoints pushed; prior combined verification passed; selected/Admin combined verification passed; App scan and selected image/receipt integration implemented; combined candidate and four representative variants pass; external qualification and contract activation remain; PR stays draft |
+| 1. Reproduce and coordinate | Verify the release decoding/no-Chat failures; propose required Core statuses plus typed installed-domain map and conditional Matrix semantics | Red Core serialization/config tests; accepted corpus inspection; #172 lint/contract vectors | Reproduced and corrected; proposal `caf3d00` awaits formal acceptance; accepted pin unchanged |
+| 2. Calendar interval correctness | Correct DATE upper-day ceiling and bounded legal-offset candidates; exact recurrence filtering stays authoritative; batch scoped payloads | Owning PostgreSQL candidate/query/free-busy cases for exact January windows, touching edges, DST/offsets, overrides, FLOATING/UTC, tenant/scope/deletion, 205 events and PostgreSQL tie ordering | Implemented in `3a553dbeb5`; 13 PostgreSQL cases pass, no skips; no SQL CRUD, whole-calendar scan or result truncation |
+| 3. Test ownership and cohesive services | Move direct Calendar/Files/Chat tests; Core owns only the shared selection fixture; split Calendar event, authorization, DAV sync and client setup responsibilities | Actual owner unit/context reports; imports discovery; App security slices; DAV serialization/token-order regressions | Implemented in `a285644ac8`; owning checks exclude App/unrelated runtimes; composition/database tests remain App-owned |
+| 4. Usable selected product | Typed workspace transport, manifest/status, generated consumers, stable single-client routes, strict installed Chat errors; retire fake App Manuals metadata | Real selected JAR/PostgreSQL/JWKS ordinary-member HTTP; generated Dart bootstrap, stored manifest and production router/shell; anonymous/wrong-org/Admin-client negatives | Implemented in `a285644ac8`; release and three individual selections pass the same packaged lane; formal contract activation awaits #172 |
+| 5. Combined verification | Freeze runtime source and check release, Files, Calendar, Chat plus full experimental composition | API/client freshness, owning/App/PostgreSQL, architecture, corpus, static acceptance, docs and infrastructure gates below; Flutter analysis/full suite | Exact commands/results belong to the current PR checkpoint; static and local JVM proof do not establish live/native acceptance |
+| 6. Review and delivery | Review source/security/transactions/resources, consolidate canonical guidance, preserve coherent commits and draft PR | Diff/source review; normal push; finding-to-commit/test report; proposal approval separated from implementation readiness | No merge/deploy/data reset/publication; #172 acceptance and separate schema/platform/live qualification remain external |
 
 ## Ownership map and dependency direction
 
@@ -83,13 +91,11 @@ shared HTTP/error infrastructure. Each owns its persistence/adapters/settings be
 There is no generic Core common/util/service/controller/model/persistence/adapters dumping ground.
 The framework-free `core/model` project is a deliberate contract boundary, not a home for features.
 
-App's built-in Manuals/help capability declaration currently describes an application-wide UI entry,
-with no provider, persistence or separate implemented backend feature. Do not invent a placeholder
-Manuals/notifications Gradle project merely to relocate declaration metadata. Remaining global feature
-declarations must be reconciled with accepted composition before claiming release exclusion complete.
-Generic provider/category/canonical catalogs no longer embed optional-domain declarations. The full
-experimental installation preserves twelve ordered status categories, eight selectable provider
-categories and eleven canonical entries after unsupported Notifications metadata retirement; these are distinct from the twelve selectable Gradle runtimes.
+App no longer declares Manuals as an installed backend capability. The removed six metadata/
+configuration classes had no backend implementation, provider, persistence or endpoint; advertising
+ready functionality from App conflated shell Help with installation. Flutter's Help route remains.
+No placeholder Manuals project replaces them. Generic catalogs compose actual owner declarations;
+the selectable Gradle catalog remains independent of public status/category counts.
 Unknown catalog policy and duplicate owner/module/alias claims fail explicitly. Office and Integrations
 share a category through independently owned fragments; neither acquires a new required dependency.
 
@@ -176,9 +182,9 @@ checks actual JAR libraries, manifest and duplicate Weave classes. BootRun build
 Never reuse a stale full-domain contract or treat hidden beans/skipped tasks as artifact exclusion.
 Cache/signing inputs include actual source/resources/build/native pins, source/spec identity and platform/flavor.
 
-Flutter uses stable shell destination identities for routing/navigation/semantics/member refresh. Its accepted
-full bootstrap remains active. Omitted-domain navigation and no-Chat Matrix discovery require accepted contract,
-server/generated consumer and client validation changes together. No placeholder protocol URL or extra client
+Flutter uses stable shell destination identities for routing/navigation/semantics/member refresh. The
+coordinated Server/generated-consumer/client candidate supports omitted domains and no-Chat Matrix
+discovery against proposed #172; accepted-contract completion still requires its normal approval. No placeholder protocol URL or extra client
 build is an alternative. Existing GHCR work must reconcile immutable consumers with automatic Linux ARM64;
 JVM ARM64 is not GraalVM Native Image. No runner rebuild or unrelated delivery rewrite belongs here.
 
@@ -187,138 +193,72 @@ consumer, registration, resource and reflection inspection. Serving shared entit
 Core Keycloak authority; active runtime identity integration is unchanged. The unused test-only
 organization bootstrap file adapter is also retired; the actual versioned JPA adapter remains.
 
-## Validation and next execution checkpoint
+## Verification and qualification boundary
 
-The Home/Platform/security follow-up passed the combined command below in 5m29s
-(`/tmp/weave-home-platform-security-candidate.log`); source was frozen throughout:
-
-```sh
-DOCKER_HOST=<observed-disposable-engine> WEAVE_SPEC_CORPUS_ROOT=<accepted-pinned-checkout> ./gradlew :server:domains:check :server:app:test :server:app:postgresJpaTest :server:app:entitySchemaCheck coreArchitectureCi canonicalDataCi specCorpusConformance acceptanceContract checkOpenApiContractFresh infraStatic :server:app:bootJar -Pdomains=all --console=plain
-```
-
-Fresh XML: Core 310 unit cases; App 841 with 23 PostgreSQL-only skips; separate PostgreSQL
-204 with no skips/failures/errors. Actual domain/Core context lanes, schema/API freshness,
-architecture, corpus, static acceptance and infrastructure gates pass. Static acceptance mapping
-is not live integrated product evidence. Initial checks exposed a missing Core-owned Platform
-properties registration; production auto-configuration now registers it independently of App.
-
-Home aggregation/HTTP now belongs to Core Home, consuming actual owner section/activity contributions.
-Files owns recent activity privacy and projections. Audit readback uses an organization-scoped,
-filtered, ordered and paginated JPA query; no unscoped production read remains. PostgreSQL proves
-cross-organization isolation and bounded entity loading; Home tests prove privacy across pages.
-Platform HTTP/assembly/wire models now belong to Core Discovery. Matrix validation/projection belongs
-to Chat, and Files/Calendar own their status diagnostics. Shared assembly tolerates absent domains;
-the accepted required Matrix manifest still fails support-safely when absent pending #172.
-
-Files/Calendar own their signed workload decoders; actual signed-token tests preserve issuer,
-audience, type, expiry and exact-scope enforcement. Chat/Agent own their existing public-route
-contributions; protected route tests remain. Offline Agent key commands use module-owned Java
-ServiceLoader registrations. Three actual packaged-JAR probes (both commands with invalid arguments
-and an unknown command) returned status 2 with support-safe diagnostics and no Spring startup.
-App production source now imports no optional-domain implementation types.
-
-Previous checkpoint `fd0937f73b` passed organization bootstrap/catalog/replacement extraction and
-full checks. Independent resolver/workflow/inventory tests passed 54 cases, actual Gradle wiring
-six cases, and default/Files+Chat owning checks. Hosted earlier API/protocol/Admin/architecture/docs/
-corpus/infra jobs passed. On `2704e842`, the complete selected-domain workflow passed on Linux ARM64,
-including the formerly failing reduced-export Gradle wiring probes. Core CI at that revision exposed
-the retired Files selector described below; the local corrected boundary guard passes.
-
-Selected `bootJar`, offline schema and isolated API export now pass for Files-only, Calendar-only,
-Chat-only and the three-domain release. Artifact inspection reports 714 unique Weave classes for
-Files-only, 793 for Chat-only and 1,109 for the release composition, with no duplicate ownership.
-Files-only contains no Calendar/Chat/Agent implementation libraries. Initial selected HTTP contexts
-also passed on PostgreSQL; their container teardown exposed Hibernate cleanup ordering. The replacement
-`selectedRuntimePostgresTest` launches the actual JAR in a child JVM and terminates serving/pools
-before stopping its disposable database. All four representative variants pass with clean shutdown
-(`/tmp/weave-selected-<selection>-final.log`). The lane declares the actual executable as a test input,
-retains startup logs on failure and never uses the full integration classpath.
-
-The first combined Admin follow-up found stale architecture/controller-slice references plus slices
-that relied on former App-owned defaults. The architecture guard now inspects the relocated actual
-Admin handler, signed admission imports its actual transport adapter, and reusable domain capability
-configuration loads the owning defaults. Assertions are retained. A remaining Notifications fixture
-assertion was replaced with explicit absence of the retired unsupported declaration. Focused regression
-passes (16s). The next combined run passed owning/App/PostgreSQL/schema/architecture/corpus checks;
-static acceptance then found a relocated Identity lifecycle test path and obsolete README text marker.
-Both evidence references now point to the actual owning test/current description. Two infrastructure
-source checks likewise follow the actual loaded Chat/Calendar default resources. The combined command
-passed in 47s (`/tmp/weave-selected-admin-full-candidate6.log`), reusing the preceding fresh unchanged
-App/PostgreSQL results: Core model 10, Core 319 unit/18 context, App 834 with 23 explicit lane skips,
-and separate PostgreSQL 204 with no skips/failures/errors. Schema, architecture, corpus, 270-scenario
-static acceptance mapping, full API freshness, Flutter User freshness, generated JVM User/Admin
-reproducibility, infrastructure static and strict documentation builds pass. MkDocs was initially
-unavailable locally; installing the repository-pinned requirements in the ignored build venv resolved
-it without dependency changes. Eight actual Gradle wiring cases pass (42s), including excluded
-transitive dependency rejection and export-classpath separation. Resolver/workflow/inventory plus
-normalization units pass 59 cases. The full experimental JAR has 1,655 unique Weave classes.
-
-Final combined candidate after the unused-selector removal passes (5m 14s,
-`/tmp/weave-final-domain-candidate.log`), including the final frozen image/receipt changes:
+Run repository-pinned Java/Gradle and Flutter 3.41.6, initialize client dependencies with
+`flutter pub get --enforce-lockfile` from `client/`, and use an observed disposable Docker engine.
+The accepted corpus checkout must match `specs/weave-specs.lock.json`. The implementation commits
+are `3a553dbeb5` (Calendar) and `a285644ac8` (workspace/clients/test ownership/service cohesion).
+Test follow-up `5ceb23944f` preserves experimental selections without inventing workspace
+contributions for modules that do not declare them. The PR records the exact final command outcomes and per-selection reports; earlier checkpoint
+logs and counts remain in Git history rather than competing current instructions.
 
 ```sh
-DOCKER_HOST=<observed-disposable-engine> WEAVE_SPEC_CORPUS_ROOT=<accepted-pinned-checkout> ./gradlew :server:domains:check :server:app:test :server:app:postgresJpaTest :server:app:entitySchemaCheck coreArchitectureCi canonicalDataCi specCorpusConformance acceptanceContract checkOpenApiContractFresh checkClientUserApiFresh :weave-user-api-client:check :weave-admin-api-client:check infraStatic docsCheck :server:app:verifySelectedArtifact :server:app:selectedRuntimePostgresTest -Pdomains=all --console=plain
+for selection in files,chat,calendar files calendar chat; do
+  ./gradlew :server:domains:check :server:app:verifySelectedArtifact \
+    :server:app:selectedApiContractCheck :server:app:selectedRuntimePostgresTest \
+    -Pdomains="$selection" --console=plain
+done
+./gradlew :server:domains:check :server:app:test :server:app:postgresJpaTest \
+  :server:app:entitySchemaCheck coreArchitectureCi canonicalDataCi \
+  specCorpusConformance acceptanceContract checkOpenApiContractFresh checkClientUserApiFresh \
+  :weave-user-api-client:check :weave-admin-api-client:check infraStatic docsCheck \
+  javaAgentContractCheck :server:app:javaAgentReferenceTest coreDocsCheck -Pdomains=all --console=plain
+# From client/:
+flutter analyze --no-pub
+flutter test --no-pub
+flutter test --no-pub --dart-define=WEAVE_OFFLINE_CONTRACT_ONLY=true test/live_stack_contract_test.dart
 ```
 
-App has 835 cases with 23 explicit PostgreSQL-only skips; the separate PostgreSQL lane has 204
-cases with no skips/failures/errors. Owning checks, schema/architecture/corpus, static acceptance,
-full API/Flutter User freshness, JVM consumers, infrastructure and strict docs pass. The full
-Core-documentation Python lane also passes: 127 combined boundary/selector/promotion/resolver/
-workflow cases, five README cases, 87 native-qualification contract cases and the production
-source guards. These native contract tests are not physical/native runtime qualification.
-Artifact units pass 101 cases; resolver/workflow/Dogfood evidence units pass 75; both changed
-workflows pass actionlint, and the existing pipeline/hygiene and shell syntax checks pass.
+Reports under `server/app/build/test-results/selectedRuntimePostgresTest/<selection>` remain
+separate. Their Flutter subprocess executes the normally gated packaged-consumer widget case;
+ordinary Flutter runs skip that case until the real JAR/identity/database lane supplies its inputs.
+App unit/context checks explicitly skip PostgreSQL-only cases; `postgresJpaTest` executes those
+contracts and includes selected Calendar's owning `postgresTest`. Omitted domains must leave both
+serving classes/libraries and exported handler paths; no-Chat artifacts exclude Chat-only JNI.
 
-The same final production source passes the release selection (22s), Calendar-only (18s),
-Chat-only (20s) and Files-only (19s), each through actual owning checks, selected HTTP/User/Admin
-export, compiled entity-schema export, executable inspection, normalization and packaged-JAR
-PostgreSQL startup. Logs: `/tmp/weave-final-variant-<selection>.log`; matching JARs are preserved
-outside the checkout for review. Default owning checks pass (2s), and explicit Files+Chat passes
-(1s). Inventory sees 997 production Java sources, no retired root projects, duplicate nominal
-types or suggested owner mismatches; this advisory inventory supplements actual dependency and
-runtime checks rather than proving ownership by itself.
+Passing corpus conformance confirms consumption of the unchanged accepted pin; it does not approve
+proposed public behavior. #172 must be reviewed/accepted, followed by an explicitly reviewed repin
+and conformance rerun. Schema initializer integrity/recovery cutover, Linux ARM64 image/native
+qualification and exact-candidate Compose/two ordinary members/two real Flutter iOS applications,
+physical preparation and HIL remain separate. This review fix authorizes none of deployment,
+publication, protected merge, persistent-data reset or rewriting applied history.
 
-Remaining internal/public composition boundary: App Manuals still advertises its existing required
-workspace slot and metadata, and the accepted closed wire projection still contains required optional
-feature fields. Required Matrix discovery fails support-safely when Chat is absent. These prevent a
-claim of complete release capability purity or usable reduced bootstrap until the coordinated #172
-contract/server/generated-client changes are accepted and implemented. Existing handwritten migration
-resources/initializer remain transitional pending integrity/recovery cutover; selected schema export
-does not silently reset owner data or make that deployment lifecycle complete.
+## Review-fix behavior and test ownership
 
-App scanning is now restricted to App-owned composition/entry-point packages. Core and domain
-settings register through their owning configurations; the shared MVC fixture explicitly enables
-its required Core workspace settings. A physical-source architecture regression caught an overlap
-between App schema tooling and Core schema persistence; App now explicitly wires the serving guard
-instead of scanning that namespace. The combined follow-up passed in 5m 13s: App 835 tests (23
-explicit PostgreSQL-lane skips), PostgreSQL 204 without skips/failures/errors, actual full HTTP export,
-packaged PostgreSQL startup and the combined gates above. The initial fixture failures and one
-architecture regression were repaired; an earlier failed-fixture run exhausted its test JVM heap
-and was stopped, rather than counted as a completed lane.
+`WorkspaceCapabilitiesResponse` requires `shellAccess`, `adminControlPlane` and a typed `domains`
+map. A domain key means its runtime is compiled into the installation. Enabled/readiness values
+represent configuration and operation health; policy/grants represent the current member. An
+installed but unavailable domain keeps its navigation entry. An omitted domain has no entry,
+endpoint or shell destination. Unknown stable IDs do not become positional tabs. Required
+`protocols` remains an object; Matrix URL/status are absent without Chat and validated with Chat.
+The generated Dart decoder rejects a missing/non-map installation container and malformed entries,
+including in release mode, instead of silently defaulting the installation to empty.
 
-The owner-resource move copied 124 scalar keys/values initially. Hosted Core CI then exposed the
-retired native Files blob-store mode selector, which has no bound field or production consumer.
-It is removed rather than allowed through the unchanged native-provider boundary guard. A current
-production-source fixture prevents that drift from escaping local guard tests again.
+The selected PostgreSQL lane starts the actual selected JAR, an isolated PostgreSQL and the existing
+loopback JWKS identity fixture. A signed ordinary member goes through the serving JWT/security
+chain; anonymous and wrong-organization requests are denied. A Flutter subprocess retrieves actual
+manifest/status/capabilities through generated operations, validates bootstrap and uses the decoded
+snapshot with the production router/shell. Its UI repositories are offline doubles: this proves
+bootstrap/navigation, not provider writes, browser OIDC, two-device collaboration or HIL.
 
-Selected image/receipt integration now uses the same resolver and asserted checkout identity.
-Runtime input digests, receipts, composition/evidence comparisons and backend OCI labels include
-canonical domains and JVM flavor. Missing, malformed or mismatched runtime identity is rejected;
-Apple package identity stays independent of backend selection. Dogfood explicitly requests the
-catalog release pin without fabricating a source branch, and release consumers reject wider
-experimental compositions. Docker has separate Chat/no-Chat final targets, verifies the exact
-selected Boot JAR before building, and skips the Rust stage/native file/environment without Chat.
-The Docker input closure follows the actual Rust modules/vendor paths; the existing local test-app
-fallback uses the same validating helper. This does not create hosted receipts for local images.
+Calendar facade/user service tests, Files facade tests and Chat facade/binding/quarantine/Space
+access/native-provider/Matrix-error-writer tests now live in their owning runtime projects. Core owns the tiny in-memory provider
+selection test fixture. App retains actual composition/security slices and PostgreSQL integration
+fixtures. Calendar's separate `postgresTest` is a selected prerequisite of App `postgresJpaTest`;
+ordinary domain checks keep fast units/context lanes separate from infrastructure tests.
 
-A local no-Chat image check with the earlier `2704e842` macOS-built Files JAR passed on linux/amd64:
-BuildKit skipped the Rust stage; labels identify Files/JVM; native file and environment are absent.
-This is image-content proof, not final-source Linux provider startup qualification. Related #1733
-was inspected and still needs reconciliation with current paths/selection and accepted ARM64/GHCR
-contracts. The existing AMD64 hosted producer/archive transport remains transitional; this change
-does not publish images, enable package-write permissions or claim ARM64/GraalVM qualification.
-
-Remaining external qualification: accepted #172 where affected; Linux ARM64 JVM/AOT/native/JNI;
-exact-candidate Compose and two ordinary members/two real Flutter iOS apps; physical preparation and
-explicit HIL. Missing, skipped, failed and unavailable checks stay distinct. Do not present this
-checkpoint as completion of #1745.
+Calendar temporal bounds and the retired facade responsibilities are documented in the Calendar
+README. DATE and instant intervals remain half-open; conservative candidate bounds cannot discard
+an occurrence that exact expansion would accept. No timezone default, fixed offset conversion,
+handwritten CRUD, schema authority or persistent-data reset was introduced.

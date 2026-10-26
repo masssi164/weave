@@ -55,10 +55,13 @@ From the repository root:
 ```
 
 The owning unit task builds the pinned Rust/Ruma bridge it exercises. Context tests have their own
-report; persistence has separate unit/context checks. App-coupled full-policy and PostgreSQL
-harnesses remain in App under owning namespaces, using shared Chat test fixtures where needed.
-The retired App-filtered Chat unit bridge has no replacement wrapper. Reduced App packaging and
-API/schema activation remain guarded until actual selected composition and specification approval.
+report; persistence has separate unit/context checks. Facade, binding-gate, quarantine reconciliation, durable Space access, native provider and
+Matrix security-error writer units live here.
+App security/composition and PostgreSQL harnesses remain in App under owning namespaces,
+using small Core/Chat test fixtures where needed.
+The retired App-filtered Chat unit bridge has no replacement wrapper. Selected App packaging and API/schema composition now use the actual selected runtime.
+No-Chat bootstrap omits Matrix metadata, while installed Chat validates it even when disabled.
+Formal #172 acceptance and live cryptographic/platform qualification remain separate.
 
 See [Server ownership](../../../docs/architecture/server-domain-ownership.md) for the single
 execution plan and [Java/Spring standard](../../../docs/java-spring-standard.md) for shared rules.

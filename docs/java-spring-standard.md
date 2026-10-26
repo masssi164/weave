@@ -43,7 +43,12 @@ Selected export contexts must compile against selected production output/resourc
 integration-test classpath. Keep separate User/Admin contracts and output identities; reduced generation
 cannot overwrite the tracked full contract. Verify actual executable libraries and duplicate ownership,
 not only skipped tasks or absent beans. Domain settings/resources load through their owner integration;
-application-wide deployment overrides retain normal Spring property precedence.
+application-wide deployment overrides retain normal Spring property precedence. Installation is a stable
+runtime identity set, separate from configuration/readiness and member authorization. Required Core
+workspace statuses and the typed domain-status map must decode through generated consumers in both
+release and reduced builds. Never replace absent runtimes with ready declarations or hide installed
+navigation during a temporary operation failure. Optional protocol metadata follows the installed
+owner; required metadata for an installed owner still fails explicitly when invalid.
 
 Runtime libraries register actual integration through their module-local Boot imports, independently
 of App scanning. Keep controller stereotypes required for handler discovery and meaningful

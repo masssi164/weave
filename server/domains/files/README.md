@@ -76,19 +76,16 @@ with separate reports. Owning `check` requires both through the shared library m
 
 Files checks execute real owning unit tests plus Core/model/persistence prerequisites.
 The Files verification bridge and its hand-maintained App unit inventory are retired.
-Independent provider, resolver, User-use-case and security tests move with the runtime.
-Existing application-level HTTP, native composition, PostgreSQL, locking and backup/restore
-harnesses remain in App until their shared schema/test infrastructure is independently
-owned; they continue testing the actual extracted implementation. No test-only source set
-or dependency points back into App.
+Independent provider, resolver, facade/User use-case and security tests belong to this runtime.
+`FilesFacadeServiceTest` uses the actual Files capability contribution and a focused Files-only
+lock context. Existing application-level HTTP/security composition, PostgreSQL, native integration,
+locking and backup/restore harnesses remain in App. No test source or dependency points into App.
 
-Discovery tests use Boot's imports resources without App scanning, assert singleton actual
-beans and Files request mappings, and verify absent Calendar/Chat implementations and
-non-web exclusion. Full User/Admin API freshness and authorization regressions remain
-required. Actual selected App packaging, reduced API/client activation and final release
-composition remain separate #1745 work; do not claim a complete Files-only executable from
-owning-library checks. Reduced App API/schema export is rejected by the same transitional
-packaging guard rather than emitting a full graph under a reduced selection.
+Discovery uses Boot imports, asserts singleton services/request mappings and omitted Calendar/Chat.
+Selected App composition now builds real reduced executables and exports contracts to separate
+selection directories. The packaged PostgreSQL lane also checks signed member admission and actual
+generated Dart bootstrap/navigation. Formal #172 acceptance and live/provider/platform qualification
+remain distinct; owning-library checks alone cannot establish full product acceptance.
 
 ## Cleanup record
 

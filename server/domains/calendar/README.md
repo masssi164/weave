@@ -28,6 +28,14 @@ composes it; App scans only its own composition/entry-point packages, leaving Ca
 registration to this module. Meeting Capsule behavior belongs to the future Meetings runtime,
 outside release Calendar; Calendar does not depend on that implementation.
 
+The legacy event facade now delegates client setup/device credentials/profile metadata to
+`CalendarClientSetupService` and scope-bound DAV change synchronization to `CalendarDavSyncService`.
+`CalendarFacadeAuthorization` supplies the same organization, actor, capability and Space checks
+for these use cases. Dependencies are constructor-injected; an installed runtime requires its real
+provider. The event facade retains event orchestration, required audit-before-write ordering,
+provider ETag handling and support-safe error translation. DAV serialization finishes before a
+wrapped sync token is issued, preserving the previous failure/state boundary.
+
 ## Registration and configuration
 
 The module-local `AutoConfiguration.imports` registers actual servlet-only
@@ -56,6 +64,19 @@ The move changes no mapping/table/column, uniqueness, version, lock, null, trans
 idempotency or recurrence semantics. Remote writes retain their existing local/remote
 failure boundaries. No migration history, owner data or persistent schema was reset.
 
+DATE candidates use the ceiling calendar day of an exclusive query end (an exact midnight remains
+exclusive). FLOATING and ZONED candidates use a conservative local-clock envelope derived from
+`ZoneOffset.MIN`/`MAX`: any resolved event offset is within ±18 hours, so an instant overlap cannot
+fall outside that envelope. This also handles query wall clocks reversing across a DST overlap.
+The database still filters calendar, scope, deletion and bounded temporal candidates; the occurrence
+engine then applies each canonical temporal kind and its explicit evaluation zone exactly. The
+superset may select a nearby non-overlapping event, which the final query/free-busy projection removes.
+
+Selected event rows and their normalized payloads load in batches of 200 scoped IDs, with no result
+truncation. Chronological start/ID ordering is retained across batches. The owning PostgreSQL test
+loads 205 matching events plus an unrelated event, checks all results and exact loaded entities,
+and bounds query/free-busy statement counts; this replaces the previous per-event enrichment reads.
+
 Pure model/library checks, isolated persistence checks, actual imports discovery and
 PostgreSQL integration prove different things. H2 graph discovery is not PostgreSQL
 integrity qualification. The legacy initializer remains transitional pending the agreed
@@ -71,6 +92,7 @@ From repository root:
 ```sh
 ./gradlew :server:domains:calendar:check
 ./gradlew :server:domains:check -Pdomains=calendar
+DOCKER_HOST=<observed-disposable-engine> ./gradlew :server:domains:calendar:postgresTest -Pdomains=calendar
 ./gradlew :server:app:test checkOpenApiContractFresh -Pdomains=all
 DOCKER_HOST=<observed-disposable-engine> ./gradlew :server:app:postgresJpaTest -Pdomains=all
 ```
@@ -87,7 +109,10 @@ Calendar's resolver entry now schedules genuine owning tasks rather than the old
 App verification bridge. App now composes selected production dependencies and isolated API/schema
 exports, with actual library/handler inspection. `selectedRuntimePostgresTest -Pdomains=calendar`
 starts the packaged executable on disposable PostgreSQL. See the living ownership plan for final
-results and the remaining accepted bootstrap/client/schema/platform qualification boundary.
+results and the remaining specification/schema/platform qualification boundary. Selected
+bootstrap/navigation uses the generated-consumer packaged PostgreSQL lane; #172 acceptance
+remains separate. Client-profile URL binding uses `CalendarClientSetupProperties`, distinct
+from southbound CalDAV credentials under the existing configuration prefix.
 
 ## Cleanup record
 
@@ -103,3 +128,10 @@ iCal4j dependency moved from App to its Calendar consumer. Existing inspection/e
 selector-ratchet paths and artifact inputs follow the actual new sources without removing
 assertions. The living overall execution plan remains
 `docs/architecture/server-domain-ownership.md`.
+
+The plain `CalendarFacadeServiceTest` and `CalendarUserApiServiceTest`, plus the two database-candidate
+provider unit cases, moved from App into this runtime with their assertions retained. Their policy
+fixture installs the real Calendar declaration and Core authorization only. MVC tests importing App's
+assembled security configuration and whole-schema PostgreSQL fixtures remain integration tests in
+App; no all-domain test fixture is added to Calendar. The unused implicit-UTC candidate overload was
+retired after checking callers; every candidate query now supplies its evaluation zone explicitly.
