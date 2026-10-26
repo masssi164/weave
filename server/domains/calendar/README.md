@@ -24,9 +24,9 @@ The runtime depends on Core policy/security/identity/Spaces/audit/binding contra
 own model/persistence libraries. Native adapter and mapped types share the owning business
 package across these projects, retaining non-public mapping APIs without exposing entities
 to another domain. No domain depends on the executable. App depends on this runtime and
-composes it; App excludes its namespace from transitional scanning to prevent duplicate
-registration. The future `CalendarMeetingsDomainFacadeService` remains outside release
-Calendar with its existing interoperability spine; it is not a reverse dependency.
+composes it; App scans only its own composition/entry-point packages, leaving Calendar
+registration to this module. Meeting Capsule behavior belongs to the future Meetings runtime,
+outside release Calendar; Calendar does not depend on that implementation.
 
 ## Registration and configuration
 

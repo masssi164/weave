@@ -34,13 +34,13 @@ it does not call App services or another domain's persistence implementation.
 `FilesRuntimeAutoConfiguration` is registered in this module's
 `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`.
 Its explicit imports install actual services, controllers, providers and owned wiring.
-Controller stereotypes remain HTTP handler metadata. App excludes the Files business
-namespace from its transitional component scan, preserving Boot's test/auto-configuration
-filters; it does not maintain a second list of Files configurations.
+Controller stereotypes remain HTTP handler metadata. App scans only its own composition/entry-point
+packages, preserving Boot's test/auto-configuration filters; it does not maintain a second list of
+Files configurations.
 
 Files persistence imports register both actual JPA adapters alongside their scoped entities
-and Spring Data repositories. `@Repository` remains exception-translation metadata; App
-scan exclusion prevents duplicate registration. They no longer depend on App component scanning. Serving
+and Spring Data repositories. `@Repository` remains exception-translation metadata; scoped
+App scanning prevents duplicate registration. The adapters do not depend on App component scanning. Serving
 configuration is servlet-only: schema and operator discovery constructs no Files providers,
 controllers or filesystem/native operators. The historical migration catalog remains in
 App's schema tooling until the separately qualified Entity-first transition; this extraction

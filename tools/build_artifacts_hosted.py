@@ -12,9 +12,10 @@ import shutil
 import struct
 import subprocess
 import tempfile
+import zipfile
 
 from build_artifacts import (ArtifactError, ROOT, component_configuration, digest_file,
-                             git, publish_manifest, require_clean_source)
+                             git, publish_manifest, require_clean_source, runtime_identity, input_digest)
 
 
 def run(root: Path, arguments: list[str], *, capture: bool = False, env: dict | None = None) -> str:
@@ -169,13 +170,67 @@ def portable_test_plans(products: Path, original_products: Path) -> None:
     plans[0].write_bytes(plistlib.dumps(relocate(plistlib.loads(plans[0].read_bytes()))))
 
 
-def runtime(root: Path, payload: Path, source: str) -> None:
+def selected_backend_jar(root: Path, domains: list[str], selected: Path | None = None) -> str:
+    """Require one executable Boot JAR with the exact resolved production selection."""
+    candidates = ([root / selected] if selected is not None else
+                  [path for path in (root / "server/app/build/libs").glob("*.jar")
+                   if not path.name.endswith("-plain.jar")])
+    if len(candidates) != 1 or candidates[0].is_symlink():
+        raise ArtifactError("one-selected-backend-jar-required")
+    jar = candidates[0]
+    if not jar.is_relative_to(root) or not jar.resolve().is_relative_to(root.resolve()):
+        raise ArtifactError("backend-jar-must-be-inside-build-context")
+    relative = jar.relative_to(root)
+    if (not jar.is_file() or any((root / path).is_symlink() for path in (relative, *relative.parents)
+                                 if path != Path("."))):
+        raise ArtifactError("backend-jar-must-be-inside-build-context")
+    try:
+        with zipfile.ZipFile(jar) as archive:
+            # Manifest continuation lines are defined by the JAR specification.
+            text = archive.read("META-INF/MANIFEST.MF").decode("utf-8").replace("\r\n", "\n").replace("\n ", "")
+            attributes = dict(line.split(": ", 1) for line in text.splitlines() if ": " in line)
+            if (attributes.get("Weave-Domains") != ",".join(domains)
+                    or attributes.get("Main-Class") != "org.springframework.boot.loader.launch.JarLauncher"):
+                raise ArtifactError("backend-jar-selection-mismatch")
+    except (KeyError, ValueError, zipfile.BadZipFile):
+        raise ArtifactError("backend-jar-manifest-invalid") from None
+    return jar.relative_to(root).as_posix()
+
+
+def backend_build_arguments(root: Path, domains: list[str], jar: Path | None = None) -> list[str]:
+    identity = runtime_identity(root, domains)
+    return ["--target", "runtime-with-chat" if "chat" in domains else "runtime-without-chat",
+            "--build-arg", "JAR_FILE=" + selected_backend_jar(root, domains, jar),
+            "--build-arg", "WEAVE_DOMAINS=" + ",".join(identity["domains"]),
+            "--build-arg", "WEAVE_RUNTIME_FLAVOR=" + identity["flavor"]]
+
+
+def verify_backend_image(root: Path, image: str, domains: list[str]) -> None:
+    config = json.loads(run(root, ["docker", "image", "inspect", image,
+                                   "--format", "{{json .Config}}"], capture=True))
+    labels = config.get("Labels") or {}
+    native_environment = [value for value in config.get("Env", [])
+                          if value.startswith("WEAVE_MATRIX_PROTOCOL_LIBRARY_PATH=")]
+    expected_environment = (["WEAVE_MATRIX_PROTOCOL_LIBRARY_PATH=/app/lib/libweave_matrix_protocol.so"]
+                            if "chat" in domains else [])
+    if (labels.get("com.massimotter.weave.domains") != ",".join(domains)
+            or labels.get("com.massimotter.weave.runtime-flavor") != "jvm"
+            or native_environment != expected_environment):
+        raise ArtifactError("backend-image-selection-mismatch")
+    predicate = "-f" if "chat" in domains else "! -e"
+    run(root, ["docker", "run", "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL",
+               "--entrypoint", "/bin/sh", image, "-ec",
+               "test " + predicate + " /app/lib/libweave_matrix_protocol.so"])
+
+
+def runtime(root: Path, payload: Path, source: str, domains: list[str]) -> None:
+    identity = runtime_identity(root, domains)
     if platform.system() != "Linux" or platform.machine() not in {"x86_64", "amd64"}:
         raise ArtifactError("hosted-linux-amd64-required")
     environment = {**os.environ, "WEAVE_OPENDAL_CLASSIFIER": "linux-x86_64",
                    "RUSTUP_TOOLCHAIN": component_configuration(root, "runtime-linux-amd64")["toolchain"]["rust"]}
     run(root, ["./gradlew", "--no-daemon", "--max-workers=2", "--init-script", "tools/build_artifacts_driver.gradle",
-               ":server:app:bootJar", ":weave-mcp-server:bootJar", ":weave-product-e2e:installDist"], env=environment)
+               "-Pdomains=" + ",".join(domains), ":server:app:bootJar", ":server:app:verifySelectedArtifact", ":weave-mcp-server:bootJar", ":weave-product-e2e:installDist"], env=environment)
     copy_bundle(root / "weave-product-e2e/build/install/weave-product-e2e", payload / "test-driver")
     created = git(root, "show", "-s", "--format=%cI", source).decode().strip()
     spec_digest = digest_file(root / "specs/weave-specs.lock.json")
@@ -185,19 +240,23 @@ def runtime(root: Path, payload: Path, source: str) -> None:
               "--build-arg", "WEAVE_SPEC_DIGEST=" + spec_digest,
               "--build-arg", "WEAVE_SBOM_REFERENCE=github-build-artifact",
               "--build-arg", "WEAVE_PROVENANCE_REFERENCE=github-build-artifact"]
+    selection_tag = input_digest(root, "runtime-linux-amd64", domains=domains).removeprefix("sha256:")[:12]
     images = {}
     for name, module in (("backend", "server"), ("mcp", "weave-mcp-server")):
-        tag = "weave-" + name + ":artifact-" + source[:12]
-        run(root, ["docker", "build", "--platform", "linux/amd64", *common, "--tag", tag,
+        tag = "weave-" + name + ":artifact-" + source[:12] + ("-" + selection_tag if name == "backend" else "")
+        selected = backend_build_arguments(root, domains) if name == "backend" else []
+        run(root, ["docker", "build", "--platform", "linux/amd64", *common, *selected, "--tag", tag,
                    "--file", str(root / module / "Dockerfile"), str(root)])
         images[name] = run(root, ["docker", "image", "inspect", tag, "--format", "{{.Id}}"], capture=True)
+        if name == "backend":
+            verify_backend_image(root, images[name], domains)
     images["keycloak"] = run(root, ["python3", "infra/weave-workspace/scripts/build_keycloak_image.py",
                                     "--root", str(root), "--candidate-commit", source,
                                     "--output", str(payload / "keycloak-build-evidence.json")], capture=True).splitlines()[-1]
     images["runtimeState"] = run(root, ["bash", "infra/weave-workspace/scripts/build_runtime_state_image.sh"], capture=True).splitlines()[-1]
     run(root, ["docker", "save", "--output", str(payload / "images.tar"), *images.values()])
     (payload / "images.json").write_text(json.dumps({"schemaVersion": "weave.runtime-images/v1",
-        "sourceCommit": source, "specDigest": spec_digest, "platform": "linux/amd64", "images": images}, indent=2) + "\n")
+        "sourceCommit": source, "specDigest": spec_digest, "platform": "linux/amd64", "runtime": identity, "images": images}, indent=2) + "\n")
     evidence = json.loads((payload / "keycloak-build-evidence.json").read_text())
     if evidence.get("supportSafe") is not True or evidence.get("containsSecretValues") is not False:
         raise ArtifactError("keycloak-build-evidence-not-support-safe")
@@ -277,10 +336,39 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--component", required=True)
-    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--output", type=Path)
+    parser.add_argument("--local-backend-image", metavar="TAG",
+                        help="Build and inspect an experimental local backend image; never publish a hosted receipt")
+    parser.add_argument("--backend-jar", type=Path, help="Explicit local Boot JAR inside the Docker build context")
+    parser.add_argument("--platform", choices=("linux/amd64", "linux/arm64"), help="Explicit experimental local image target")
+    parser.add_argument("--build-arg", action="append", default=[], help="Existing OCI provenance build arguments for local images")
+    parser.add_argument("--domains", help="Canonical domains supplied by the trusted artifact plan")
     parser.add_argument("--configuration-only", action="store_true",
                         help="Diagnose Apple dependency/project preparation without compiling or publishing artifacts")
     args = parser.parse_args()
+    if args.local_backend_image:
+        if args.component != "runtime-linux-amd64" or args.output or args.configuration_only:
+            raise ArtifactError("local-backend-image-mode-invalid")
+        domains = args.domains.split(",") if args.domains else None
+        runtime_identity(args.root, domains)
+        allowed = {"WEAVE_IMAGE_CREATED", "WEAVE_IMAGE_REVISION", "WEAVE_IMAGE_VERSION", "WEAVE_SPEC_DIGEST",
+                   "WEAVE_SBOM_REFERENCE", "WEAVE_PROVENANCE_REFERENCE"}
+        keys = [argument.split("=", 1)[0] for argument in args.build_arg]
+        if (len(keys) != len(set(keys)) or any(key not in allowed for key in keys)
+                or any("=" not in argument for argument in args.build_arg)):
+            raise ArtifactError("local-image-provenance-arguments-invalid")
+        provenance = [item for argument in args.build_arg for item in ("--build-arg", argument)]
+        platform_arguments = ["--platform", args.platform] if args.platform else []
+        run(args.root, ["docker", "build", *platform_arguments, *provenance,
+                       *backend_build_arguments(args.root, domains, args.backend_jar),
+                       "--tag", args.local_backend_image, "--file", "server/Dockerfile", "."])
+        verify_backend_image(args.root, args.local_backend_image, domains)
+        print("WEAVE_LOCAL_BACKEND_IMAGE_RESULT domains=" + ",".join(domains) + " status=passed")
+        return 0
+    if args.backend_jar or args.platform or args.build_arg:
+        raise ArtifactError("local-image-arguments-require-local-mode")
+    if args.output is None:
+        parser.error("--output is required for hosted builds")
     if os.environ.get("GITHUB_ACTIONS") != "true" or os.environ.get("RUNNER_ENVIRONMENT") != "github-hosted":
         raise ArtifactError("hosted-build-required")
     component_configuration(args.root, args.component)
@@ -290,17 +378,20 @@ def main() -> int:
     if source != os.environ.get("GITHUB_SHA"):
         raise ArtifactError("hosted-source-mismatch")
     require_clean_source(args.root, "before-build")
+    domains = args.domains.split(",") if args.domains else None
+    if args.component == "runtime-linux-amd64":
+        runtime_identity(args.root, domains)
     with tempfile.TemporaryDirectory(prefix="weave-hosted-payload-") as temporary:
         payload = Path(temporary) / "payload"
         payload.mkdir()
         if args.component == "runtime-linux-amd64":
-            runtime(args.root, payload, source)
+            runtime(args.root, payload, source, domains)
         else:
             apple(args.root, args.component, payload, source, configuration_only=args.configuration_only)
         if args.configuration_only:
             print("WEAVE_HOSTED_CONFIGURATION_RESULT component=" + args.component + " status=passed")
             return 0
-        manifest = publish_manifest(args.root, args.component, payload, args.output)
+        manifest = publish_manifest(args.root, args.component, payload, args.output, domains)
     print("WEAVE_HOSTED_BUILD_RESULT component=" + args.component + " input=" + manifest["inputDigest"] + " status=passed")
     return 0
 

@@ -32,6 +32,19 @@ def load_catalog(root: Path) -> dict:
         catalog = json.loads((root / 'server/domains/catalog.json').read_text())
     except (OSError, ValueError) as failure:
         raise DomainSelectionError('domain catalog is missing or invalid JSON') from failure
+    return validate_catalog(catalog)
+
+
+def release_request(catalog: dict) -> str:
+    """An explicit catalog release selection, independent of the actual source branch."""
+    pin = catalog.get('selection', {}).get('pinned_domains')
+    if not isinstance(pin, list) or not pin or any(not isinstance(item, str) for item in pin):
+        raise DomainSelectionError('release selection requires catalog pinned_domains')
+    return ','.join(resolve(catalog, ','.join(pin), None)['domains'])
+
+
+def validate_catalog(catalog: dict) -> dict:
+    """Validate a catalog loaded from the working tree or an exact Git candidate."""
     domains = catalog.get('domains') if isinstance(catalog, dict) else None
     if (not isinstance(domains, dict) or not domains
             or any(not re.fullmatch(r'[a-z][a-z0-9-]*', name) or name == 'all'
@@ -168,6 +181,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument('--domains', help='all or comma-separated domains; empty means pin/all fallback')
+    parser.add_argument('--release-selection', action='store_true', help='Explicitly request catalog pinned_domains without changing source identity')
     parser.add_argument('--source-branch', help='trusted source branch paired with the checked-out commit')
     parser.add_argument('--source-commit', help='exact checked-out commit for a trusted branch assertion')
     parser.add_argument('--format', choices=['json', 'csv', 'matrix'], default='json')
@@ -177,7 +191,10 @@ def main() -> int:
     try:
         if args.iteration != 'selected' and args.format != 'matrix':
             raise DomainSelectionError('--iteration individual requires --format matrix')
-        selection = resolve_checkout(args.root, args.domains, args.source_branch, args.source_commit,
+        if args.release_selection and args.domains:
+            raise DomainSelectionError('--release-selection cannot override --domains')
+        requested = release_request(load_catalog(args.root)) if args.release_selection else args.domains
+        selection = resolve_checkout(args.root, requested, args.source_branch, args.source_commit,
                                      iteration=args.iteration if args.format == 'matrix' else None)
     except DomainSelectionError as failure:
         parser.exit(2, f'domain-selection: {failure}\n')

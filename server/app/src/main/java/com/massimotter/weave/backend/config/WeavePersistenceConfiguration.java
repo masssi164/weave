@@ -17,6 +17,7 @@ import org.springframework.core.env.Environment;
  * adapter is allowed to create infrastructure beans.
  */
 @Configuration(proxyBeanMethods = false)
+@org.springframework.context.annotation.Import(com.massimotter.weave.backend.schema.ServingSchemaAuthorityGuard.class)
 public class WeavePersistenceConfiguration {
 
   @Bean

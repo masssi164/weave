@@ -134,6 +134,29 @@ class ServerArchitectureBoundaryTest {
             "new FileWriter(");
 
     @Test
+    void applicationScanningCannotReachCoreOrDomainImplementations() throws IOException {
+        var application = com.massimotter.weave.backend.WeaveBackendApplication.class;
+        var scan = application.getDeclaredAnnotation(org.springframework.context.annotation.ComponentScan.class);
+        assertThat(scan).as("App must explicitly scope its composition packages").isNotNull();
+        assertThat(scan.basePackages()).isNotEmpty()
+                .allSatisfy(root -> assertThat(root).startsWith(BACKEND_PACKAGE)
+                        .isNotEqualTo(BACKEND_PACKAGE.substring(0, BACKEND_PACKAGE.length() - 1)));
+        assertThat(scan.basePackageClasses()).isEmpty();
+        assertThat(productionSources().stream()
+                .filter(source -> !source.path().toString().replace('\\', '/').contains("/app/src/main/java/"))
+                .filter(source -> java.util.Arrays.stream(scan.basePackages()).anyMatch(root ->
+                        source.packageName().equals(root) || source.packageName().startsWith(root + ".")))
+                .map(JavaSource::path).toList())
+                .as("App scanning must not register production classes from another physical owner")
+                .isEmpty();
+        assertThat(scan.excludeFilters()).noneMatch(filter ->
+                filter.type() == org.springframework.context.annotation.FilterType.REGEX);
+        assertThat(application.getDeclaredAnnotation(
+                org.springframework.boot.context.properties.EnableConfigurationProperties.class))
+                .as("Core and domain auto-configurations own their settings").isNull();
+    }
+
+    @Test
     void domainPackagesDoNotDependOnDeliveryProviderOrRuntimeLayers() throws IOException {
         assertThat(ENTERPRISE_TARGET_BOUNDARY_GATE).isNotBlank();
         List<String> violations = productionSources().stream()

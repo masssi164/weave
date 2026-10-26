@@ -120,7 +120,8 @@
         "server/domains/portability/build.gradle",
         "server/domains/agent-runtime/src/main/**",
         "server/domains/agent-runtime/build.gradle"
-      ]
+      ],
+      "runtimeFlavor": "jvm"
     },
     "ios-simulator": {
       "runner": "macos-26",

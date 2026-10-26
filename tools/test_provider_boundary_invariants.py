@@ -22,6 +22,9 @@ class ProviderBoundaryTest(unittest.TestCase):
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(contents)
 
+    def test_current_production_sources_preserve_the_native_provider_boundary(self):
+        self.assertEqual(guard.violations(Path(__file__).resolve().parents[1]), [])
+
     def test_valid_narrow_protocol_and_optional_s3_adapter_are_allowed(self):
         self.write('rust/matrix-protocol/src/lib.rs', 'use ruma::api;')
         self.write('server/app/src/main/java/OptionalS3Adapter.java', 'import software.amazon.awssdk;')

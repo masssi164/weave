@@ -31,6 +31,7 @@ class Repository(unittest.TestCase):
         self.command("init", "-q")
         self.command("config", "user.name", "Artifact test")
         self.command("config", "user.email", "artifact@example.invalid")
+        self.write("server/domains/catalog.json", (artifacts.ROOT / "server/domains/catalog.json").read_text())
         self.write(artifacts.CONFIG, (artifacts.ROOT / artifacts.CONFIG).read_text())
         self.write("specs/weave-specs.lock.json", json.dumps({"specCorpus": {"gitCommit": "a" * 40}}))
         self.write("client/lib/main.dart", "void main() {}\n")
@@ -84,6 +85,216 @@ class Repository(unittest.TestCase):
         self.commit()
         self.assertEqual(before, self.inputs())
 
+    def test_plan_asserts_actual_source_identity_and_forwards_one_selection(self):
+        commit = self.command("rev-parse", "HEAD")
+        self.command("checkout", "--detach", "-q")
+        arguments = ["build_artifacts.py", "plan", "--root", str(self.root),
+                     "--components", "runtime-linux-amd64", "--source-branch", "dev", "--source-commit", commit]
+        with patch("sys.argv", arguments), patch.dict(os.environ, {"GH_TOKEN": "fixture"}, clear=True), \
+                patch.object(artifacts, "find_artifact", return_value=None) as lookup, \
+                patch("sys.stdout", new_callable=io.StringIO) as output:
+            self.assertEqual(artifacts.main(), 0)
+        plan = json.loads(output.getvalue())
+        self.assertEqual(plan["domains"], ["calendar", "chat", "files"])
+        self.assertEqual(lookup.call_args.kwargs["domains"], plan["domains"])
+        self.assertEqual(plan["matrix"]["include"][0]["name"], artifacts.artifact_name(
+            "runtime-linux-amd64", artifacts.input_digest(self.root, "runtime-linux-amd64", domains=plan["domains"])))
+        for flags in (["--domains", "all"], ["--source-commit", "0" * 40]):
+            changed = arguments + flags if flags[0] == "--domains" else arguments[:-1] + [flags[1]]
+            with patch("sys.argv", changed), patch.dict(os.environ, {"GH_TOKEN": "fixture"}, clear=True), \
+                    patch.object(artifacts, "find_artifact", return_value=None), \
+                    patch("sys.stdout", new_callable=io.StringIO) as output:
+                if flags[0] == "--domains":
+                    self.assertEqual(artifacts.main(), 0)
+                    self.assertGreater(len(json.loads(output.getvalue())["domains"]), 3)
+                else:
+                    with self.assertRaises(artifacts.domain_selection.DomainSelectionError):
+                        artifacts.main()
+
+    def test_runtime_recipe_forwards_selection_and_binds_saved_images(self):
+        payload = self.root / "runtime-payload"
+        payload.mkdir()
+        commands = []
+        def run(root, arguments, **kwargs):
+            commands.append(arguments)
+            if arguments[:3] == ["docker", "image", "inspect"]:
+                return "sha256:" + "1" * 64
+            if "infra/weave-workspace/scripts/build_keycloak_image.py" in arguments:
+                (payload / "keycloak-build-evidence.json").write_text(json.dumps(
+                    {"supportSafe": True, "containsSecretValues": False}))
+                return "sha256:" + "2" * 64
+            if arguments[:2] == ["bash", "infra/weave-workspace/scripts/build_runtime_state_image.sh"]:
+                return "sha256:" + "3" * 64
+            return ""
+        with patch.object(hosted.platform, "system", return_value="Linux"), \
+                patch.object(hosted.platform, "machine", return_value="x86_64"), \
+                patch.object(hosted, "run", side_effect=run), patch.object(hosted, "copy_bundle"), \
+                patch.object(hosted, "backend_build_arguments", return_value=["--target", "runtime-without-chat"]), \
+                patch.object(hosted, "verify_backend_image") as verify:
+            hosted.runtime(self.root, payload, self.command("rev-parse", "HEAD"), ["files"])
+        self.assertIn("-Pdomains=files", commands[0])
+        self.assertIn(":server:app:verifySelectedArtifact", commands[0])
+        self.assertIn("runtime-without-chat", next(command for command in commands if command[:2] == ["docker", "build"]))
+        self.assertEqual(json.loads((payload / "images.json").read_text())["runtime"],
+                         {"domains": ["files"], "flavor": "jvm"})
+        verify.assert_called_once_with(self.root, "sha256:" + "1" * 64, ["files"])
+
+    def test_verify_explicit_selection_is_not_ignored(self):
+        arguments = ["build_artifacts.py", "verify", "--root", str(self.root),
+                     "--components", "runtime-linux-amd64", "--directory", str(self.root / "download"),
+                     "--domains", "files"]
+        with patch("sys.argv", arguments), patch.object(artifacts, "verify_component", return_value={}) as verify, \
+                patch("sys.stdout", new_callable=io.StringIO):
+            self.assertEqual(artifacts.main(), 0)
+        self.assertEqual(verify.call_args.args[-1], ["files"])
+
+    def test_bound_runtime_manifest_and_composition_cannot_reuse_other_selection(self):
+        manifest, _ = self.bundle()
+        component = "runtime-linux-amd64"
+        definition = artifacts.component_configuration(self.root, component)
+        manifest.update(component=component, target=definition["target"], buildMode=definition["buildMode"],
+                        toolchain=definition["toolchain"], runtime={"domains": ["files"], "flavor": "jvm"},
+                        inputDigest=artifacts.input_digest(self.root, component, domains=["files"]))
+        self.assertIs(artifacts.validate_manifest(self.root, manifest, component, domains=["files"]), manifest)
+        with self.assertRaises(artifacts.ArtifactError):
+            artifacts.validate_manifest(self.root, manifest, component, domains=["chat"])
+        entry = artifacts.composition_entry({"id": 12, "name": artifacts.artifact_name(component, manifest["inputDigest"])}, manifest)
+        self.assertEqual(entry["runtime"], manifest["runtime"])
+        composition = {"schemaVersion": "weave.candidate-artifacts/v1", **artifacts.candidate_identity(self.root),
+                       "scenarioDigest": None, "components": {component: entry}}
+        composition["compositionDigest"] = artifacts.composition_digest(composition)
+        self.assertIs(artifacts.validate_composition(self.root, composition), composition)
+        entry["runtime"] = {"domains": ["chat"], "flavor": "jvm"}
+        composition["compositionDigest"] = artifacts.composition_digest(composition)
+        with self.assertRaisesRegex(artifacts.ArtifactError, "component-metadata-mismatch"):
+            artifacts.validate_composition(self.root, composition)
+        del manifest["runtime"]
+        with self.assertRaisesRegex(artifacts.ArtifactError, "selection-required"):
+            artifacts.validate_manifest(self.root, manifest, component)
+
+    def test_image_verification_checks_selection_environment_and_files_without_starting_app(self):
+        for domains in (["files"], ["chat"]):
+            config = {"Labels": {"com.massimotter.weave.domains": ",".join(domains),
+                                 "com.massimotter.weave.runtime-flavor": "jvm"},
+                      "Env": ["PATH=/bin"] + (["WEAVE_MATRIX_PROTOCOL_LIBRARY_PATH=/app/lib/libweave_matrix_protocol.so"]
+                                              if "chat" in domains else [])}
+            with self.subTest(domains=domains), patch.object(hosted, "run", return_value=json.dumps(config)) as run:
+                hosted.verify_backend_image(self.root, "image-id", domains)
+                command = run.call_args.args[1]
+                self.assertIn("--read-only", command)
+                self.assertIn("/bin/sh", command)
+                self.assertIn("test -f" if "chat" in domains else "test ! -e", command[-1])
+            config["Env"] = [] if "chat" in domains else ["WEAVE_MATRIX_PROTOCOL_LIBRARY_PATH=/unexpected"]
+            with patch.object(hosted, "run", return_value=json.dumps(config)), \
+                    self.assertRaisesRegex(artifacts.ArtifactError, "image-selection-mismatch"):
+                hosted.verify_backend_image(self.root, "image-id", domains)
+
+    def test_hosted_workflow_preserves_trust_and_selection_forwarding(self):
+        workflow = (artifacts.ROOT / ".github/workflows/build-artifacts.yml").read_text()
+        self.assertIn('test "$(git rev-parse HEAD)" = "$GITHUB_SHA"', workflow)
+        self.assertIn('--source-branch "${SOURCE_REF#refs/heads/}" --source-commit "$GITHUB_SHA"', workflow)
+        self.assertIn('"${selection_args[@]}"', workflow)
+        self.assertEqual(workflow.count('--domains "$RESOLVED_DOMAINS"'), 2)
+        self.assertNotIn('packages: write', workflow)
+        self.assertNotIn('GHCR_TOKEN', workflow)
+        self.assertNotIn('default: all', workflow)
+        live = (artifacts.ROOT / ".github/workflows/live-stack-e2e.yml").read_text()
+        self.assertIn('--release-selection --format csv', live)
+        self.assertIn('domains: ${{ needs.release-selection.outputs.domains }}', live)
+        self.assertNotIn('--source-branch dev', live)
+        self.assertIn('DOCKER_DEFAULT_PLATFORM: linux/amd64', live)
+
+    def test_runtime_selection_changes_only_runtime_component_identity(self):
+        component = "runtime-linux-amd64"
+        files = artifacts.input_digest(self.root, component, domains=["files"])
+        release = artifacts.input_digest(self.root, component, domains=["calendar", "chat", "files"])
+        wider = artifacts.input_digest(self.root, component, domains=sorted(json.loads(
+            (self.root / "server/domains/catalog.json").read_text())["domains"]))
+        self.assertEqual(len({files, release, wider}), 3)
+        for apple in ("ios-simulator", "ios-device", "macos-desktop"):
+            self.assertEqual(artifacts.input_digest(self.root, apple, domains=["files"]),
+                             artifacts.input_digest(self.root, apple, domains=["calendar", "chat", "files"]))
+
+    def test_runtime_receipts_require_canonical_bound_selection(self):
+        for value in (None, {}, {"domains": ["files"], "flavor": "native"},
+                      {"domains": ["files", "calendar"], "flavor": "jvm"},
+                      {"domains": ["decisions"], "flavor": "jvm"}):
+            with self.subTest(value=value), self.assertRaises(artifacts.ArtifactError):
+                artifacts.manifest_runtime(self.root, {"runtime": value}, "HEAD")
+        with self.assertRaisesRegex(artifacts.ArtifactError, "mismatch"):
+            artifacts.manifest_runtime(self.root, {"runtime": {"domains": ["files"], "flavor": "jvm"}},
+                                       "HEAD", ["calendar", "chat", "files"])
+
+    def test_backend_build_requires_exact_manifest_and_selects_native_target(self):
+        directory = self.root / "server/app/build/libs"
+        directory.mkdir(parents=True)
+        jar = directory / "app.jar"
+        def write_manifest(domains):
+            with zipfile.ZipFile(jar, "w") as archive:
+                archive.writestr("META-INF/MANIFEST.MF", "Manifest-Version: 1.0\r\n"
+                    "Main-Class: org.springframework.boot.loader.launch.JarLauncher\r\n"
+                    "Weave-Domains: " + domains + "\r\n\r\n")
+        write_manifest("files")
+        arguments = hosted.backend_build_arguments(self.root, ["files"])
+        self.assertEqual(arguments[:2], ["--target", "runtime-without-chat"])
+        self.assertIn("JAR_FILE=server/app/build/libs/app.jar", arguments)
+        self.assertIn("WEAVE_DOMAINS=files", arguments)
+        with self.assertRaisesRegex(artifacts.ArtifactError, "selection-mismatch"):
+            hosted.backend_build_arguments(self.root, ["chat"])
+        write_manifest("chat")
+        self.assertEqual(hosted.backend_build_arguments(self.root, ["chat"])[:2],
+                         ["--target", "runtime-with-chat"])
+        (directory / "old.jar").write_bytes(jar.read_bytes())
+        self.assertEqual(hosted.selected_backend_jar(self.root, ["chat"], Path("server/app/build/libs/app.jar")),
+                         "server/app/build/libs/app.jar")
+        with self.assertRaisesRegex(artifacts.ArtifactError, "inside-build-context"):
+            hosted.selected_backend_jar(self.root, ["chat"], Path("../outside.jar"))
+        with self.assertRaisesRegex(artifacts.ArtifactError, "one-selected-backend-jar"):
+            hosted.backend_build_arguments(self.root, ["chat"])
+
+    def test_local_image_mode_has_no_receipt_and_cannot_override_selection_arguments(self):
+        arguments = ["build_artifacts_hosted.py", "--root", str(self.root), "--component", "runtime-linux-amd64",
+                     "--local-backend-image", "weave:experiment", "--domains", "files"]
+        with patch("sys.argv", arguments + ["--build-arg", "WEAVE_DOMAINS=chat"]), \
+                patch.object(hosted, "run") as run, \
+                self.assertRaisesRegex(artifacts.ArtifactError, "provenance-arguments-invalid"):
+            hosted.main()
+        run.assert_not_called()
+        with patch("sys.argv", arguments + ["--build-arg", "WEAVE_IMAGE_REVISION=" + "a" * 40]), \
+                patch.object(hosted, "backend_build_arguments", return_value=["--target", "runtime-without-chat"]), \
+                patch.object(hosted, "verify_backend_image") as verify, patch.object(hosted, "run") as run, \
+                patch.object(hosted, "publish_manifest") as publish, patch("sys.stdout", new_callable=io.StringIO):
+            self.assertEqual(hosted.main(), 0)
+        self.assertIn("WEAVE_IMAGE_REVISION=" + "a" * 40, run.call_args.args[1])
+        verify.assert_called_once_with(self.root, "weave:experiment", ["files"])
+        publish.assert_not_called()
+
+    def test_local_test_app_reuses_validated_helper_and_explicit_release_selection(self):
+        script = (artifacts.ROOT / "gradle/tasks/test-app.sh").read_text()
+        self.assertIn('--release-selection --format csv', script)
+        self.assertIn('"-Pdomains=${resolved_domains}"', script)
+        self.assertIn('--domains "${resolved_domains}"', script)
+        self.assertIn('--local-backend-image "${SERVER_IMAGE}"', script)
+        self.assertIn('"${common_build_args[@]}"', script)
+        self.assertNotIn('--file "${REPOSITORY_ROOT}/server/Dockerfile"', script)
+
+    def test_no_chat_docker_target_has_no_dependency_on_rust_or_native_environment(self):
+        dockerfile = (artifacts.ROOT / "server/Dockerfile").read_text()
+        base, targets = dockerfile.split("FROM runtime-base AS runtime-without-chat", 1)
+        without, with_chat = targets.split("FROM runtime-base AS runtime-with-chat", 1)
+        self.assertNotIn("matrix-protocol", base.split("AS runtime-base", 1)[1])
+        self.assertNotIn("WEAVE_MATRIX_PROTOCOL_LIBRARY_PATH", base)
+        self.assertNotIn("matrix-protocol", without)
+        self.assertNotIn("WEAVE_MATRIX_PROTOCOL_LIBRARY_PATH", without)
+        self.assertIn("--from=matrix-protocol", with_chat)
+        self.assertIn("ENV WEAVE_MATRIX_PROTOCOL_LIBRARY_PATH=", with_chat)
+        self.assertNotIn("ARG JAR_FILE=", dockerfile)
+        context = (artifacts.ROOT / ".dockerignore").read_text()
+        for path in ("rust/matrix-protocol/src/**", "rust/matrix-protocol/rust-toolchain.toml",
+                     "rust/matrix-client/src/**", "rust/vendor/**"):
+            self.assertIn("!" + path, context)
+        self.assertNotIn("matrix-core", context)
+
     def test_runtime_specification_labels_invalidate_only_the_runtime(self):
         before = self.inputs()
         self.write("specs/weave-specs.lock.json", json.dumps({"specCorpus": {"gitCommit": "b" * 40}}))
@@ -96,7 +307,12 @@ class Repository(unittest.TestCase):
     def test_actual_domain_composition_inputs_invalidate_the_runtime(self):
         before = self.inputs()
         for name in ("server/domains/catalog.json", "tools/domain_selection_resolver.py"):
-            self.write(name, "changed composition input\n")
+            if name.endswith("catalog.json"):
+                catalog = json.loads((self.root / name).read_text())
+                catalog["testInputRevision"] = 2
+                self.write(name, json.dumps(catalog))
+            else:
+                self.write(name, "changed composition input\n")
             self.commit()
             after = self.inputs()
             self.assertNotEqual(before["runtime-linux-amd64"], after["runtime-linux-amd64"])

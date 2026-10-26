@@ -12,7 +12,7 @@ import shlex
 import shutil
 import subprocess
 
-from build_artifacts import ArtifactError, candidate_identity, verify_component
+from build_artifacts import ArtifactError, candidate_identity, verify_component, is_runtime, release_domains
 from artifact_runtime_storage import RuntimeStorageError, record_verified_runtime
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,11 +25,16 @@ def component(name: str, candidate: str = "HEAD") -> tuple[dict, Path]:
     if not selected or not directory.is_absolute() or any(path.is_symlink() for path in (directory, *directory.parents)):
         raise ArtifactError("verified-hosted-artifact-root-required")
     directory = directory / name
-    manifest = verify_component(ROOT, directory, candidate, name)
     composition = candidate_composition(candidate)
     expected = composition["components"].get(name)
+    domains = expected.get("runtime", {}).get("domains") if isinstance(expected, dict) and is_runtime(name) else None
+    if is_runtime(name) and domains != release_domains(ROOT, candidate):
+        raise ArtifactError("release-runtime-domain-selection-required")
+    manifest = verify_component(ROOT, directory, candidate, name, domains)
     producer = manifest.get("producer", {})
     actual = {key: manifest[key] for key in ("sourceCommit", "sourceTree", "inputDigest", "target", "buildMode", "buildNumber")}
+    if is_runtime(name):
+        actual["runtime"] = manifest["runtime"]
     actual.update(payloadSha256=manifest["payload"]["sha256"], producerRunId=producer.get("runId"),
                   producerRunAttempt=producer.get("runAttempt"))
     if not isinstance(expected, dict) or any(expected.get(key) != value for key, value in actual.items()):
@@ -38,7 +43,7 @@ def component(name: str, candidate: str = "HEAD") -> tuple[dict, Path]:
 
 
 def component_evidence(manifest: dict) -> dict:
-    return {key: manifest[key] for key in ("component", "sourceCommit", "sourceTree", "inputDigest", "target", "buildMode", "buildNumber")} | {
+    return ({"runtime": manifest["runtime"]} if is_runtime(manifest["component"]) else {}) | {key: manifest[key] for key in ("component", "sourceCommit", "sourceTree", "inputDigest", "target", "buildMode", "buildNumber")} | {
         "payloadSha256": manifest["payload"]["sha256"]}
 
 
@@ -88,6 +93,7 @@ def runtime_definition(candidate: str = "HEAD") -> tuple[dict, dict, Path]:
     images = value.get("images", {})
     if (value.get("schemaVersion") != "weave.runtime-images/v1"
             or value.get("sourceCommit") != manifest["sourceCommit"]
+            or value.get("runtime") != manifest.get("runtime")
             or value.get("platform") != "linux/amd64"
             or not IMAGE.fullmatch(value.get("specDigest", ""))
             or set(images) != {"backend", "mcp", "keycloak", "runtimeState"}
@@ -109,9 +115,17 @@ def verify_runtime_container(container: dict, candidate: str = "HEAD") -> dict:
     labels = images[0].get("Config", {}).get("Labels", {}) or {}
     if (labels.get("org.opencontainers.image.revision") != manifest["sourceCommit"]
             or labels.get("com.massimotter.weave.spec-digest") != definition["specDigest"]
-            or labels.get("com.massimotter.weave.module") != "server"):
+            or labels.get("com.massimotter.weave.module") != "server"
+            or labels.get("com.massimotter.weave.domains") != ",".join(manifest["runtime"]["domains"])
+            or labels.get("com.massimotter.weave.runtime-flavor") != manifest["runtime"]["flavor"]):
         raise ArtifactError("running-server-artifact-mismatch")
     return component_evidence(manifest)
+
+
+def require_release_runtime(composition: dict, candidate: str) -> None:
+    for name, entry in composition["components"].items():
+        if is_runtime(name) and entry["runtime"]["domains"] != release_domains(ROOT, candidate):
+            raise ArtifactError("release-runtime-domain-selection-required")
 
 
 def candidate_composition(candidate: str = "HEAD") -> dict:
@@ -121,7 +135,9 @@ def candidate_composition(candidate: str = "HEAD") -> dict:
     if (not selected or not path.is_absolute() or not path.is_file()
             or any(parent.is_symlink() for parent in (path, *path.parents))):
         raise ArtifactError("qualified-candidate-composition-required")
-    return validate_composition(ROOT, json.loads(path.read_text()), candidate)
+    composition = validate_composition(ROOT, json.loads(path.read_text()), candidate)
+    require_release_runtime(composition, candidate)
+    return composition
 
 
 def fetch_composition(candidate: str, run_id: int, run_attempt: int, output: Path, *, qualified: bool = False) -> None:
@@ -158,6 +174,7 @@ def fetch_composition(candidate: str, run_id: int, run_attempt: int, output: Pat
         _, name = max(names)
         value = artifact_json(download_artifact(repository, run_id, name, token), "candidate-artifacts.json")
     validate_composition(ROOT, value, candidate)
+    require_release_runtime(value, candidate)
     if any(path.is_symlink() for path in (output, *output.parents)):
         raise ArtifactError("unsafe-composition-output")
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -182,6 +199,9 @@ def load_runtime_images(candidate: str = "HEAD") -> dict[str, str]:
             if (labels.get("org.opencontainers.image.revision") != manifest["sourceCommit"]
                     or labels.get("com.massimotter.weave.spec-digest") != definition["specDigest"]):
                 raise ArtifactError("loaded-runtime-provenance-mismatch")
+            if key == "backend" and (labels.get("com.massimotter.weave.domains") != ",".join(manifest["runtime"]["domains"])
+                    or labels.get("com.massimotter.weave.runtime-flavor") != manifest["runtime"]["flavor"]):
+                raise ArtifactError("loaded-runtime-selection-mismatch")
     try:
         record_verified_runtime(manifest, images)
     except RuntimeStorageError as failure:

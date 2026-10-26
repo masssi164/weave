@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import patch
 
 from tools.domain_selection_resolver import (
-    DomainSelectionError, load_catalog, matrix, resolve, resolve_checkout, source_branch,
+    DomainSelectionError, load_catalog, matrix, release_request, resolve, resolve_checkout, source_branch,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,6 +22,12 @@ CATALOG = {
 
 
 class DomainSelectionTest(unittest.TestCase):
+    def test_release_request_is_explicit_and_does_not_spoof_source_branch(self):
+        self.assertEqual(release_request(CATALOG), 'chat,files')
+        self.assertEqual(resolve(CATALOG, release_request(CATALOG), 'dogfood'),
+                         {'domains': ['chat', 'files'], 'selectionSource': 'explicit'})
+        self.assertEqual(resolve(CATALOG, None, 'dogfood')['domains'], ['calendar', 'chat', 'files'])
+
     def test_no_input_on_other_branch_defaults_to_all(self):
         self.assertEqual(resolve(CATALOG, None, 'feature/test'),
                          {'domains': ['calendar', 'chat', 'files'], 'selectionSource': 'all'})

@@ -139,6 +139,7 @@ public final class WorkspaceCapabilityTestInstallation {
     }
 
     @TestConfiguration(proxyBeanMethods = false)
+    @org.springframework.boot.context.properties.EnableConfigurationProperties(WorkspaceCapabilityProperties.class)
     @Import({
             ChatWorkspaceCapabilityConfiguration.class,
             FilesWorkspaceCapabilityConfiguration.class,

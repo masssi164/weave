@@ -13,7 +13,7 @@ unrelated work and incorporate upstream normally. Never reset to a historical ch
 The accepted corpus remains `f049c0b1879414eb529a3df83a18224407f1a436`. Entity-first ownership
 was approved through weave-specs#170. Explicit persistence/composition/no-Chat and Linux
 ARM64/GHCR reconciliation is proposed in [weave-specs#172](https://github.com/masssi164/weave-specs/pull/172),
-proposal `e38e9ba`; its hosted conformance passed, acceptance remains pending. A proposal does not
+proposal `e38e9ba`; its hosted conformance passed and it is ready for review; acceptance remains pending. A proposal does not
 silently replace the accepted pin. No placeholder Matrix URL, owner-data reset, applied-history
 rewrite, protected merge, deployment or release publication is authorized by this refactor.
 
@@ -25,7 +25,7 @@ remain explicit future scope. Core owns independently useful platform capabiliti
 
 **Still open:** the required closed workspace/Matrix wire projection and App Manuals declarations;
 accepted reduced/no-Chat discovery and coordinated client activation; the initializer/schema cutover;
-platform/image integration and qualification. Production dependencies and
+automatic ARM64/GHCR integration and platform/live qualification. Production dependencies and
 schema/API export now use selected runtimes; a real classpath/artifact check replaces the former
 blanket partial-packaging refusal. This does not establish a clean release capability projection.
 A green full experimental `all` build is not a qualified three-domain release candidate.
@@ -39,7 +39,7 @@ A green full experimental `all` build is not a qualified three-domain release ca
 | 3. Vertical extraction and ORM | Move actual controllers/use cases/providers/settings/resources/JPA; preserve future functionality; remove ordinary Calendar/Matrix JDBC CRUD | Owning units; PostgreSQL reads/writes/isolation/constraints/rollback/locking/concurrency; no legacy copies | Actual release and existing future runtimes extracted; provider-replacement planning now owned by Portability; generic Admin extracted; accepted closed workspace projection still transitional |
 | 4. Core and build finalization | Remove optional implementation dependencies from shared workflows; one resolver drives checks, runtime, schema/API and identity | Architecture, selected artifact/SDK inspection, deterministic schema, real Gradle wiring | Shared session/Identity/Spaces/HTTP/policy/health/readiness contracts implemented; selected production/schema/API composition implemented; public projection/cutover qualification open |
 | 5. Runtime and clients | Actual release plus Files-only/Calendar-only/Chat-only startup, honest endpoints/capabilities, generated User/Admin consumers and stable Flutter navigation | API/auth/freshness, reduced variants, actual absence of omitted SDK/JNI, Compose/two members, ARM64/AOT where available | Selected real HTTP/schema/JAR and all four packaged PostgreSQL variants pass; reduced discovery acceptance and live/platform qualification pending |
-| 6. Review and delivery | Consolidate canonical docs/scoped instructions/Skills; review combined source; coherent commits/push and PR evidence | Applicable combined gates, diff/source review, exact revision, hosted results | Checkpoints pushed; prior combined verification passed; selected/Admin combined verification passed; final review and image integration remain; PR stays draft |
+| 6. Review and delivery | Consolidate canonical docs/scoped instructions/Skills; review combined source; coherent commits/push and PR evidence | Applicable combined gates, diff/source review, exact revision, hosted results | Checkpoints pushed; prior combined verification passed; selected/Admin combined verification passed; App scan and selected image/receipt integration implemented; combined candidate and four representative variants pass; external qualification and contract activation remain; PR stays draft |
 
 ## Ownership map and dependency direction
 
@@ -58,7 +58,7 @@ A green full experimental `all` build is not a qualified three-domain release ca
 | Organization bootstrap App persistence/use case/HTTP/wire | Core `identity.organization` + framework-free values/port; move | Shared organization authority works without optional domains; preserve recovery keys, versioned JPA updates, audit and exact HTTP contract |
 | App Admin provider-replacement planning + migration evidence dependency | Portability application/API; split | Future planning and evidence are excluded together; generic Admin no longer requires the optional evidence repository |
 | Global Admin service/controller/17 wire types and suite feature constants | Core `admin.application/api` + actual domain declarations; split | Shared admission/audit/selection policy remains Core; Files owns required unverified-activation policy; optional suites, API links and disabled MCP preview disappear with owners |
-| App feature defaults/environment aliases | Nine owning domain resources; move | Preserve all 124 scalar keys/values and normal deployment override precedence; reusable capability configuration loads its owner defaults |
+| App feature defaults/environment aliases | Nine owning domain resources; move | Preserve consumed scalar defaults/aliases and deployment override precedence; reusable capability configuration loads its owner defaults; retire one unused Files selector |
 | Unsupported Notifications metadata only | Retire production declaration and matching conformance fixtures | No implemented backend, handler or accepted bounded context; future product scope remains, without a fabricated project/readiness claim |
 | Shared member/session revocation formerly Matrix-named | Core Security | Required without Chat; preserve table/hash semantics, tenant authorization and fail-closed behavior |
 | Global provider/category and canonical metadata registries | Generic policy/HTTP/DTOs in Core Discovery; actual module metadata in each owner | Instance catalogs reject duplicate/conflicting ownership and compose installed declarations; Office/Integrations contribute separate document-category fragments without a new domain dependency |
@@ -220,8 +220,9 @@ App production source now imports no optional-domain implementation types.
 Previous checkpoint `fd0937f73b` passed organization bootstrap/catalog/replacement extraction and
 full checks. Independent resolver/workflow/inventory tests passed 54 cases, actual Gradle wiring
 six cases, and default/Files+Chat owning checks. Hosted earlier API/protocol/Admin/architecture/docs/
-corpus/infra jobs passed; selected owning checks passed on Linux ARM64. The separate hosted reduced
-export wiring probe repeatedly failed reading an ephemeral Gradle binary store and remains open.
+corpus/infra jobs passed. On `2704e842`, the complete selected-domain workflow passed on Linux ARM64,
+including the formerly failing reduced-export Gradle wiring probes. Core CI at that revision exposed
+the retired Files selector described below; the local corrected boundary guard passes.
 
 Selected `bootJar`, offline schema and isolated API export now pass for Files-only, Calendar-only,
 Chat-only and the three-domain release. Artifact inspection reports 714 unique Weave classes for
@@ -252,6 +253,31 @@ it without dependency changes. Eight actual Gradle wiring cases pass (42s), incl
 transitive dependency rejection and export-classpath separation. Resolver/workflow/inventory plus
 normalization units pass 59 cases. The full experimental JAR has 1,655 unique Weave classes.
 
+Final combined candidate after the unused-selector removal passes (5m 14s,
+`/tmp/weave-final-domain-candidate.log`), including the final frozen image/receipt changes:
+
+```sh
+DOCKER_HOST=<observed-disposable-engine> WEAVE_SPEC_CORPUS_ROOT=<accepted-pinned-checkout> ./gradlew :server:domains:check :server:app:test :server:app:postgresJpaTest :server:app:entitySchemaCheck coreArchitectureCi canonicalDataCi specCorpusConformance acceptanceContract checkOpenApiContractFresh checkClientUserApiFresh :weave-user-api-client:check :weave-admin-api-client:check infraStatic docsCheck :server:app:verifySelectedArtifact :server:app:selectedRuntimePostgresTest -Pdomains=all --console=plain
+```
+
+App has 835 cases with 23 explicit PostgreSQL-only skips; the separate PostgreSQL lane has 204
+cases with no skips/failures/errors. Owning checks, schema/architecture/corpus, static acceptance,
+full API/Flutter User freshness, JVM consumers, infrastructure and strict docs pass. The full
+Core-documentation Python lane also passes: 127 combined boundary/selector/promotion/resolver/
+workflow cases, five README cases, 87 native-qualification contract cases and the production
+source guards. These native contract tests are not physical/native runtime qualification.
+Artifact units pass 101 cases; resolver/workflow/Dogfood evidence units pass 75; both changed
+workflows pass actionlint, and the existing pipeline/hygiene and shell syntax checks pass.
+
+The same final production source passes the release selection (22s), Calendar-only (18s),
+Chat-only (20s) and Files-only (19s), each through actual owning checks, selected HTTP/User/Admin
+export, compiled entity-schema export, executable inspection, normalization and packaged-JAR
+PostgreSQL startup. Logs: `/tmp/weave-final-variant-<selection>.log`; matching JARs are preserved
+outside the checkout for review. Default owning checks pass (2s), and explicit Files+Chat passes
+(1s). Inventory sees 997 production Java sources, no retired root projects, duplicate nominal
+types or suggested owner mismatches; this advisory inventory supplements actual dependency and
+runtime checks rather than proving ownership by itself.
+
 Remaining internal/public composition boundary: App Manuals still advertises its existing required
 workspace slot and metadata, and the accepted closed wire projection still contains required optional
 feature fields. Required Matrix discovery fails support-safely when Chat is absent. These prevent a
@@ -260,10 +286,37 @@ contract/server/generated-client changes are accepted and implemented. Existing 
 resources/initializer remain transitional pending integrity/recovery cutover; selected schema export
 does not silently reset owner data or make that deployment lifecycle complete.
 
-Remaining image integration: Docker still includes Chat JNI unconditionally, and the SHA-checkout
-hosted producer must pass asserted source identity/selection into Gradle, artifact reuse keys and
-image metadata. These are concrete internal follow-ups, not passed container exclusion. Related #1733
-must be inspected/reconciled before immutable GHCR consumption; do not enable publication here.
+App scanning is now restricted to App-owned composition/entry-point packages. Core and domain
+settings register through their owning configurations; the shared MVC fixture explicitly enables
+its required Core workspace settings. A physical-source architecture regression caught an overlap
+between App schema tooling and Core schema persistence; App now explicitly wires the serving guard
+instead of scanning that namespace. The combined follow-up passed in 5m 13s: App 835 tests (23
+explicit PostgreSQL-lane skips), PostgreSQL 204 without skips/failures/errors, actual full HTTP export,
+packaged PostgreSQL startup and the combined gates above. The initial fixture failures and one
+architecture regression were repaired; an earlier failed-fixture run exhausted its test JVM heap
+and was stopped, rather than counted as a completed lane.
+
+The owner-resource move copied 124 scalar keys/values initially. Hosted Core CI then exposed the
+retired native Files blob-store mode selector, which has no bound field or production consumer.
+It is removed rather than allowed through the unchanged native-provider boundary guard. A current
+production-source fixture prevents that drift from escaping local guard tests again.
+
+Selected image/receipt integration now uses the same resolver and asserted checkout identity.
+Runtime input digests, receipts, composition/evidence comparisons and backend OCI labels include
+canonical domains and JVM flavor. Missing, malformed or mismatched runtime identity is rejected;
+Apple package identity stays independent of backend selection. Dogfood explicitly requests the
+catalog release pin without fabricating a source branch, and release consumers reject wider
+experimental compositions. Docker has separate Chat/no-Chat final targets, verifies the exact
+selected Boot JAR before building, and skips the Rust stage/native file/environment without Chat.
+The Docker input closure follows the actual Rust modules/vendor paths; the existing local test-app
+fallback uses the same validating helper. This does not create hosted receipts for local images.
+
+A local no-Chat image check with the earlier `2704e842` macOS-built Files JAR passed on linux/amd64:
+BuildKit skipped the Rust stage; labels identify Files/JVM; native file and environment are absent.
+This is image-content proof, not final-source Linux provider startup qualification. Related #1733
+was inspected and still needs reconciliation with current paths/selection and accepted ARM64/GHCR
+contracts. The existing AMD64 hosted producer/archive transport remains transitional; this change
+does not publish images, enable package-write permissions or claim ARM64/GraalVM qualification.
 
 Remaining external qualification: accepted #172 where affected; Linux ARM64 JVM/AOT/native/JNI;
 exact-candidate Compose and two ordinary members/two real Flutter iOS apps; physical preparation and

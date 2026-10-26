@@ -148,12 +148,27 @@ docker run --rm \
   ./gradlew :server:app:test -Pdomains=all
 ```
 
-Build the local image used by monorepo `infra/` live-stack runs:
+Build an experimental local JVM image from an already compiled selection. The helper validates the
+exact Boot JAR manifest, chooses `runtime-with-chat` or `runtime-without-chat`, and checks the image's
+selection labels, native file and environment. A no-Chat target has no dependency on the Rust build
+stage. Local images do not create trusted hosted receipts; protected live qualification consumes
+verified hosted artifacts.
 
 ```bash
-./gradlew :server:app:bootJar -Pdomains=files,chat,calendar
-docker build -f server/Dockerfile -t weave-backend:e2e .
+./gradlew :server:app:bootJar :server:app:verifySelectedArtifact -Pdomains=files
+python3 tools/build_artifacts_hosted.py --component runtime-linux-amd64 \
+  --domains files --local-backend-image weave-backend:files-experiment
 ```
+
+Hosted planning uses the existing domain resolver with the asserted source branch and commit;
+empty input applies a matching branch pin, otherwise `all`. Dogfood explicitly requests the
+catalog's release pin without pretending its source branch is `dev`. Runtime input digests,
+receipts, composition entries and backend OCI labels include the canonical domain list and JVM
+flavor; mismatched or unbound runtime artifacts are rejected. Apple package identities remain
+independent of the backend selection. Wider experimental compositions cannot be consumed as a
+three-domain release. This does not activate the pending ARM64/GHCR contract change: the existing
+hosted AMD64 producer and authenticated artifact transport remain in place until proposal #172 is
+accepted and related PR #1733 is reconciled.
 
 ## Canonical local/dev contract
 
