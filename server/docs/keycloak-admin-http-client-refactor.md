@@ -1,47 +1,54 @@
 # Provider-scoped outbound HTTP clients
 
-Status: **local implementation pending hosted compilation and review**. Issue: [#1730](https://github.com/masssi164/weave/issues/1730). This issue covers all outbound provider clients, not only Keycloak administration.
+Status: **Keycloak implementation active in PR #1732; merge requires green protected CI on the current head and follow-up review.** Issue: [#1730](https://github.com/masssi164/weave/issues/1730).
 
-## Source-pinned boundary
+## Design rule
 
-- Base: `dev@97ee14b55d127416aea1e3fbe50681f4d79b4da2`; tree `c381f8795348f1ab93d03003cd7aefc8aa44b342`.
-- Canonical corpus pin: `f049c0b1879414eb529a3df83a18224407f1a436`.
-- Implementation owners: provider-specific `config/{keycloak,openproject,nextcloud,caldav,synapse}/`, their existing domain adapters, and focused tests. Recheck the inventory when `dev` moves.
+Use the smallest framework-supported boundary that preserves the provider's actual protocol and security invariants.
 
-## Repository inventory and current choices
+- Ordinary Spring HTTP service interfaces use `@ImportHttpServices` with a named group.
+- Group-local transport/authentication belongs in `RestClientHttpServiceGroupConfigurer`; do not hand-build a production `HttpServiceProxyFactory`.
+- Keep explicit imperative clients for protocols that need custom DAV methods, streaming, bounded XML parsing, JNI, or other semantics that a generic HTTP interface would obscure.
+- Do not add a config/helper class merely to move one constructor line. A configuration owner must own reusable policy such as authentication, timeout/SSL behavior, typed settings, lifecycle, or bean registration.
+- Never place raw secrets in records or other values with generated `toString`/equality unless the type explicitly redacts them.
 
-| Boundary | Transport | Shape and decision |
+The canonical Java/Spring rules live in [`docs/java-spring-standard.md`](../../docs/java-spring-standard.md) and [the HTTP-client Skill](../../.agents/skills/weave-http-clients/SKILL.md). This page records the concrete provider decisions and must not redefine those standards.
+
+## Current provider decisions
+
+| Boundary | Shape | Decision |
 |---|---|---|
-| Keycloak invitation/organization Admin API | Spring `RestClient` | Named endpoint operations in `config/keycloak/KeycloakAdminClient` (`@GetExchange`, `@PostExchange`, `@PutExchange`, `@DeleteExchange`), backed by `KeycloakAuthConfig` and `KeycloakAdminProperties`. `KeycloakIdentityAdminOperationPolicy` owns exact method/path/status admission, enforced by the protected transport before sending or decoding a response body. |
-| OpenProject Boards API | Spring `RestClient` | `config/openproject/OpenProjectClient` (`@GetExchange`, `@PatchExchange`), provider-scoped properties and HTTP factory; policy and response-error translation remain in `boards/openproject/`. |
-| Nextcloud Files WebDAV | Spring `RestClient` with custom PROPFIND/MKCOL plus binary/streaming bodies | `config/nextcloud/NextcloudHttpConfig` owns the JDK request factory. The adapter retains the explicit WebDAV exchange flow until streaming and 207/ETag semantics are characterized. |
-| Nextcloud CalDAV | JDK `HttpClient` with REPORT/PROPFIND and XML parsing | `config/caldav/CalDavHttpConfig` owns connection setup. Request-specific 207, sync and bounded parsing stay in the calendar adapter. |
-| Synapse Matrix application service | JDK `HttpClient` with bounded streaming responses | `config/synapse/SynapseHttpConfig` owns connection setup; Matrix-specific status/auth remain in the provider adapter. |
-| Keycloak dynamic client registration | Protected Spring `RestClient` in `SpringKeycloakClientRegistrationTransport` | Separate privileged workload-identity flow; **not** conflated with human administration. Candidate for a later provider-local transport without changing redirect rejection, response codes or credential rules. |
-| Keycloak offline realm migration CLI | Isolated `RestClient` in `identity/migration` | Keep CLI separate from live app beans and admin tokens; migration has a distinct authorization and safety model. |
-| OAuth2/JWT discovery and AWS runtime-state SDK | `RestTemplate` through Spring Security, AWS SDK client | Framework-owned protocol clients, not app REST contracts; preserve dedicated libraries and settings. |
+| Keycloak invitation/organization Admin API | Spring HTTP service interface | `KeycloakAdminClient` declares named operations. `KeycloakAuthConfig` registers it as the `keycloak-admin` HTTP-service group. Group-scoped interceptors preserve the closed method/path/status policy, service-owned `private_key_jwt`, exact SecretRef access, timeouts and 401 invalidation. |
+| OpenProject Boards API | Existing imperative Spring `RestClient` | Keep the existing endpoint/URI logic until an endpoint-oriented interface can remove real code. Do not wrap generic `get(URI)` / `patch(URI)` primitives in a manual proxy factory and call that migration complete. |
+| Nextcloud Files WebDAV | Existing Spring `RestClient` with explicit WebDAV flow | PROPFIND/MKCOL, binary streaming, 207 and ETag semantics stay explicit. |
+| Nextcloud CalDAV | Existing JDK `HttpClient` | REPORT/PROPFIND, sync semantics and bounded XML parsing remain protocol-specific. |
+| Synapse Matrix application service | Existing JDK `HttpClient` | Streaming/status/auth semantics remain with the Matrix adapter. |
+| Keycloak dynamic client registration | Protected Spring `RestClient` in its workload-identity owner | Separate privileged flow; do not conflate it with human administration. |
+| Keycloak offline realm migration CLI | Isolated migration client | Keep live-app beans/tokens and offline migration authority separate. |
 
-The existing `IdentityInvitationProperties` remains the **single source of truth** for bound Keycloak invitation credentials. `KeycloakAdminProperties.from(...)` is an immutable runtime view, not a second binder or secret store. OpenProject takes its source from the existing Boards runtime properties. `config/` groups outbound HTTP wiring; `identity/`, `boards/`, `service/` and `chat/` continue owning domain behavior.
+## Keycloak responsibility split
 
-## Responsibility split
+1. **HTTP contract:** `KeycloakAdminClient` declares provider routes, query/form parameters and media types. Spring owns query/form encoding and Jackson message conversion; the anti-corruption layer intentionally keeps `JsonNode` so strict provider field-type validation remains fail-closed rather than relying on coercing DTOs.
+2. **HTTP-service group:** `KeycloakAuthConfig` owns group registration, base URI/context-path handling, connect/read timeout, service bearer acquisition and 401 invalidation.
+3. **Security policy:** `KeycloakIdentityAdminOperationPolicy` is the closed method/path/status authority. Exact expected success codes—including rejection of unexpected 2xx—are intentional security behavior, not boilerplate.
+4. **Provider anti-corruption layer:** `KeycloakIdentityAdminClient` owns bounded inventories, domain normalization, fail-closed provider-shape validation, fixture sequencing and support-safe errors.
+5. **Application/domain:** Weave authorization, organization rules and member lifecycle remain outside provider transport types.
 
-1. **HTTP contract:** Keycloak methods declare specific provider routes, variables, query parameters and body media types. No generic verb-and-URI forwarding remains in that client. The adapter invokes named methods and retains existing JSON normalization; it does not build URLs. OpenProject currently exposes two transport primitives and still needs endpoint-specific declarations before it is a complete declarative migration.
-2. **Protected transport:** one Spring-owned binding supplies base URL (including any context path), connect/read timeout, service-owned `private_key_jwt` token acquisition, and 401 token invalidation. A provider-scoped interceptor applies the existing closed operation policy before transport and checks its exact successful status before response-body conversion. Managed fixture methods require separate request-local admission; that marker never becomes an HTTP header. `HttpServiceProxyFactory` reuses the protected `RestClient`; do not introduce a duplicate token cache or a global interceptor.
-3. **Provider anti-corruption adapter:** `KeycloakIdentityAdminClient` owns domain translation, bounded inventory/pagination, managed-fixture authority and sequencing, safe errors, and protection against ambiguous provider results. `KeycloakIdentityAdminOperationPolicy` remains the single source for admitted method/path/status combinations.
-4. **Domain/application:** Weave authorization and organization rules remain outside provider DTOs/URLs. Do not move Spring classes into framework-free application core.
+Managed-fixture methods require separate request-local admission. That marker is not an HTTP header. Member credentials are never relayed to the provider-admin client, and provider writes are never implicitly retried.
 
-The current `KeycloakIdentityAdminOperationPolicy` and the exact expected-status check are security boundaries, not boilerplate to remove. A declarative proxy must not accidentally allow a route, status, or body previously rejected.
+## Verification
 
-## Verification and rollout
+For Keycloak changes, preserve tests for:
 
-- Characterize the existing method/path/status matrix through focused tests before replacing calls.
-- Run focused HTTP proxy tests including 4xx and **unexpected 2xx** translation without reading their bodies, configured context-path preservation, and encoded path variables; Keycloak's exact expected HTTP status behavior must not be relaxed by proxy defaults.
-- Test 401 invalidation, all non-expected statuses (including unexpected success codes), allowlist and fixture-only denials, token/secret containment, and meaningful invitation/member flows.
-- Validate existing integration tests across invitations, OpenProject, Nextcloud, CalDAV and Synapse; add a focused proxy characterization where tests did not cover status mapping.
-- Run `./gradlew :server:test` and `./gradlew serverCi`, then protected CI and independent security review. Record real results in the PR, not here.
+- Boot HTTP-service registration without credential access or provider contact during startup;
+- configured context paths, encoded path variables, exact query ordering and framework form encoding;
+- closed route/method admission and fixture-only denials before transport;
+- exact success status mapping, including unexpected 2xx rejection before body conversion;
+- service-owned `private_key_jwt`, exact SecretRef containment and 401 invalidation;
+- invitation/member lifecycle behavior and support-safe provider failures.
 
-## Out of scope
+Run focused tests first, then `./gradlew :server:test` / `serverCi` and protected CI. Deterministic CI is not live Keycloak, Dogfood, native-device or human-acceptance evidence.
 
-JPA/DTO rewrites, new starter libraries, runtime architecture changes, provider migration, spec/product behavior changes, Dogfood/Main promotion, or personal iPhone acceptance.
+## Remaining declarative work
 
-If an operation cannot preserve its policy/status semantics, leave it on the existing protected transport and document the specific blocker rather than weakening checks.
+Only convert another provider when the change removes meaningful transport code while preserving its protocol. Endpoint-specific OpenProject declarations are a reasonable future candidate. DAV, Matrix and other specialized boundaries stay imperative until a concrete, tested simplification exists.

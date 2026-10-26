@@ -1,13 +1,9 @@
 package com.massimotter.weave.backend.identity.invitation;
 
-import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.config.IdentityInvitationProperties;
 import com.massimotter.weave.backend.config.keycloak.KeycloakAdminClient;
-import com.massimotter.weave.backend.config.keycloak.KeycloakAuthConfig;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.Comparator;
@@ -21,14 +17,14 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 /**
  * Backend-only anti-corruption layer for Keycloak Organizations.
  *
- * <p>OAuth2 client authentication is owned by the configured {@link RestClient}; this adapter
- * contains no token endpoint calls, bearer-token cache, password flow, or provider credential.
+ * <p>OAuth2 client authentication is owned by the Boot-managed Keycloak HTTP-service group; this
+ * adapter contains no token endpoint calls, bearer-token cache, password flow, or provider
+ * credential.
  */
 @Component
 public class KeycloakIdentityAdminClient {
@@ -56,17 +52,11 @@ public class KeycloakIdentityAdminClient {
     this.restClient = restClient;
   }
 
-  /** Compatibility seam for focused standalone tests with a stub HTTP transport. */
-  KeycloakIdentityAdminClient(
-      IdentityInvitationProperties properties, ObjectMapper mapper, RestClient transport) {
-    this(properties, mapper, KeycloakAuthConfig.proxy(transport, properties.keycloak().baseUrl()));
-  }
-
   public ProviderInvitation issue(String organizationId, String email, String displayName) {
     Set<String> previousInvitationIds = invitationIds(list(organizationId, email));
     String[] names = splitName(displayName);
-    request(() -> restClient.inviteUser(realm(), organizationId,
-        form("email", email, "firstName", names[0], "lastName", names[1])));
+    request(() -> restClient.inviteUser(
+        realm(), organizationId, email, names[0], names[1]));
 
     List<ProviderInvitation> createdInvitations =
         list(organizationId, email).stream()
@@ -99,8 +89,8 @@ public class KeycloakIdentityAdminClient {
   public boolean hasHumanUsers() {
     List<JsonNode> users =
         values(
-                json(
-                    request(() -> restClient.humanUsers(realm()))))
+                request(() -> restClient.humanUsers(
+                    realm(), 0, HUMAN_USER_PROBE_LIMIT, true)))
             .toList();
     if (users.size() > HUMAN_USER_PROBE_LIMIT) {
       throw ambiguousHumanUserInventory();
@@ -130,8 +120,8 @@ public class KeycloakIdentityAdminClient {
       int offset = first;
       List<JsonNode> page =
           values(
-                  json(
-                      request(() -> restClient.organizations(realm(), offset, pageSize))))
+                  request(() -> restClient.organizations(
+                      realm(), offset, pageSize, true)))
               .toList();
       page.stream()
           .filter(organization -> alias.equals(organization.path("alias").asString()))
@@ -151,7 +141,7 @@ public class KeycloakIdentityAdminClient {
   }
 
   public ProviderInvitation resend(String organizationId, String providerInvitationId) {
-    request(() -> restClient.resendInvitation(realm(), organizationId, providerInvitationId, ""));
+    request(() -> restClient.resendInvitation(realm(), organizationId, providerInvitationId));
     return requireInvitation(organizationId, providerInvitationId);
   }
 
@@ -162,8 +152,7 @@ public class KeycloakIdentityAdminClient {
   public boolean isOrganizationMember(String organizationId, String subject) {
     try {
       JsonNode member =
-          json(
-              request(() -> restClient.member(realm(), organizationId, subject)));
+          request(() -> restClient.member(realm(), organizationId, subject));
       return subject.equals(member.path("id").asString());
     } catch (KeycloakAdminException exception) {
       if (exception.status() == 404) {
@@ -184,8 +173,8 @@ public class KeycloakIdentityAdminClient {
       int offset = first;
       List<JsonNode> page =
           values(
-                  json(
-                      request(() -> restClient.members(realm(), organizationId, offset, pageSize))))
+                  request(() -> restClient.members(
+                      realm(), organizationId, offset, pageSize, false)))
               .toList();
       for (JsonNode user : page) {
         if (!isServiceAccount(user)) {
@@ -252,7 +241,7 @@ public class KeycloakIdentityAdminClient {
 
   public Instant revokeSessions(String organizationId, String subject) {
     requireMember(organizationId, subject);
-    request(() -> restClient.logout(realm(), subject, ""));
+    request(() -> restClient.logout(realm(), subject));
     JsonNode user = currentMemberUser(organizationId, subject);
     JsonNode notBefore = user.path("notBefore");
     if (!notBefore.isIntegralNumber()) {
@@ -337,7 +326,7 @@ public class KeycloakIdentityAdminClient {
       initial.put("username", authority.email()).put("email", authority.email()).put("enabled", true)
           .put("firstName", names[0]).put("lastName", names[1]).put("emailVerified", false);
       initial.putArray("requiredActions").add("UPDATE_PASSWORD");
-      request(() -> restClient.createManagedUser(realm(), initial.toString(), true));
+      request(() -> restClient.createManagedUser(realm(), initial, true));
       // Only this successful create may read its result before a durable subject binding exists.
       // An uncertain create is never adopted from an address alone on a later invocation.
       user = managedUser(authority, true);
@@ -348,7 +337,7 @@ public class KeycloakIdentityAdminClient {
     if (!isOrganizationMember(authority.organizationId(), subject)) {
       if (!created || authority.existingSubject() != null || authority.progress().steps().contains("membership")) throw managedConflict();
       request(() -> restClient.addManagedMember(
-          realm(), organizationId, objectMapper.writeValueAsString(subject), true));
+          realm(), organizationId, objectMapper.valueToTree(subject), true));
     }
     authority = recordManagedStep(authority, progress, "membership", subject);
     Set<String> groups = organizationMemberGroupPaths(authority.organizationId(), subject);
@@ -364,8 +353,12 @@ public class KeycloakIdentityAdminClient {
       JsonNode fresh = managedUser(authority, false);
       if (fresh == null || !subject.equals(fresh.path("id").asString()) || !managedInitialPasswordRequired(fresh)
           || !managedCredentials(subject).isEmpty()) throw managedCredentialConflict();
-      request(() -> restClient.setManagedInitialPassword(realm(), subject,
-          objectMapper.writeValueAsString(Map.of("type", "password", "temporary", false, "value", initialPassword)), true));
+      request(() -> restClient.setManagedInitialPassword(
+          realm(),
+          subject,
+          objectMapper.valueToTree(
+              Map.of("type", "password", "temporary", false, "value", initialPassword)),
+          true));
     }
     authority = recordManagedStep(authority, progress, "credential", subject);
     if (!user.path("emailVerified").asBoolean(false) || !user.path("requiredActions").isEmpty()) {
@@ -374,7 +367,7 @@ public class KeycloakIdentityAdminClient {
       if (fresh == null || !subject.equals(fresh.path("id").asString())) throw managedConflict();
       var activated = objectMapper.createObjectNode();
       activated.put("emailVerified", true).putArray("requiredActions");
-      request(() -> restClient.updateUser(realm(), subject, activated.toString()));
+      request(() -> restClient.updateUser(realm(), subject, activated));
     }
     authority = recordManagedStep(authority, progress, "activation", subject);
     if (groups.isEmpty()) setOrganizationGroupMembership(authority.organizationId(), subject, "/members", true);
@@ -394,7 +387,13 @@ public class KeycloakIdentityAdminClient {
 
   private JsonNode managedUser(ManagedTestMember authority, boolean justCreated) {
     if (!configuredOrganizationId().equals(authority.organizationId())) throw managedConflict();
-    var users = values(json(request(() -> restClient.managedUsers(realm(), authority.email(), true)))).toList();
+    var users =
+        values(
+                request(
+                    () ->
+                        restClient.managedUsers(
+                            realm(), authority.email(), true, 0, 2, true)))
+            .toList();
     if (users.isEmpty()) {
       if (authority.existingSubject() != null || authority.progress().accountRef() != null) throw managedConflict();
       return null;
@@ -444,7 +443,8 @@ public class KeycloakIdentityAdminClient {
   }
 
   private List<JsonNode> managedCredentials(String subject) {
-    var credentials = values(json(request(() -> restClient.managedCredentials(realm(), subject, true)))).toList();
+    var credentials =
+        values(request(() -> restClient.managedCredentials(realm(), subject, true))).toList();
     if (credentials.size() > 1 || credentials.stream().anyMatch(value -> !"password".equals(value.path("type").asString()))) {
       throw managedCredentialConflict();
     }
@@ -457,9 +457,7 @@ public class KeycloakIdentityAdminClient {
   }
 
   private JsonNode currentMemberUser(String organizationId, String subject) {
-    JsonNode user =
-        json(
-            request(() -> restClient.user(realm(), subject)));
+    JsonNode user = request(() -> restClient.user(realm(), subject));
     if (!subject.equals(user.path("id").asString(""))
         || isServiceAccount(user)
         || !isOrganizationMember(organizationId, subject)) {
@@ -519,8 +517,7 @@ public class KeycloakIdentityAdminClient {
 
   private Set<String> organizationMemberGroupPaths(String organizationId, String subject) {
     return values(
-            json(
-                request(() -> restClient.memberGroups(realm(), organizationId, subject))))
+            request(() -> restClient.memberGroups(realm(), organizationId, subject, true)))
         .map(group -> group.path("path").asString(""))
         .filter(groupPath -> !groupPath.isBlank())
         .collect(java.util.stream.Collectors.toUnmodifiableSet());
@@ -530,34 +527,32 @@ public class KeycloakIdentityAdminClient {
       String organizationId, String subject, String groupPath, boolean member) {
     JsonNode group = resolveOrganizationGroup(organizationId, groupPath);
     String groupId = group.path("id").asString();
-    request(() -> member
-        ? restClient.addGroupMember(realm(), organizationId, groupId, subject)
-        : restClient.removeGroupMember(realm(), organizationId, groupId, subject));
+    if (member) {
+      request(() -> restClient.addGroupMember(realm(), organizationId, groupId, subject));
+    } else {
+      request(() -> restClient.removeGroupMember(realm(), organizationId, groupId, subject));
+    }
   }
 
   private JsonNode resolveOrganizationGroup(String organizationId, String groupPath) {
     String leaf = groupPath.substring(groupPath.lastIndexOf('/') + 1);
     return exactlyOne(
         values(
-                json(
-                    request(() -> restClient.groups(realm(), organizationId, leaf))))
+                request(() -> restClient.groups(realm(), organizationId, leaf, true)))
             .filter(candidate -> groupPath.equals(candidate.path("path").asString()))
             .toList(),
         "organization group " + groupPath);
   }
 
   private void setEnabled(String subject, boolean enabled) {
-    JsonNode user =
-        json(
-            request(() -> restClient.user(realm(), subject)));
+    JsonNode user = request(() -> restClient.user(realm(), subject));
     ((tools.jackson.databind.node.ObjectNode) user).put("enabled", enabled);
-    request(() -> restClient.updateUser(realm(), subject, user.toString()));
+    request(() -> restClient.updateUser(realm(), subject, user));
   }
 
   private List<ProviderInvitation> list(String organizationId, String email) {
     return values(
-            json(
-                request(() -> restClient.invitations(realm(), organizationId, email))))
+            request(() -> restClient.invitations(realm(), organizationId, email)))
         .filter(node -> email == null || email.equalsIgnoreCase(node.path("email").asString()))
         .map(this::toInvitation)
         .toList();
@@ -592,10 +587,19 @@ public class KeycloakIdentityAdminClient {
         instant(node, "createdAt", "sentDate"));
   }
 
-  private String request(Supplier<String> operation) {
+  private <T> T request(Supplier<T> operation) {
     try {
-      String body = operation.get();
-      return body == null ? "" : body;
+      return operation.get();
+    } catch (KeycloakAdminException exception) {
+      throw exception;
+    } catch (RestClientException exception) {
+      throw new IllegalStateException("Keycloak administration is unavailable", exception);
+    }
+  }
+
+  private void request(Runnable operation) {
+    try {
+      operation.run();
     } catch (KeycloakAdminException exception) {
       throw exception;
     } catch (RestClientException exception) {
@@ -664,14 +668,6 @@ public class KeycloakIdentityAdminClient {
         "Keycloak human-user inventory is unavailable or ambiguous");
   }
 
-  private JsonNode json(String body) {
-    try {
-      return objectMapper.readTree(body);
-    } catch (JacksonException exception) {
-      throw new IllegalStateException("Keycloak returned an invalid response", exception);
-    }
-  }
-
   private Stream<JsonNode> values(JsonNode node) {
     if (node == null || !node.isArray()) {
       throw new IllegalStateException("Keycloak returned an invalid collection response");
@@ -689,20 +685,6 @@ public class KeycloakIdentityAdminClient {
     }
     String[] parts = displayName.trim().split("\\s+", 2);
     return new String[] {parts[0], parts.length > 1 ? parts[1] : ""};
-  }
-
-  private static String form(String... values) {
-    StringBuilder result = new StringBuilder();
-    for (int index = 0; index < values.length; index += 2) {
-      if (!result.isEmpty()) {
-        result.append('&');
-      }
-      result
-          .append(URLEncoder.encode(values[index], StandardCharsets.UTF_8))
-          .append('=')
-          .append(URLEncoder.encode(values[index + 1], StandardCharsets.UTF_8));
-    }
-    return result.toString();
   }
 
   public record ProviderInvitation(

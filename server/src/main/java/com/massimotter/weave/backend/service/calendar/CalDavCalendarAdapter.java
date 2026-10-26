@@ -12,7 +12,6 @@ import com.massimotter.weave.backend.calendar.domain.CalendarDomain.FreeBusyWind
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.WriteIntent;
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
 import com.massimotter.weave.backend.config.CalendarCalDavProperties;
-import com.massimotter.weave.backend.config.caldav.CalDavHttpConfig;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile;
 import com.massimotter.weave.backend.portability.ProviderConformanceProfile.MappingClass;
 import com.massimotter.weave.backend.portability.ProviderCapabilityProbeResult;
@@ -59,7 +58,7 @@ public class CalDavCalendarAdapter implements CalendarProviderPort {
 
     public CalDavCalendarAdapter(CalendarCalDavProperties properties) {
         this(properties,
-                CalDavHttpConfig.client(properties),
+                HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(properties.requestTimeoutSeconds())).build(),
                 new IcalendarMapper(),
                 new CalendarOccurrenceEngine(new Ical4jRecurrenceEngine()));
     }
