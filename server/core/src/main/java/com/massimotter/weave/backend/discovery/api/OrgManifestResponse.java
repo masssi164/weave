@@ -20,8 +20,9 @@ public record OrgManifestResponse(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String clientId) {
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public record Protocols(
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, format = "uri") String matrixClientServerBaseUrl) {
+            @Schema(description = "Required exactly when Chat is installed; otherwise absent.", format = "uri") String matrixClientServerBaseUrl) {
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)

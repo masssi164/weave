@@ -63,6 +63,9 @@ tasks.register('javaAgentReferenceTest', Test) {
 }
 
 tasks.register('postgresJpaTest', Test) {
+    if ('calendar' in project(':server').ext.weaveDomainSelection.domains) {
+        dependsOn ':server:domains:calendar:postgresTest'
+    }
     group = 'verification'
     description = 'Run the authoritative JPA repository, constraint, transaction, migration, and restore contracts against PostgreSQL.'
     dependsOn tasks.named('buildMatrixRustCoreJni'), tasks.named('testClasses')

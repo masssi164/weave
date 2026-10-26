@@ -4,6 +4,9 @@ import com.massimotter.weave.backend.calendar.api.CalendarController;
 import com.massimotter.weave.backend.calendar.api.CalendarUserController;
 import com.massimotter.weave.backend.calendar.api.dav.CalDavCalendarController;
 import com.massimotter.weave.backend.calendar.application.CalendarFacadeService;
+import com.massimotter.weave.backend.calendar.application.CalendarFacadeAuthorization;
+import com.massimotter.weave.backend.calendar.application.CalendarClientSetupService;
+import com.massimotter.weave.backend.calendar.application.CalendarDavSyncService;
 import com.massimotter.weave.backend.calendar.application.CalendarUserApiService;
 import com.massimotter.weave.backend.calendar.persistence.NativeCalendarProviderAdapter;
 import com.massimotter.weave.backend.calendar.persistence.NativeCalendarRelationalStore;
@@ -31,6 +34,8 @@ class CalendarRuntimeDiscoveryTest {
                 .run(context -> {
                     assertThat(context).hasNotFailed().hasSingleBean(CalendarRuntimeAutoConfiguration.class)
                             .hasSingleBean(CalendarFacadeService.class).hasSingleBean(CalendarUserApiService.class)
+                            .hasSingleBean(CalendarFacadeAuthorization.class).hasSingleBean(CalendarClientSetupService.class)
+                            .hasSingleBean(CalendarDavSyncService.class)
                             .hasSingleBean(CalendarProviderPort.class).hasSingleBean(NativeCalendarProviderAdapter.class)
                             .hasSingleBean(NativeCalendarRelationalStore.class)
                             .hasSingleBean(CalendarController.class).hasSingleBean(CalendarUserController.class)
@@ -70,7 +75,8 @@ class CalendarRuntimeDiscoveryTest {
                 .withPropertyValues("spring.jpa.hibernate.ddl-auto=none", "spring.flyway.enabled=false")
                 .run(context -> assertThat(context).hasNotFailed().doesNotHaveBean(CalendarRuntimeAutoConfiguration.class)
                         .doesNotHaveBean(CalendarFacadeService.class).doesNotHaveBean(CalendarController.class)
-                        .doesNotHaveBean(CalendarProviderPort.class).doesNotHaveBean(NativeCalendarRelationalStore.class));
+                        .doesNotHaveBean(CalendarProviderPort.class).doesNotHaveBean(NativeCalendarRelationalStore.class)
+                        .doesNotHaveBean(CalendarClientSetupService.class).doesNotHaveBean(CalendarDavSyncService.class));
     }
 
     @Configuration(proxyBeanMethods = false)

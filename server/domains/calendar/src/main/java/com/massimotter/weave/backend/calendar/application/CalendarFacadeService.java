@@ -1,7 +1,5 @@
 package com.massimotter.weave.backend.calendar.application;
 
-import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
-import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.AuditEvent;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
@@ -18,20 +16,12 @@ import com.massimotter.weave.backend.calendar.domain.CalendarDomain.ScopeType;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.WriteIntent;
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
-import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
-import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
-import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationRequest;
 import com.massimotter.weave.backend.spaces.authorization.ContextPermission;
-import com.massimotter.weave.backend.calendar.api.CalendarAccessModelResponse;
 import com.massimotter.weave.backend.calendar.api.CalendarAccessPolicyResponse;
-import com.massimotter.weave.backend.calendar.api.CalendarClientSetupOptionResponse;
 import com.massimotter.weave.backend.calendar.api.CalendarClientSetupResponse;
-import com.massimotter.weave.backend.calendar.api.CalendarCredentialReadinessResponse;
-import com.massimotter.weave.backend.calendar.api.CalendarExternalEndpointsResponse;
 import com.massimotter.weave.backend.calendar.api.CalendarAttendeeResponse;
 import com.massimotter.weave.backend.calendar.api.CalendarEventResponse;
 import com.massimotter.weave.backend.calendar.api.CalendarEventsResponse;
-import com.massimotter.weave.backend.calendar.api.CalendarNativeSyncOptionResponse;
 import com.massimotter.weave.backend.calendar.api.CalendarNativeSyncSetupResponse;
 import com.massimotter.weave.backend.calendar.api.CalendarScopeResponse;
 import com.massimotter.weave.backend.calendar.api.CalendarScopesResponse;
@@ -42,19 +32,15 @@ import com.massimotter.weave.backend.calendar.api.CreateCalendarEventRequest;
 import com.massimotter.weave.backend.calendar.api.UpdateCalendarEventRequest;
 import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityStatusResponse;
 import com.massimotter.weave.backend.calendar.domain.CalendarAdapterException;
-import com.massimotter.weave.backend.calendar.application.AppleMobileConfigProfile;
-import com.massimotter.weave.backend.calendar.provider.caldav.AppleMobileConfigProfileRenderer;
+import com.massimotter.weave.backend.calendar.application.CalendarFacadeAuthorization.PrincipalContext;
 import com.massimotter.weave.backend.calendar.api.dav.CalDavEventResource;
 import com.massimotter.weave.backend.calendar.api.dav.CalDavSyncResult;
-import com.massimotter.weave.backend.calendar.domain.CalendarPrincipal;
 import com.massimotter.weave.backend.calendar.provider.icalendar.IcalendarMapper;
-import com.massimotter.weave.backend.security.device.DeviceCredential;
-import com.massimotter.weave.backend.security.device.DeviceCredentialException;
-import com.massimotter.weave.backend.security.device.DeviceCredentialService;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
+import org.springframework.beans.factory.annotation.Qualifier;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -64,62 +50,39 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Set;
+import java.util.Objects;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.jwt.Jwt;
 
 public class CalendarFacadeService {
 
-    private static final String DEFAULT_CONTEXT_ID = "workspace-default";
-
-    private final ObjectProvider<CalendarProviderPort> calendarProviderPortProvider;
-    private final String calDavPublicBaseUrl;
-    private final ContextAuthorizationPort contextAuthorizationPort;
-    private final ContextAuthorizationProperties contextAuthorizationProperties;
-    private final OrganizationIdentityContextResolver identityContexts;
-    private final WorkspaceCapabilityService workspaceCapabilityService;
-    private final AppleMobileConfigProfileRenderer appleProfileRenderer;
-    private final DeviceCredentialService deviceCredentialService;
-    private final IcalendarMapper icalendarMapper = new IcalendarMapper();
-    private final Map<String, CalendarSyncCursor> syncCursors = new ConcurrentHashMap<>();
+    private final CalendarProviderPort calendarProviderPort;
+    private final CalendarFacadeAuthorization authorization;
+    private final CalendarClientSetupService clientSetup;
+    private final CalendarDavSyncService davSync;
+    private final IcalendarMapper icalendarMapper;
     private final AuditEventPublisher auditEventPublisher;
     private final Clock clock;
 
-    @Autowired
     public CalendarFacadeService(
-            ObjectProvider<CalendarProviderPort> calendarProviderPortProvider,
-            @Value("${weave.calendar.caldav.public-base-url:https://calendar.weave.test}") String calDavPublicBaseUrl,
-            ContextAuthorizationPort contextAuthorizationPort,
-            ContextAuthorizationProperties contextAuthorizationProperties,
-            OrganizationIdentityContextResolver identityContexts,
-            DeviceCredentialService deviceCredentialService,
-            WorkspaceCapabilityService workspaceCapabilityService,
-            AuditEventPublisher auditEventPublisher) {
-        this.calendarProviderPortProvider = calendarProviderPortProvider;
-        this.contextAuthorizationPort = contextAuthorizationPort;
-        this.contextAuthorizationProperties = contextAuthorizationProperties == null
-                ? new ContextAuthorizationProperties(null, null, null, null, null, null, null, null)
-                : contextAuthorizationProperties;
-        this.identityContexts = java.util.Objects.requireNonNull(identityContexts, "identityContexts");
-        this.calDavPublicBaseUrl = calDavPublicBaseUrl == null || calDavPublicBaseUrl.isBlank()
-                ? "https://calendar.weave.test"
-                : calDavPublicBaseUrl.trim();
-        this.appleProfileRenderer = new AppleMobileConfigProfileRenderer(this.calDavPublicBaseUrl);
-        this.deviceCredentialService = deviceCredentialService;
-        this.workspaceCapabilityService = workspaceCapabilityService;
-        this.auditEventPublisher = auditEventPublisher;
-        this.clock = Clock.systemUTC();
+            CalendarProviderPort calendarProviderPort,
+            CalendarFacadeAuthorization authorization,
+            CalendarClientSetupService clientSetup,
+            CalendarDavSyncService davSync,
+            IcalendarMapper icalendarMapper,
+            AuditEventPublisher auditEventPublisher,
+            @Qualifier("calendarFacadeClock") Clock clock) {
+        this.calendarProviderPort = Objects.requireNonNull(calendarProviderPort);
+        this.authorization = Objects.requireNonNull(authorization);
+        this.clientSetup = Objects.requireNonNull(clientSetup);
+        this.davSync = Objects.requireNonNull(davSync);
+        this.icalendarMapper = Objects.requireNonNull(icalendarMapper);
+        this.auditEventPublisher = Objects.requireNonNull(auditEventPublisher);
+        this.clock = Objects.requireNonNull(clock);
     }
 
     public CalendarScopesResponse scopes() {
-        requireContextPermission(CalendarScopeResponse.workspace(), ContextPermission.VIEW, "list-scopes");
+        authorization.requireContextPermission(CalendarScopeResponse.workspace(), ContextPermission.VIEW, "list-scopes");
         return new CalendarScopesResponse(calendarScopes());
     }
 
@@ -154,11 +117,11 @@ public class CalendarFacadeService {
             OffsetDateTime to) {
         validateRange(from, to);
         CalendarScopeResponse normalizedScope = normalizeScope(scope, "caldav-list-events");
-        requireContextPermission(normalizedScope, ContextPermission.VIEW, "list-events");
+        authorization.requireContextPermission(normalizedScope, ContextPermission.VIEW, "list-events");
         try {
-            return adapter("list-events")
+            return calendarProviderPort
                     .query(calendarId(), toDomainScope(normalizedScope), instant(from), instant(to)).stream()
-                    .map(event -> calDavResource(event, normalizedScope))
+                    .map(event -> davSync.resource(event, normalizedScope))
                     .toList();
         } catch (CalendarAdapterException exception) {
             throw apiError(exception, "list-events");
@@ -178,9 +141,9 @@ public class CalendarFacadeService {
                     Map.of("module", "calendar", "operation", "caldav-free-busy"));
         }
         CalendarScopeResponse normalizedScope = normalizeScope(scope, "caldav-free-busy");
-        requireContextPermission(normalizedScope, ContextPermission.VIEW, "free-busy");
+        authorization.requireContextPermission(normalizedScope, ContextPermission.VIEW, "free-busy");
         try {
-            return adapter("free-busy").freeBusy(
+            return calendarProviderPort.freeBusy(
                     calendarId(),
                     toDomainScope(normalizedScope),
                     from.toInstant(),
@@ -191,55 +154,24 @@ public class CalendarFacadeService {
     }
 
     public CalDavSyncResult syncCalDavResources(CalendarScopeResponse scope, String weaveSyncToken) {
-        CalendarScopeResponse normalizedScope = normalizeScope(scope, "caldav-sync-collection");
-        requireContextPermission(normalizedScope, ContextPermission.VIEW, "sync-events");
-        CalendarId calendarId = calendarId();
-        CalendarProviderPort provider = adapter("sync-events");
-        String providerToken = providerSyncToken(weaveSyncToken, calendarId, normalizedScope, provider);
+        CalendarScopeResponse normalized = normalizeScope(scope, "caldav-sync-collection");
+        authorization.requireContextPermission(normalized, ContextPermission.VIEW, "sync-events");
         try {
-            var changeSet = provider.changes(
-                    calendarId,
-                    toDomainScope(normalizedScope),
-                    providerToken);
-            List<CalDavEventResource> changed = changeSet.changes().stream()
-                    .filter(change -> !change.deleted())
-                    .map(change -> provider.read(
-                            calendarId,
-                            toDomainScope(normalizedScope),
-                            change.eventId()))
-                    .map(event -> calDavResource(event, normalizedScope))
-                    .toList();
-            List<String> deleted = changeSet.changes().stream()
-                    .filter(com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChange::deleted)
-                    .map(change -> change.eventId().value())
-                    .toList();
-            String issuedToken;
-            if (provider.ownsNorthboundSyncTokens()) {
-                issuedToken = changeSet.syncToken();
-            } else {
-                issuedToken = "weave-caldav-sync-" + UUID.randomUUID();
-                syncCursors.put(issuedToken, new CalendarSyncCursor(
-                        calendarId,
-                        normalizedScope.id(),
-                        changeSet.syncToken()));
-            }
-            return new CalDavSyncResult(issuedToken, normalizedScope, changed, deleted);
+            var changes = davSync.synchronize(calendarId(), normalized, toDomainScope(normalized), weaveSyncToken);
+            return new CalDavSyncResult(changes.token(), normalized, changes.changed(), changes.deleted());
         } catch (CalendarAdapterException exception) {
-            if (exception.type() == CalendarAdapterException.Type.CONFLICT) {
-                throw invalidSyncToken();
-            }
             throw apiError(exception, "sync-events");
         }
     }
 
     public CalendarEventResponse create(CreateCalendarEventRequest request) {
         CalendarScopeResponse scope = normalizeScope(request.scope(), "create-event");
-        requireContextPermission(scope, ContextPermission.EDIT, "create-event");
+        authorization.requireContextPermission(scope, ContextPermission.EDIT, "create-event");
         try {
             CalendarEvent event = eventFrom(request, scope, new EventId(UUID.randomUUID() + "@weave.test"));
             publishEventWriteAudit(scope, event.id(), "create-event", EventVersion.unknown());
             return toResponse(
-                    adapter("create-event").write(new CalendarWrite(event, WriteIntent.CREATE, EventVersion.unknown())),
+                    calendarProviderPort.write(new CalendarWrite(event, WriteIntent.CREATE, EventVersion.unknown())),
                     scope,
                     true);
         } catch (CalendarAdapterException exception) {
@@ -249,9 +181,9 @@ public class CalendarFacadeService {
 
     public CalendarEventResponse read(String id) {
         ScopedEventId eventId = scopedEventId(id);
-        requireContextPermission(eventId.scope(), ContextPermission.VIEW, "read-event");
+        authorization.requireContextPermission(eventId.scope(), ContextPermission.VIEW, "read-event");
         try {
-            return toResponse(adapter("read-event").read(
+            return toResponse(calendarProviderPort.read(
                     calendarId(),
                     toDomainScope(eventId.scope()),
                     new EventId(eventId.rawId())), eventId.scope(), true);
@@ -263,9 +195,9 @@ public class CalendarFacadeService {
     public CalendarEventResponse update(String id, UpdateCalendarEventRequest request) {
         ScopedEventId eventId = scopedEventId(id);
         CalendarScopeResponse scope = request.scope() == null ? eventId.scope() : normalizeScope(request.scope(), "update-event");
-        requireContextPermission(scope, ContextPermission.EDIT, "update-event");
+        authorization.requireContextPermission(scope, ContextPermission.EDIT, "update-event");
         try {
-            CalendarProviderPort adapter = adapter("update-event");
+            CalendarProviderPort adapter = calendarProviderPort;
             CalendarEvent existing = adapter.read(calendarId(), toDomainScope(scope), new EventId(eventId.rawId()));
             CalendarEvent updated = merge(existing, request, scope);
             EventVersion expected = request.etag() == null
@@ -283,11 +215,11 @@ public class CalendarFacadeService {
 
     public void delete(String id) {
         ScopedEventId eventId = scopedEventId(id);
-        requireContextPermission(eventId.scope(), ContextPermission.EDIT, "delete-event");
+        authorization.requireContextPermission(eventId.scope(), ContextPermission.EDIT, "delete-event");
         try {
             publishEventWriteAudit(
                     eventId.scope(), new EventId(eventId.rawId()), "delete-event", EventVersion.unknown());
-            adapter("delete-event").delete(
+            calendarProviderPort.delete(
                     calendarId(),
                     toDomainScope(eventId.scope()),
                     new EventId(eventId.rawId()),
@@ -311,9 +243,9 @@ public class CalendarFacadeService {
 
     public CalDavEventResource readCalDavResource(String eventUid, CalendarScopeResponse scope) {
         CalendarScopeResponse normalizedScope = normalizeScope(scope, "read-caldav-event");
-        requireContextPermission(normalizedScope, ContextPermission.VIEW, "read-event");
+        authorization.requireContextPermission(normalizedScope, ContextPermission.VIEW, "read-event");
         try {
-            return calDavResource(adapter("read-event").read(
+            return davSync.resource(calendarProviderPort.read(
                     calendarId(),
                     toDomainScope(normalizedScope),
                     new EventId(eventUid)), normalizedScope);
@@ -339,11 +271,11 @@ public class CalendarFacadeService {
         CalendarScopeResponse normalizedScope = normalizeScope(scope, "put-caldav-event");
         CalendarEvent parsed = parseCalDavEvent(eventUid, normalizedScope, calendarData, "put-caldav-event");
         if ("*".equals(ifNoneMatch)) {
-            requireContextPermission(normalizedScope, ContextPermission.EDIT, "create-event");
+            authorization.requireContextPermission(normalizedScope, ContextPermission.EDIT, "create-event");
             try {
                 publishEventWriteAudit(
                         normalizedScope, parsed.id(), "create-event", EventVersion.unknown());
-                return toResponse(adapter("create-event").write(new CalendarWrite(
+                return toResponse(calendarProviderPort.write(new CalendarWrite(
                         parsed,
                         WriteIntent.CREATE,
                         EventVersion.unknown())), normalizedScope, false);
@@ -351,9 +283,9 @@ public class CalendarFacadeService {
                 throw apiError(exception, "create-event");
             }
         }
-        requireContextPermission(normalizedScope, ContextPermission.EDIT, "update-event");
+        authorization.requireContextPermission(normalizedScope, ContextPermission.EDIT, "update-event");
         try {
-            CalendarProviderPort provider = adapter("update-event");
+            CalendarProviderPort provider = calendarProviderPort;
             EventVersion expectedVersion = EventVersion.unknown();
             if (ifMatch != null && !ifMatch.isBlank()) {
                 CalendarEvent current = provider.read(
@@ -378,11 +310,11 @@ public class CalendarFacadeService {
 
     public void deleteCalDavEventIcs(String eventUid, CalendarScopeResponse scope) {
         CalendarScopeResponse normalizedScope = normalizeScope(scope, "delete-caldav-event");
-        requireContextPermission(normalizedScope, ContextPermission.EDIT, "delete-event");
+        authorization.requireContextPermission(normalizedScope, ContextPermission.EDIT, "delete-event");
         try {
             publishEventWriteAudit(
                     normalizedScope, new EventId(eventUid), "delete-event", EventVersion.unknown());
-            adapter("delete-event").delete(
+            calendarProviderPort.delete(
                     calendarId(),
                     toDomainScope(normalizedScope),
                     new EventId(eventUid),
@@ -393,7 +325,7 @@ public class CalendarFacadeService {
     }
 
     public ApiErrorException reportCalendarQueryNotReady(String reportKind) {
-        requireContextPermission(CalendarScopeResponse.workspace(), ContextPermission.VIEW, "caldav-report-" + reportKind);
+        authorization.requireContextPermission(CalendarScopeResponse.workspace(), ContextPermission.VIEW, "caldav-report-" + reportKind);
         return new ApiErrorException(
                 HttpStatus.NOT_IMPLEMENTED,
                 "caldav-report-not-implemented",
@@ -406,199 +338,31 @@ public class CalendarFacadeService {
     }
 
     public CalendarClientSetupResponse clientSetup() {
-        requireContextPermission(CalendarScopeResponse.workspace(), ContextPermission.VIEW, "client-setup");
-        CalendarPrincipal principal = principal();
-        String username = principal.userId();
-        String discoveryUrl = "/caldav";
-        String principalUrl = "/caldav/principals/users/" + strictPathSegment(username) + "/";
-
-        return new CalendarClientSetupResponse(
-                CalendarScopeResponse.workspace(),
-                accessModel(),
-                credentialReadiness(),
-                username,
-                new CalendarExternalEndpointsResponse("/caldav", discoveryUrl, principalUrl),
-                "The backend returns a Weave-issued device secret only in the create response. "
-                        + "Stored/listed credentials expose no secret, and provider credentials or endpoints are never returned.",
-                List.of(
-                        new CalendarClientSetupOptionResponse(
-                                "apple",
-                                "mobileconfig",
-                                false,
-                                null,
-                                "Signed .mobileconfig download remains fail-closed until profile signing is implemented.",
-                                List.of(
-                                        "iOS, iPadOS, and macOS can install a CalDAV configuration profile with host, port, SSL, principal URL, and username.",
-                                        "Profile generation must not embed a permanent password or backend service credential in the profile.",
-                                        "The backend route is reserved for a signed no-secret profile and currently returns 503 rather than serving an unsigned artifact.")),
-                        new CalendarClientSetupOptionResponse(
-                                "android",
-                                "sync-adapter",
-                                false,
-                                null,
-                                "Android Calendar setup waits for the Weave Account/SyncAdapter implementation.",
-                                List.of(
-                                        "Android has no universal native CalDAV account profile equivalent.",
-                                        "The target path is a Weave account plus SyncAdapter that writes through the Weave calendar facade.",
-                                        "Webcal/ICS subscriptions are read-only and should remain a separate fallback once scoped feed tokens exist.")),
-                        new CalendarClientSetupOptionResponse(
-                                "desktop",
-                                "caldav-manual",
-                                true,
-                                "/api/calendar/client-setup/credentials",
-                                null,
-                                List.of(
-                                        "Create a scoped credential, then use the Weave CalDAV discovery path in Thunderbird, Apple Calendar, GNOME, or KDE calendar clients.",
-                                        "Microsoft Outlook generally needs an add-in for CalDAV; read-only ICS/webcal can be offered later where acceptable.",
-                                        "Use the returned credential ID as the username and its one-time Weave secret as the password.")),
-                        new CalendarClientSetupOptionResponse(
-                                "subscription",
-                                "webcal-ics",
-                                false,
-                                null,
-                                "A revocable read-only ICS/webcal feed token is not implemented yet.",
-                                List.of(
-                                        "ICS/webcal is one-way subscription/download, not full two-way CalDAV sync.",
-                        "It is useful for clients without CalDAV support once scoped feed tokens and revocation are available."))));
+        return clientSetup.clientSetup();
     }
 
     public CalendarNativeSyncSetupResponse nativeSyncSetup(WorkspaceCapabilityStatusResponse readiness) {
-        requireContextPermission(CalendarScopeResponse.workspace(), ContextPermission.VIEW, "native-sync-setup");
-        return new CalendarNativeSyncSetupResponse(
-                readiness,
-                true,
-                false,
-                false,
-                "/caldav",
-                "/api/calendar/client-setup/credentials",
-                "/api/calendar/client-setup/apple.mobileconfig",
-                "/caldav/{scopePath}/{eventUid}.ics",
-                List.of(
-                        new CalendarNativeSyncOptionResponse(
-                                "ios",
-                                "CalDAVConfigurationProfile",
-                                "pigeon-or-platform-channel",
-                                false,
-                                "profile_contract_ready_signing_blocked",
-                                "open-weave-calendar-native-setup",
-                                List.of(
-                                        "ios-signed-mobileconfig",
-                                        "weave-caldav-compatible-facade",
-                                        "scoped-revocable-device-credential",
-                                        "physical-ios-calendar-sync-evidence"),
-                                List.of(
-                                        "iOS setup uses a Weave-hosted profile flow and system Calendar account semantics.",
-                                        "The profile route remains fail-closed until signing and scoped credential issuance are configured.",
-                                        "Event sync must target the Weave calendar facade, not a storage provider account.")),
-                        new CalendarNativeSyncOptionResponse(
-                                "android",
-                                "CalendarContractAccountSyncAdapter",
-                                "pigeon-or-platform-channel",
-                                false,
-                                "sync_adapter_contract_ready_implementation_blocked",
-                                "open-weave-calendar-native-setup",
-                                List.of(
-                                        "android-account-authenticator",
-                                        "android-sync-adapter",
-                                        "calendar-provider-sync-identity",
-                                        "scoped-revocable-device-credential",
-                                        "android-instrumentation-sync-evidence"),
-                                List.of(
-                                        "Android setup uses a Weave account plus SyncAdapter boundary for Calendar Provider writes.",
-                                        "Flutter may start setup, show status, and revoke only.",
-                                        "Calendar rows and sync state stay in the native provider layer and Weave facade."))),
-                List.of(
-                        "OPTIONS /caldav",
-                        "PROPFIND /caldav",
-                        "REPORT /caldav calendar-query",
-                        "REPORT /caldav free-busy-query",
-                        "GET /caldav/{scopePath}/{eventUid}.ics",
-                        "PUT /caldav/{scopePath}/{eventUid}.ics",
-                        "DELETE /caldav/{scopePath}/{eventUid}.ics",
-                        "POST /api/calendar/client-setup/credentials",
-                        "DELETE /api/calendar/client-setup/credentials/{credentialId}",
-                        "GET /api/calendar/client-setup/apple.mobileconfig"),
-                List.of(
-                        "Signed Apple profile delivery is not configured yet.",
-                        "Android Account/SyncAdapter implementation is not wired yet.",
-                        "Scoped native device credential issuance currently returns no secret material.",
-                        "Physical-device sync and revoke evidence is still required."));
+        return clientSetup.nativeSyncSetup(readiness);
     }
 
-
     public AppleMobileConfigProfile appleMobileConfigProfile() {
-        requireContextPermission(CalendarScopeResponse.workspace(), ContextPermission.VIEW, "download-apple-mobileconfig");
-        // Keep the download route present but unavailable until a real signing path is wired.
-        // The unsigned renderer is covered by tests so the future signer has a no-secret input artifact.
-        appleProfileRenderer.renderUnsignedNoSecretProfile(principal());
-        throw new ApiErrorException(
-                HttpStatus.SERVICE_UNAVAILABLE,
-                "calendar-apple-profile-unavailable",
-                "Apple Calendar profile download is not available until signed no-secret profile generation is configured.",
-                Map.of(
-                        "module", "calendar",
-                        "operation", "download-apple-mobileconfig",
-                        "requiresSignedProfile", true,
-                        "passwordIncluded", false,
-                        "backendActorCredentialsExposed", false,
-                        "blockers", List.of(
-                                "Profile signing is not configured or implemented in this backend slice.",
-                                "Revocable per-client CalDAV credential issuance remains a prerequisite for password-bearing profiles.",
-                                "Unsigned profiles are deliberately not downloadable from the authenticated API.")));
+        return clientSetup.appleMobileConfigProfile();
     }
 
     public CalendarAccessPolicyResponse accessPolicy() {
-        requireContextPermission(CalendarScopeResponse.workspace(), ContextPermission.VIEW, "access-policy");
-        return new CalendarAccessPolicyResponse(
-                accessModel(),
-                List.of("workspace-calendar.read", "workspace-calendar.write", "client-setup.metadata"),
-                List.of("private-personal-calendar.read", "backend-actor-private-personal-calendar.read"),
-                List.of(
-                        "Choose and document a private calendar access model: user sharing/provisioning, Nextcloud Login Flow/app password, delegated token exchange, or a Weave token bridge.",
-                        "Add operator diagnostics proving private calendar templates are explicitly authorized.",
-                        "Add revocation and audit tests before any private personal CalDAV endpoint is enabled."),
-                false);
+        return clientSetup.accessPolicy();
     }
 
     public CalendarSetupCredentialListResponse setupCredentials() {
-        requireContextPermission(CalendarScopeResponse.workspace(), ContextPermission.VIEW, "list-setup-credentials");
-        PrincipalContext principal = currentPrincipalContext();
-        return new CalendarSetupCredentialListResponse(deviceCredentialService
-                .list("calendar", principal.principalRef()).stream()
-                .map(credential -> calendarCredentialResponse(credential, null))
-                .toList());
+        return clientSetup.setupCredentials();
     }
 
     public CalendarSetupCredentialResponse createSetupCredential(CalendarSetupCredentialRequest request) {
-        requireContextPermission(CalendarScopeResponse.workspace(), ContextPermission.EDIT, "create-setup-credential");
-        CalendarPrincipal principal = principal();
-        PrincipalContext context = currentPrincipalContext();
-        var issued = deviceCredentialService.issue(
-                "calendar",
-                context.tenantId(),
-                context.principalRef(),
-                principal.subject(),
-                principal.userId(),
-                request.clientType(),
-                request.label(),
-                Set.of("calendar.read", "calendar.manage_events"));
-        return calendarCredentialResponse(issued.credential(), issued.secret());
+        return clientSetup.createSetupCredential(request);
     }
 
     public CalendarSetupCredentialResponse revokeSetupCredential(String credentialId) {
-        requireContextPermission(CalendarScopeResponse.workspace(), ContextPermission.EDIT, "revoke-setup-credential");
-        PrincipalContext principal = currentPrincipalContext();
-        DeviceCredential revoked;
-        try {
-            revoked = deviceCredentialService.revoke("calendar", credentialId, principal.principalRef());
-        } catch (DeviceCredentialException exception) {
-            throw new ApiErrorException(
-                    HttpStatus.NOT_FOUND,
-                    "calendar-setup-credential-not-found",
-                    "Calendar setup credential was not found.",
-                    Map.of("module", "calendar", "operation", "revoke-setup-credential"));
-        }
-        return calendarCredentialResponse(revoked, null);
+        return clientSetup.revokeSetupCredential(credentialId);
     }
 
     private List<CalendarScopeResponse> calendarScopes() {
@@ -675,16 +439,6 @@ public class CalendarFacadeService {
                         .toList(),
                 null,
                 event.updatedAt() == null ? null : OffsetDateTime.ofInstant(event.updatedAt(), ZoneOffset.UTC));
-    }
-
-    private CalDavEventResource calDavResource(CalendarEvent event, CalendarScopeResponse scope) {
-        return new CalDavEventResource(
-                event.id().value(),
-                scope,
-                event.version().value(),
-                icalendarMapper.toNorthboundIcalendar(event, scope),
-                event.startsAt().toOffsetDateTime(),
-                event.endsAt().toOffsetDateTime());
     }
 
     private CalendarEventResponse eventResponse(CalDavEventResource resource) {
@@ -826,37 +580,6 @@ public class CalendarFacadeService {
                 Map.of("module", "calendar"));
     }
 
-    private String providerSyncToken(
-            String weaveSyncToken,
-            CalendarId calendarId,
-            CalendarScopeResponse scope,
-            CalendarProviderPort provider) {
-        if (weaveSyncToken == null || weaveSyncToken.isBlank()) {
-            return null;
-        }
-        if (provider.ownsNorthboundSyncTokens()) {
-            return weaveSyncToken.trim();
-        }
-        CalendarSyncCursor cursor = syncCursors.get(weaveSyncToken.trim());
-        if (cursor == null
-                || !cursor.calendarId().equals(calendarId)
-                || !cursor.scopeId().equals(scope.id())) {
-            throw invalidSyncToken();
-        }
-        return cursor.providerToken();
-    }
-
-    private ApiErrorException invalidSyncToken() {
-        return new ApiErrorException(
-                HttpStatus.CONFLICT,
-                "caldav-sync-token-invalid",
-                "The CalDAV sync token is invalid or no longer belongs to this calendar scope.",
-                Map.of(
-                        "module", "calendar",
-                        "operation", "caldav-sync-collection",
-                        "supportSafe", true));
-    }
-
     private CalendarEvent parseCalDavEvent(
             String eventUid,
             CalendarScopeResponse scope,
@@ -926,96 +649,11 @@ public class CalendarFacadeService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
-    private static String strictPathSegment(String value) {
-        StringBuilder encoded = new StringBuilder();
-        value.codePoints().forEach(codePoint -> {
-            if (isUnreservedPathCharacter(codePoint)) {
-                encoded.appendCodePoint(codePoint);
-                return;
-            }
-            byte[] bytes = new String(Character.toChars(codePoint)).getBytes(StandardCharsets.UTF_8);
-            for (byte current : bytes) {
-                encoded.append(String.format("%%%02X", current & 0xFF));
-            }
-        });
-        return encoded.toString();
-    }
-
-    private static boolean isUnreservedPathCharacter(int codePoint) {
-        return (codePoint >= 'A' && codePoint <= 'Z')
-                || (codePoint >= 'a' && codePoint <= 'z')
-                || (codePoint >= '0' && codePoint <= '9')
-                || codePoint == '-'
-                || codePoint == '.'
-                || codePoint == '_'
-                || codePoint == '~';
-    }
-
     private record ScopedEventId(CalendarScopeResponse scope, String rawId) {
     }
 
-    private record CalendarSyncCursor(CalendarId calendarId, String scopeId, String providerToken) {
-    }
-
-    private CalendarAccessModelResponse accessModel() {
-        return new CalendarAccessModelResponse(
-                "workspace-team-channel-calendar",
-                "workspace-team-channel",
-                false,
-                "Private per-user CalDAV calendars are not exposed until provisioning, sharing, or delegated-token access is specified and tested.",
-                "external clients use user-owned revocable per-client credentials; backend actor credentials are never issued to clients",
-                List.of(
-                        "The product calendar facade exposes workspace, team, and channel scope metadata.",
-                        "Backend CalDAV configuration that targets arbitrary private personal calendars must stay fail-closed.",
-                        "External clients may use Weave CalDAV discovery paths only after scoped credentials and revoke evidence exist."));
-    }
-
-    private CalendarCredentialReadinessResponse credentialReadiness() {
-        return new CalendarCredentialReadinessResponse(
-                "revocable_credentials_ready",
-                false,
-                false,
-                true,
-                false,
-                false,
-                List.of(
-                        "Signed Apple .mobileconfig generation is not implemented yet.",
-                        "Read-only ICS/webcal feed tokens are not implemented yet."));
-    }
-
-    private CalendarSetupCredentialResponse calendarCredentialResponse(
-            DeviceCredential credential,
-            String secret) {
-        boolean active = credential.activeAt(Instant.now());
-        String state = credential.revokedAt() != null ? "revoked" : active ? "active" : "expired";
-        return new CalendarSetupCredentialResponse(
-                credential.credentialId(),
-                state,
-                credential.credentialId(),
-                credential.principalRef(),
-                credential.clientType(),
-                credential.label(),
-                OffsetDateTime.ofInstant(credential.issuedAt(), ZoneOffset.UTC),
-                OffsetDateTime.ofInstant(credential.expiresAt(), ZoneOffset.UTC),
-                credential.revokedAt() == null
-                        ? null
-                        : OffsetDateTime.ofInstant(credential.revokedAt(), ZoneOffset.UTC),
-                secret != null,
-                secret,
-                false,
-                active ? List.of("DELETE /api/calendar/client-setup/credentials/" + credential.credentialId()) : List.of());
-    }
-
-    private CalendarProviderPort adapter(String operation) {
-        CalendarProviderPort adapter = calendarProviderPortProvider.getIfAvailable();
-        if (adapter == null) {
-            throw adapterNotConfigured(operation);
-        }
-        return adapter;
-    }
-
     private CalendarId calendarId() {
-        PrincipalContext principal = currentPrincipalContext();
+        PrincipalContext principal = authorization.currentPrincipalContext();
         return new CalendarId("calendar-" + digest(principal.tenantId()).substring(0, 40));
     }
 
@@ -1024,8 +662,8 @@ public class CalendarFacadeService {
             EventId eventId,
             String operation,
             EventVersion expectedVersion) {
-        PrincipalContext principal = currentPrincipalContext();
-        String contextId = contextId(scope);
+        PrincipalContext principal = authorization.currentPrincipalContext();
+        String contextId = authorization.contextId(scope);
         String subject = String.join("\u0000",
                 principal.tenantId(),
                 principal.principalRef(),
@@ -1059,134 +697,6 @@ public class CalendarFacadeService {
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 is required by the Java runtime", exception);
         }
-    }
-
-    private CalendarPrincipal principal() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null) {
-            throw new ApiErrorException(
-                    HttpStatus.UNAUTHORIZED,
-                    "unauthorized",
-                    "Authentication is required.",
-                    Map.of("module", "calendar"));
-        }
-        if (authentication.getPrincipal() instanceof Jwt jwt) {
-            String userId = firstNonBlank(jwt.getClaimAsString("preferred_username"), jwt.getSubject());
-            return new CalendarPrincipal(jwt.getSubject(), userId);
-        }
-        return new CalendarPrincipal(authentication.getName(), authentication.getName());
-    }
-
-    private void requireContextPermission(
-            CalendarScopeResponse scope,
-            ContextPermission permission,
-            String operation) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null) {
-            throw new ApiErrorException(
-                    HttpStatus.UNAUTHORIZED,
-                    "unauthorized",
-                    "Authentication is required.",
-                    Map.of("module", "calendar", "operation", operation));
-        }
-        requireCalendarCapability(authentication, permission, operation);
-        PrincipalContext principalContext = principalContext(authentication);
-        String contextId = contextId(scope);
-        var decision = contextAuthorizationPort.check(new ContextAuthorizationRequest(
-                principalContext.tenantId(),
-                contextId,
-                principalContext.principalRef(),
-                permission));
-        if (!decision.allowed()) {
-            throw new ApiErrorException(
-                    HttpStatus.FORBIDDEN,
-                    "calendar-forbidden",
-                    "Calendar access is not allowed for this Context/Space.",
-                    Map.of(
-                            "module", "calendar",
-                            "operation", operation,
-                            "reason", decision.reason(),
-                            "contextId", contextId,
-                            "permission", permission.name().toLowerCase()));
-        }
-    }
-
-    private void requireCalendarCapability(
-            Authentication authentication,
-            ContextPermission permission,
-            String operation) {
-        if (!(authentication.getPrincipal() instanceof Jwt jwt)) {
-            throw invalidAuthentication("JWT principal is required");
-        }
-        String required = permission == ContextPermission.VIEW
-                ? "calendar.read"
-                : "calendar.manage_events";
-        workspaceCapabilityService.requireCapability(jwt, required, "calendar", operation);
-    }
-
-    private PrincipalContext principalContext(Authentication authentication) {
-        if (authentication.getPrincipal() instanceof Jwt jwt) {
-            return new PrincipalContext(
-                    identityContexts.resolve(jwt).organizationId(),
-                    jwtPrincipalRef(jwt));
-        }
-        String principalRef = contextAuthorizationProperties.principalRef(authentication.getName());
-        if (principalRef == null) {
-            throw invalidAuthentication("principal claim is missing");
-        }
-        return new PrincipalContext(contextAuthorizationProperties.defaultTenantId(), principalRef);
-    }
-
-    private PrincipalContext currentPrincipalContext() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null) {
-            throw new ApiErrorException(
-                    HttpStatus.UNAUTHORIZED,
-                    "unauthorized",
-                    "Authentication is required.",
-                    Map.of("module", "calendar"));
-        }
-        return principalContext(authentication);
-    }
-
-    private String jwtPrincipalRef(Jwt jwt) {
-        String configuredClaim = jwtClaim(jwt, contextAuthorizationProperties.principalClaim());
-        if (configuredClaim != null) {
-            return contextAuthorizationProperties.principalRef(configuredClaim);
-        }
-        String principalRef = contextAuthorizationProperties.principalRef(jwt.getSubject());
-        if (principalRef == null) {
-            throw invalidAuthentication("principal claim is missing");
-        }
-        return principalRef;
-    }
-
-    private String jwtClaim(Jwt jwt, String claimName) {
-        String value = jwt.getClaimAsString(claimName);
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        return value.trim();
-    }
-
-    private ApiErrorException invalidAuthentication(String reason) {
-        return new ApiErrorException(
-                HttpStatus.UNAUTHORIZED,
-                "unauthorized",
-                "Authentication is required.",
-                Map.of("module", "calendar", "reason", reason));
-    }
-
-    private String contextId(CalendarScopeResponse scope) {
-        CalendarScopeResponse normalizedScope = scope == null ? CalendarScopeResponse.workspace() : scope;
-        return switch (normalizedScope.type() == null ? "workspace" : normalizedScope.type()) {
-            case "team" -> "team-" + firstNonBlank(normalizedScope.teamId(), "engineering");
-            case "channel" -> "channel-" + firstNonBlank(normalizedScope.channelId(), "engineering-general");
-            default -> DEFAULT_CONTEXT_ID;
-        };
-    }
-
-    private record PrincipalContext(String tenantId, String principalRef) {
     }
 
     private void validateRange(OffsetDateTime from, OffsetDateTime to) {
@@ -1277,14 +787,6 @@ public class CalendarFacadeService {
             normalized = normalized.substring(1, normalized.length() - 1);
         }
         return normalized;
-    }
-
-    private ApiErrorException adapterNotConfigured(String operation) {
-        return new ApiErrorException(
-                HttpStatus.SERVICE_UNAVAILABLE,
-                "calendar-adapter-not-configured",
-                "Calendar facade is available, but calendar storage is not configured yet.",
-                Map.of("module", "calendar", "operation", operation));
     }
 
     private Map<String, Object> withDefaultDetails(Map<String, Object> details, String operation) {

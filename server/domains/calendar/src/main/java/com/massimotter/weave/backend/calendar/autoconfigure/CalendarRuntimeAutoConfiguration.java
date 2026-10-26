@@ -35,6 +35,7 @@ import com.massimotter.weave.backend.calendar.discovery.CalendarDiscoveryConfigu
         CalendarDavSetupController.class,
         CalendarUserController.class,
         CalDavCalendarController.class,
+        com.massimotter.weave.backend.calendar.config.CalendarFacadeConfiguration.class,
         CalendarFacadeService.class,
         CalendarUserApiService.class,
         CalendarProviderBindingReadiness.class,

@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.calendar.application;
 
-import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation;
+import com.massimotter.weave.backend.calendar.support.CalendarCapabilityTestSupport;
 import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
@@ -18,8 +18,6 @@ import com.massimotter.weave.backend.calendar.domain.CalendarDomain.FreeBusyWind
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.ScopeType;
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
 import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
-import com.massimotter.weave.backend.security.config.WeaveSecurityProperties;
-import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation.Settings;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationRequest;
@@ -30,7 +28,6 @@ import com.massimotter.weave.backend.calendar.api.CreateCalendarEventRequest;
 import com.massimotter.weave.backend.providerbinding.contract.ProviderConformanceProfile;
 import com.massimotter.weave.backend.providerbinding.contract.ProviderReadiness;
 import com.massimotter.weave.backend.calendar.domain.CalendarAdapterException;
-import com.massimotter.weave.backend.security.device.DeviceCredentialService;
 import com.massimotter.weave.backend.security.device.InMemoryDeviceCredentialRepository;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -43,7 +40,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -563,17 +559,14 @@ class CalendarFacadeServiceTest {
             CalendarProviderPort adapter,
             ContextAuthorizationPort contextAuthorizationPort,
             InMemoryAuditEventPublisher auditEventPublisher) {
-        StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
-        beanFactory.addBean("calendarProviderPort", adapter);
-        return new CalendarFacadeService(
-                beanFactory.getBeanProvider(CalendarProviderPort.class),
-                "https://files.weave.test",
-                contextAuthorizationPort,
-                contextAuthorizationProperties(),
-                OrganizationIdentityContextResolver.configured(contextAuthorizationProperties()),
+        var authorization = new CalendarFacadeAuthorization(contextAuthorizationPort, contextAuthorizationProperties(),
+                OrganizationIdentityContextResolver.configured(contextAuthorizationProperties()), workspaceCapabilityService());
+        var setup = new CalendarClientSetupService(authorization,
                 com.massimotter.weave.backend.security.device.DeviceCredentialTestSupport.service(new InMemoryDeviceCredentialRepository()),
-                workspaceCapabilityService(),
-                auditEventPublisher);
+                new com.massimotter.weave.backend.calendar.provider.caldav.AppleMobileConfigProfileRenderer("https://files.weave.test"));
+        var mapper = new com.massimotter.weave.backend.calendar.provider.icalendar.IcalendarMapper();
+        return new CalendarFacadeService(adapter, authorization, setup, new CalendarDavSyncService(adapter, mapper),
+                mapper, auditEventPublisher, java.time.Clock.systemUTC());
     }
 
     private CreateCalendarEventRequest request(CalendarScopeResponse scope) {
@@ -677,11 +670,7 @@ class CalendarFacadeServiceTest {
     private WorkspaceCapabilityService workspaceCapabilityService() {
         OAuth2ResourceServerProperties resourceServer = new OAuth2ResourceServerProperties();
         resourceServer.getJwt().setIssuerUri("https://auth.weave.test/realms/weave");
-        return WorkspaceCapabilityTestInstallation.service(
-                resourceServer,
-                new WeaveSecurityProperties("weave-app", "weave-app"),
-                new Settings(null, null, null,
-                        new Settings.Capability(true, null, null), null, null));
+        return CalendarCapabilityTestSupport.service(resourceServer, true, null);
     }
 
     private static class StubCalendarProvider implements CalendarProviderPort {

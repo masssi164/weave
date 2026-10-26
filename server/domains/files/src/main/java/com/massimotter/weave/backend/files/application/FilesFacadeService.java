@@ -765,7 +765,7 @@ public class FilesFacadeService {
 
     public FileNativeProviderSetupResponse nativeProviderSetup(Jwt jwt) {
         return new FileNativeProviderSetupResponse(
-                workspaceCapabilityService.snapshot(jwt).files(),
+                workspaceCapabilityService.snapshot(jwt).domains().get("files"),
                 true,
                 false,
                 false,

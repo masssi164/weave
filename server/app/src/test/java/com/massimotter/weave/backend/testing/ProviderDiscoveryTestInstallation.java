@@ -11,7 +11,6 @@ import com.massimotter.weave.backend.chat.discovery.ChatDiscoveryMetadata;
 import com.massimotter.weave.backend.calendar.discovery.CalendarDiscoveryMetadata;
 import com.massimotter.weave.backend.devops.discovery.DevopsDiscoveryMetadata;
 import com.massimotter.weave.backend.discovery.catalog.CoreDiscoveryMetadata;
-import com.massimotter.weave.backend.manuals.discovery.ManualsDiscoveryMetadata;
 import com.massimotter.weave.backend.discovery.catalog.CanonicalDomainRegistry;
 import com.massimotter.weave.backend.discovery.catalog.ProviderCategoryCatalog;
 import com.massimotter.weave.backend.discovery.catalog.ProviderCapabilityContracts;
@@ -38,8 +37,7 @@ public final class ProviderDiscoveryTestInstallation {
                 ChatDiscoveryMetadata.chatCategory(),
                 CalendarDiscoveryMetadata.calendarCategory(),
                 DevopsDiscoveryMetadata.releaseEvidenceCategory(),
-                CoreDiscoveryMetadata.adminControlPlaneCategory(),
-                ManualsDiscoveryMetadata.manualsHelpCategory()));
+                CoreDiscoveryMetadata.adminControlPlaneCategory()));
     }
 
     public static ProviderCapabilityContracts contracts() {
@@ -63,18 +61,7 @@ public final class ProviderDiscoveryTestInstallation {
 
     public static void stubCapabilities(WorkspaceCapabilityService service,
             com.massimotter.weave.backend.capability.api.WorkspaceCapabilitiesResponse snapshot) {
-        var statuses = new java.util.LinkedHashMap<String, com.massimotter.weave.backend.capability.api.WorkspaceCapabilityStatusResponse>();
-        statuses.put("chat", snapshot.chat());
-        statuses.put("files", snapshot.files());
-        statuses.put("calendar", snapshot.calendar());
-        statuses.put("boards", snapshot.boards());
-        statuses.put("meetings", snapshot.meetingsCalls());
-        statuses.put("office", snapshot.documentsCollaboration());
-        statuses.put("decisions", snapshot.decisionsEvidence());
-        statuses.put("manuals", snapshot.manualsHelp());
-        statuses.put("devops", snapshot.releaseEvidence());
-        statuses.put("agent-runtime", snapshot.agentRuntimeControl());
-        statuses.values().removeIf(java.util.Objects::isNull);
+        var statuses = snapshot.domains();
         org.mockito.Mockito.when(service.snapshot()).thenReturn(snapshot);
         org.mockito.Mockito.when(service.installedSnapshots(null)).thenReturn(java.util.Map.copyOf(statuses));
         org.mockito.Mockito.when(service.adminControlPlaneSnapshot()).thenReturn(snapshot.adminControlPlane());
@@ -97,7 +84,6 @@ public final class ProviderDiscoveryTestInstallation {
                 com.massimotter.weave.backend.meetings.discovery.MeetingsAdminMetadata.capabilities(),
                 com.massimotter.weave.backend.office.discovery.OfficeAdminMetadata.capabilities(),
                 com.massimotter.weave.backend.decisions.discovery.DecisionsAdminMetadata.capabilities(),
-                com.massimotter.weave.backend.manuals.discovery.ManualsAdminMetadata.capabilities(),
                 com.massimotter.weave.backend.devops.discovery.DevopsAdminMetadata.capabilities()));
     }
 

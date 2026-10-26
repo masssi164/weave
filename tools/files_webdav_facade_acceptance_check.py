@@ -48,7 +48,7 @@ def check_historical_dav() -> None:
         "not(containsString(\"remote.php\"))",
     )
     require(
-        "server/app/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
+        "server/domains/files/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
         "webDavWritePreconditionsFailBeforeStorageMutationButAfterAttemptAudit",
         "webDavWriteRejectionsRequireEditPolicyAndPublishSupportSafeAudit",
     )

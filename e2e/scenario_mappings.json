@@ -107,7 +107,7 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
+          "path": "server/domains/files/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
           "fragments": [
             "webDavPutCreateFolderAndDeleteUseFacadePolicyAndPublishMutationAudit",
             "FILES_WEBDAV_WRITE_COMPLETED"
@@ -830,7 +830,7 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/calendar/application/CalendarUserApiServiceTest.java",
+          "path": "server/domains/calendar/src/test/java/com/massimotter/weave/backend/calendar/application/CalendarUserApiServiceTest.java",
           "fragments": [
             "disabledCalendarPolicyBlocksMemberReadsAndOwnerWritesBeforeProviderAccess",
             "enabledCalendarAllowsOrdinaryMemberWritesWithCurrentEditPermission",
@@ -974,7 +974,7 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/chat/application/ChatDomainFacadeServiceTest.java",
+          "path": "server/domains/chat/src/test/java/com/massimotter/weave/backend/chat/application/ChatDomainFacadeServiceTest.java",
           "fragments": [
             "matrixSendUsesCanonicalProviderAndPublishesSupportSafeAudit",
             "CHAT_MESSAGE_SENT",
@@ -1400,7 +1400,7 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
+          "path": "server/domains/files/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
           "fragments": [
             "failsClosedWhenAdapterIsMissingOrUnconfigured",
             "listFailsClosedWhenContextAuthorizationDeniesAccess",
@@ -1408,7 +1408,7 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/calendar/application/CalendarFacadeServiceTest.java",
+          "path": "server/domains/calendar/src/test/java/com/massimotter/weave/backend/calendar/application/CalendarFacadeServiceTest.java",
           "fragments": [
             "ordinaryMemberCanCreateReadAndDeleteWithinAuthorizedTeamScope",
             "ordinaryMemberWithViewAccessStillRequiresEditBeforeCallingProvider",
@@ -1475,7 +1475,7 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
+          "path": "server/domains/files/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
           "fragments": [
             "failsClosedWhenAdapterIsMissingOrUnconfigured",
             "listFailsClosedWhenContextAuthorizationDeniesAccess",
@@ -1483,7 +1483,7 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/calendar/application/CalendarFacadeServiceTest.java",
+          "path": "server/domains/calendar/src/test/java/com/massimotter/weave/backend/calendar/application/CalendarFacadeServiceTest.java",
           "fragments": [
             "ordinaryMemberCanCreateReadAndDeleteWithinAuthorizedTeamScope",
             "ordinaryMemberWithViewAccessStillRequiresEditBeforeCallingProvider",
@@ -4581,7 +4581,7 @@
       "tag": "@files-webdav-put-create",
       "scenario": "PUT creates a file with If-None-Match and records audit",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
+      "executableTest": "server/domains/files/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
       "evidenceMarkers": [
         "FILES_WEBDAV_PUT_CREATE_AUDIT"
       ],
@@ -4601,7 +4601,7 @@
       "tag": "@files-webdav-put-stale",
       "scenario": "PUT update rejects stale ETags",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
+      "executableTest": "server/domains/files/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
       "evidenceMarkers": [
         "FILES_WEBDAV_STALE_ETAG_PRECONDITION"
       ],
@@ -4620,7 +4620,7 @@
       "tag": "@files-webdav-mkcol",
       "scenario": "MKCOL creates a folder and rejects duplicates or missing parents",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
+      "executableTest": "server/domains/files/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
       "evidenceMarkers": [
         "FILES_WEBDAV_MKCOL_CONFLICTS"
       ],
@@ -4639,7 +4639,7 @@
       "tag": "@files-webdav-delete",
       "scenario": "DELETE removes a resource with If-Match and records audit",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
+      "executableTest": "server/domains/files/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
       "evidenceMarkers": [
         "FILES_WEBDAV_DELETE_AUDIT"
       ],
@@ -4659,7 +4659,7 @@
       "tag": "@files-webdav-move",
       "scenario": "MOVE handles Destination and Overwrite without provider leakage",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
+      "executableTest": "server/domains/files/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
       "evidenceMarkers": [
         "FILES_WEBDAV_COPY_MOVE_CANONICAL"
       ],
@@ -4680,7 +4680,7 @@
       "tag": "@files-webdav-copy",
       "scenario": "COPY handles Destination and Overwrite without provider leakage",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
+      "executableTest": "server/domains/files/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
       "evidenceMarkers": [
         "FILES_WEBDAV_COPY_MOVE_CANONICAL"
       ],
@@ -4701,7 +4701,7 @@
       "tag": "@files-webdav-lock-unlock",
       "scenario": "LOCK exposes lockdiscovery and blocks conflicting writes with 423",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
+      "executableTest": "server/domains/files/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
       "evidenceMarkers": [
         "FILES_WEBDAV_LOCK_CONFLICT"
       ],
@@ -5078,7 +5078,7 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/chat/application/ChatDomainFacadeServiceTest.java",
+          "path": "server/domains/chat/src/test/java/com/massimotter/weave/backend/chat/application/ChatDomainFacadeServiceTest.java",
           "fragments": [
             "selectedEmptySpaceSupportsDiscoveryFirstRoomAndSendWithoutDefaultSpaceAccess",
             "selectedSpaceRechecksCallerAndRecipientAccessInsteadOfFallingBack",
@@ -5539,7 +5539,7 @@
           ]
         },
         {
-          "path": "server/app/src/test/java/com/massimotter/weave/backend/calendar/application/CalendarUserApiServiceTest.java",
+          "path": "server/domains/calendar/src/test/java/com/massimotter/weave/backend/calendar/application/CalendarUserApiServiceTest.java",
           "fragments": [
             "currentCalendarWorkloadReadsThroughMemberSpaceAndAuditsWithoutMaterializing",
             "revokedWorkloadSpaceFailsBeforeCalendarProviderQuery"

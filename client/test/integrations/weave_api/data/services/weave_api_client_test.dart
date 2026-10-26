@@ -1,3 +1,4 @@
+import 'package:weave/generated/user_api/api.dart' as user_api;
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -75,38 +76,59 @@ Map<String, Object?> _workspaceCapabilitiesJson({
 }) {
   return {
     'shellAccess': _capability(enabled: true, readiness: 'ready'),
-    'chat': _capability(
-      enabled: true,
-      readiness: 'ready',
-      grantedCapabilities: const ['chat.read', 'chat.send'],
-    ),
-    'files': _capability(enabled: true, readiness: 'ready'),
-    'calendar': _capability(enabled: true, readiness: 'ready'),
-    'boards': _capability(enabled: true, readiness: 'ready'),
-    'meetingsCalls': _capability(
-      enabled: false,
-      readiness: 'unavailable',
-      policyState: 'disabled',
-    ),
-    'documentsCollaboration': _capability(
-      enabled: false,
-      readiness: 'unavailable',
-      policyState: 'disabled',
-    ),
-    'decisionsEvidence': _capability(enabled: true, readiness: 'ready'),
-    'manualsHelp': _capability(enabled: true, readiness: 'ready'),
-    'releaseEvidence': _capability(enabled: true, readiness: 'ready'),
     'adminControlPlane': _capability(enabled: true, readiness: 'ready'),
-    'agentRuntimeControl': _capability(
-      enabled: false,
-      readiness: 'unavailable',
-      policyState: 'disabled',
-    ),
-    ...overrides,
+    'domains': {
+      'chat': _capability(
+        enabled: true,
+        readiness: 'ready',
+        grantedCapabilities: const ['chat.read', 'chat.send'],
+      ),
+      for (final domain in [
+        'files',
+        'calendar',
+        'boards',
+        'decisions',
+        'devops',
+      ])
+        domain: _capability(enabled: true, readiness: 'ready'),
+      for (final domain in ['meetings', 'office', 'agent-runtime'])
+        domain: _capability(
+          enabled: false,
+          readiness: 'unavailable',
+          policyState: 'disabled',
+        ),
+      ...overrides,
+    },
   };
 }
 
 void main() {
+  test(
+    'generated decoder rejects a missing or malformed installed-domain map',
+    () {
+      final valid = _workspaceCapabilitiesJson();
+      for (final invalid in [
+        null,
+        <Object>[],
+        {'chat': null},
+        {'Bad ID': <String, Object>{}},
+      ]) {
+        expect(
+          () => user_api.WorkspaceCapabilitiesResponse.fromJson({
+            ...valid,
+            'domains': invalid,
+          }),
+          throwsA(anything),
+        );
+      }
+      valid.remove('domains');
+      expect(
+        () => user_api.WorkspaceCapabilitiesResponse.fromJson(valid),
+        throwsA(anything),
+      );
+    },
+  );
+
   group('HttpWeaveApiClient', () {
     test('reconciles identity access without sending provider input', () async {
       late http.BaseRequest capturedRequest;

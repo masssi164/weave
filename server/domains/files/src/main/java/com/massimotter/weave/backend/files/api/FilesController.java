@@ -43,7 +43,7 @@ public class FilesController {
     @ApiResponse(responseCode = "200", description = "Files capability readiness.",
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkspaceCapabilityStatusResponse.class)))
     public WorkspaceCapabilityStatusResponse getFilesReadiness(@AuthenticationPrincipal Jwt jwt) {
-        return workspaceCapabilityService.snapshot(jwt).files();
+        return workspaceCapabilityService.snapshot(jwt).domains().get("files");
     }
 
 }

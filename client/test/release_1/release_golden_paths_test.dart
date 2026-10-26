@@ -147,6 +147,9 @@ void main() {
             workspaceConnectionStateProvider.overrideWithValue(
               _workspaceConnectionState(),
             ),
+            weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
+              (ref) async => _workspaceCapabilitySnapshot().value,
+            ),
             workspaceCapabilitySnapshotProvider.overrideWithValue(
               _workspaceCapabilitySnapshot(),
             ),

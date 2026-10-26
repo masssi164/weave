@@ -29,7 +29,7 @@ import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityPolicySta
 import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityReadiness;
 import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityStatusResponse;
 import com.massimotter.weave.backend.office.provider.DisabledOfficeProvider;
-import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
+import com.massimotter.weave.backend.providerbinding.selection.InMemoryProviderSelectionRepository;
 import com.massimotter.weave.backend.discovery.application.ProviderRegistry;
 import com.massimotter.weave.backend.providerbinding.selection.ProviderSelection;
 import com.massimotter.weave.backend.providerbinding.selection.ProviderSelectionRepository;
@@ -264,7 +264,7 @@ class ProviderRegistryControllerTest {
                 .andExpect(jsonPath("$.domainAdapterRegistry.domains[?(@.domain == 'chat')].activeAdapter", hasItems("synapse-homeserver")))
                 .andExpect(jsonPath("$.domainAdapterRegistry.domains[?(@.domain == 'chat')].candidates[*].diagnostics.secretsReturned", hasItems(false)))
                 .andExpect(jsonPath("$.categories[*].category", hasItems(
-                        "chat", "files", "calendar", "boards-tasks", "meetings-calls", "documents-collaboration", "decisions-evidence", "manuals-help", "release-evidence", "admin-control-plane", "agent-runtime-control")))
+                        "chat", "files", "calendar", "boards-tasks", "meetings-calls", "documents-collaboration", "decisions-evidence", "release-evidence", "admin-control-plane", "agent-runtime-control")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'identity-idm')]").isEmpty())
                 .andExpect(jsonPath("$.selectedProviderMappings[*].providerKey", hasItems("synapse-homeserver", "openproject-primary")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'calendar')].readiness", hasItems("degraded")))
@@ -274,7 +274,7 @@ class ProviderRegistryControllerTest {
                 .andExpect(jsonPath("$.categories[?(@.category == 'documents-collaboration')].contract.featureCapabilities[*]", hasItems("documents.collaborate")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'documents-collaboration')].contract.externalAdapters[*]", hasItems("microsoft-365-office", "collabora")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'decisions-evidence')].contract.defaultAdapters[*]", hasItems("weave-decision-ledger")))
-                .andExpect(jsonPath("$.categories[?(@.category == 'manuals-help')].contract.defaultAdapters[*]", hasItems("mkdocs-material-embedded")))
+                .andExpect(jsonPath("$.categories[?(@.category == 'manuals-help')]").isEmpty())
                 .andExpect(jsonPath("$.categories[?(@.category == 'release-evidence')].contract.defaultAdapters[*]", hasItems("release-evidence")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'admin-control-plane')].contract.defaultAdapters[*]", hasItems("weave-health-facade")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'agent-runtime-control')].readiness", hasItems("disabled")))

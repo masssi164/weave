@@ -459,6 +459,49 @@ void main() {
     );
   });
 
+  test(
+    'no-Chat manifest retains protocols and rejects invented Matrix metadata',
+    () async {
+      final manifest = _manifest(
+        organizationOrigin: 'https://weave.example',
+        userApiBaseUrl: 'https://api.weave.example/api',
+        issuer: 'https://auth.weave.example/realms/weave',
+        matrixClientServerBaseUrl: 'https://api.weave.example',
+      );
+      (manifest['domains'] as List).removeWhere(
+        (entry) => (entry as Map)['domain'] == 'chat',
+      );
+      final access = OrganizationAccess(
+        organizationOrigin: Uri.parse('https://weave.example'),
+      );
+      expect(
+        () => AppStartDiscoveryClient.parseManifest(manifest, access),
+        throwsA(isA<AppFailure>()),
+      );
+      manifest['protocols'] = <String, Object>{};
+      final configuration = AppStartDiscoveryClient.parseManifest(
+        manifest,
+        access,
+      );
+      expect(configuration.matrixClientServerBaseUrl, isNull);
+      expect(
+        configuration
+            .toServerConfiguration(
+              access.organizationOrigin,
+              validatedAt: DateTime.now(),
+            )
+            .serviceEndpoints
+            .matrixHomeserverUrl,
+        isNull,
+      );
+      manifest.remove('protocols');
+      expect(
+        () => AppStartDiscoveryClient.parseManifest(manifest, access),
+        throwsA(isA<AppFailure>()),
+      );
+    },
+  );
+
   test('rejects a manifest without the Weave Matrix facade URL', () async {
     final manifest = _manifest(
       organizationOrigin: 'https://weave.example',

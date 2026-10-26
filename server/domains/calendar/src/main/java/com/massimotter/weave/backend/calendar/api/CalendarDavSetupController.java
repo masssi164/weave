@@ -48,7 +48,7 @@ public class CalendarDavSetupController {
 
     @GetMapping("/api/calendar/native-sync-setup")
     public CalendarNativeSyncSetupResponse nativeSyncSetup(@AuthenticationPrincipal Jwt jwt) {
-        return calendarFacadeService.nativeSyncSetup(workspaceCapabilityService.snapshot(jwt).calendar());
+        return calendarFacadeService.nativeSyncSetup(workspaceCapabilityService.snapshot(jwt).domains().get("calendar"));
     }
 
     @GetMapping("/api/calendar/client-setup/credentials")

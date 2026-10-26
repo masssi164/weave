@@ -122,6 +122,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         FilesCalendarFacadeControllerTest.DeviceCredentialTestConfiguration.class,
         FilesFacadeService.class,
         CalendarFacadeService.class,
+        com.massimotter.weave.backend.calendar.config.CalendarFacadeConfiguration.class,
         WorkspaceCapabilityService.class
 })
 @EnableConfigurationProperties({

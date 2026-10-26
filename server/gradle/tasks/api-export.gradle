@@ -9,6 +9,7 @@ configurations.apiExportImplementation.extendsFrom(configurations.implementation
 dependencies {
     apiExportImplementation 'org.springframework.boot:spring-boot-starter-test'
     apiExportImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    apiExportImplementation(testFixtures(project(':server:core')))
     apiExportImplementation libs.testcontainers.junit
     apiExportImplementation libs.testcontainers.postgresql
     apiExportRuntimeOnly libs.h2.test
@@ -55,6 +56,8 @@ tasks.register('selectedRuntimePostgresTest', Test) {
     dependsOn tasks.named('apiExportClasses'), tasks.named('verifySelectedRuntime')
     dependsOn tasks.named('verifySelectedArtifact')
     inputs.file(tasks.named('bootJar').flatMap { it.archiveFile }).withPropertyName('selectedExecutable')
+    inputs.files(rootProject.fileTree('client/lib'), rootProject.fileTree('client/test'), rootProject.file('client/pubspec.lock'))
+    systemProperty 'weave.repository.root', rootProject.projectDir.absolutePath
     systemProperty 'weave.selected.jar', tasks.named('bootJar').get().archiveFile.get().asFile.absolutePath
     testClassesDirs = sourceSets.apiExport.output.classesDirs
     classpath = sourceSets.apiExport.runtimeClasspath

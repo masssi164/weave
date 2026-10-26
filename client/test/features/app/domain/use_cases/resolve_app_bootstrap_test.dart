@@ -138,6 +138,25 @@ ResolveAppBootstrap _buildUseCase({
 
 void main() {
   group('ResolveAppBootstrap', () {
+    test('no-Chat bootstrap does not prepare a Matrix session', () async {
+      final auth = _FakeAppAuthPort()
+        ..restoreSessionHandler = (_) async =>
+            AuthState.authenticated(buildTestAuthSession());
+      final chat = _FakeChatSessionPort();
+      final useCase = _buildUseCase(
+        authPort: auth,
+        chatSessionPort: chat,
+        serverConfigurationPort: _FakeServerConfigurationPort(
+          configuration: buildTestConfiguration(
+            matrixHomeserverUrl: null,
+            domains: const ['files'],
+          ),
+        ),
+      );
+      expect((await useCase()).phase, BootstrapPhase.ready);
+      expect(chat.ensureCalls, 0);
+    });
+
     test(
       'refreshes manifest after restoration before identity reconciliation',
       () async {

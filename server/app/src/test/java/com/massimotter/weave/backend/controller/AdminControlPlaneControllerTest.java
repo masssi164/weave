@@ -32,7 +32,7 @@ import com.massimotter.weave.backend.capability.api.EffectivePolicyDenyResponse;
 import com.massimotter.weave.backend.capability.api.EffectivePolicyResponse;
 import com.massimotter.weave.backend.admin.api.ProviderSelectionRequest;
 import com.massimotter.weave.backend.office.provider.DisabledOfficeProvider;
-import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
+import com.massimotter.weave.backend.providerbinding.selection.InMemoryProviderSelectionRepository;
 import com.massimotter.weave.backend.discovery.application.ProviderRegistry;
 import com.massimotter.weave.backend.providerbinding.selection.ProviderSelection;
 import com.massimotter.weave.backend.providerbinding.selection.ProviderSelectionRepository;

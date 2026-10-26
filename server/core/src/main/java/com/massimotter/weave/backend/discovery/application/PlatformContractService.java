@@ -69,33 +69,23 @@ public class PlatformContractService {
                 safeManifestUrl(platformProperties.publicBaseUrl(), "organizationOrigin"),
                 safeManifestUrl(platformProperties.apiBaseUrl(), "userApiBaseUrl"),
                 new OrgManifestResponse.Oidc(oidcIssuerUrl(), securityProperties.clientId()),
-                new OrgManifestResponse.Protocols(requiredMatrix().advertisedBaseUrl()),
+                new OrgManifestResponse.Protocols(matrix == null ? null : matrix.advertisedBaseUrl()),
                 releasePosture(),
                 manifestDomains(),
                 List.of());
-    }
-
-    private MatrixPlatformContribution requiredMatrix() {
-        if (matrix == null) {
-            // The accepted manifest still requires Matrix. Reduced-wire activation awaits its contract.
-            throw new ApiErrorException(
-                    HttpStatus.SERVICE_UNAVAILABLE,
-                    "matrix-facade-origin-unavailable",
-                    "The Weave Matrix Client-Server origin is not configured safely.",
-                    Map.of("module", "chat", "diagnosticsRedacted", true));
-        }
-        return matrix;
     }
 
     public PlatformStatusResponse status(String requestId) {
         var backend = new PlatformStatusResponse.DiagnosticStatus(
                 "up", "ready", "The Weave backend process is serving product API diagnostics.", null);
         var auth = authStatus();
-        var matrixStatus = requiredMatrix().status(auth);
+        // Validate installed Chat metadata even when Chat is disabled; absence is a distinct graph.
+        if (matrix != null) matrix.advertisedBaseUrl();
+        var matrixStatus = matrix == null ? null : matrix.status(auth);
         List<PlatformStatusResponse.DiagnosticCheck> checks = new ArrayList<>();
         checks.add(check("backend", "Backend API", backend));
         checks.add(check("auth", "Keycloak auth", auth));
-        checks.add(new PlatformStatusResponse.DiagnosticCheck(
+        if (matrixStatus != null) checks.add(new PlatformStatusResponse.DiagnosticCheck(
                 "matrix", "Matrix chat", matrixStatus.status(), matrixStatus.readiness(),
                 matrixStatus.message(), matrixStatus.action()));
         Map<String, PlatformStatusResponse.DiagnosticStatus> installed = new LinkedHashMap<>();

@@ -3,7 +3,7 @@ package com.massimotter.weave.backend.calendar.application;
 import com.massimotter.weave.backend.calendar.domain.CalendarAdapterException;
 import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
 
-import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation;
+import com.massimotter.weave.backend.calendar.support.CalendarCapabilityTestSupport;
 import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
@@ -21,8 +21,6 @@ import com.massimotter.weave.backend.security.workload.domain.WeaverWorkloadPrin
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.*;
 import com.massimotter.weave.backend.calendar.port.CalendarProviderPort;
 import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
-import com.massimotter.weave.backend.security.config.WeaveSecurityProperties;
-import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation.Settings;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.calendar.api.CalendarUserModels.*;
 import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityPolicyState;
@@ -30,7 +28,6 @@ import com.massimotter.weave.backend.capability.api.WorkspaceCapabilityReadiness
 import com.massimotter.weave.backend.providerbinding.contract.ProviderConformanceProfile;
 import com.massimotter.weave.backend.providerbinding.domain.*;
 import com.massimotter.weave.backend.providerbinding.port.ProviderBindingRepository;
-import com.massimotter.weave.backend.service.*;
 import com.massimotter.weave.backend.spaces.port.SpaceAccessPort;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import java.time.Instant;
@@ -101,7 +98,7 @@ class CalendarUserApiServiceTest {
         service = withDomainPolicy(domainPolicy);
         clearInvocations(provider, bindings, rights, audit);
 
-        assertThat(domainPolicy.snapshot(member).calendar().policyState())
+        assertThat(domainPolicy.snapshot(member).domains().get("calendar").policyState())
                 .isEqualTo(WorkspaceCapabilityPolicyState.DISABLED);
         List<Runnable> operations = List.of(
                 () -> service.calendars(member),
@@ -128,7 +125,7 @@ class CalendarUserApiServiceTest {
         service = withDomainPolicy(domainPolicy);
         when(provider.query(any(), any(), any(), any())).thenReturn(List.of());
 
-        assertThat(domainPolicy.snapshot(member).calendar().readiness())
+        assertThat(domainPolicy.snapshot(member).domains().get("calendar").readiness())
                 .isEqualTo(WorkspaceCapabilityReadiness.DEGRADED);
         assertThat(service.calendars(member).calendars()).singleElement()
                 .satisfies(visible -> assertThat(visible.allowedActions()).containsExactly("read", "create", "update", "delete"));
@@ -564,9 +561,7 @@ class CalendarUserApiServiceTest {
     private WorkspaceCapabilityService calendarPolicy(boolean enabled, WorkspaceCapabilityReadiness readiness) {
         var resourceServer = new OAuth2ResourceServerProperties();
         resourceServer.getJwt().setIssuerUri("https://auth.weave.test/realms/weave");
-        return WorkspaceCapabilityTestInstallation.service(resourceServer, new WeaveSecurityProperties("weave-app", "weave-app"),
-                new Settings(null, null, null,
-                        new Settings.Capability(enabled, null, readiness), null, null));
+        return CalendarCapabilityTestSupport.service(resourceServer, enabled, readiness);
     }
 
     private CalendarUserApiService withDomainPolicy(WorkspaceCapabilityService domainPolicy) {

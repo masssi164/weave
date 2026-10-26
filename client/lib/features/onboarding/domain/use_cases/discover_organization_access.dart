@@ -181,7 +181,7 @@ class AppStartConfiguration {
   final Uri oidcIssuerUrl;
   final String oidcClientId;
   final Uri userApiBaseUrl;
-  final Uri matrixClientServerBaseUrl;
+  final Uri? matrixClientServerBaseUrl;
 
   ServerConfiguration toServerConfiguration(
     Uri origin, {
@@ -388,17 +388,33 @@ class AppStartDiscoveryClient {
         'WEAVE-APP-START-DISCOVERY-INVALID: userApiBaseUrl must end in /api.',
       );
     }
-    final matrixClientServerBaseUrl = _uri(
-      protocols['matrixClientServerBaseUrl'],
-      fieldName: 'protocols.matrixClientServerBaseUrl',
+    _validateDomains(json['domains']);
+    final chatInstalled = (json['domains'] as List).any(
+      (entry) => (entry as Map)['domain'] == 'chat',
     );
-    final matrixPath = matrixClientServerBaseUrl.path;
-    if (matrixPath.isNotEmpty && matrixPath != '/') {
+    final hasMatrix = protocols.containsKey('matrixClientServerBaseUrl');
+    if (chatInstalled && !hasMatrix) {
+      throw const AppFailure.validation(
+        'WEAVE-APP-START-DISCOVERY-INVALID: protocols.matrixClientServerBaseUrl is required for installed Chat.',
+      );
+    }
+    if (hasMatrix && !chatInstalled) {
+      throw const AppFailure.validation(
+        'WEAVE-APP-START-DISCOVERY-INVALID: Matrix metadata must match installed Chat.',
+      );
+    }
+    final matrixClientServerBaseUrl = chatInstalled
+        ? _uri(
+            protocols['matrixClientServerBaseUrl'],
+            fieldName: 'protocols.matrixClientServerBaseUrl',
+          )
+        : null;
+    final matrixPath = matrixClientServerBaseUrl?.path;
+    if (matrixPath != null && matrixPath.isNotEmpty && matrixPath != '/') {
       throw const AppFailure.validation(
         'WEAVE-APP-START-DISCOVERY-INVALID: protocols.matrixClientServerBaseUrl must be a homeserver origin.',
       );
     }
-    _validateDomains(json['domains']);
 
     // Exact field validation above rejects unknown public protocol surfaces;
     // the generated transport model then supplies the values consumed by the
@@ -415,10 +431,13 @@ class AppStartDiscoveryClient {
         transport.userApiBaseUrl,
         fieldName: 'userApiBaseUrl',
       ),
-      matrixClientServerBaseUrl: _uri(
-        transportProtocols.matrixClientServerBaseUrl,
-        fieldName: 'protocols.matrixClientServerBaseUrl',
-      ).replace(path: ''),
+      matrixClientServerBaseUrl:
+          transportProtocols.matrixClientServerBaseUrl == null
+          ? null
+          : _uri(
+              transportProtocols.matrixClientServerBaseUrl,
+              fieldName: 'protocols.matrixClientServerBaseUrl',
+            ).replace(path: ''),
     );
   }
 
@@ -457,16 +476,6 @@ class AppStartDiscoveryClient {
         'WEAVE-APP-START-DISCOVERY-INVALID: domains must not be empty.',
       );
     }
-    const allowedDomains = {
-      'identity',
-      'chat',
-      'files',
-      'calendar',
-      'calls',
-      'boards',
-      'agent-runtime-control',
-      'health',
-    };
     const allowedStates = {
       'available',
       'degraded',
@@ -487,7 +496,7 @@ class AppStartDiscoveryClient {
         'supportReference',
       });
       if (domain['domain'] case final String name
-          when allowedDomains.contains(name)) {
+          when RegExp(r'^[a-z][a-z0-9-]*$').hasMatch(name)) {
         if (!observed.add(name)) {
           throw const AppFailure.validation(
             'WEAVE-APP-START-DISCOVERY-INVALID: domains must be unique.',

@@ -15,7 +15,7 @@ public class CalendarDefaultSpacePreparationContribution implements DefaultSpace
     @Override public String domain() { return "calendar"; }
     @Override public List<String> requiredCapabilities() { return List.of("calendar.read", "calendar.manage_events"); }
     @Override public boolean ready(WorkspaceCapabilitiesResponse snapshot) {
-        return snapshot != null && DefaultSpacePreparationContribution.ready(snapshot.calendar());
+        return snapshot != null && DefaultSpacePreparationContribution.ready(snapshot.domains().get("calendar"));
     }
     @Override public Optional<Runnable> captureAuthorityRecheck(OrganizationIdentityContext owner) {
         var binding = readiness.require(owner.organizationId());

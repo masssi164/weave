@@ -1971,7 +1971,7 @@ void main() {
                 issuerUrl: configuration.oidcIssuerUrl,
                 clientId: configuration.oidcClientRegistration.clientId,
                 matrixHomeserverUrl:
-                    configuration.serviceEndpoints.matrixHomeserverUrl,
+                    configuration.serviceEndpoints.matrixHomeserverUrl!,
                 backendApiBaseUrl:
                     configuration.serviceEndpoints.backendApiBaseUrl,
                 offlineContractOnly: false,
@@ -2049,7 +2049,7 @@ void main() {
             final denied = await container
                 .read(weaveApiHttpClientProvider)
                 .get(
-                  configuration.serviceEndpoints.matrixHomeserverUrl.resolve(
+                  configuration.serviceEndpoints.matrixHomeserverUrl!.resolve(
                     '/_matrix/client/v3/account/whoami',
                   ),
                   headers: {

@@ -17,8 +17,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
                 "com.massimotter.weave.backend.config",
                 "com.massimotter.weave.backend.controller",
                 "com.massimotter.weave.backend.service",
-                "com.massimotter.weave.backend.dogfood",
-                "com.massimotter.weave.backend.manuals"
+                "com.massimotter.weave.backend.dogfood"
         },
         excludeFilters = {
                 @org.springframework.context.annotation.ComponentScan.Filter(

@@ -210,7 +210,7 @@ class PlatformContractServiceTest {
             var invalid = service(new MatrixChatProperties(false, null, null), true,
                     new PlatformContractProperties(null, null, null, advertised, null, null, null, null));
             assertThatThrownBy(invalid::config).isInstanceOf(ApiErrorException.class);
-            assertThat(invalid.status("invalid-advertised-origin").matrix().readiness()).isEqualTo("blocked");
+            assertThatThrownBy(() -> invalid.status("invalid-advertised-origin")).isInstanceOf(ApiErrorException.class);
         }
     }
 

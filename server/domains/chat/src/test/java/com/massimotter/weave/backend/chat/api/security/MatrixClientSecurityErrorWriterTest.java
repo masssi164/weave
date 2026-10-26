@@ -1,6 +1,5 @@
-package com.massimotter.weave.backend.config;
+package com.massimotter.weave.backend.chat.api.security;
 
-import com.massimotter.weave.backend.chat.api.security.MatrixClientSecurityErrorWriter;
 
 import com.massimotter.weave.backend.security.http.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.security.http.ApiAccessDeniedHandler;

@@ -533,15 +533,15 @@ void main() {
                 final capabilities = await user_api.WorkspaceApi(
                   api,
                 ).capabilities();
-                final chat = capabilities?.chat;
+                final chat = capabilities?.domains['chat'];
                 _nativeProductDiagnostic(
                   'NATIVE_PRODUCT_STAGE phase=matrix-admission '
                   'identityPresent=${identity?.subject?.isNotEmpty == true} '
                   'issuerMatches=${identity?.identityIssuer == config.issuerUrl.toString()} '
                   'organizationPresent=${identity?.organizationId?.isNotEmpty == true} '
                   'chatEnabled=${chat?.enabled == true} '
-                  'policy=${chat?.policyState?.toString() ?? 'none'} '
-                  'readiness=${chat?.readiness?.toString() ?? 'none'} '
+                  'policy=${chat?.policyState.toString() ?? 'none'} '
+                  'readiness=${chat?.readiness.toString() ?? 'none'} '
                   'readGranted=${chat?.grantedCapabilities.contains('chat.read') == true}',
                 );
               }

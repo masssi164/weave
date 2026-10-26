@@ -3,6 +3,7 @@ package com.massimotter.weave.backend.discovery.api;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 
+@com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
 @Schema(description = "Backend-owned status snapshot for admin diagnostics and smoke tests.")
 public record PlatformStatusResponse(
         @Schema(description = "Correlation identifier also returned in the X-Request-Id response header.")

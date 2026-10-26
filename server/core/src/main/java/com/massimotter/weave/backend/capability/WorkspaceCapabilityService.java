@@ -119,16 +119,10 @@ public class WorkspaceCapabilityService {
 
     private WorkspaceCapabilitiesResponse snapshotForPolicy(EffectivePolicy policy) {
         Map<String, WorkspaceCapabilityStatusResponse> states = capabilityStates(policy);
-        // This is the accepted closed wire projection, not the installed domain catalog.
-        // Absent domains stay absent internally; reduced wire activation remains specification-gated.
         return new WorkspaceCapabilitiesResponse(
                 status(workspaceCapabilityProperties.shellAccess(), shellAccessReadiness(), "platform identity",
                         List.of(), policy, "Weave SSO shell access is available."),
-                states.get("chat"), states.get("files"), states.get("calendar"), states.get("boards"),
-                states.get("meetings"), states.get("office"), states.get("decisions"),
-                states.get("manuals"), states.get("devops"),
-                adminControlPlaneStatus(policy),
-                states.get("agent-runtime"));
+                adminControlPlaneStatus(policy), states);
     }
 
     /** Built-in platform policy, distinct from the installed optional-domain snapshot map. */

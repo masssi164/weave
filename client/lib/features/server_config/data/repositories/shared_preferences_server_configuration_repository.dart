@@ -69,9 +69,10 @@ class SharedPreferencesServerConfigurationRepository
         configuration.serviceEndpoints.backendApiBaseUrl.toString(),
         fieldName: 'the backend API URL',
       );
-      final matrixUrl = _deriver.parseMatrixHomeserverUrl(
-        configuration.serviceEndpoints.matrixHomeserverUrl.toString(),
-      );
+      final matrixOrigin = configuration.serviceEndpoints.matrixHomeserverUrl;
+      final matrixUrl = matrixOrigin == null
+          ? null
+          : _deriver.parseMatrixHomeserverUrl(matrixOrigin.toString());
       return configuration.copyWith(
         oidcIssuerUrl: issuerUrl,
         oidcClientRegistration: configuration.oidcClientRegistration.copyWith(

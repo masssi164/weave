@@ -40,8 +40,8 @@ class CoreProviderDiscoveryTest {
                     assertThat(status.categories()).extracting(value -> value.category()).containsExactly("admin-control-plane");
                     assertThat(status.canonicalDomainRegistry().domains()).extracting(value -> value.key())
                             .containsExactly("people", "spaces", "health");
-                    assertThatThrownBy(context.getBean(PlatformContractService.class)::config)
-                            .isInstanceOf(ApiErrorException.class);
+                    assertThat(context.getBean(PlatformContractService.class).config().protocols().matrixClientServerBaseUrl()).isNull();
+                    assertThat(context.getBean(PlatformContractService.class).status("core-only").matrix()).isNull();
                     assertThat(context.getBean(com.massimotter.weave.backend.admin.application.AdminCapabilityCatalog.class)
                             .knownCapabilities()).doesNotContain("files.read", "manuals.read", "chat.send");
                     assertThat(context.getBean(com.massimotter.weave.backend.admin.application.SuiteDomainCatalog.class).groups()).isEmpty();

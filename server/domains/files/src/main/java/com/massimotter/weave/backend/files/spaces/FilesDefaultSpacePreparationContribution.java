@@ -12,7 +12,7 @@ public class FilesDefaultSpacePreparationContribution implements DefaultSpacePre
     @Override public String domain() { return "files"; }
     @Override public List<String> requiredCapabilities() { return List.of("files.read", "files.upload"); }
     @Override public boolean ready(WorkspaceCapabilitiesResponse snapshot) {
-        return snapshot != null && DefaultSpacePreparationContribution.ready(snapshot.files());
+        return snapshot != null && DefaultSpacePreparationContribution.ready(snapshot.domains().get("files"));
     }
     @Override public Optional<Runnable> captureAuthorityRecheck(OrganizationIdentityContext owner) {
         // Files retains its existing capability-snapshot precondition; no provider mutation is performed here.

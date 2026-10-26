@@ -805,7 +805,7 @@ public class ChatDomainFacadeService {
 
     private ChatReadiness readiness(Jwt jwt, boolean includeAdminDiagnostics) {
         WorkspaceCapabilitiesResponse capabilities = workspaceCapabilityService.snapshot(jwt);
-        var chatCapability = capabilities.chat();
+        var chatCapability = capabilities.domains().get("chat");
         var registry = providerRegistry.status();
         Optional<ProviderSelection> maybeSelection = providerSelectionRepository.findByCategory("chat");
         Optional<ProviderStatusResponse> maybeProvider = maybeSelection

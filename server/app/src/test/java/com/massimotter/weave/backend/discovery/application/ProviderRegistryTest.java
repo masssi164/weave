@@ -2,7 +2,7 @@ package com.massimotter.weave.backend.discovery.application;
 
 import com.massimotter.weave.backend.testing.ProviderDiscoveryTestInstallation;
 
-import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
+import com.massimotter.weave.backend.providerbinding.selection.InMemoryProviderSelectionRepository;
 
 import com.massimotter.weave.backend.discovery.api.ProviderCategoryStatusResponse;
 

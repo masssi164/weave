@@ -611,7 +611,8 @@ void main() {
           MockClient(
             (_) async => http.Response(
               _readiness(
-                policyState: 'denied',
+                // The generated server contract names policy denial explicitly.
+                policyState: 'policy_blocked',
                 memberImpact: 'Ask your admin.',
               ),
               200,

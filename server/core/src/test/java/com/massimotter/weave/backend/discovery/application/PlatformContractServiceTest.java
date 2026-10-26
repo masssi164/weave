@@ -16,11 +16,14 @@ import static org.mockito.Mockito.*;
 
 class PlatformContractServiceTest {
     @Test
-    void missingMatrixConstructsButAcceptedProjectionFailsWithoutInventingUrlOrStatus() {
+    void omittedChatKeepsRequiredProtocolsAndUsableConfigAndStatus() {
         var service = service(List.of(), List.of());
-        assertThatThrownBy(service::config).isInstanceOf(ApiErrorException.class)
-                .hasMessage("The Weave Matrix Client-Server origin is not configured safely.");
-        assertThatThrownBy(() -> service.status("absent")).isInstanceOf(ApiErrorException.class);
+        assertThat(service.config().protocols()).isNotNull();
+        assertThat(service.config().protocols().matrixClientServerBaseUrl()).isNull();
+        var status = service.status("absent");
+        assertThat(status.matrix()).isNull();
+        assertThat(status.checks()).extracting(PlatformStatusResponse.DiagnosticCheck::key)
+                .containsExactly("backend", "auth");
     }
 
     @Test

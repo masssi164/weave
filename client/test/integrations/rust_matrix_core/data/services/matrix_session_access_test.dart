@@ -20,28 +20,16 @@ Map<String, Object?> _capabilities({
     'grantedCapabilities': <String>[],
   };
   return {
-    for (final key in [
-      'adminControlPlane',
-      'agentRuntimeControl',
-      'boards',
-      'calendar',
-      'chat',
-      'decisionsEvidence',
-      'documentsCollaboration',
-      'files',
-      'manualsHelp',
-      'meetingsCalls',
-      'releaseEvidence',
-      'shellAccess',
-    ])
-      key: key == 'chat'
-          ? {
-              'enabled': enabled,
-              'policyState': policyState,
-              'readiness': readiness,
-              'grantedCapabilities': grants,
-            }
-          : disabled,
+    'shellAccess': disabled,
+    'adminControlPlane': disabled,
+    'domains': {
+      'chat': {
+        'enabled': enabled,
+        'policyState': policyState,
+        'readiness': readiness,
+        'grantedCapabilities': grants,
+      },
+    },
   };
 }
 

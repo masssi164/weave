@@ -16,12 +16,23 @@ import static org.assertj.core.api.Assertions.*;
 
 class WorkspaceCapabilityOwnershipTest {
     @Test
+    void workspaceWireContainsOnlyRequiredCoreAndTypedInstalledDomains() throws Exception {
+        var mapper = new tools.jackson.databind.ObjectMapper();
+        var wire = mapper.readTree(mapper.writeValueAsString(policy(List.of(contribution("files", true))).snapshot(jwt("member"))));
+        assertThat(wire.properties()).extracting(java.util.Map.Entry::getKey)
+                .containsExactlyInAnyOrder("shellAccess", "adminControlPlane", "domains");
+        assertThat(wire.path("domains").properties()).extracting(java.util.Map.Entry::getKey)
+                .containsExactly("files");
+        assertThat(wire.path("domains").path("files").isObject()).isTrue();
+    }
+
+    @Test
     void absentDomainsAreAbsentAndGrantNothingEvenToAdministrators() {
         var policy = policy(List.of());
         assertThat(policy.installedDefinitions()).isEmpty();
         assertThat(policy.installedSnapshots(jwt("admin"))).isEmpty();
         assertThat(policy.settings("example")).isEmpty();
-        assertThat(policy.snapshot(jwt("admin")).chat()).isNull();
+        assertThat(policy.snapshot(jwt("admin")).domains().get("chat")).isNull();
         assertThat(policy.grantedCapabilities(jwt("admin"))).contains("admin.policy.edit").doesNotContain("example.read");
         assertThatThrownBy(() -> policy.requireCapability(jwt("admin"), "example.read", "example", "read"))
                 .hasMessageContaining("blocked");

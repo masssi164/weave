@@ -118,14 +118,14 @@ class WorkspaceCapabilityServiceTest {
         var snapshot = service.snapshot(jwt(List.of("member"), List.of("workspace-default")));
 
         assertThat(snapshot.shellAccess().readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
-        assertThat(snapshot.chat().enabled()).isTrue();
-        assertThat(snapshot.chat().readiness()).isEqualTo(WorkspaceCapabilityReadiness.DEGRADED);
-        assertThat(snapshot.chat().policyState()).isEqualTo(WorkspaceCapabilityPolicyState.ALLOWED);
-        assertThat(snapshot.chat().supportRef()).isEqualTo("support:workspace-capability:chat:degraded:allowed");
-        assertThat(snapshot.chat().grantedCapabilities()).containsExactly("chat.read", "chat.send");
-        assertThat(snapshot.files().readiness()).isEqualTo(WorkspaceCapabilityReadiness.DEGRADED);
-        assertThat(snapshot.files().supportRef()).isEqualTo("support:workspace-capability:files:degraded:allowed");
-        assertThat(snapshot.calendar().readiness()).isEqualTo(WorkspaceCapabilityReadiness.UNAVAILABLE);
+        assertThat(snapshot.domains().get("chat").enabled()).isTrue();
+        assertThat(snapshot.domains().get("chat").readiness()).isEqualTo(WorkspaceCapabilityReadiness.DEGRADED);
+        assertThat(snapshot.domains().get("chat").policyState()).isEqualTo(WorkspaceCapabilityPolicyState.ALLOWED);
+        assertThat(snapshot.domains().get("chat").supportRef()).isEqualTo("support:workspace-capability:chat:degraded:allowed");
+        assertThat(snapshot.domains().get("chat").grantedCapabilities()).containsExactly("chat.read", "chat.send");
+        assertThat(snapshot.domains().get("files").readiness()).isEqualTo(WorkspaceCapabilityReadiness.DEGRADED);
+        assertThat(snapshot.domains().get("files").supportRef()).isEqualTo("support:workspace-capability:files:degraded:allowed");
+        assertThat(snapshot.domains().get("calendar").readiness()).isEqualTo(WorkspaceCapabilityReadiness.UNAVAILABLE);
     }
 
     @Test
@@ -144,8 +144,8 @@ class WorkspaceCapabilityServiceTest {
         var snapshot = service.snapshot(jwt(List.of("member"), List.of("workspace-default")));
 
         assertThat(snapshot.shellAccess().readiness()).isEqualTo(WorkspaceCapabilityReadiness.BLOCKED);
-        assertThat(snapshot.chat().readiness()).isEqualTo(WorkspaceCapabilityReadiness.BLOCKED);
-        assertThat(snapshot.files().readiness()).isEqualTo(WorkspaceCapabilityReadiness.BLOCKED);
+        assertThat(snapshot.domains().get("chat").readiness()).isEqualTo(WorkspaceCapabilityReadiness.BLOCKED);
+        assertThat(snapshot.domains().get("files").readiness()).isEqualTo(WorkspaceCapabilityReadiness.BLOCKED);
     }
 
     @Test
@@ -163,10 +163,10 @@ class WorkspaceCapabilityServiceTest {
 
         var snapshot = service.snapshot(jwt(List.of("member"), List.of("workspace-default")));
 
-        assertThat(snapshot.chat().readiness()).isEqualTo(WorkspaceCapabilityReadiness.DEGRADED);
-        assertThat(snapshot.files().readiness()).isEqualTo(WorkspaceCapabilityReadiness.BLOCKED);
-        assertThat(snapshot.calendar().readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
-        assertThat(snapshot.boards().readiness()).isEqualTo(WorkspaceCapabilityReadiness.UNAVAILABLE);
+        assertThat(snapshot.domains().get("chat").readiness()).isEqualTo(WorkspaceCapabilityReadiness.DEGRADED);
+        assertThat(snapshot.domains().get("files").readiness()).isEqualTo(WorkspaceCapabilityReadiness.BLOCKED);
+        assertThat(snapshot.domains().get("calendar").readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
+        assertThat(snapshot.domains().get("boards").readiness()).isEqualTo(WorkspaceCapabilityReadiness.UNAVAILABLE);
     }
 
     @Test
@@ -185,17 +185,17 @@ class WorkspaceCapabilityServiceTest {
 
         var snapshot = service.snapshot(jwt(List.of("member"), List.of("workspace-default")));
 
-        assertThat(snapshot.files().enabled()).isTrue();
-        assertThat(snapshot.files().readiness()).isEqualTo(WorkspaceCapabilityReadiness.DEGRADED);
-        assertThat(snapshot.files().policyState()).isEqualTo(WorkspaceCapabilityPolicyState.ALLOWED);
-        assertThat(snapshot.files().memberImpact())
+        assertThat(snapshot.domains().get("files").enabled()).isTrue();
+        assertThat(snapshot.domains().get("files").readiness()).isEqualTo(WorkspaceCapabilityReadiness.DEGRADED);
+        assertThat(snapshot.domains().get("files").policyState()).isEqualTo(WorkspaceCapabilityPolicyState.ALLOWED);
+        assertThat(snapshot.domains().get("files").memberImpact())
                 .contains("Files need admin attention")
                 .doesNotContain("Nextcloud")
                 .doesNotContain("WebDAV");
-        assertThat(snapshot.files().supportRef())
+        assertThat(snapshot.domains().get("files").supportRef())
                 .isEqualTo("support:workspace-capability:files:degraded:allowed:files-storage-backend-unavailable");
-        assertThat(snapshot.files().grantedCapabilities()).containsExactly("files.read", "files.upload");
-        assertThat(snapshot.chat().readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
+        assertThat(snapshot.domains().get("files").grantedCapabilities()).containsExactly("files.read", "files.upload");
+        assertThat(snapshot.domains().get("chat").readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
     }
 
     @Test
@@ -217,15 +217,15 @@ class WorkspaceCapabilityServiceTest {
 
         var snapshot = service.snapshot(jwt(List.of("member"), List.of("workspace-default")));
 
-        assertThat(snapshot.chat().readiness()).isEqualTo(WorkspaceCapabilityReadiness.DEGRADED);
-        assertThat(snapshot.chat().memberImpact())
+        assertThat(snapshot.domains().get("chat").readiness()).isEqualTo(WorkspaceCapabilityReadiness.DEGRADED);
+        assertThat(snapshot.domains().get("chat").memberImpact())
                 .contains("Chat needs admin attention")
                 .doesNotContain("Synapse")
                 .doesNotContain("Matrix");
-        assertThat(snapshot.chat().supportRef())
+        assertThat(snapshot.domains().get("chat").supportRef())
                 .isEqualTo("support:workspace-capability:chat:degraded:allowed:"
                         + "chat-provider-authenticated-capability-degraded");
-        assertThat(snapshot.files().readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
+        assertThat(snapshot.domains().get("files").readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
     }
 
     @Test
@@ -244,11 +244,11 @@ class WorkspaceCapabilityServiceTest {
 
         var snapshot = service.snapshot(jwt(List.of("member"), List.of("workspace-default")));
 
-        assertThat(snapshot.files().readiness()).isEqualTo(WorkspaceCapabilityReadiness.DEGRADED);
-        assertThat(snapshot.files().memberImpact())
+        assertThat(snapshot.domains().get("files").readiness()).isEqualTo(WorkspaceCapabilityReadiness.DEGRADED);
+        assertThat(snapshot.domains().get("files").memberImpact())
                 .contains("Files need admin attention")
                 .doesNotContain("Nextcloud");
-        assertThat(snapshot.files().supportRef())
+        assertThat(snapshot.domains().get("files").supportRef())
                 .isEqualTo("support:workspace-capability:files:degraded:allowed:files-health-cache-stale");
     }
 
@@ -274,10 +274,10 @@ class WorkspaceCapabilityServiceTest {
         var snapshot = service.snapshot(jwt(List.of("member"), List.of("workspace-default")));
 
         assertThat(snapshot.shellAccess().readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
-        assertThat(snapshot.chat().readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
-        assertThat(snapshot.files().readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
-        assertThat(snapshot.calendar().readiness()).isEqualTo(WorkspaceCapabilityReadiness.UNAVAILABLE);
-        assertThat(snapshot.calendar().memberImpact())
+        assertThat(snapshot.domains().get("chat").readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
+        assertThat(snapshot.domains().get("files").readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
+        assertThat(snapshot.domains().get("calendar").readiness()).isEqualTo(WorkspaceCapabilityReadiness.UNAVAILABLE);
+        assertThat(snapshot.domains().get("calendar").memberImpact())
                 .contains("Other workspace areas remain available")
                 .doesNotContain("CalDAV")
                 .doesNotContain("Nextcloud");
@@ -305,11 +305,11 @@ class WorkspaceCapabilityServiceTest {
         var snapshot = service.snapshot(jwt(List.of("member"), List.of("workspace-default")));
 
         assertThat(snapshot.shellAccess().readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
-        assertThat(snapshot.chat().readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
-        assertThat(snapshot.files().readiness()).isEqualTo(WorkspaceCapabilityReadiness.DEGRADED);
-        assertThat(snapshot.calendar().readiness()).isEqualTo(WorkspaceCapabilityReadiness.UNAVAILABLE);
-        assertThat(snapshot.files().supportRef()).contains("files-storage-backend-unavailable");
-        assertThat(snapshot.calendar().supportRef()).contains("calendar-storage-auth-failed");
+        assertThat(snapshot.domains().get("chat").readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
+        assertThat(snapshot.domains().get("files").readiness()).isEqualTo(WorkspaceCapabilityReadiness.DEGRADED);
+        assertThat(snapshot.domains().get("calendar").readiness()).isEqualTo(WorkspaceCapabilityReadiness.UNAVAILABLE);
+        assertThat(snapshot.domains().get("files").supportRef()).contains("files-storage-backend-unavailable");
+        assertThat(snapshot.domains().get("calendar").supportRef()).contains("calendar-storage-auth-failed");
     }
 
     @Test
@@ -331,7 +331,7 @@ class WorkspaceCapabilityServiceTest {
 
         var snapshot = service.snapshot(jwt(List.of("member"), List.of("workspace-default")));
 
-        assertThat(snapshot.calendar().readiness()).isEqualTo(WorkspaceCapabilityReadiness.DEGRADED);
+        assertThat(snapshot.domains().get("calendar").readiness()).isEqualTo(WorkspaceCapabilityReadiness.DEGRADED);
     }
 
     @Test
@@ -351,8 +351,8 @@ class WorkspaceCapabilityServiceTest {
 
         assertThat(snapshot.shellAccess().enabled()).isFalse();
         assertThat(snapshot.shellAccess().readiness()).isEqualTo(WorkspaceCapabilityReadiness.UNAVAILABLE);
-        assertThat(snapshot.chat().readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
-        assertThat(snapshot.files().readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
+        assertThat(snapshot.domains().get("chat").readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
+        assertThat(snapshot.domains().get("files").readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
     }
 
     @Test
@@ -370,10 +370,10 @@ class WorkspaceCapabilityServiceTest {
 
         var snapshot = service.snapshot(jwt(List.of("unmapped-role"), List.of("unmapped-group")));
 
-        assertThat(snapshot.chat().readiness()).isEqualTo(WorkspaceCapabilityReadiness.BLOCKED);
-        assertThat(snapshot.chat().policyState()).isEqualTo(WorkspaceCapabilityPolicyState.POLICY_BLOCKED);
-        assertThat(snapshot.chat().grantedCapabilities()).isEmpty();
-        assertThat(snapshot.chat().memberImpact()).contains("blocked by your role or group policy");
+        assertThat(snapshot.domains().get("chat").readiness()).isEqualTo(WorkspaceCapabilityReadiness.BLOCKED);
+        assertThat(snapshot.domains().get("chat").policyState()).isEqualTo(WorkspaceCapabilityPolicyState.POLICY_BLOCKED);
+        assertThat(snapshot.domains().get("chat").grantedCapabilities()).isEmpty();
+        assertThat(snapshot.domains().get("chat").memberImpact()).contains("blocked by your role or group policy");
     }
 
     @Test
@@ -464,10 +464,10 @@ class WorkspaceCapabilityServiceTest {
         Jwt owner = jwt(List.of("owner"), List.of());
         var snapshot = service.snapshot(owner);
 
-        assertThat(snapshot.files().policyState()).isEqualTo(WorkspaceCapabilityPolicyState.DISABLED);
+        assertThat(snapshot.domains().get("files").policyState()).isEqualTo(WorkspaceCapabilityPolicyState.DISABLED);
         assertThat(snapshot.shellAccess().readiness()).isEqualTo(WorkspaceCapabilityReadiness.READY);
-        assertThat(snapshot.chat().policyState()).isEqualTo(WorkspaceCapabilityPolicyState.ALLOWED);
-        assertThat(snapshot.calendar().policyState()).isEqualTo(WorkspaceCapabilityPolicyState.ALLOWED);
+        assertThat(snapshot.domains().get("chat").policyState()).isEqualTo(WorkspaceCapabilityPolicyState.ALLOWED);
+        assertThat(snapshot.domains().get("calendar").policyState()).isEqualTo(WorkspaceCapabilityPolicyState.ALLOWED);
         service.requireCapability(owner, "chat.send", "chat", "send");
         service.requireCapability(owner, "calendar.manage_events", "calendar", "create");
         service.requireCapability(owner, "admin.policy.edit", "admin-control-plane", "update-policy");
@@ -555,10 +555,10 @@ class WorkspaceCapabilityServiceTest {
 
         var snapshot = service.snapshot(jwt(List.of("admin"), List.of("/capabilities/weaver")));
 
-        assertThat(snapshot.agentRuntimeControl().enabled()).isFalse();
-        assertThat(snapshot.agentRuntimeControl().readiness()).isEqualTo(WorkspaceCapabilityReadiness.UNAVAILABLE);
-        assertThat(snapshot.agentRuntimeControl().policyState()).isEqualTo(WorkspaceCapabilityPolicyState.DISABLED);
-        assertThat(snapshot.agentRuntimeControl().grantedCapabilities()).isEmpty();
+        assertThat(snapshot.domains().get("agent-runtime").enabled()).isFalse();
+        assertThat(snapshot.domains().get("agent-runtime").readiness()).isEqualTo(WorkspaceCapabilityReadiness.UNAVAILABLE);
+        assertThat(snapshot.domains().get("agent-runtime").policyState()).isEqualTo(WorkspaceCapabilityPolicyState.DISABLED);
+        assertThat(snapshot.domains().get("agent-runtime").grantedCapabilities()).isEmpty();
     }
 
     private OAuth2ResourceServerProperties resourceServerProperties(String issuerUri) {
@@ -578,9 +578,9 @@ class WorkspaceCapabilityServiceTest {
     }
 
     private List<WorkspaceCapabilityStatusResponse> domainStatuses(WorkspaceCapabilitiesResponse snapshot) {
-        return List.of(snapshot.chat(), snapshot.files(), snapshot.calendar(), snapshot.boards(),
-                snapshot.meetingsCalls(), snapshot.documentsCollaboration(), snapshot.decisionsEvidence(),
-                snapshot.manualsHelp(), snapshot.releaseEvidence(), snapshot.agentRuntimeControl());
+        return List.of(snapshot.domains().get("chat"), snapshot.domains().get("files"), snapshot.domains().get("calendar"), snapshot.domains().get("boards"),
+                snapshot.domains().get("meetings"), snapshot.domains().get("office"), snapshot.domains().get("decisions"),
+                snapshot.domains().get("devops"), snapshot.domains().get("agent-runtime"));
     }
 
     private void assertDisabledPolicy(Runnable operation, String capability) {

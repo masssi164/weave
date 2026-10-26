@@ -286,14 +286,14 @@ class WorkspaceControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.shellAccess.enabled").value(true))
                 .andExpect(jsonPath("$.shellAccess.readiness").value("ready"))
-                .andExpect(jsonPath("$.chat.readiness").value("ready"))
-                .andExpect(jsonPath("$.files.readiness").value("ready"))
-                .andExpect(jsonPath("$.calendar.enabled").value(true))
-                .andExpect(jsonPath("$.calendar.readiness").value("degraded"))
-                .andExpect(jsonPath("$.boards.readiness").value("unavailable"))
-                .andExpect(jsonPath("$.chat.policyState").value("allowed"))
-                .andExpect(jsonPath("$.agentRuntimeControl.enabled").value(false))
-                .andExpect(jsonPath("$.agentRuntimeControl.policyState").value("disabled"));
+                .andExpect(jsonPath("$.domains['chat'].readiness").value("ready"))
+                .andExpect(jsonPath("$.domains['files'].readiness").value("ready"))
+                .andExpect(jsonPath("$.domains['calendar'].enabled").value(true))
+                .andExpect(jsonPath("$.domains['calendar'].readiness").value("degraded"))
+                .andExpect(jsonPath("$.domains['boards'].readiness").value("unavailable"))
+                .andExpect(jsonPath("$.domains['chat'].policyState").value("allowed"))
+                .andExpect(jsonPath("$.domains['agent-runtime'].enabled").value(false))
+                .andExpect(jsonPath("$.domains['agent-runtime'].policyState").value("disabled"));
     }
 
     private void assertReleaseReadinessSnapshot(String path) throws Exception {

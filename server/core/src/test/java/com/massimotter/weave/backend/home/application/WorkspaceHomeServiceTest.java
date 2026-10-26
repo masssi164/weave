@@ -99,18 +99,21 @@ class WorkspaceHomeServiceTest {
     }
     private void install(WorkspaceCapabilitiesResponse snapshot) {
         when(capabilities.snapshot(member)).thenReturn(snapshot);
-        when(capabilities.installedSnapshots(member)).thenReturn(Map.of("chat", snapshot.chat(), "files", snapshot.files(),
-                "calendar", snapshot.calendar(), "boards", snapshot.boards(), "decisions", snapshot.decisionsEvidence()));
+        when(capabilities.installedSnapshots(member)).thenReturn(snapshot.domains());
     }
 
     private WorkspaceCapabilitiesResponse snapshot(WorkspaceCapabilityStatusResponse... states) {
         var ready = capability(WorkspaceCapabilityReadiness.READY);
         if (states.length == 12) {
-            return new WorkspaceCapabilitiesResponse(states[0], states[1], states[2], states[3], states[4], states[5],
-                    states[6], states[7], states[8], states[9], states[10], states[11]);
+            return new WorkspaceCapabilitiesResponse(states[0], states[10], Map.of(
+                    "chat", states[1], "files", states[2], "calendar", states[3], "boards", states[4],
+                    "meetings", states[5], "office", states[6], "decisions", states[7],
+                    "manuals", states[8], "devops", states[9], "agent-runtime", states[11]));
         }
-        return new WorkspaceCapabilitiesResponse(states[0], states[1], states[2], states[3], states[4], ready, ready,
-                ready, ready, ready, ready, states[5]);
+        return new WorkspaceCapabilitiesResponse(states[0], ready, Map.of(
+                "chat", states[1], "files", states[2], "calendar", states[3], "boards", states[4],
+                "meetings", ready, "office", ready, "decisions", ready, "manuals", ready,
+                "devops", ready, "agent-runtime", states[5]));
     }
 
     private WorkspaceHomeActivitySource activitySource() {
@@ -135,8 +138,7 @@ class WorkspaceHomeServiceTest {
     @Test
     void aFilesOnlyHomeOmitsOtherSectionsAndDoesNotBecomeDegradedFromTheirAbsence() {
         var ready = capability(WorkspaceCapabilityReadiness.READY);
-        when(capabilities.snapshot(member)).thenReturn(new WorkspaceCapabilitiesResponse(
-                ready, null, ready, null, null, null, null, null, null, null, null, null));
+        when(capabilities.snapshot(member)).thenReturn(new WorkspaceCapabilitiesResponse(ready, ready, Map.of("files", ready)));
         when(capabilities.installedSnapshots(member)).thenReturn(Map.of("files", ready));
         var onlyFiles = new WorkspaceHomeService(capabilities,
                 List.of(new WorkspaceHomeContribution("files", List.of())), List.of());

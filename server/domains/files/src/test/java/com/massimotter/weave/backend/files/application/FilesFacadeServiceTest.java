@@ -1,7 +1,6 @@
 package com.massimotter.weave.backend.files.application;
 
 import com.massimotter.weave.backend.files.application.FilesFacadeService;
-import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation;
 import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.support.HumanJwtTestSupport;
 import com.massimotter.weave.backend.audit.AuditAction;
@@ -14,13 +13,11 @@ import com.massimotter.weave.backend.security.workload.domain.WeaverWorkloadPrin
 import com.massimotter.weave.backend.security.config.ContextAuthorizationConfiguration;
 import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.security.config.WeaveSecurityProperties;
-import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation.Settings;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
 import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationRequest;
 import com.massimotter.weave.backend.spaces.authorization.ContextPermission;
-import com.massimotter.weave.backend.files.adapter.FilesAuthorityJpaTestFactory;
 import com.massimotter.weave.backend.files.application.FilesLockService;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileContent;
 import com.massimotter.weave.backend.files.domain.FilesDomain.FileId;
@@ -46,7 +43,6 @@ import com.massimotter.weave.backend.files.application.FilesProviderResolver;
 import com.massimotter.weave.backend.files.api.dav.WebDavLockResult;
 import com.massimotter.weave.backend.files.api.dav.WebDavMutationResult;
 import com.massimotter.weave.backend.files.api.dav.WebDavSearchRequest;
-import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -552,10 +548,16 @@ class FilesFacadeServiceTest {
     }
 
     @Test
+    @org.junit.jupiter.api.Tag("context")
     void webDavLockBlocksConflictingWritesUntilMatchingUnlock() {
+        new org.springframework.boot.test.context.runner.ApplicationContextRunner()
+                .withUserConfiguration(Persistence.class)
+                .withPropertyValues("spring.datasource.url=jdbc:h2:mem:files-facade-lock-" + java.util.UUID.randomUUID(),
+                        "spring.jpa.hibernate.ddl-auto=create-drop")
+                .run(context -> {
+        assertThat(context).hasNotFailed();
         filesLockService = new FilesLockService(
-                FilesAuthorityJpaTestFactory.create(
-                        JpaTestDatabase.entityFirstDataSource("files-facade-lock")),
+                context.getBean(com.massimotter.weave.backend.files.port.FilesAuthorityRepository.class),
                 java.time.Clock.systemUTC());
         // FILES_WEBDAV_LOCK_CONFLICT
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
@@ -591,7 +593,12 @@ class FilesFacadeServiceTest {
                 null);
         assertThat(updated.created()).isFalse();
         assertThat(adapter.putPath).isEqualTo("/Team/readme.md");
+                });
     }
+
+    @org.springframework.context.annotation.Configuration(proxyBeanMethods = false)
+    @org.springframework.boot.autoconfigure.EnableAutoConfiguration
+    static class Persistence {}
 
     @Test
     void webDavPutResponseEtagChangesForSameSizeOverwriteWhenMetadataDoesNotChange() {
@@ -848,10 +855,13 @@ class FilesFacadeServiceTest {
     private WorkspaceCapabilityService workspaceCapabilityService() {
         OAuth2ResourceServerProperties properties = new OAuth2ResourceServerProperties();
         properties.getJwt().setIssuerUri("https://auth.weave.test/realms/weave");
-        return WorkspaceCapabilityTestInstallation.service(
-                properties,
-                new WeaveSecurityProperties("weave-app", "weave-app"),
-                new Settings(null, null, null, null, null, null));
+        var health = org.mockito.Mockito.mock(com.massimotter.weave.backend.health.ProviderCapabilityHealthService.class);
+        org.mockito.Mockito.when(health.cached(org.mockito.ArgumentMatchers.anyString())).thenReturn(java.util.Optional.empty());
+        return new WorkspaceCapabilityService(properties, new WeaveSecurityProperties("weave-app", "weave-app"),
+                new com.massimotter.weave.backend.capability.config.WorkspaceCapabilityProperties(null, null),
+                com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver.defaults(),
+                List.of(com.massimotter.weave.backend.files.capability.FilesWorkspaceCapabilities.contribution(
+                        new com.massimotter.weave.backend.files.capability.FilesWorkspaceCapabilityProperties(null), health)));
     }
 
     private Jwt jwt() {

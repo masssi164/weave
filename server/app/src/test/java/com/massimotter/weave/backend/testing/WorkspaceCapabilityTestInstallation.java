@@ -31,9 +31,6 @@ import com.massimotter.weave.backend.files.capability.FilesWorkspaceCapabilityCo
 import com.massimotter.weave.backend.files.capability.FilesWorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.health.ProviderCapabilityHealthService;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
-import com.massimotter.weave.backend.manuals.capability.ManualsWorkspaceCapabilities;
-import com.massimotter.weave.backend.manuals.capability.ManualsWorkspaceCapabilityConfiguration;
-import com.massimotter.weave.backend.manuals.capability.ManualsWorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.meetings.capability.MeetingsWorkspaceCapabilities;
 import com.massimotter.weave.backend.meetings.capability.MeetingsWorkspaceCapabilityConfiguration;
 import com.massimotter.weave.backend.meetings.capability.MeetingsWorkspaceCapabilityProperties;
@@ -148,7 +145,6 @@ public final class WorkspaceCapabilityTestInstallation {
             MeetingsWorkspaceCapabilityConfiguration.class,
             OfficeWorkspaceCapabilityConfiguration.class,
             DecisionsWorkspaceCapabilityConfiguration.class,
-            ManualsWorkspaceCapabilityConfiguration.class,
             DevopsWorkspaceCapabilityConfiguration.class,
             AgentRuntimeWorkspaceCapabilityConfiguration.class
     })
@@ -218,8 +214,6 @@ public final class WorkspaceCapabilityTestInstallation {
                 new OfficeWorkspaceCapabilityProperties(convert(settings.documentsCollaboration()))));
         contributions.add(DecisionsWorkspaceCapabilities.contribution(
                 new DecisionsWorkspaceCapabilityProperties(convert(settings.decisionsEvidence()))));
-        contributions.add(ManualsWorkspaceCapabilities.contribution(
-                new ManualsWorkspaceCapabilityProperties(convert(settings.manualsHelp()))));
         contributions.add(DevopsWorkspaceCapabilities.contribution(
                 new DevopsWorkspaceCapabilityProperties(convert(settings.releaseEvidence()))));
         contributions.add(AgentRuntimeWorkspaceCapabilities.contribution(
@@ -246,19 +240,10 @@ public final class WorkspaceCapabilityTestInstallation {
             WorkspaceCapabilityStatusResponse calendar,
             WorkspaceCapabilityStatusResponse boards,
             WorkspaceCapabilityStatusResponse agentRuntimeControl) {
-        return new WorkspaceCapabilitiesResponse(
-                shellAccess,
-                chat,
-                files,
-                calendar,
-                boards,
-                disabled("meetings/calls"),
-                disabled("documents/collaboration"),
-                ready("decisions/evidence"),
-                ready("manuals/help"),
-                ready("release evidence"),
-                ready("admin control plane"),
-                agentRuntimeControl);
+        return snapshot(shellAccess, chat, files, calendar, boards,
+                disabled("meetings/calls"), disabled("documents/collaboration"),
+                ready("decisions/evidence"), null, ready("release evidence"),
+                ready("admin control plane"), agentRuntimeControl);
     }
 
     private static WorkspaceCapabilityStatusResponse disabled(String category) {
@@ -294,8 +279,12 @@ public final class WorkspaceCapabilityTestInstallation {
             WorkspaceCapabilityStatusResponse releaseEvidence,
             WorkspaceCapabilityStatusResponse adminControlPlane,
             WorkspaceCapabilityStatusResponse agentRuntimeControl) {
-        return new WorkspaceCapabilitiesResponse(
-                shellAccess, chat, files, calendar, boards, meetingsCalls,
-                documentsCollaboration, decisionsEvidence, manualsHelp, releaseEvidence, adminControlPlane, agentRuntimeControl);
+        var states = new java.util.LinkedHashMap<String, WorkspaceCapabilityStatusResponse>();
+        states.put("chat", chat); states.put("files", files); states.put("calendar", calendar);
+        states.put("boards", boards); states.put("meetings", meetingsCalls);
+        states.put("office", documentsCollaboration); states.put("decisions", decisionsEvidence);
+        states.put("devops", releaseEvidence); states.put("agent-runtime", agentRuntimeControl);
+        states.values().removeIf(java.util.Objects::isNull);
+        return new WorkspaceCapabilitiesResponse(shellAccess, adminControlPlane, states);
     }
 }

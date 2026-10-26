@@ -1,4 +1,4 @@
-package com.massimotter.weave.backend.provider;
+package com.massimotter.weave.backend.providerbinding.selection;
 
 import com.massimotter.weave.backend.providerbinding.selection.ProviderSelection;
 import com.massimotter.weave.backend.providerbinding.selection.ProviderSelectionRepository;
