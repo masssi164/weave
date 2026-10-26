@@ -115,7 +115,7 @@ class KeycloakAuthConfigTest {
     RestClient.Builder builder = RestClient.builder();
     KeycloakAuthConfig.configurePolicy(builder, properties.keycloak().baseUrl());
     KeycloakAuthConfig.configureTransport(builder, tokens, properties.keycloak());
-    KeycloakAdminClient client = proxy(builder.build());
+    KeycloakAdminClient client = KeycloakAdminTestClient.proxy(builder.build());
 
     assertThatThrownBy(() -> client.organizations("weave", 0, 100))
         .isInstanceOf(KeycloakAdminException.class)
@@ -133,7 +133,7 @@ class KeycloakAuthConfigTest {
         .andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
 
     KeycloakAuthConfig.configurePolicy(builder, URI.create(baseUrl));
-    assertThat(proxy(builder.build()).humanUsers("weave")).isEqualTo("[]");
+    assertThat(KeycloakAdminTestClient.proxy(builder.build()).humanUsers("weave")).isEqualTo("[]");
     provider.verify();
   }
 
@@ -150,7 +150,7 @@ class KeycloakAuthConfigTest {
         .andRespond(request -> response);
 
     KeycloakAuthConfig.configurePolicy(builder, baseUrl);
-    assertThatThrownBy(() -> proxy(builder.build()).humanUsers("weave"))
+    assertThatThrownBy(() -> KeycloakAdminTestClient.proxy(builder.build()).humanUsers("weave"))
         .isInstanceOf(KeycloakAdminException.class)
         .satisfies(failure -> assertThat(((KeycloakAdminException) failure).status()).isEqualTo(status));
     verify(response, never()).getBody();
@@ -164,7 +164,7 @@ class KeycloakAuthConfigTest {
     RestClient.Builder builder = RestClient.builder().baseUrl(baseUrl);
     var provider = MockRestServiceServer.bindTo(builder).build();
     KeycloakAuthConfig.configurePolicy(builder, baseUrl);
-    KeycloakAdminClient client = proxy(builder.build());
+    KeycloakAdminClient client = KeycloakAdminTestClient.proxy(builder.build());
 
     assertThatThrownBy(() -> client.managedCredentials("weave", "subject-1", false))
         .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("guarded boundary");
@@ -180,14 +180,7 @@ class KeycloakAuthConfigTest {
         .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
 
     KeycloakAuthConfig.configurePolicy(builder, baseUrl);
-    proxy(builder.build()).user("weave", "subject/segment");
+    KeycloakAdminTestClient.proxy(builder.build()).user("weave", "subject/segment");
     provider.verify();
   }
-
-  private static KeycloakAdminClient proxy(RestClient restClient) {
-    return HttpServiceProxyFactory.builderFor(RestClientAdapter.create(restClient))
-        .build()
-        .createClient(KeycloakAdminClient.class);
-  }
 }
-

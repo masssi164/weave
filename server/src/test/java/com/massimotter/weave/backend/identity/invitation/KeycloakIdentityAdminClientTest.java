@@ -11,6 +11,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.config.IdentityInvitationProperties;
+import com.massimotter.weave.backend.config.keycloak.KeycloakAdminTestClient;
 import java.net.URI;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,15 +37,7 @@ class KeycloakIdentityAdminClientTest {
 
     RestClient.Builder builder = RestClient.builder().baseUrl(properties.keycloak().baseUrl());
     provider = MockRestServiceServer.bindTo(builder).build();
-    client = new KeycloakIdentityAdminClient(properties, new ObjectMapper(), keycloakClient(builder, properties));
-  }
-
-  private static KeycloakAdminClient keycloakClient(
-      RestClient.Builder builder, IdentityInvitationProperties properties) {
-    KeycloakAuthConfig.configurePolicy(builder, properties.keycloak().baseUrl());
-    return HttpServiceProxyFactory.builderFor(RestClientAdapter.create(builder.build()))
-        .build()
-        .createClient(KeycloakAdminClient.class);
+    client = new KeycloakIdentityAdminClient(properties, new ObjectMapper(), KeycloakAdminTestClient.create(builder, properties.keycloak().baseUrl()));
   }
 
   @Test
@@ -136,7 +129,7 @@ class KeycloakIdentityAdminClientTest {
     properties.keycloak().setOrganizationId("");
     RestClient.Builder builder = RestClient.builder().baseUrl(properties.keycloak().baseUrl());
     provider = MockRestServiceServer.bindTo(builder).build();
-    client = new KeycloakIdentityAdminClient(properties, new ObjectMapper(), keycloakClient(builder, properties));
+    client = new KeycloakIdentityAdminClient(properties, new ObjectMapper(), KeycloakAdminTestClient.create(builder, properties.keycloak().baseUrl()));
 
     provider
         .expect(
