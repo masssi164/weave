@@ -20,4 +20,10 @@ public final class InMemoryAuditEventPublisher implements AuditEventPublisher {
     public List<AuditEvent> events() {
         return List.copyOf(events);
     }
+    @Override
+    public List<AuditEvent> events(AuditEventQuery query) {
+        return events().stream().filter(query::selects)
+                .sorted(java.util.Comparator.comparing(AuditEvent::occurredAt).reversed())
+                .skip((long) query.page() * query.size()).limit(query.size()).toList();
+    }
 }

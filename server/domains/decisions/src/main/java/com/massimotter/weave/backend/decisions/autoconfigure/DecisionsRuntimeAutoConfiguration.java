@@ -12,7 +12,7 @@ import com.massimotter.weave.backend.decisions.discovery.DecisionsDiscoveryConfi
 /** Installs implemented future-domain behavior; release inclusion remains explicit. */
 @AutoConfiguration(afterName = "com.massimotter.weave.backend.chat.autoconfigure.ChatRuntimeAutoConfiguration")
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@Import({
+@Import({com.massimotter.weave.backend.decisions.home.DecisionsHomeConfiguration.class,
         DecisionsDiscoveryConfiguration.class,
         DecisionLedgerService.class,
         DecisionLedgerController.class,

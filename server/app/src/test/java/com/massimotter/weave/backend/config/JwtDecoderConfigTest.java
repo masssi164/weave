@@ -221,7 +221,7 @@ class JwtDecoderConfigTest {
     }
 
     @Test
-    void rejectsExpiredSignedUserAdminAndMcpCredentialsAfterAcceptingFreshControls() throws Exception {
+    void rejectsExpiredSignedUserAndAdminCredentialsAfterAcceptingFreshControls() throws Exception {
         RSAKey signingKey = rsaSigningKey();
         try (JwksServer jwksServer = JwksServer.start(signingKey)) {
             OAuth2ResourceServerProperties properties = new OAuth2ResourceServerProperties();
@@ -234,11 +234,7 @@ class JwtDecoderConfigTest {
             List<Credential> credentials = List.of(
                     new Credential(config.jwtDecoder(properties, security), "weave-app", null, "weave:workspace"),
                     new Credential(config.adminApiJwtDecoder(properties, security),
-                            "weave-admin-console", null, "weave:workspace"),
-                    new Credential(config.filesMcpWorkloadJwtDecoder(properties, security),
-                            "weave-mcp-server", new JOSEObjectType("at+jwt"), "files.read"),
-                    new Credential(config.calendarMcpWorkloadJwtDecoder(properties, security),
-                            "weave-mcp-server", new JOSEObjectType("at+jwt"), "calendar.write"));
+                            "weave-admin-console", null, "weave:workspace"));
             for (Credential credential : credentials) {
                 assertThat(credential.decoder().decode(signedToken(signingKey, ISSUER_URI,
                         List.of("https://api.weave.test/api"), credential.client(),
@@ -362,35 +358,6 @@ class JwtDecoderConfigTest {
         assertThat(validator.validate(humanToken).hasErrors()).isTrue();
     }
 
-    @Test
-    void calendarWorkloadDecoderAcceptsOneExactSignedCalendarScope() throws Exception {
-        RSAKey signingKey = rsaSigningKey();
-        try (JwksServer jwksServer = JwksServer.start(signingKey)) {
-            OAuth2ResourceServerProperties properties = new OAuth2ResourceServerProperties();
-            properties.getJwt().setIssuerUri(ISSUER_URI);
-            properties.getJwt().setJwkSetUri(jwksServer.jwkSetUri());
-            JwtDecoder decoder = new JwtDecoderConfig().calendarMcpWorkloadJwtDecoder(
-                    properties, new WeaveSecurityProperties("https://api.weave.test/api", "weave-app"));
-
-            assertThat(decoder.decode(signedToken(signingKey, ISSUER_URI,
-                    List.of("https://api.weave.test/api"), "weave-mcp-server",
-                    new JOSEObjectType("at+jwt"), "cell-subject", "calendar.read"))
-                    .getClaimAsString("scope")).isEqualTo("calendar.read");
-            assertThat(decoder.decode(signedToken(signingKey, ISSUER_URI,
-                    List.of("https://api.weave.test/api"), "weave-mcp-server",
-                    new JOSEObjectType("at+jwt"), "cell-subject", "calendar.write"))
-                    .getClaimAsString("scope")).isEqualTo("calendar.write");
-            for (String scope : List.of("files.read", "files.read calendar.read",
-                    "calendar.read calendar.write", "calendar.write calendar.write")) {
-                assertThrows(JwtValidationException.class, () -> decoder.decode(signedToken(signingKey,
-                        ISSUER_URI, List.of("https://api.weave.test/api"), "weave-mcp-server",
-                        new JOSEObjectType("at+jwt"), "cell-subject", scope)));
-            }
-            assertThrows(JwtValidationException.class, () -> decoder.decode(signedToken(signingKey,
-                    ISSUER_URI, List.of("https://api.weave.test/api"), "weave-app",
-                    new JOSEObjectType("at+jwt"), "member", "calendar.read")));
-        }
-    }
 
     @Test
     void rfc9068DecoderAcceptsAtJwtAndRejectsGenericJwtBeforeClaimsAreTrusted() throws Exception {

@@ -1,9 +1,9 @@
 package com.massimotter.weave.backend.controller;
 
 import com.massimotter.weave.backend.http.request.RequestIdFilter;
-import com.massimotter.weave.backend.model.PlatformStatusResponse;
+import com.massimotter.weave.backend.discovery.api.PlatformStatusResponse;
 import com.massimotter.weave.backend.service.LocalDependencyReadinessService;
-import com.massimotter.weave.backend.service.PlatformContractService;
+import com.massimotter.weave.backend.discovery.application.PlatformContractService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;

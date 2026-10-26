@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.calendar.discovery;
 
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.discovery.catalog.CanonicalDomainContribution;
 import com.massimotter.weave.backend.discovery.catalog.ProviderCategoryFragment;
 import org.springframework.context.annotation.Bean;
@@ -7,6 +8,12 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration(proxyBeanMethods = false)
 public class CalendarDiscoveryConfiguration {
+
+    @Bean
+    CalendarPlatformDiagnostics calendarPlatformDiagnostics(
+            WorkspaceCapabilityService capabilities) {
+        return new CalendarPlatformDiagnostics(capabilities);
+    }
 
     @Bean
     ProviderCategoryFragment calendarCalendarCategory() {

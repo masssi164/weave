@@ -38,6 +38,7 @@ class FilesRuntimeDiscoveryTest {
                         "weave.files.native.filesystem-root=" + temporary.resolve("blobs"))
                 .run(context -> {
                     assertThat(context).hasNotFailed().hasSingleBean(FilesRuntimeAutoConfiguration.class)
+                            .hasSingleBean(com.massimotter.weave.backend.files.home.FilesHomeRecentActivityService.class)
                             .hasSingleBean(FilesFacadeService.class).hasSingleBean(FilesUserApiService.class)
                             .hasSingleBean(FilesProviderResolver.class).hasSingleBean(FilesystemBlobStore.class)
                             .hasSingleBean(WeaveNativeFilesAdapter.class).hasSingleBean(NextcloudFilesAdapter.class)

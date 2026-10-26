@@ -1,6 +1,8 @@
 package com.massimotter.weave.backend.audit.persistence;
 
 import com.massimotter.weave.backend.audit.AuditEvent;
+import com.massimotter.weave.backend.audit.AuditEventQuery;
+import org.springframework.data.domain.PageRequest;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditRequiredException;
 import com.massimotter.weave.backend.audit.AuditAction;
@@ -55,12 +57,17 @@ public class JpaAuditEventPublisher implements AuditEventPublisher {
         }
     }
 
+    @Override
     @Transactional(readOnly = true)
-    public List<AuditEvent> events() {
+    public List<AuditEvent> events(AuditEventQuery query) {
+        requireNonNull(query, "query must not be null");
         try {
-            return repository.findAllByOrderBySequenceIdAsc().stream().map(this::toDomain).toList();
+            return repository.findByTenantIdAndActionInAndRedactionLevelInOrderByOccurredAtDescSequenceIdAsc(
+                    query.organizationId(), query.actions().stream().map(Enum::name).toList(),
+                    query.redactionLevels().stream().map(Enum::name).toList(), PageRequest.of(query.page(), query.size()))
+                    .stream().map(this::toDomain).toList();
         } catch (DataAccessException failure) {
-            throw new AuditRequiredException("durable audit read failed", failure);
+            throw new AuditRequiredException("durable organization audit read failed", failure);
         }
     }
 

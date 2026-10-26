@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.architecture;
 
+import com.massimotter.weave.backend.home.api.WorkspaceController;
+
 import com.massimotter.weave.backend.chat.persistence.JpaCanonicalChatStore;
 import com.massimotter.weave.backend.chat.persistence.CanonicalChatJpaAuthority;
 import com.massimotter.weave.backend.chat.config.ChatRuntimeConfiguration;
@@ -282,7 +284,7 @@ class ServerArchitectureBoundaryTest {
     @Test
     void retiredApplicationCompatibilityRoutesAndConfigurationFallbacksStayAbsent()
             throws IOException {
-        assertThat(sourceEndingWith(Path.of("controller", "WorkspaceController.java")).text())
+        assertThat(sourceEndingWith(Path.of("home", "api", "WorkspaceController.java")).text())
                 .doesNotContain("/api/v1/organization")
                 .doesNotContain("/api/v1/workspace");
         assertThat(sourceEndingWith(Path.of("chat", "api", "ChatController.java")).text())

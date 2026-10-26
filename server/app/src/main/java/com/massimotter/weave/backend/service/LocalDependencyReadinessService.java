@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.service;
 
-import com.massimotter.weave.backend.model.PlatformStatusResponse;
+import com.massimotter.weave.backend.discovery.api.PlatformStatusResponse;
 import com.massimotter.weave.backend.readiness.persistence.JpaPersistenceReadinessProbe;
 import java.util.ArrayList;
 import java.util.List;

@@ -13,6 +13,6 @@ import com.massimotter.weave.backend.boards.discovery.BoardsDiscoveryConfigurati
 /** Owns existing future feature behavior; release inclusion is an explicit composition decision. */
 @AutoConfiguration
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@Import({
+@Import({com.massimotter.weave.backend.boards.home.BoardsHomeConfiguration.class,
         BoardsDiscoveryConfiguration.class,BoardsController.class, BoardsFacadeService.class, BoardsWorkspaceCapabilityConfiguration.class, BoardsRuntimeConfiguration.class, BoardsProviderRegistryConfiguration.class})
 public class BoardsRuntimeAutoConfiguration {}

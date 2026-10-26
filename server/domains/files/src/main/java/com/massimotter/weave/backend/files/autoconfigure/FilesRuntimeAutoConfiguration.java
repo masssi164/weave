@@ -52,7 +52,7 @@ import com.massimotter.weave.backend.files.discovery.FilesDiscoveryConfiguration
         WeaveS3FilesProperties.class,
         ProviderBindingBootstrapProperties.class
 })
-@Import({
+@Import({com.massimotter.weave.backend.files.home.FilesHomeConfiguration.class,
         FilesDiscoveryConfiguration.class,
         FilesUserItemsController.class,
         FilesController.class,

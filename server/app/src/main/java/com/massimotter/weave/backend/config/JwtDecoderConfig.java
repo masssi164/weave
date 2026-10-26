@@ -1,13 +1,9 @@
 package com.massimotter.weave.backend.config;
 
 import static com.massimotter.weave.backend.security.jwt.JwtDecoderSupport.configuredDecoder;
-import static com.massimotter.weave.backend.security.jwt.JwtDecoderSupport.configuredRfc9068Decoder;
 import static com.massimotter.weave.backend.security.jwt.JwtDecoderSupport.exactAudienceValidator;
-import static com.massimotter.weave.backend.security.jwt.JwtDecoderSupport.exactScopesValidator;
-import static com.massimotter.weave.backend.security.jwt.JwtDecoderSupport.oneOfExactScopesValidator;
 import static com.massimotter.weave.backend.security.jwt.JwtDecoderSupport.requiredAuthorizedPartyValidator;
 import static com.massimotter.weave.backend.security.jwt.JwtDecoderSupport.requiredHumanSubjectValidator;
-import static com.massimotter.weave.backend.security.jwt.JwtDecoderSupport.rfc9068AccessTokenTypeValidator;
 
 import com.massimotter.weave.backend.security.config.WeaveSecurityProperties;
 
@@ -16,7 +12,6 @@ import com.massimotter.weave.backend.security.MemberSessionCutoffService;
 import java.util.Set;
 import java.util.function.Supplier;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -27,8 +22,6 @@ import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jwt.BadJwtException;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.jwt.JwtIssuerValidator;
-import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.util.StringUtils;
 
@@ -137,46 +130,8 @@ public class JwtDecoderConfig {
         return configuredDecoder(resourceServerProperties, validator);
     }
 
-    @Bean("filesMcpWorkloadJwtDecoder")
-    @ConditionalOnProperty(name = "weave.agent-runtime.workload-identity.enabled", havingValue = "true")
-    JwtDecoder filesMcpWorkloadJwtDecoder(
-            OAuth2ResourceServerProperties resourceServerProperties,
-            WeaveSecurityProperties weaveSecurityProperties) {
-        String issuerUri = resourceServerProperties.getJwt().getIssuerUri();
-        if (!StringUtils.hasText(issuerUri)) {
-            return configuredRfc9068Decoder(
-                    resourceServerProperties,
-                    jwt -> OAuth2TokenValidatorResult.success());
-        }
-        OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(
-                new JwtTimestampValidator(),
-                new JwtIssuerValidator(issuerUri),
-                rfc9068AccessTokenTypeValidator(),
-                exactAudienceValidator(Set.of(weaveSecurityProperties.requiredAudience())),
-                requiredAuthorizedPartyValidator("weave-mcp-server"),
-                exactScopesValidator(Set.of("files.read")));
-        return configuredRfc9068Decoder(resourceServerProperties, validator);
-    }
 
-    @Bean("calendarMcpWorkloadJwtDecoder")
-    @ConditionalOnProperty(name = "weave.agent-runtime.workload-identity.enabled", havingValue = "true")
-    JwtDecoder calendarMcpWorkloadJwtDecoder(
-            OAuth2ResourceServerProperties resourceServerProperties,
-            WeaveSecurityProperties weaveSecurityProperties) {
-        String issuerUri = resourceServerProperties.getJwt().getIssuerUri();
-        if (!StringUtils.hasText(issuerUri)) {
-            return configuredRfc9068Decoder(
-                    resourceServerProperties,
-                    jwt -> OAuth2TokenValidatorResult.success());
-        }
-        OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(
-                new JwtTimestampValidator(),
-                new JwtIssuerValidator(issuerUri),
-                rfc9068AccessTokenTypeValidator(),
-                exactAudienceValidator(Set.of(weaveSecurityProperties.requiredAudience())),
-                requiredAuthorizedPartyValidator("weave-mcp-server"),
-                oneOfExactScopesValidator(Set.of("calendar.read", "calendar.write")));
-        return configuredRfc9068Decoder(resourceServerProperties, validator);
-    }
+
+
 
 }

@@ -80,4 +80,10 @@ public final class FileAuditEventPublisher implements AuditEventPublisher {
             throw new AuditRequiredException("durable audit event was not readable", exception);
         }
     }
+    @Override
+    public List<AuditEvent> events(AuditEventQuery query) {
+        return events().stream().filter(query::selects)
+                .sorted(java.util.Comparator.comparing(AuditEvent::occurredAt).reversed())
+                .skip((long) query.page() * query.size()).limit(query.size()).toList();
+    }
 }

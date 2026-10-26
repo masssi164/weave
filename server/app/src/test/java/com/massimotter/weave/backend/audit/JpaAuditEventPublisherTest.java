@@ -23,11 +23,43 @@ class JpaAuditEventPublisherTest {
         publisher.publish(event);
         publisher(dataSource).publish(event);
 
-        assertThat(publisher(dataSource).events()).containsExactly(event);
+        assertThat(publisher(dataSource).events(AuditEventQuery.recent("tenant-a"))).containsExactly(event);
         assertThatThrownBy(() -> publisher(dataSource).publish(event(Map.of("result", "different"))))
                 .isInstanceOf(AuditRequiredException.class)
                 .hasMessageContaining("Conflicting");
         assertThat(publisher.persistencePosture()).isEqualTo("portable-jpa-hibernate-validated");
+    }
+
+    @Test
+    void scopedReadsApplyOrganizationEnvelopeOrderingAndPageBoundsInTheDatabase() {
+        var dataSource = migratedDataSource();
+        var publisher = publisher(dataSource);
+        var now = Instant.parse("2026-07-09T10:00:00Z");
+        for (int i = 0; i < 6; i++) {
+            publisher.publish(new AuditEvent("tenant-a", "context-a", "user:subject", "files:user-http",
+                    AuditAction.FILES_OPERATION_INTENT_RECORDED, now.plusSeconds(i), "file-" + i,
+                    AuditRedactionLevel.SUPPORT_SAFE, Map.of("result", "completed")));
+        }
+        publisher.publish(new AuditEvent("tenant-b", "context-a", "user:other", "files:user-http",
+                AuditAction.FILES_OPERATION_INTENT_RECORDED, now.plusSeconds(20), "foreign-private",
+                AuditRedactionLevel.SUPPORT_SAFE, Map.of("result", "completed")));
+        publisher.publish(new AuditEvent("tenant-a", "context-a", "user:subject", "files:user-http",
+                AuditAction.FILES_OPERATION_INTENT_RECORDED, now.plusSeconds(21), "internal-only",
+                AuditRedactionLevel.INTERNAL_REDACTED, Map.of("result", "completed")));
+        publisher.publish(new AuditEvent("tenant-a", "context-a", "user:subject", "policy",
+                AuditAction.ADMIN_POLICY_UPDATED, now.plusSeconds(22), "other-action",
+                AuditRedactionLevel.SUPPORT_SAFE, Map.of("result", "completed")));
+        var statistics = com.massimotter.weave.backend.testing.JpaTestDatabase.statistics(dataSource);
+        statistics.clear();
+        var query = new AuditEventQuery("tenant-a", java.util.List.of(AuditAction.FILES_OPERATION_INTENT_RECORDED),
+                java.util.List.of(AuditRedactionLevel.SUPPORT_SAFE), 0, 2);
+        assertThat(publisher.events(query)).extracting(AuditEvent::idempotencyKey)
+                .containsExactly("file-5", "file-4");
+        assertThat(statistics.getEntityLoadCount()).isEqualTo(2);
+        assertThat(publisher.events(new AuditEventQuery("tenant-a", query.actions(), query.redactionLevels(), 1, 2)))
+                .extracting(AuditEvent::idempotencyKey).containsExactly("file-3", "file-2");
+        assertThat(publisher.events(AuditEventQuery.recent("tenant-a")))
+                .noneMatch(event -> event.tenantId().equals("tenant-b"));
     }
 
     private AuditEvent event(Map<String, Object> payload) {

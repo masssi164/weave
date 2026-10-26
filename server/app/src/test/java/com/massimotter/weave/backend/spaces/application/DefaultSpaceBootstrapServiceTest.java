@@ -22,7 +22,6 @@ import com.massimotter.weave.backend.identity.IdentityReferences;
 import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient;
 import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient.MemberAuthorization;
 import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient.ProviderMember;
-import com.massimotter.weave.backend.model.*;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContext;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;

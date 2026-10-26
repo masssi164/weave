@@ -44,7 +44,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @WebMvcTest(
         controllers = AgentRuntimeProfileController.class,
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
-@Import({
+@Import({com.massimotter.weave.backend.agentruntime.discovery.AgentRuntimeDiscoveryConfiguration.class,
+
         AgentRuntimeProfileController.class,
         AgentRuntimeProfileSecurityConfiguration.class,
         AgentRuntimeProfileControllerTest.PolicyConfiguration.class,

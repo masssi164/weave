@@ -13,7 +13,7 @@ import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation
 import com.massimotter.weave.backend.readiness.persistence.JpaPersistenceReadinessProbe;
 import com.massimotter.weave.backend.service.LocalDependencyReadinessService;
 import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
-import com.massimotter.weave.backend.service.PlatformContractService;
+import com.massimotter.weave.backend.discovery.application.PlatformContractService;
 import com.massimotter.weave.backend.health.ProviderCapabilityHealthService;
 import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,7 +38,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @WebMvcTest(
-        controllers = {PlatformController.class, HealthController.class, MemberEntryController.class},
+        controllers = {com.massimotter.weave.backend.discovery.api.PlatformController.class, HealthController.class, MemberEntryController.class},
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
 @Import({com.massimotter.weave.backend.http.request.RequestIdFilter.class,
         com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation.Configuration.class,
@@ -46,6 +46,10 @@ import static org.assertj.core.api.Assertions.assertThat;
         SecurityConfig.class,
         LocalDependencyReadinessService.class,
         PlatformContractService.class,
+        com.massimotter.weave.backend.discovery.api.PlatformController.class,
+        com.massimotter.weave.backend.chat.discovery.ChatDiscoveryConfiguration.class,
+        com.massimotter.weave.backend.files.discovery.FilesDiscoveryConfiguration.class,
+        com.massimotter.weave.backend.calendar.discovery.CalendarDiscoveryConfiguration.class,
         WorkspaceCapabilityService.class,
         ApiAuthenticationEntryPoint.class,
         ApiAccessDeniedHandler.class,

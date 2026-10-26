@@ -1,10 +1,10 @@
 package com.massimotter.weave.backend.controller;
 
 import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
-import com.massimotter.weave.backend.model.PlatformStatusResponse;
+import com.massimotter.weave.backend.discovery.api.PlatformStatusResponse;
 import com.massimotter.weave.backend.readiness.persistence.JpaPersistenceReadinessProbe;
 import com.massimotter.weave.backend.service.LocalDependencyReadinessService;
-import com.massimotter.weave.backend.service.PlatformContractService;
+import com.massimotter.weave.backend.discovery.application.PlatformContractService;
 import com.massimotter.weave.backend.health.ProviderCapabilityHealthService;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;

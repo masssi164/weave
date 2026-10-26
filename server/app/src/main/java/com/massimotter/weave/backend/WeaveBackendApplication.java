@@ -1,7 +1,6 @@
 package com.massimotter.weave.backend;
 
-import com.massimotter.weave.backend.agentruntime.operator.RuntimeProfileSigningKeyCli;
-import com.massimotter.weave.backend.agentruntime.operator.RuntimeStateWrappingKeyCli;
+import com.massimotter.weave.backend.operator.OfflineOperatorCommands;
 import com.massimotter.weave.backend.security.workload.config.WorkloadEntitlementProperties;
 import com.massimotter.weave.backend.security.config.DeploymentOrganizationProperties;
 import com.massimotter.weave.backend.identity.keycloak.IdentityInvitationProperties;
@@ -31,7 +30,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
                         classes = org.springframework.boot.autoconfigure.AutoConfigurationExcludeFilter.class),
                 @org.springframework.context.annotation.ComponentScan.Filter(
                         type = org.springframework.context.annotation.FilterType.REGEX,
-                        pattern = "com\\.massimotter\\.weave\\.backend\\.(files|calendar|chat|decisions|meetings|boards|office|devops|integrations|guest|portability|agentruntime|discovery\\.api|health\\.api|identity\\.organization|identity\\.member\\.api|spaces\\.api|spaces\\.bootstrap|api\\.error|identity\\.invitation\\.api|identity\\.profile\\.api)\\..*")
+                        pattern = "com\\.massimotter\\.weave\\.backend\\.(files|calendar|chat|decisions|meetings|boards|office|devops|integrations|guest|portability|agentruntime|discovery\\.api|health\\.api|home\\.api|capability\\.api|identity\\.organization|identity\\.member\\.api|spaces\\.api|spaces\\.bootstrap|api\\.error|identity\\.invitation\\.api|identity\\.profile\\.api)\\..*")
         })
 @EnableScheduling
 @EnableConfigurationProperties({
@@ -47,14 +46,6 @@ public class WeaveBackendApplication {
     public static void main(String[] args) {
         if (args != null && args.length > 0) {
             String[] operatorArguments = Arrays.copyOfRange(args, 1, args.length);
-            if ("runtime-profile-signing-keys".equals(args[0])) {
-                RuntimeProfileSigningKeyCli.main(operatorArguments);
-                return;
-            }
-            if ("runtime-state-wrapping-keys".equals(args[0])) {
-                RuntimeStateWrappingKeyCli.main(operatorArguments);
-                return;
-            }
             if ("dogfood-prepare-members".equals(args[0])) {
                 com.massimotter.weave.backend.dogfood.DogfoodPreparationCli.main(operatorArguments);
                 return;
@@ -73,6 +64,15 @@ public class WeaveBackendApplication {
             }
             if ("keycloak-realm-migration-receipt-check".equals(args[0])) {
                 KeycloakRealmMigrationReceiptVerifierCli.main(operatorArguments);
+                return;
+            }
+            if (!args[0].startsWith("--")) {
+                int status = OfflineOperatorCommands.executeRequired(
+                        args[0], operatorArguments, System.out, System.err,
+                        WeaveBackendApplication.class.getClassLoader());
+                if (status != 0) {
+                    System.exit(status);
+                }
                 return;
             }
         }

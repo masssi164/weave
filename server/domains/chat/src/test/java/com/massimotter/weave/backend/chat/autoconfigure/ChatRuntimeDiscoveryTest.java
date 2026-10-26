@@ -30,6 +30,7 @@ class ChatRuntimeDiscoveryTest {
                 .withPropertyValues("spring.jpa.hibernate.ddl-auto=none", "spring.flyway.enabled=false")
                 .run(context -> {
                     assertThat(context).hasNotFailed().hasSingleBean(ChatRuntimeAutoConfiguration.class)
+                            .hasSingleBean(com.massimotter.weave.backend.discovery.port.MatrixPlatformContribution.class)
                             .hasSingleBean(ChatDomainFacadeService.class).hasSingleBean(ChatProviderPort.class)
                             .hasSingleBean(NativeChatProviderAdapter.class).hasSingleBean(CanonicalChatStore.class)
                             .hasSingleBean(ChatController.class).hasSingleBean(MatrixClientServerProjectionController.class)
@@ -70,6 +71,7 @@ class ChatRuntimeDiscoveryTest {
                 .withPropertyValues("spring.jpa.hibernate.ddl-auto=none", "spring.flyway.enabled=false")
                 .run(context -> assertThat(context).hasNotFailed().doesNotHaveBean(ChatRuntimeAutoConfiguration.class)
                         .doesNotHaveBean(ChatDomainFacadeService.class).doesNotHaveBean(ChatController.class)
+                        .doesNotHaveBean(com.massimotter.weave.backend.discovery.port.MatrixPlatformContribution.class)
                         .doesNotHaveBean(ChatProviderPort.class).doesNotHaveBean(MatrixProtocolCoreService.class)
                         .doesNotHaveBean(MatrixApplicationServiceSecrets.class));
     }

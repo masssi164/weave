@@ -4,7 +4,7 @@ import com.google.zxing.BarcodeFormat;
 import com.google.zxing.WriterException;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
-import com.massimotter.weave.backend.service.PlatformContractService;
+import com.massimotter.weave.backend.discovery.application.PlatformContractService;
 import io.swagger.v3.oas.annotations.Hidden;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;

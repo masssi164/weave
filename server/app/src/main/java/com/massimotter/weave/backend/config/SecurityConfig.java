@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.config;
 
-import com.massimotter.weave.backend.chat.config.ChatE2eProofSecurityConfiguration;
+import com.massimotter.weave.backend.security.http.PublicHttpRoute;
 
 import com.massimotter.weave.backend.security.http.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.security.http.ApiAccessDeniedHandler;
@@ -63,15 +63,25 @@ public class SecurityConfig {
     SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             WorkspaceAccessAuthorizationManager workspaceAccessAuthorizationManager,
-            DeploymentOrganizationAdmission organizationAdmission)
+            DeploymentOrganizationAdmission organizationAdmission,
+            List<PublicHttpRoute> publicRoutes)
             throws Exception {
+        var installedPublicRoutes = PublicHttpRoute.validated(publicRoutes);
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
-                .authorizeHttpRequests(authorize -> authorize
+                .authorizeHttpRequests(authorize -> {
+                    for (var route : installedPublicRoutes) {
+                        if (route.method() == null) {
+                            authorize.requestMatchers(route.path()).permitAll();
+                        } else {
+                            authorize.requestMatchers(route.method(), route.path()).permitAll();
+                        }
+                    }
+                    authorize
                         .requestMatchers(
                                 "/actuator/health",
                                 "/actuator/info",
@@ -80,12 +90,6 @@ public class SecurityConfig {
                                 "/error").permitAll()
                         .requestMatchers("/api/health/**", "/api/platform/config", "/api/platform/status").permitAll()
                         .requestMatchers(HttpMethod.GET, "/", "/join").permitAll()
-                        .requestMatchers("/api/v1/agent-runtime/trust/jwks.json").permitAll()
-                        .requestMatchers("/.well-known/matrix/client").permitAll()
-                        .requestMatchers(HttpMethod.GET,
-                                "/_matrix/client/versions", "/_matrix/client/v3/versions",
-                                "/_matrix/client/v3/login", "/_matrix/client/r0/login").permitAll()
-                        .requestMatchers(ChatE2eProofSecurityConfiguration.PATH).permitAll()
                         .requestMatchers("/v3/api-docs", "/v3/api-docs/**").permitAll()
                         .requestMatchers(BootstrapOwnerInvitationController.PATH, DefaultSpaceBootstrapController.PATH).permitAll()
                         .requestMatchers(HttpMethod.POST, IdentitySessionController.PATH)
@@ -97,7 +101,8 @@ public class SecurityConfig {
                                 .access(workspaceAccessAuthorizationManager)
                         .requestMatchers("/api/**").access(workspaceAccessAuthorizationManager)
                         .requestMatchers(AdminConsoleRoutePolicy::isPublicConsoleRequest).permitAll()
-                        .anyRequest().authenticated())
+                        .anyRequest().authenticated();
+                })
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler)

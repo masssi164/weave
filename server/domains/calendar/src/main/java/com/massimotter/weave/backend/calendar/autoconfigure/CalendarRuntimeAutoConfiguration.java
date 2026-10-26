@@ -29,7 +29,7 @@ import com.massimotter.weave.backend.calendar.discovery.CalendarDiscoveryConfigu
 @AutoConfiguration(after = CalendarPersistenceAutoConfiguration.class)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @EnableConfigurationProperties(CalendarCalDavProperties.class)
-@Import({
+@Import({com.massimotter.weave.backend.calendar.home.CalendarHomeConfiguration.class,
         CalendarDiscoveryConfiguration.class,
         CalendarController.class,
         CalendarDavSetupController.class,

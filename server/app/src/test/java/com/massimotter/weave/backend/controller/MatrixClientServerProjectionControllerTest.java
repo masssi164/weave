@@ -93,7 +93,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(
         controllers = MatrixClientServerProjectionController.class,
         excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
-@Import({MatrixClientServerProjectionController.class, MatrixClientSecurityErrorWriter.class,
+@Import({com.massimotter.weave.backend.chat.discovery.ChatPublicRoutesConfiguration.class,
+        MatrixClientServerProjectionController.class, MatrixClientSecurityErrorWriter.class,
         SecurityConfig.class,
         ApiAuthenticationEntryPoint.class,
         ApiAccessDeniedHandler.class,
@@ -186,6 +187,10 @@ class MatrixClientServerProjectionControllerTest {
                 .andExpect(jsonPath("$.flows").isEmpty())
                 .andExpect(jsonPath("$.weaveOidcGatekeeper").value(true));
         mockMvc.perform(get("/_matrix/client/v3/account/whoami"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(request(HttpMethod.POST, "/_matrix/client/versions"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(request(HttpMethod.POST, "/_matrix/client/v3/login"))
                 .andExpect(status().isUnauthorized());
     }
 

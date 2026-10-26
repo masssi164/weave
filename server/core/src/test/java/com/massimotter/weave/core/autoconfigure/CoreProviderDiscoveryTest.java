@@ -1,6 +1,10 @@
 package com.massimotter.weave.core.autoconfigure;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import com.massimotter.weave.backend.discovery.application.PlatformContractService;
+import com.massimotter.weave.backend.discovery.api.PlatformController;
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 
 import com.massimotter.weave.backend.discovery.api.ProviderRegistryController;
 import com.massimotter.weave.backend.discovery.application.AdminProviderRegistryService;
@@ -24,6 +28,7 @@ class CoreProviderDiscoveryTest {
                 .withPropertyValues("spring.jpa.hibernate.ddl-auto=create-drop", "spring.flyway.enabled=false")
                 .run(context -> {
                     assertThat(context).hasNotFailed().hasSingleBean(CoreProviderDiscoveryAutoConfiguration.class)
+                            .hasSingleBean(PlatformContractService.class).hasSingleBean(PlatformController.class)
                             .hasSingleBean(ProviderRegistry.class).hasSingleBean(AdminProviderRegistryService.class)
                             .hasSingleBean(ProviderRegistryController.class)
                             .hasSingleBean(ProviderCapabilityHealthController.class);
@@ -33,10 +38,12 @@ class CoreProviderDiscoveryTest {
                     assertThat(status.categories()).extracting(value -> value.category()).containsExactly("admin-control-plane");
                     assertThat(status.canonicalDomainRegistry().domains()).extracting(value -> value.key())
                             .containsExactly("people", "spaces", "health");
+                    assertThatThrownBy(context.getBean(PlatformContractService.class)::config)
+                            .isInstanceOf(ApiErrorException.class);
                     var paths = context.getBean("requestMappingHandlerMapping", RequestMappingHandlerMapping.class)
                             .getHandlerMethods().keySet().stream()
                             .flatMap(mapping -> mapping.getPatternValues().stream()).toList();
-                    assertThat(paths).contains("/api/admin/providers/status", "/api/admin/provider-capability-health");
+                    assertThat(paths).contains("/api/admin/providers/status", "/api/admin/provider-capability-health", "/api/platform/config", "/api/platform/status");
                     assertThat(ClassUtils.isPresent("com.massimotter.weave.backend.WeaveBackendApplication",
                             context.getClassLoader())).isFalse();
                     assertThat(ClassUtils.isPresent("com.massimotter.weave.backend.files.application.FilesUserApiService",
@@ -49,6 +56,7 @@ class CoreProviderDiscoveryTest {
         new ApplicationContextRunner().withUserConfiguration(Discovery.class)
                 .withPropertyValues("spring.jpa.hibernate.ddl-auto=none", "spring.flyway.enabled=false")
                 .run(context -> assertThat(context).hasNotFailed().doesNotHaveBean(ProviderRegistry.class)
+                        .doesNotHaveBean(PlatformContractService.class).doesNotHaveBean(PlatformController.class)
                         .doesNotHaveBean(ProviderRegistryController.class)
                         .doesNotHaveBean(ProviderCapabilityHealthController.class));
     }

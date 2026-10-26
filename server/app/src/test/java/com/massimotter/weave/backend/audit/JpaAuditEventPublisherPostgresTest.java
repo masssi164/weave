@@ -31,7 +31,7 @@ class JpaAuditEventPublisherPostgresTest {
 
         publisher.publish(event("audit-provider-selection-postgres-001"));
 
-        assertThat(publisher.events()).hasSize(1);
+        assertThat(publisher.events(AuditEventQuery.recent("weave-dogfood"))).hasSize(1);
         String payload = new JdbcTemplate(dataSource).queryForObject(
                 "select payload_json from weave_audit_events where idempotency_key = ?",
                 String.class,

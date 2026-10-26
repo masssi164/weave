@@ -1,6 +1,8 @@
 package com.massimotter.weave.backend.audit.persistence;
 
 import java.util.List;
+import java.util.Collection;
+import org.springframework.data.domain.Pageable;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -8,5 +10,7 @@ public interface AuditEventJpaRepository extends JpaRepository<AuditEventJpaEnti
   Optional<AuditEventJpaEntity> findByTenantIdAndIdempotencyKey(
       String tenantId, String idempotencyKey);
 
-  List<AuditEventJpaEntity> findAllByOrderBySequenceIdAsc();
+  List<AuditEventJpaEntity> findByTenantIdAndActionInAndRedactionLevelInOrderByOccurredAtDescSequenceIdAsc(
+      String tenantId, Collection<String> actions, Collection<String> redactionLevels, Pageable page);
+
 }

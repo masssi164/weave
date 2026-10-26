@@ -51,7 +51,7 @@ import com.massimotter.weave.backend.chat.discovery.ChatDiscoveryConfiguration;
         MatrixChatProperties.class,
         ChatE2eProofProperties.class
 })
-@Import({
+@Import({com.massimotter.weave.backend.chat.home.ChatHomeConfiguration.class,
         ChatDiscoveryConfiguration.class,
         ChatController.class,
         MatrixClientServerProjectionController.class,

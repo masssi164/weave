@@ -457,7 +457,8 @@ public class AdminControlPlaneService {
 
     public List<AdminAuditEventResponse> auditEvents(Jwt jwt) {
         workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "admin-control-plane", "read-audit-events");
-        return auditEventResponses(auditEventPublisher.events());
+        return auditEventResponses(auditEventPublisher.events(
+                com.massimotter.weave.backend.audit.AuditEventQuery.recent(organizationId(jwt))));
     }
 
     private List<AdminAuditEventResponse> auditEventResponses(List<AuditEvent> events) {

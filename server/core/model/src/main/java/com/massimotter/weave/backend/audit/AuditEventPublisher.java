@@ -6,5 +6,6 @@ public interface AuditEventPublisher {
 
     void publish(AuditEvent event);
 
-    List<AuditEvent> events();
+    /** Newest occurrence first; the database applies organization, envelope filters and pagination. */
+    List<AuditEvent> events(AuditEventQuery query);
 }

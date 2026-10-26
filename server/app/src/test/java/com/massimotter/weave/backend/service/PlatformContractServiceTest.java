@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.service;
 
 import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation;
+import com.massimotter.weave.backend.discovery.application.PlatformContractService;
 import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.chat.config.MatrixChatProperties;
 import com.massimotter.weave.backend.discovery.config.PlatformContractProperties;
@@ -204,14 +205,13 @@ class PlatformContractServiceTest {
                 null, "https://member:secret@api.weave.test/api", null, null,
                 null, null, null, null))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new PlatformContractProperties(
-                null, null, null, "https://member:secret@api.weave.test",
-                null, null, null, null))
-                .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new PlatformContractProperties(
-                null, null, null, "https://api.weave.test/_matrix/client",
-                null, null, null, null))
-                .isInstanceOf(IllegalArgumentException.class);
+        for (String advertised : java.util.List.of(
+                "https://member:secret@api.weave.test", "https://api.weave.test/_matrix/client")) {
+            var invalid = service(new MatrixChatProperties(false, null, null), true,
+                    new PlatformContractProperties(null, null, null, advertised, null, null, null, null));
+            assertThatThrownBy(invalid::config).isInstanceOf(ApiErrorException.class);
+            assertThat(invalid.status("invalid-advertised-origin").matrix().readiness()).isEqualTo("blocked");
+        }
     }
 
     private PlatformContractService service(MatrixChatProperties matrixProperties, boolean chatEnabled) {
@@ -234,32 +234,26 @@ class PlatformContractServiceTest {
             PlatformContractProperties platformProperties,
             String facadeBaseUrl,
             String facadeServerName) {
-        return new PlatformContractService(resourceServerProperties(),
-platformProperties,
-matrixProperties,
-new WeaveSecurityProperties("weave-app", "weave-app"),
-new com.massimotter.weave.backend.capability.config.WorkspaceCapabilityProperties(WorkspaceCapabilityTestInstallation.convert((new Settings(
-                        new Settings.Capability(true, null, null),
-                        new Settings.Capability(chatEnabled, "https://matrix.weave.test", null),
-                        new Settings.Capability(true, "https://files.weave.test", null),
-                        new Settings.Capability(true, "https://files.weave.test", null),
-                        null,
-                        null)).shellAccess()), WorkspaceCapabilityTestInstallation.convert((new Settings(
-                        new Settings.Capability(true, null, null),
-                        new Settings.Capability(chatEnabled, "https://matrix.weave.test", null),
-                        new Settings.Capability(true, "https://files.weave.test", null),
-                        new Settings.Capability(true, "https://files.weave.test", null),
-                        null,
-                        null)).adminControlPlane())),
-WorkspaceCapabilityTestInstallation.service(resourceServerProperties(),new WeaveSecurityProperties("weave-app", "weave-app"),new Settings(
-                        new Settings.Capability(true, null, null),
-                        new Settings.Capability(chatEnabled, "https://matrix.weave.test", null),
-                        new Settings.Capability(true, "https://files.weave.test", null),
-                        new Settings.Capability(true, "https://files.weave.test", null),
-                        null,
-                        null)),
-facadeBaseUrl,
-facadeServerName);
+        var settings = new Settings(
+                new Settings.Capability(true, null, null),
+                new Settings.Capability(chatEnabled, "https://matrix.weave.test", null),
+                new Settings.Capability(true, "https://files.weave.test", null),
+                new Settings.Capability(true, "https://files.weave.test", null), null, null);
+        var security = new WeaveSecurityProperties("weave-app", "weave-app");
+        var capabilities = WorkspaceCapabilityTestInstallation.service(
+                resourceServerProperties(), security, settings);
+        return new PlatformContractService(
+                resourceServerProperties(), platformProperties, security,
+                new com.massimotter.weave.backend.capability.config.WorkspaceCapabilityProperties(
+                        WorkspaceCapabilityTestInstallation.convert(settings.shellAccess()),
+                        WorkspaceCapabilityTestInstallation.convert(settings.adminControlPlane())),
+                capabilities,
+                java.util.List.of(new com.massimotter.weave.backend.chat.discovery.ChatMatrixPlatformContribution(
+                        platformProperties, matrixProperties, capabilities, facadeBaseUrl, facadeServerName)),
+                java.util.List.of(
+                        new com.massimotter.weave.backend.files.discovery.FilesPlatformDiagnostics(capabilities),
+                        new com.massimotter.weave.backend.calendar.discovery.CalendarPlatformDiagnostics(capabilities),
+                        new com.massimotter.weave.backend.files.discovery.NextcloudPlatformDiagnostics(platformProperties)));
     }
 
     private OAuth2ResourceServerProperties resourceServerProperties() {

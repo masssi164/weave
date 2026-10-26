@@ -159,6 +159,11 @@ class AdminControlPlaneServiceTest {
                 "prove jpa audit readback");
 
         service.simulateEffectivePolicy(request, jwt("admin"));
+        auditPublisher.publish(new com.massimotter.weave.backend.audit.AuditEvent(
+                "other-organization", "admin-control-plane", "user:other-admin", "provider-selection",
+                AuditAction.ADMIN_POLICY_UPDATED, Instant.parse("2026-05-31T08:00:00Z"),
+                "other-organization-event", com.massimotter.weave.backend.audit.AuditRedactionLevel.SUPPORT_SAFE,
+                Map.of("result", "other-organization-private")));
 
         assertThat(service.auditEvents(jwt("admin")))
                 .singleElement()
