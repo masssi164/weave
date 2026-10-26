@@ -158,8 +158,9 @@ class KeycloakAuthConfigTest {
         .andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
 
     KeycloakAuthConfig.configurePolicy(builder, URI.create(baseUrl));
-    assertThat(KeycloakAdminTestClient.proxy(builder.build()).humanUsers("weave", 0, 1, true))
-        .satisfies(node -> assertThat(node.isArray()).isTrue());
+    JsonNode users =
+        KeycloakAdminTestClient.proxy(builder.build()).humanUsers("weave", 0, 1, true);
+    assertThat(users.isArray()).isTrue();
     provider.verify();
   }
 
