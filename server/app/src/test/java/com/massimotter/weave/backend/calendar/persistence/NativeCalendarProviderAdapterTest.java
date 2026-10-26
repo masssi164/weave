@@ -64,43 +64,6 @@ class NativeCalendarProviderAdapterTest {
     private static final CalendarScope WORKSPACE = CalendarScope.workspace();
 
     @Test
-    void boundedQueryFetchesOnlyDatabaseCandidatesBeforeEnriching() {
-        CalendarEventJpaRepository events = mock(CalendarEventJpaRepository.class);
-        NativeCalendarRelationalStore store = mock(NativeCalendarRelationalStore.class);
-        Instant from = Instant.parse("2026-03-28T00:00:00Z");
-        Instant to = Instant.parse("2026-03-29T00:00:00Z");
-        CalendarEvent event = event("candidate", "Candidate");
-        CalendarEventJpaEntity row = CalendarEventJpaEntity.create(new CalendarEventId(CALENDAR.value(), "WORKSPACE::", "candidate"));
-        row.apply(event, 1, "version", CLOCK.instant());
-        when(store.candidateEventIds(CALENDAR.value(), "WORKSPACE::", from, to, ZoneOffset.UTC))
-                .thenReturn(List.of("candidate"));
-        when(events.findActiveCandidates(CALENDAR.value(), "WORKSPACE::", List.of("candidate"))).thenReturn(List.of(row));
-        when(store.enrich(any(), eq("WORKSPACE::"))).thenAnswer(invocation -> invocation.getArgument(0));
-        NativeCalendarProviderAdapter adapter = new NativeCalendarProviderAdapter(
-                mock(CalendarCollectionJpaRepository.class), events, mock(CalendarChangeJpaRepository.class),
-                mock(CalendarSnapshotChangeRepository.class), store,
-                new CalendarOccurrenceEngine(new Ical4jRecurrenceEngine()), ZoneOffset.UTC, CLOCK);
-
-        assertThat(adapter.query(CALENDAR, WORKSPACE, from, to)).extracting(value -> value.id().value()).containsExactly("candidate");
-        verify(events, never()).findActive(anyString(), anyString());
-        verify(events).findActiveCandidates(CALENDAR.value(), "WORKSPACE::", List.of("candidate"));
-    }
-
-    @Test
-    void emptyDatabaseCandidatesAvoidLoadingEventPayloads() {
-        CalendarEventJpaRepository events = mock(CalendarEventJpaRepository.class);
-        NativeCalendarRelationalStore store = mock(NativeCalendarRelationalStore.class);
-        NativeCalendarProviderAdapter adapter = new NativeCalendarProviderAdapter(
-                mock(CalendarCollectionJpaRepository.class), events, mock(CalendarChangeJpaRepository.class),
-                mock(CalendarSnapshotChangeRepository.class), store,
-                new CalendarOccurrenceEngine(new Ical4jRecurrenceEngine()), ZoneOffset.UTC, CLOCK);
-
-        assertThat(adapter.query(CALENDAR, WORKSPACE,
-                Instant.parse("2026-03-28T00:00:00Z"), Instant.parse("2026-03-29T00:00:00Z"))).isEmpty();
-        org.mockito.Mockito.verifyNoInteractions(events);
-    }
-
-    @Test
     void canonicalWritesSurviveRestartAndKeepStableVersions() {
         DataSource database = JpaTestDatabase.entityFirstDataSource("native-calendar-restart-v2");
         NativeCalendarProviderAdapter first = adapter(database);

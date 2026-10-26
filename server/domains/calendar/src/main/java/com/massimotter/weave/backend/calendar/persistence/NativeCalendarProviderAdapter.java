@@ -30,6 +30,7 @@ import java.util.Base64;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -127,14 +128,17 @@ public class NativeCalendarProviderAdapter implements CalendarProviderPort {
         if (from != null && relationalStore != null) {
             List<String> candidates = relationalStore.candidateEventIds(calendarId.value(), scopeKey, from, to, evaluationZone);
             if (candidates.isEmpty()) return List.of();
-            selected = events.findActiveCandidates(calendarId.value(), scopeKey, candidates);
+            selected = new ArrayList<>(candidates.size());
+            for (int offset = 0; offset < candidates.size(); offset += NativeCalendarRelationalStore.READ_BATCH_SIZE) {
+                selected.addAll(events.findActiveCandidates(calendarId.value(), scopeKey,
+                        candidates.subList(offset, Math.min(offset + NativeCalendarRelationalStore.READ_BATCH_SIZE, candidates.size()))));
+            }
+            // Candidate IDs and every fetch use the same database order, including its collation.
         } else {
             selected = events.findActive(calendarId.value(), scopeKey);
         }
-        List<CalendarEvent> active = selected.stream()
-                .map(CalendarEventJpaEntity::toDomain)
-                .map(event -> enrich(event, scopeKey))
-                .toList();
+        List<CalendarEvent> payloads = selected.stream().map(CalendarEventJpaEntity::toDomain).toList();
+        List<CalendarEvent> active = relationalStore == null ? payloads : relationalStore.enrichEvents(payloads, scopeKey);
         if (from == null) return active;
         return active.stream()
                 .filter(event -> !occurrenceEngine.occurrences(event, from, to, evaluationZone).isEmpty())

@@ -42,6 +42,8 @@ class CalendarTemporalJpaEntity {
         zone = CalendarNormalizedValues.zone(start);
     }
 
+    CalendarEventId id() { return id; }
+
     TemporalValue start() { return CalendarNormalizedValues.temporal(kind, startDate, startLocal, startInstant, zone); }
     TemporalValue end() { return CalendarNormalizedValues.temporal(kind, endDate, endLocal, endInstant, zone); }
 }
@@ -65,6 +67,8 @@ class CalendarAttendeeJpaEntity {
         memberRef = attendee.memberRef(); displayName = attendee.displayName(); address = attendee.address();
         role = attendee.role(); response = attendee.response();
     }
+
+    CalendarEventId eventId() { return id.event(); }
 
     Attendee toDomain() { return new Attendee(memberRef, displayName, address, role, response); }
 }
@@ -99,6 +103,8 @@ class CalendarRecurrenceRuleJpaEntity {
         weekStart = recurrence.weekStart();
     }
 
+    CalendarEventId id() { return id; }
+
     RecurrenceSet toDomain(List<TemporalValue> additional, List<TemporalValue> excluded) {
         ZoneId zone = untilZone == null ? ZoneOffset.UTC : ZoneId.of(untilZone);
         ZonedDateTime until = untilInstant != null ? untilInstant.atZoneSameInstant(zone)
@@ -129,6 +135,9 @@ class CalendarRecurrenceDateJpaEntity {
         this.id = id; kind = value.kind().name(); date = value.date(); local = value.localDateTime();
         instant = CalendarNormalizedValues.offset(value.instant()); zone = CalendarNormalizedValues.zone(value);
     }
+
+    CalendarEventId eventId() { return id.event(); }
+    String type() { return id.type(); }
 
     TemporalValue toDomain() { return CalendarNormalizedValues.temporal(kind, date, local, instant, zone); }
 }
@@ -173,6 +182,8 @@ class CalendarOverrideJpaEntity {
         zone = CalendarNormalizedValues.zone(start);
         title = override.title(); description = override.description(); location = override.location();
     }
+
+    CalendarEventId eventId() { return id.event(); }
 
     RecurrenceOverride toDomain() {
         return new RecurrenceOverride(

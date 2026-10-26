@@ -25,6 +25,9 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-actuator'
     testImplementation 'org.springframework.security:spring-security-test'
     testImplementation libs.archunit.junit5
+    testImplementation libs.testcontainers.junit
+    testImplementation libs.testcontainers.postgresql
+    testRuntimeOnly 'org.postgresql:postgresql'
     testRuntimeOnly libs.h2.test
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
@@ -32,4 +35,19 @@ dependencies {
 tasks.named('check') {
     dependsOn ':server:core:check', ':server:core:model:check',
             ':server:domains:calendar:model:check', ':server:domains:calendar:persistence:check'
+}
+
+// Database correctness is a distinct, required-on-demand lane over disposable PostgreSQL.
+tasks.named('test', Test) {
+    useJUnitPlatform { excludeTags 'postgres' }
+}
+
+tasks.register('postgresTest', Test) {
+    group = 'verification'
+    description = 'Run Calendar persistence/provider regressions against disposable PostgreSQL.'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform { includeTags 'postgres' }
+    maxParallelForks = 1
+    shouldRunAfter tasks.named('test')
 }
