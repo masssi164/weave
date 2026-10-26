@@ -46,6 +46,7 @@ import 'package:weave/features/files/presentation/files_screen.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/help/presentation/help_screen.dart';
 import 'package:weave/features/home/presentation/home_screen.dart';
+import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
 import 'package:weave/features/onboarding/presentation/organization_access_screen.dart';
@@ -250,14 +251,16 @@ void main() {
     },
   );
 
-  test('private test controls are not normalized as product join links', () {
+  test('obsolete reset query is rejected by organization access parsing', () {
     final link = Uri.parse(
       'weave://join?organization_origin=https%3A%2F%2Fweave.test%2F&dogfood_reset=app_state',
     );
-    expect(normalizedJoinRouteLocation(link), isNull);
+    final location = normalizedJoinRouteLocation(link);
+    expect(location, isNotNull);
+    expect(initialLocationForDefaultRoute(link.toString()), location);
     expect(
-      initialLocationForDefaultRoute(link.toString()),
-      AppRoutes.organizationAccess,
+      () => const OrganizationAccessParser().parse(Uri.parse(location!)),
+      throwsA(isA<AppFailure>()),
     );
   });
 
