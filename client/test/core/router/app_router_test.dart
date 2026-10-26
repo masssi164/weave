@@ -977,7 +977,6 @@ void main() {
       },
     );
 
-
     testWidgets(
       'held authenticated profile cannot record readiness during a newer bootstrap refresh',
       (tester) async {
@@ -1470,7 +1469,6 @@ void main() {
         expect(find.byType(NavigationBar), findsOneWidget);
       },
     );
-
 
     testWidgets('uses the saved profile locale for the app language', (
       tester,

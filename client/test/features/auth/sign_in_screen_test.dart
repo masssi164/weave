@@ -231,6 +231,5 @@ void main() {
       );
       expect(find.textContaining('dogfood'), findsNothing);
     });
-
   });
 }

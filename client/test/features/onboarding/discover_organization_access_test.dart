@@ -477,7 +477,7 @@ void main() {
         DiscoverOrganizationAccess(
           repository: repository,
           discoveryClient: AppStartDiscoveryClient(httpClient: httpClient),
-      ).call(Uri.parse('https://join.weave.example')),
+        ).call(Uri.parse('https://join.weave.example')),
         throwsA(
           isA<AppFailure>().having(
             (failure) => failure.message,

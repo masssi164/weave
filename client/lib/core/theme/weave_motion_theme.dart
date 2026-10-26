@@ -60,8 +60,7 @@ class WeaveMotionTheme extends ThemeExtension<WeaveMotionTheme> {
     Curve? emphasizedCurve,
   }) {
     return WeaveMotionTheme(
-      profileReducedMotion:
-          profileReducedMotion ?? this.profileReducedMotion,
+      profileReducedMotion: profileReducedMotion ?? this.profileReducedMotion,
       quick: quick ?? this.quick,
       standard: standard ?? this.standard,
       emphasized: emphasized ?? this.emphasized,
@@ -77,8 +76,9 @@ class WeaveMotionTheme extends ThemeExtension<WeaveMotionTheme> {
   ) {
     if (other is! WeaveMotionTheme) return this;
     return WeaveMotionTheme(
-      profileReducedMotion:
-          t < 0.5 ? profileReducedMotion : other.profileReducedMotion,
+      profileReducedMotion: t < 0.5
+          ? profileReducedMotion
+          : other.profileReducedMotion,
       quick: _lerpDuration(quick, other.quick, t),
       standard: _lerpDuration(standard, other.standard, t),
       emphasized: _lerpDuration(emphasized, other.emphasized, t),
@@ -90,8 +90,7 @@ class WeaveMotionTheme extends ThemeExtension<WeaveMotionTheme> {
   static Duration _lerpDuration(Duration from, Duration to, double t) {
     return Duration(
       microseconds:
-          (from.inMicroseconds +
-                  (to.inMicroseconds - from.inMicroseconds) * t)
+          (from.inMicroseconds + (to.inMicroseconds - from.inMicroseconds) * t)
               .round(),
     );
   }
@@ -118,7 +117,6 @@ class WeaveMotionSpec {
 
 extension WeaveMotionContext on BuildContext {
   WeaveMotionSpec get weaveMotion =>
-      (Theme.of(this).extension<WeaveMotionTheme>() ??
-              const WeaveMotionTheme())
+      (Theme.of(this).extension<WeaveMotionTheme>() ?? const WeaveMotionTheme())
           .resolve(this);
 }

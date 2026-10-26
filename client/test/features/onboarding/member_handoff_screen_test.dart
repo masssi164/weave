@@ -303,53 +303,51 @@ void main() {
       }
     }
 
-    testWidgets(
-      'shows neutral handoff-ready UI without deployment metadata',
-      (tester) async {
-        final preferencesStore = InMemoryPreferencesStore();
-        final container = ProviderContainer.test(
-          overrides: [
-            preferencesStoreProvider.overrideWith((ref) => preferencesStore),
-            discoverOrganizationAccessProvider.overrideWithValue(
-              _SuccessfulDiscoverOrganizationAccess(
-                MemberHandoff(
-                  handoffRef: 'handoff-s32-massimo-dogfood-home',
-                  runId: 's32-massimo-dogfood',
-                  organizationSlug: 'massimo-dogfood',
-                  workspaceSlug: 'home',
-                  productBaseUrl: Uri.parse('https://weave.test:44443'),
-                ),
-              ),
-            ),
-          ],
-        );
-        addTearDown(container.dispose);
-
-        await tester.pumpWidget(
-          UncontrolledProviderScope(
-            container: container,
-            child: MaterialApp(
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
-              supportedLocales: AppLocalizations.supportedLocales,
-              home: MemberHandoffScreen(
-                uri: Uri.parse(
-                  'weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fweave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
-                ),
+    testWidgets('shows neutral handoff-ready UI without deployment metadata', (
+      tester,
+    ) async {
+      final preferencesStore = InMemoryPreferencesStore();
+      final container = ProviderContainer.test(
+        overrides: [
+          preferencesStoreProvider.overrideWith((ref) => preferencesStore),
+          discoverOrganizationAccessProvider.overrideWithValue(
+            _SuccessfulDiscoverOrganizationAccess(
+              MemberHandoff(
+                handoffRef: 'handoff-s32-massimo-dogfood-home',
+                runId: 's32-massimo-dogfood',
+                organizationSlug: 'massimo-dogfood',
+                workspaceSlug: 'home',
+                productBaseUrl: Uri.parse('https://weave.test:44443'),
               ),
             ),
           ),
-        );
-        await tester.pumpAndSettle();
-        await tester.pump();
+        ],
+      );
+      addTearDown(container.dispose);
 
-        expect(find.text('Workspace ready for sign-in'), findsOneWidget);
-        expect(find.textContaining('massimo-dogfood'), findsNothing);
-        expect(find.text('Sign In'), findsOneWidget);
-        expect(nativeDualHandoffSignIn('Sign In'), findsOneWidget);
-        expect(nativeDualHandoffSignIn('Anmelden'), findsNothing);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: MemberHandoffScreen(
+              uri: Uri.parse(
+                'weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fweave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.pump();
 
-      },
-    );
+      expect(find.text('Workspace ready for sign-in'), findsOneWidget);
+      expect(find.textContaining('massimo-dogfood'), findsNothing);
+      expect(find.text('Sign In'), findsOneWidget);
+      expect(nativeDualHandoffSignIn('Sign In'), findsOneWidget);
+      expect(nativeDualHandoffSignIn('Anmelden'), findsNothing);
+    });
 
     for (final controllerOnly in [false, true]) {
       testWidgets(
@@ -448,73 +446,71 @@ void main() {
       );
     }
 
-    testWidgets(
-      'opens the authenticated workspace after successful sign-in',
-      (tester) async {
-        final preferencesStore = InMemoryPreferencesStore();
-        final signIn = _RecordingSignInWithOidc();
-        final router = GoRouter(
-          initialLocation: '/join',
-          routes: [
-            GoRoute(
-              path: '/join',
-              builder: (context, state) => MemberHandoffScreen(
-                uri: Uri.parse(
-                  'weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fweave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
-                ),
+    testWidgets('opens the authenticated workspace after successful sign-in', (
+      tester,
+    ) async {
+      final preferencesStore = InMemoryPreferencesStore();
+      final signIn = _RecordingSignInWithOidc();
+      final router = GoRouter(
+        initialLocation: '/join',
+        routes: [
+          GoRoute(
+            path: '/join',
+            builder: (context, state) => MemberHandoffScreen(
+              uri: Uri.parse(
+                'weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fweave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
               ),
-            ),
-            GoRoute(
-              path: AppRoutes.home,
-              builder: (context, state) =>
-                  const Scaffold(body: Text('Authenticated workspace shell')),
-            ),
-          ],
-        );
-        final container = ProviderContainer.test(
-          overrides: [
-            preferencesStoreProvider.overrideWith((ref) => preferencesStore),
-            discoverOrganizationAccessProvider.overrideWithValue(
-              _SuccessfulDiscoverOrganizationAccess(
-                MemberHandoff(
-                  handoffRef: 'handoff-s32-massimo-dogfood-home',
-                  runId: 's32-massimo-dogfood',
-                  organizationSlug: 'massimo-dogfood',
-                  workspaceSlug: 'home',
-                  productBaseUrl: Uri.parse('https://weave.test:44443'),
-                ),
-              ),
-            ),
-            signInWithOidcProvider.overrideWithValue(signIn),
-            resolveAppBootstrapProvider.overrideWithValue(
-              _SignInThenReadyResolveAppBootstrap(),
-            ),
-          ],
-        );
-        addTearDown(container.dispose);
-        addTearDown(router.dispose);
-
-        await tester.pumpWidget(
-          UncontrolledProviderScope(
-            container: container,
-            child: MaterialApp.router(
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
-              supportedLocales: AppLocalizations.supportedLocales,
-              routerConfig: router,
             ),
           ),
-        );
-        await tester.pumpAndSettle();
+          GoRoute(
+            path: AppRoutes.home,
+            builder: (context, state) =>
+                const Scaffold(body: Text('Authenticated workspace shell')),
+          ),
+        ],
+      );
+      final container = ProviderContainer.test(
+        overrides: [
+          preferencesStoreProvider.overrideWith((ref) => preferencesStore),
+          discoverOrganizationAccessProvider.overrideWithValue(
+            _SuccessfulDiscoverOrganizationAccess(
+              MemberHandoff(
+                handoffRef: 'handoff-s32-massimo-dogfood-home',
+                runId: 's32-massimo-dogfood',
+                organizationSlug: 'massimo-dogfood',
+                workspaceSlug: 'home',
+                productBaseUrl: Uri.parse('https://weave.test:44443'),
+              ),
+            ),
+          ),
+          signInWithOidcProvider.overrideWithValue(signIn),
+          resolveAppBootstrapProvider.overrideWithValue(
+            _SignInThenReadyResolveAppBootstrap(),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      addTearDown(router.dispose);
 
-        await tester.tap(find.text('Sign In'));
-        await tester.pump();
-        signIn.completer.complete();
-        await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-        expect(find.text('Authenticated workspace shell'), findsOneWidget);
+      await tester.tap(find.text('Sign In'));
+      await tester.pump();
+      signIn.completer.complete();
+      await tester.pumpAndSettle();
 
-      },
-    );
+      expect(find.text('Authenticated workspace shell'), findsOneWidget);
+    });
 
     testWidgets('localizes sign-in failures on the handoff ready action', (
       tester,
@@ -571,12 +567,9 @@ void main() {
         findsOneWidget,
       );
       expect(find.textContaining('Offline tokens not allowed'), findsNothing);
-
     });
 
-    testWidgets('shows a support-safe handoff failure code', (
-      tester,
-    ) async {
+    testWidgets('shows a support-safe handoff failure code', (tester) async {
       final preferencesStore = InMemoryPreferencesStore();
       final container = ProviderContainer.test(
         overrides: [
@@ -617,7 +610,6 @@ void main() {
       );
       expect(find.textContaining('The invite may be expired'), findsNothing);
       expect(find.textContaining('WEAVE-APP-START-TLS-FAILED'), findsOneWidget);
-
     });
   });
 }

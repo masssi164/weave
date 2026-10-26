@@ -33,14 +33,22 @@ abstract final class AppTheme {
     ),
   );
 
-  static final _reducedLight =
-      _buildTheme(light.colorScheme, reducedMotion: true);
-  static final _reducedDark =
-      _buildTheme(dark.colorScheme, reducedMotion: true);
-  static final _reducedHighContrastLight =
-      _buildTheme(highContrastLight.colorScheme, reducedMotion: true);
-  static final _reducedHighContrastDark =
-      _buildTheme(highContrastDark.colorScheme, reducedMotion: true);
+  static final _reducedLight = _buildTheme(
+    light.colorScheme,
+    reducedMotion: true,
+  );
+  static final _reducedDark = _buildTheme(
+    dark.colorScheme,
+    reducedMotion: true,
+  );
+  static final _reducedHighContrastLight = _buildTheme(
+    highContrastLight.colorScheme,
+    reducedMotion: true,
+  );
+  static final _reducedHighContrastDark = _buildTheme(
+    highContrastDark.colorScheme,
+    reducedMotion: true,
+  );
 
   static ThemeData lightFor(
     AppThemeSelection selection, {

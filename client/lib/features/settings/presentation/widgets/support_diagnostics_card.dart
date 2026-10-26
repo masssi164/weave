@@ -30,9 +30,9 @@ class SupportDiagnosticsCard extends ConsumerWidget {
     final build = identity?.buildNumber;
     final versionLabel =
         version == null ||
-        version == ClientBuildIdentity.unavailableValue ||
-        build == null ||
-        build == ClientBuildIdentity.unavailableValue
+            version == ClientBuildIdentity.unavailableValue ||
+            build == null ||
+            build == ClientBuildIdentity.unavailableValue
         ? l10n.settingsSupportValueUnavailable
         : l10n.settingsSupportVersionValue(version, build);
 

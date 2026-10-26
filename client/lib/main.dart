@@ -40,16 +40,13 @@ class _WeaveAppState extends ConsumerState<WeaveApp> {
   @override
   void initState() {
     super.initState();
-    _linkSubscription = _appLinks.uriLinkStream.listen(
-      (uri) {
-        if (_firstNativeLink == uri) {
-          _firstNativeLink = null;
-          return;
-        }
-        unawaited(_openAppLink(uri));
-      },
-      onError: (_) {},
-    );
+    _linkSubscription = _appLinks.uriLinkStream.listen((uri) {
+      if (_firstNativeLink == uri) {
+        _firstNativeLink = null;
+        return;
+      }
+      unawaited(_openAppLink(uri));
+    }, onError: (_) {});
     unawaited(_openInitialAppLink());
   }
 

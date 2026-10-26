@@ -44,52 +44,53 @@ void main() {
       expect(motion.profileReducedMotion, isFalse);
     });
 
-    testWidgets('profile reduced motion makes non-essential transitions immediate', (
-      tester,
-    ) async {
-      late WeaveMotionSpec motion;
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.lightFor(
-            const AppThemeSelection(),
-            reducedMotion: true,
-          ),
-          home: Builder(
-            builder: (context) {
-              motion = context.weaveMotion;
-              return const SizedBox.shrink();
-            },
-          ),
-        ),
-      );
-
-      expect(motion.reduced, isTrue);
-      expect(motion.standard, Duration.zero);
-      expect(motion.emphasized, Duration.zero);
-    });
-
-    testWidgets('system disable-animations preference overrides normal motion', (
-      tester,
-    ) async {
-      late WeaveMotionSpec motion;
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.light,
-          home: MediaQuery(
-            data: const MediaQueryData(disableAnimations: true),
-            child: Builder(
+    testWidgets(
+      'profile reduced motion makes non-essential transitions immediate',
+      (tester) async {
+        late WeaveMotionSpec motion;
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.lightFor(
+              const AppThemeSelection(),
+              reducedMotion: true,
+            ),
+            home: Builder(
               builder: (context) {
                 motion = context.weaveMotion;
                 return const SizedBox.shrink();
               },
             ),
           ),
-        ),
-      );
+        );
 
-      expect(motion.reduced, isTrue);
-      expect(motion.standard, Duration.zero);
-    });
+        expect(motion.reduced, isTrue);
+        expect(motion.standard, Duration.zero);
+        expect(motion.emphasized, Duration.zero);
+      },
+    );
 
+    testWidgets(
+      'system disable-animations preference overrides normal motion',
+      (tester) async {
+        late WeaveMotionSpec motion;
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.light,
+            home: MediaQuery(
+              data: const MediaQueryData(disableAnimations: true),
+              child: Builder(
+                builder: (context) {
+                  motion = context.weaveMotion;
+                  return const SizedBox.shrink();
+                },
+              ),
+            ),
+          ),
+        );
+
+        expect(motion.reduced, isTrue);
+        expect(motion.standard, Duration.zero);
+      },
+    );
   });
 }

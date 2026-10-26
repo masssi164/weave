@@ -352,38 +352,27 @@
           ]
         },
         {
-          "path": "tools/dogfood_ios_deeplink_smoke.sh",
+          "path": "tools/dogfood_functional_smoke.py",
           "fragments": [
-            "dogfood_auth_state_v1",
-            "ready_for_sso",
-            "rawLaunchIsNotSufficient",
-            "installResetMode"
+            "weave.ordinary-product-ui-result/v1",
+            "retainedStateRestartVerified",
+            "independentPeerReadbackVerified"
           ]
         },
         {
           "path": "tools/dogfood_onboarding_evidence_check.py",
           "fragments": [
-            "dogfood_auth_state_history_v1",
-            "workspace_bootstrap_loading",
-            "auth history does not prove browser return",
+            "functional_smoke_passed",
+            "ownerActivation=not-proven",
             "DOGFOOD_MEMBER_ONBOARDING_RESULT"
           ]
         },
         {
-          "path": "tools/dogfood_post_login_chat_files_check.py",
+          "path": "client/tool/ios_browser_driver/OrdinaryProductSmoke.swift",
           "fragments": [
-            "DOGFOOD_POST_LOGIN_CHAT_FILES_RESULT",
-            "chatState=usable",
-            "filesState=usable"
-          ]
-        },
-        {
-          "path": "tools/dogfood_ios_simulator_onboarding_smoke.sh",
-          "fragments": [
-            "SIMULATOR_E2E_GREEN",
-            "pending_native_deeplink_url",
-            "ready_for_sso",
-            "physical iPhone SSO"
+            "WEAVE_FUNCTIONAL_UI_RESULT",
+            "files-refresh",
+            "calendar-refresh"
           ]
         },
         {
@@ -394,23 +383,6 @@
             "developerTrustStatus",
             "localTlsStable",
             "signingStable"
-          ]
-        },
-        {
-          "path": "tools/dogfood_ios_session_restore_smoke.sh",
-          "fragments": [
-            "--terminate-existing",
-            "dogfood_ios_session_continuity_check.py",
-            "ios-session-continuity.json"
-          ]
-        },
-        {
-          "path": "tools/dogfood_ios_session_continuity_check.py",
-          "fragments": [
-            "session_restored",
-            "workspace_ready",
-            "DOGFOOD_SESSION_CONTINUITY_RESULT",
-            "keychainContentsInspected"
           ]
         },
         {
@@ -438,8 +410,8 @@
         {
           "path": "docs/dogfood-auth-onboarding-plan.md",
           "fragments": [
-            "Trust-preserving app-state reset or first install, handoff link, successful SSO, app lands in workspace/home and persists a refresh/offline token.",
-            "Trust-preserving app-state reset, open same current handoff, manual login succeeds and records fresh handoff evidence without deleting the Developer App trust anchor.",
+            "Exact-candidate native product evidence",
+            "Owner invitation activation and manual first sign-in remain separate human acceptance evidence",
             "Dogfood Mailpit check: test/reset emails are captured locally, visible to operator, and not sent externally.",
             "Repeated developer-team/profile trust prompts are a dogfood blocker"
           ]

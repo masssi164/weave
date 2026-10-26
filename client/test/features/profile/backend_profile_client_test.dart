@@ -66,10 +66,10 @@ void main() {
         accessToken: 'token-123',
       );
 
-      expect(
-        requests.map((request) => request.url.path),
-        ['/api/me', '/api/profile'],
-      );
+      expect(requests.map((request) => request.url.path), [
+        '/api/me',
+        '/api/profile',
+      ]);
       expect(
         requests.map((request) => request.headers['Authorization']).toSet(),
         {'Bearer token-123'},
