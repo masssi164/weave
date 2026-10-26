@@ -1,5 +1,6 @@
 import 'package:http/io_client.dart';
 import 'package:weave/generated/user_api/api.dart' as user_api;
+import 'package:weave/features/shell/domain/entities/shell_destination.dart';
 import 'package:weave/integrations/weave_api/data/dtos/workspace_capabilities_response_dto.dart';
 import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 import 'dart:async';
@@ -1770,7 +1771,22 @@ void main() {
               expect(manifest, isNotNull);
               expect(status, isNotNull);
               expect(capabilities, isNotNull);
-              expect(capabilities!.domains.keys.toSet(), selection);
+              // Future runtimes without a workspace contribution do not fabricate one.
+              // Every advertised owner must be selected, and all client-known installed
+              // features must be present regardless of runtime health/member grants.
+              expect(
+                capabilities!.domains.keys.toSet().difference(selection),
+                isEmpty,
+              );
+              for (final id
+                  in ShellDestination.values
+                      .map((destination) => destination.domainId)
+                      .whereType<String>()) {
+                expect(
+                  capabilities.domains.containsKey(id),
+                  selection.contains(id),
+                );
+              }
               expect(status!.matrix != null, selection.contains('chat'));
               expect(
                 manifest!.protocols.matrixClientServerBaseUrl != null,
