@@ -45,6 +45,27 @@ jobs:
           REPOSITORIES = {SOURCE, SOURCE + ".git", "git@github.com:masssi164/weave", "git@github.com:masssi164/weave.git"}
           TITLES = {"weave-backend": "Weave Server", "weave-mcp-server": "Weave MCP Server"}
           LEGACY_TAG = re.compile(r"(weave-backend|weave-mcp-server):test-app-(weave-e2e-[0-9a-f]{16})\Z")
+          STAGES = {"images", "ledger", "container-list", "container-inspect", "image-list", "image-inspect", "cache", "builder-inspect", "builder-list", "cache-records", "build-history"}
+          REASONS = {"command-or-json-unavailable", "container-list-unavailable", "container-shape-rejected", "container-identities-incomplete", "image-list-unavailable", "image-shape-rejected", "builder-context-unproven", "cache-record-limit-or-json-unavailable", "cache-id-rejected", "cache-parents-rejected", "cache-size-rejected", "cache-states-rejected", "cache-description-rejected", "unexpected-shape"}
+          
+          
+          class InventoryFailure(ValueError):
+              def __init__(self, reason):
+                  self.reason = reason if reason in REASONS else "unexpected-shape"
+          
+          
+          def collect_section(name, collector):
+              progress = {"status": "pending", "stage": name}
+              try:
+                  result = collector(progress)
+                  if result.get("status") == "complete":
+                      result.pop("stage", None)
+                  return result
+              except (OSError, ValueError, KeyError, TypeError, AttributeError, IndexError) as error:
+                  progress["status"] = "unavailable"
+                  progress["stage"] = progress.get("stage") if progress.get("stage") in STAGES else name
+                  progress["reason"] = error.reason if isinstance(error, InventoryFailure) else "unexpected-shape"
+                  return progress
           
           
           def command(arguments, timeout=15):
@@ -102,44 +123,56 @@ jobs:
               return image_ids, {"status": "verified", "retainedSetCount": len(retained), "retainedImageIds": sorted(image_ids), "pendingImageCount": len(pending)}
           
           
-          def image_inventory():
+          def image_inventory(progress):
+              progress["stage"] = "ledger"
               try:
                   retained, ledger = private_ledger()
               except (OSError, ValueError, TypeError):
                   retained, ledger = set(), {"status": "unavailable", "deletionEligibility": "unknown"}
+              progress["ledger"] = ledger
+              progress["stage"] = "container-list"
               ids = command(["docker", "container", "ls", "--all", "--quiet", "--no-trunc"])
               if ids is None or len(ids.split()) > 1000 or any(not CONTAINER.fullmatch(item) for item in ids.split()):
-                  return {"status": "container-inventory-unavailable", "ledger": ledger}
+                  raise InventoryFailure("container-list-unavailable")
               containers = []
+              progress["containers"] = containers
+              progress["containerInventoryComplete"] = False
+              progress["stage"] = "container-inspect"
               for offset in range(0, len(ids.split()), 40):
-                  projection = '{{json .Id}}\t{{json .Image}}\t{{json .State.Running}}\t{{json (index .Config.Labels "com.massimotter.weave.namespace")}}'
-                  raw = command(["docker", "container", "inspect", "--format", projection, *ids.split()[offset:offset + 40]])
-                  if raw is None:
-                      raise ValueError("container inspection unavailable")
-                  for line in raw.splitlines():
-                      fields = [json.loads(part) for part in line.split("\t")]
-                      if len(fields) != 4 or not CONTAINER.fullmatch(fields[0]) or not DIGEST.fullmatch(fields[1]) or type(fields[2]) is not bool:
-                          raise ValueError("container projection rejected")
-                      row = {"id": fields[0], "imageId": fields[1], "running": fields[2]}
-                      if isinstance(fields[3], str) and NAMESPACE.fullmatch(fields[3]):
-                          row["isolatedWeaveNamespace"] = fields[3]
+                  batch = ids.split()[offset:offset + 40]
+                  projection = '{"id":{{json .Id}},"image":{{json .Image}},"running":{{json .State.Running}},"namespace":{{json (index .Config.Labels "com.massimotter.weave.namespace")}}}'
+                  records = objects(command(["docker", "container", "inspect", "--format", projection, *batch]))
+                  if records is None:
+                      raise InventoryFailure("command-or-json-unavailable")
+                  if len(records) != len(batch) or any(not isinstance(item, dict) for item in records) or {item.get("id") for item in records} != set(batch):
+                      raise InventoryFailure("container-identities-incomplete")
+                  for item in records:
+                      if not isinstance(item.get("id"), str) or not CONTAINER.fullmatch(item["id"]) or not isinstance(item.get("image"), str) or not DIGEST.fullmatch(item["image"]) or type(item.get("running")) is not bool:
+                          raise InventoryFailure("container-shape-rejected")
+                      row = {"id": item["id"], "imageId": item["image"], "running": item["running"]}
+                      if isinstance(item.get("namespace"), str) and NAMESPACE.fullmatch(item["namespace"]):
+                          row["isolatedWeaveNamespace"] = item["namespace"]
                       containers.append(row)
+              progress["containerInventoryComplete"] = True
               used = {item["imageId"] for item in containers}
+              progress["stage"] = "image-list"
               ids = command(["docker", "image", "ls", "--all", "--quiet", "--no-trunc", "--filter", "label=org.opencontainers.image.source=" + SOURCE])
               if ids is None or len(set(ids.split())) > 500 or any(not DIGEST.fullmatch(item) for item in ids.split()):
-                  return {"status": "image-inventory-unavailable", "ledger": ledger, "containers": containers}
+                  raise InventoryFailure("image-list-unavailable")
               image_ids = sorted(set(ids.split()))
               images = []
+              progress["weaveImages"] = images
+              progress["stage"] = "image-inspect"
               projection = '{"id":{{json .Id}},"bytes":{{json .Size}},"tags":{{json .RepoTags}},"references":{{json .RepoDigests}},"source":{{json (index .Config.Labels "org.opencontainers.image.source")}},"revision":{{json (index .Config.Labels "org.opencontainers.image.revision")}},"title":{{json (index .Config.Labels "org.opencontainers.image.title")}},"provenance":{{json (index .Config.Labels "com.massimotter.weave.provenance-reference")}}}'
               for offset in range(0, len(image_ids), 30):
                   records = objects(command(["docker", "image", "inspect", "--format", projection, *image_ids[offset:offset + 30]]))
                   if records is None:
-                      raise ValueError("image inspection unavailable")
+                      raise InventoryFailure("command-or-json-unavailable")
                   for value in records:
                       identity = value.get("id", "")
                       tags, references = value.get("tags") or [], value.get("references") or []
                       if not DIGEST.fullmatch(identity) or value.get("source") != SOURCE or not isinstance(tags, list) or not isinstance(references, list):
-                          raise ValueError("image projection rejected")
+                          raise InventoryFailure("image-shape-rejected")
                       matched = [LEGACY_TAG.fullmatch(tag) for tag in tags if isinstance(tag, str)]
                       matched = [match for match in matched if match]
                       revision = value.get("revision", "")
@@ -157,7 +190,8 @@ jobs:
               return {"status": "complete", "ledger": ledger, "containers": containers, "weaveImages": images}
           
           
-          def cache_inventory():
+          def cache_inventory(result):
+              result["stage"] = "builder-inspect"
               context = command(["docker", "context", "show"])
               inspect = command(["docker", "buildx", "inspect", "--timeout", "5s"])
               fields = {}
@@ -165,7 +199,8 @@ jobs:
                   key, separator, value = line.partition(":")
                   if separator:
                       fields.setdefault(key.strip(), []).append(value.strip())
-              result = {"cacheRecordOwnership": "not-proven", "builderExclusiveOwnership": "not-proven"}
+              result.update({"cacheRecordOwnership": "not-proven", "builderExclusiveOwnership": "not-proven"})
+              result["stage"] = "builder-list"
               builders = objects(command(["docker", "buildx", "ls", "--format", "{{json .Builder}}", "--timeout", "5s"]))
               result["builderListAvailable"] = builders is not None
               if builders is not None:
@@ -176,21 +211,28 @@ jobs:
               driver = fields.get("Driver", [""])[0]
               result["selectedDriver"] = driver if driver in {"docker", "docker-container", "remote", "kubernetes"} else "unknown"
               if context is None or driver != "docker" or fields.get("Endpoint") != [context.strip()]:
-                  result["status"] = "selected-builder-not-proven-to-use-active-docker-context"
-                  return result
+                  result["stage"] = "builder-inspect"
+                  raise InventoryFailure("builder-context-unproven")
               result["sameActiveDockerContext"] = True
               result["selectedBuilderHash"] = digest(fields.get("Name", [""])[0])
+              result["stage"] = "cache-records"
               records = objects(command(["docker", "buildx", "du", "--format=json", "--timeout", "5s"]))
               if records is None or len(records) > 300:
-                  result["status"] = "bounded-cache-records-unavailable"
-                  return result
+                  raise InventoryFailure("cache-record-limit-or-json-unavailable")
               rows = []
+              result["cacheRecords"] = rows
               for item in records:
                   identity, parents, size = item.get("ID", ""), item.get("Parents") or [], str(item.get("Size", ""))
-                  if not ID.fullmatch(identity) or not size.isdecimal() or not isinstance(parents, list) or any(not ID.fullmatch(parent) for parent in parents):
-                      raise ValueError("cache identities rejected")
-                  if any(type(item.get(key)) is not bool for key in ("Mutable", "Reclaimable", "Shared")) or not isinstance(item.get("Description"), str):
-                      raise ValueError("cache states rejected")
+                  if not isinstance(identity, str) or not ID.fullmatch(identity):
+                      raise InventoryFailure("cache-id-rejected")
+                  if not isinstance(parents, list) or any(not isinstance(parent, str) or not ID.fullmatch(parent) for parent in parents):
+                      raise InventoryFailure("cache-parents-rejected")
+                  if not size.isdecimal():
+                      raise InventoryFailure("cache-size-rejected")
+                  if any(type(item.get(key)) is not bool for key in ("Mutable", "Reclaimable", "Shared")):
+                      raise InventoryFailure("cache-states-rejected")
+                  if not isinstance(item.get("Description"), str):
+                      raise InventoryFailure("cache-description-rejected")
                   rows.append({"id": identity, "parents": parents, "bytes": int(size),
                                "reclaimable": item["Reclaimable"], "shared": item["Shared"], "mutable": item["Mutable"],
                                "type": item.get("Type") if item.get("Type") in {"internal", "frontend", "source.local", "source.git.checkout", "exec.cachemount", "regular"} else "unknown",
@@ -199,6 +241,7 @@ jobs:
                                "ownership": "not-proven"})
               result["cacheRecords"] = rows
               result["privateReclaimableBytesUpperBound"] = sum(row["bytes"] for row in rows if row["reclaimable"] and not row["shared"])
+              result["stage"] = "build-history"
               history = objects(command(["docker", "buildx", "history", "ls", "--format", "json", "--no-trunc"]))
               result["historyAvailable"] = history is not None
               if history is not None:
@@ -231,8 +274,9 @@ jobs:
               result = {"schemaVersion": "weave.runner-storage-provenance/v1", "mode": "read-only",
                         "supportSafe": True, "containsSecretValues": False, "deleteAuthority": "none",
                         "minimumFreeBytes": 20 * GIB, "freeBytesBefore": shutil.disk_usage(workspace).free}
-              result["images"] = image_inventory()
-              result["cache"] = cache_inventory()
+              result["images"] = collect_section("images", image_inventory)
+              result["cache"] = collect_section("cache", cache_inventory)
+              result["status"] = "complete" if all(result[name].get("status") == "complete" for name in ("images", "cache")) else "partial"
               result["freeBytesAfter"] = shutil.disk_usage(workspace).free
               print(json.dumps(result, sort_keys=True))
           
@@ -240,6 +284,7 @@ jobs:
           if __name__ == "__main__":
               try:
                   main()
-              except (OSError, ValueError, KeyError, TypeError):
-                  raise SystemExit("runner-storage-provenance: bounded inventory unavailable") from None
+              except (OSError, ValueError, KeyError, TypeError, AttributeError, IndexError):
+                  print(json.dumps({"schemaVersion": "weave.runner-storage-provenance/v1", "status": "unavailable", "stage": "runner-preflight", "reason": "invalid-context", "mode": "read-only", "deleteAuthority": "none", "supportSafe": True, "containsSecretValues": False}, sort_keys=True))
+                  raise SystemExit(1) from None
           PYTHON
