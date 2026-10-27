@@ -185,51 +185,17 @@ def main() -> None:
     ]:
         if phrase not in ios_smoke:
             fail(f"iOS physical smoke missing local TLS preflight guard: {phrase}")
-    iphone_entry = read("tools/dogfood_iphone_entry.sh")
-    for phrase in [
-        "https://api.weave.test:44443",
-        "WEAVE_DOGFOOD_API_BASE_URL",
-        "API_BASE_URL/api/platform/config",
-    ]:
-        if phrase not in iphone_entry:
-            fail(f"iPhone entry missing canonical API platform config default: {phrase}")
+    # The retired developer iPhone entry no longer configures product routing;
+    # organization discovery belongs to the member handoff contract above.
     ios_entitlements = read("client/ios/Runner/Runner.entitlements")
     if "$(AppIdentifierPrefix)com.massimotter.weave" not in ios_entitlements:
         fail("iOS Keychain application identity must remain stable across dogfood updates")
-    ios_distribution = read(".github/workflows/ios-dogfood.yml")
-    for phrase in ["ios-dogfood", "dogfood", "xcrun altool --upload-app"]:
-        if phrase not in ios_distribution:
-            fail(f"iOS TestFlight workflow missing {phrase}")
     session_restore = read("tools/dogfood_ios_session_restore_smoke.sh")
     for phrase in ["--terminate-existing", "dogfood_ios_session_continuity_check.py"]:
         if phrase not in session_restore:
             fail(f"iOS session restore smoke missing {phrase}")
     run(["python3", "tools/ios_dogfood_distribution_check.py"])
     run(["python3", "tools/dogfood_ios_session_continuity_check_test.py"])
-    with tempfile.TemporaryDirectory() as tmp:
-        result = run(
-            [
-                "bash",
-                "tools/dogfood_ios_deeplink_smoke.sh",
-            ],
-            expect_success=False,
-            env={
-                "WEAVE_IOS_DEVICE_ID": "placeholder-device",
-                "WEAVE_DOGFOOD_DEEPLINK": (
-                    "weave://join?handoff_ref=handoff-s32-massimo-dogfood-home"
-                    "&run_id=s32-massimo-dogfood"
-                    "&platform_config_url=https%3A%2F%2Fweave.test%3A44443%2Fapi%2Fplatform%2Fconfig"
-                ),
-                "WEAVE_IOS_LOCAL_CA_TRUST_STATUS": "manual_pending",
-                "WEAVE_DOGFOOD_EVIDENCE_DIR": tmp,
-                "FLUTTER_BIN": "/usr/bin/true",
-            },
-        )
-        if "PHYSICAL_DEVICE_TLS_PENDING" not in result.stderr:
-            fail("iOS physical smoke must fail before launch when local CA trust is pending")
-        preflight = Path(tmp) / "ios-local-tls-preflight.json"
-        if not preflight.exists():
-            fail("iOS physical smoke must write local TLS preflight evidence before failing")
     handoff_bundle = read("tools/dogfood_handoff_bundle.py")
     for phrase in [
         "dogfoodRoute",

@@ -1,8 +1,6 @@
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
 import 'package:weave/features/server_config/data/dtos/server_configuration_dto.dart';
 import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,8 +11,6 @@ import 'package:weave/core/widgets/weave_logo.dart';
 import 'package:weave/features/auth/domain/entities/auth_failure.dart';
 import 'package:weave/features/auth/presentation/auth_failure_message.dart';
 import 'package:weave/features/auth/presentation/sign_in_screen.dart';
-import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
-import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 import '../../helpers/in_memory_stores.dart';
@@ -52,13 +48,7 @@ void main() {
                 ),
               ),
               preferencesStoreProvider.overrideWith(
-                (ref) => InMemoryPreferencesStore({
-                  ..._storedOrganizationProfile(),
-                  lastHandoffConsumedStorageKey: jsonEncode({
-                    'supportSafe': true,
-                    'organizationOriginHost': 'weave.home.internal',
-                  }),
-                }),
+                (ref) => InMemoryPreferencesStore(_storedOrganizationProfile()),
               ),
             ],
           );
@@ -197,83 +187,48 @@ void main() {
       expect(message, isNot(contains('Offline tokens not allowed')));
     });
 
-    testWidgets(
-      'records support-safe SSO failure evidence when a saved handoff exists',
-      (tester) async {
-        final preferencesStore = InMemoryPreferencesStore({
-          ..._storedOrganizationProfile(),
-          lastHandoffConsumedStorageKey: jsonEncode(<String, Object>{
-            'schemaVersion': 'weave.client.last_handoff_consumed.v1',
-            'result': 'saved_configuration',
-            'handoffRef': 'handoff-s32-massimo-dogfood-home',
-            'runId': 's32-massimo-dogfood',
-            'organizationSlug': 'massimo-dogfood',
-            'workspaceSlug': 'home',
-            'profile': 'local-lan-dogfood',
-            'supportSafe': true,
-          }),
-        });
-        final container = ProviderContainer.test(
-          overrides: [
-            appStartDiscoveryClientProvider.overrideWith(
-              (ref) => buildTestDiscoveryClient(
-                ref.watch(serverConfigurationRepositoryProvider),
-              ),
-            ),
-            preferencesStoreProvider.overrideWith((ref) => preferencesStore),
-            signInWithOidcProvider.overrideWithValue(
-              const _FailingSignInWithOidc(
-                AuthFailure.protocol('Unable to complete sign-in.'),
-              ),
-            ),
-          ],
-        );
-        addTearDown(container.dispose);
-
-        await tester.pumpWidget(
-          UncontrolledProviderScope(
-            container: container,
-            child: const MaterialApp(
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
-              supportedLocales: AppLocalizations.supportedLocales,
-              home: SignInScreen(),
+    testWidgets('shows a recoverable sign-in error without test metadata', (
+      tester,
+    ) async {
+      final container = ProviderContainer.test(
+        overrides: [
+          appStartDiscoveryClientProvider.overrideWith(
+            (ref) => buildTestDiscoveryClient(
+              ref.watch(serverConfigurationRepositoryProvider),
             ),
           ),
-        );
-        await tester.pumpAndSettle();
+          preferencesStoreProvider.overrideWith(
+            (ref) => InMemoryPreferencesStore(_storedOrganizationProfile()),
+          ),
+          signInWithOidcProvider.overrideWithValue(
+            const _FailingSignInWithOidc(
+              AuthFailure.protocol('Unable to complete sign-in.'),
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
 
-        await tester.ensureVisible(find.byType(FilledButton));
-        await tester.tap(find.byType(FilledButton));
-        await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: SignInScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byType(FilledButton));
+      await tester.tap(find.byType(FilledButton));
+      await tester.pumpAndSettle();
 
-        expect(
-          find.textContaining('Sign-in could not be completed'),
-          findsOneWidget,
-        );
-
-        final rawAuthState = preferencesStore.rawString(
-          dogfoodAuthStateStorageKey,
-        );
-        expect(rawAuthState, isNotNull);
-        final authState = jsonDecode(rawAuthState!) as Map<String, dynamic>;
-        expect(authState['state'], 'recoverable_error');
-        expect(authState['errorCode'], 'WEAVE-SSO-NOT-COMPLETE');
-        expect(authState['handoffRef'], 'handoff-s32-massimo-dogfood-home');
-        expect(authState['supportSafe'], isTrue);
-
-        final rawHistory = preferencesStore.rawString(
-          dogfoodAuthStateHistoryStorageKey,
-        );
-        expect(rawHistory, isNotNull);
-        final history = jsonDecode(rawHistory!) as List<dynamic>;
-        expect(
-          history
-              .cast<Map<String, dynamic>>()
-              .map((entry) => entry['state'])
-              .toList(),
-          containsAllInOrder(['sso_in_progress', 'recoverable_error']),
-        );
-      },
-    );
+      expect(
+        find.textContaining('Sign-in could not be completed'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('dogfood'), findsNothing);
+    });
   });
 }

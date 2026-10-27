@@ -47,7 +47,7 @@ import 'package:weave/features/files/presentation/files_locations_screen.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/help/presentation/help_screen.dart';
 import 'package:weave/features/home/presentation/home_screen.dart';
-import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
+import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
 import 'package:weave/features/onboarding/presentation/organization_access_screen.dart';
@@ -251,40 +251,19 @@ void main() {
       }
     },
   );
-  test('app-local reset consumes its control before canonical discovery', () {
-    final clean = canonicalDogfoodAppStateResetLink(
-      Uri.parse(
-        'weave://join?organization_origin=https%3A%2F%2Fweave.test%3A9443%2F&dogfood_reset=app_state',
-      ),
+
+  test('obsolete reset query is rejected by organization access parsing', () {
+    final link = Uri.parse(
+      'weave://join?organization_origin=https%3A%2F%2Fweave.test%2F&dogfood_reset=app_state',
     );
-    expect(clean, isNotNull);
-    expect(clean!.queryParameters, {
-      'organization_origin': 'https://weave.test:9443/',
-    });
+    final location = normalizedJoinRouteLocation(link);
+    expect(location, isNotNull);
+    expect(initialLocationForDefaultRoute(link.toString()), location);
     expect(
-      initialLocationForDefaultRoute(clean.toString()),
-      '/join?organization_origin=https%3A%2F%2Fweave.test%3A9443%2F',
+      () => const OrganizationAccessParser().parse(Uri.parse(location!)),
+      throwsA(isA<AppFailure>()),
     );
   });
-
-  for (final link in [
-    'weave://join?organization_origin=https%3A%2F%2Fweave.test%2F',
-    'weave://join?organization_origin=https%3A%2F%2Fweave.test%2F&dogfood_reset=destructive_uninstall',
-    'weave://join?profile=local-lan-dogfood&dogfood_reset=app_state',
-    'weave://join?organization_origin=https%3A%2F%2Fweave.test%2F&dogfood_reset=app_state&profile=local-lan-dogfood',
-    'weave://join?organization_origin=http%3A%2F%2Fweave.test%2F&dogfood_reset=app_state',
-    'weave://join?organization_origin=https%3A%2F%2Fuser%3Asecret%40weave.test%2F&dogfood_reset=app_state',
-    'weave://join?organization_origin=https%3A%2F%2Fweave.test%2Fapi&dogfood_reset=app_state',
-    'weave://join?organization_origin=https%3A%2F%2Fweave.test%2F&dogfood_reset=app_state&dogfood_reset=app_state',
-    'weave://join?organization_origin=https%3A%2F%2Fweave.test%2F&organization_origin=https%3A%2F%2Fother.test%2F&dogfood_reset=app_state',
-    'weave://join?organization_origin=https%3A%2F%2Fweave.test%2F&dogfood_reset=app_state#fragment',
-    'https://weave.test/join?organization_origin=https%3A%2F%2Fweave.test%2F&dogfood_reset=app_state',
-    'weave://other?organization_origin=https%3A%2F%2Fweave.test%2F&dogfood_reset=app_state',
-  ]) {
-    test('ordinary or invalid link cannot reset app state: $link', () {
-      expect(canonicalDogfoodAppStateResetLink(Uri.parse(link)), isNull);
-    });
-  }
 
   group('AppRouter', () {
     setUp(() {
@@ -374,7 +353,6 @@ void main() {
                 discoveryClient: buildTestDiscoveryClient(
                   ref.watch(serverConfigurationRepositoryProvider),
                 ),
-                evidenceStore: ref.watch(preferencesStoreProvider),
               ),
             ),
           if (discoveryClient != null)
@@ -382,7 +360,6 @@ void main() {
               (ref) => DiscoverOrganizationAccess(
                 repository: ref.watch(serverConfigurationRepositoryProvider),
                 discoveryClient: discoveryClient,
-                evidenceStore: ref.watch(preferencesStoreProvider),
               ),
             ),
           if (resolver != null)
@@ -778,10 +755,6 @@ void main() {
         resolver.next.complete(const BootstrapState.ready());
         await tester.pumpAndSettle();
         expect(find.byType(HomeScreen), findsOneWidget);
-        expect(
-          jsonDecode(store.rawString(dogfoodAuthStateStorageKey)!)['state'],
-          'workspace_ready',
-        );
         expect(tester.takeException(), isNull);
       },
     );
@@ -817,7 +790,6 @@ void main() {
         find.byType(MemberHandoffScreen, skipOffstage: false),
         findsNothing,
       );
-      expect(store.rawString(dogfoodAuthStateStorageKey), isNull);
       expect(find.byType(HomeScreen), findsNothing);
       expect(tester.takeException(), isNull);
     });
@@ -854,20 +826,10 @@ void main() {
           () => Future<void>.delayed(const Duration(milliseconds: 20)),
         );
         await tester.pump(const Duration(milliseconds: 100));
-        expect(
-          store.rawString(dogfoodAuthStateStorageKey),
-          isNull,
-          reason:
-              'Blocked refresh must not start discovery or record stale workspace readiness',
-        );
         resolver.next.complete(const BootstrapState.ready());
         await retry;
         await tester.pumpAndSettle();
         expect(find.byType(HomeScreen), findsOneWidget);
-        expect(
-          jsonDecode(store.rawString(dogfoodAuthStateStorageKey)!)['state'],
-          'workspace_ready',
-        );
         expect(tester.takeException(), isNull);
       },
     );
@@ -912,10 +874,6 @@ void main() {
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
         expect(resolver.calls, 1);
-        expect(
-          jsonDecode(store.rawString(dogfoodAuthStateStorageKey)!)['state'],
-          isNot('workspace_ready'),
-        );
       },
     );
 
@@ -1023,70 +981,6 @@ void main() {
       },
     );
 
-    for (final failure in ['data-error', 'thrown-error', 'needsSignIn']) {
-      testWidgets(
-        'ordinary sign-in never records workspace-ready after $failure',
-        (tester) async {
-          final resolver = _ControlledBootstrapResolver();
-          final signIn = _ControlledInteractiveSignIn();
-          final store = InMemoryPreferencesStore({
-            lastHandoffConsumedStorageKey: jsonEncode({
-              'supportSafe': true,
-              'organizationOriginHost': 'weave.home.internal',
-            }),
-          });
-          final container = createContainer(
-            configuration: buildTestConfiguration(),
-            resolver: resolver,
-            interactiveSignIn: signIn,
-            preferencesStore: store,
-          );
-          addTearDown(container.dispose);
-          await container.read(appBootstrapProvider.future);
-          await tester.pumpWidget(
-            UncontrolledProviderScope(
-              container: container,
-              child: const WeaveApp(),
-            ),
-          );
-          await tester.pumpAndSettle();
-          final button = find.byKey(const ValueKey('weave.auth.sign-in'));
-          await tester.ensureVisible(button);
-          await tester.pumpAndSettle();
-          await tester.tap(button);
-          await tester.pump();
-          expect(signIn.calls, 1);
-          signIn.returned.complete();
-          await tester.pump();
-          if (failure == 'thrown-error') {
-            resolver.next.completeError(StateError('Resolver failed'));
-          } else {
-            resolver.next.complete(
-              failure == 'data-error'
-                  ? const BootstrapState.error(
-                      AppFailure.validation('Blocked workspace'),
-                    )
-                  : const BootstrapState.needsSignIn(),
-            );
-          }
-          await tester.pumpAndSettle();
-          expect(find.byType(HomeScreen), findsNothing);
-          expect(
-            jsonDecode(store.rawString(dogfoodAuthStateStorageKey)!)['state'],
-            'recoverable_error',
-          );
-          final history =
-              jsonDecode(store.rawString(dogfoodAuthStateHistoryStorageKey)!)
-                  as List;
-          expect(
-            history.map((entry) => entry['state']),
-            isNot(contains('workspace_ready')),
-          );
-          expect(tester.takeException(), isNull);
-        },
-      );
-    }
-
     testWidgets(
       'held authenticated profile cannot record readiness during a newer bootstrap refresh',
       (tester) async {
@@ -1122,19 +1016,12 @@ void main() {
         await tester.pump();
         repository.pendingLoad.complete(configuration);
         await tester.pump(const Duration(milliseconds: 100));
-        expect(
-          store.rawString(dogfoodAuthStateStorageKey),
-          isNull,
-          reason:
-              'A prior ready snapshot must not authorize proof after a newer refresh starts',
-        );
         expect(find.byType(HomeScreen), findsNothing);
         expect(repository.configuration, same(configuration));
         resolver.next.complete(const BootstrapState.needsSignIn());
         await retry;
         await tester.pumpAndSettle();
         expect(find.byType(HomeScreen), findsNothing);
-        expect(store.rawString(dogfoodAuthStateStorageKey), isNull);
         expect(repository.configuration, same(configuration));
         expect(tester.takeException(), isNull);
       },
@@ -1188,11 +1075,6 @@ void main() {
                 .loadConfiguration(),
             same(configuration),
           );
-          final raw = store.rawString(dogfoodAuthStateStorageKey);
-          expect(
-            raw == null ? null : jsonDecode(raw)['state'],
-            accepted ? 'workspace_ready' : isNot('workspace_ready'),
-          );
           expect(tester.takeException(), isNull);
         },
       );
@@ -1244,7 +1126,6 @@ void main() {
                 (ref) => DiscoverOrganizationAccess(
                   repository: ref.watch(serverConfigurationRepositoryProvider),
                   discoveryClient: AppStartDiscoveryClient(httpClient: client),
-                  evidenceStore: store,
                 ),
               ),
             ],
@@ -1283,7 +1164,10 @@ void main() {
               () => Future<void>.delayed(const Duration(milliseconds: 10)),
             );
             await tester.pumpAndSettle();
-            if (store.rawString(dogfoodVisibleStateStorageKey) != null) break;
+            if (find.byType(MemberHandoffScreen).evaluate().isNotEmpty ||
+                find.byType(OrganizationAccessScreen).evaluate().isNotEmpty) {
+              break;
+            }
           }
           final rejectedAtEntry = {
             '#fragment',
@@ -1300,10 +1184,6 @@ void main() {
           if (extra.isEmpty) {
             expect(find.text('Sign In'), findsOneWidget);
             expect(discoveryCalls, 1);
-            expect(
-              jsonDecode(store.rawString(dogfoodAuthStateStorageKey)!)['state'],
-              'ready_for_sso',
-            );
             final profile = await container.read(
               savedServerConfigurationProvider.future,
             );
@@ -1594,78 +1474,6 @@ void main() {
       },
     );
 
-    testWidgets(
-      'records session restoration after a relaunched profile request succeeds',
-      (tester) async {
-        final handoffEvidence = <String, Object>{
-          'schemaVersion': 'weave.dogfood.handoff-consumed.v1',
-          'result': 'saved_configuration',
-          'handoffRef': 'handoff-session-restore',
-          'runId': 'run-session-restore',
-          'organizationSlug': 'massimo-dogfood',
-          'workspaceSlug': 'home',
-          'profile': 'local-lan-dogfood',
-          'supportSafe': true,
-        };
-        final workspaceReady = <String, Object>{
-          'schemaVersion': 'weave.client.dogfood_auth_state.v1',
-          'recordedAt': '2026-07-10T00:00:00Z',
-          'state': 'workspace_ready',
-          'handoffRef': 'handoff-session-restore',
-          'runId': 'run-session-restore',
-          'organizationSlug': 'massimo-dogfood',
-          'workspaceSlug': 'home',
-          'profile': 'local-lan-dogfood',
-          'supportSafe': true,
-        };
-        final preferencesStore = InMemoryPreferencesStore({
-          lastHandoffConsumedStorageKey: jsonEncode(handoffEvidence),
-          dogfoodAuthStateStorageKey: jsonEncode(workspaceReady),
-          dogfoodAuthStateHistoryStorageKey: jsonEncode([workspaceReady]),
-        });
-        final secureStore = InMemorySecureStore();
-        await secureStore.write(
-          authSessionStorageKey,
-          AuthSessionDto.fromSession(buildTestAuthSession()).encode(),
-        );
-        final container = createContainer(
-          configuration: buildTestConfiguration(),
-          secureStore: secureStore,
-          preferencesStore: preferencesStore,
-          userProfile: const UserProfile(
-            userId: 'member-1',
-            username: 'member',
-            displayName: 'Member',
-            locale: 'en',
-            timezone: 'Europe/Berlin',
-            emailVerified: true,
-          ),
-        );
-        addTearDown(container.dispose);
-
-        await tester.pumpWidget(
-          UncontrolledProviderScope(
-            container: container,
-            child: const WeaveApp(),
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        final rawHistory = preferencesStore.rawString(
-          dogfoodAuthStateHistoryStorageKey,
-        );
-        expect(rawHistory, isNotNull);
-        final history = jsonDecode(rawHistory!) as List<dynamic>;
-        final historyStates = history
-            .map((entry) => (entry as Map<String, dynamic>)['state'])
-            .toList();
-        expect(historyStates.sublist(historyStates.length - 2), [
-          'session_restored',
-          'workspace_ready',
-        ]);
-      },
-    );
-
     testWidgets('uses the saved profile locale for the app language', (
       tester,
     ) async {
@@ -1701,7 +1509,7 @@ void main() {
     });
 
     testWidgets(
-      'does not replay a dogfood join link after authentication is ready',
+      'does not replay a stale join link after authentication is ready',
       (tester) async {
         setStartupInitialLocation(
           '/join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood&product_base_url=https://weave.home.internal&platform_config_url=https://weave.home.internal/api/platform/config',
@@ -1739,14 +1547,6 @@ void main() {
               .path,
           AppRoutes.home,
         );
-        final rawAuthState = preferencesStore.rawString(
-          dogfoodAuthStateStorageKey,
-        );
-        expect(rawAuthState, isNotNull);
-        final authState = jsonDecode(rawAuthState!) as Map<String, dynamic>;
-        expect(authState['state'], 'workspace_ready');
-        expect(authState['handoffRef'], 'handoff-s32-massimo-dogfood-home');
-        expect(authState['supportSafe'], isTrue);
       },
     );
 
