@@ -46,7 +46,7 @@ jobs:
           TITLES = {"weave-backend": "Weave Server", "weave-mcp-server": "Weave MCP Server"}
           LEGACY_TAG = re.compile(r"(weave-backend|weave-mcp-server):test-app-(weave-e2e-[0-9a-f]{16})\Z")
           STAGES = {"images", "ledger", "container-list", "container-inspect", "image-list", "image-inspect", "cache", "builder-inspect", "builder-list", "cache-records", "build-history"}
-          REASONS = {"command-or-json-unavailable", "container-list-unavailable", "container-shape-rejected", "container-identities-incomplete", "image-list-unavailable", "image-shape-rejected", "builder-context-unproven", "cache-record-limit-or-json-unavailable", "cache-id-rejected", "cache-parents-rejected", "cache-size-rejected", "cache-states-rejected", "cache-description-rejected", "unexpected-shape"}
+          REASONS = {"command-or-json-unavailable", "container-list-unavailable", "container-shape-rejected", "container-identities-incomplete", "image-list-unavailable", "image-shape-rejected", "builder-context-unproven", "cache-record-limit-or-json-unavailable", "cache-id-rejected", "cache-parents-rejected", "cache-states-rejected", "cache-description-rejected", "unexpected-shape"}
           
           
           class InventoryFailure(ValueError):
@@ -222,25 +222,25 @@ jobs:
               rows = []
               result["cacheRecords"] = rows
               for item in records:
-                  identity, parents, size = item.get("ID", ""), item.get("Parents") or [], str(item.get("Size", ""))
+                  identity, parents, size = item.get("ID", ""), item.get("Parents") or [], item.get("Size")
                   if not isinstance(identity, str) or not ID.fullmatch(identity):
                       raise InventoryFailure("cache-id-rejected")
                   if not isinstance(parents, list) or any(not isinstance(parent, str) or not ID.fullmatch(parent) for parent in parents):
                       raise InventoryFailure("cache-parents-rejected")
-                  if not size.isdecimal():
-                      raise InventoryFailure("cache-size-rejected")
+                  size_bytes = int(size) if isinstance(size, str) and re.fullmatch(r"[0-9]{1,20}", size) else None
                   if any(type(item.get(key)) is not bool for key in ("Mutable", "Reclaimable", "Shared")):
                       raise InventoryFailure("cache-states-rejected")
                   if not isinstance(item.get("Description"), str):
                       raise InventoryFailure("cache-description-rejected")
-                  rows.append({"id": identity, "parents": parents, "bytes": int(size),
+                  rows.append({"id": identity, "parents": parents, "bytes": size_bytes,
+                               "sizeStatus": "known" if size_bytes is not None else "unknown",
                                "reclaimable": item["Reclaimable"], "shared": item["Shared"], "mutable": item["Mutable"],
                                "type": item.get("Type") if item.get("Type") in {"internal", "frontend", "source.local", "source.git.checkout", "exec.cachemount", "regular"} else "unknown",
                                "descriptionSha256": digest(item["Description"]),
                                "descriptionContainsPublicWeaveSource": any(source in item["Description"] for source in REPOSITORIES),
                                "ownership": "not-proven"})
               result["cacheRecords"] = rows
-              result["privateReclaimableBytesUpperBound"] = sum(row["bytes"] for row in rows if row["reclaimable"] and not row["shared"])
+              result["privateReclaimableBytesUpperBound"] = sum(row["bytes"] for row in rows if row["reclaimable"] and not row["shared"]) if all(row["bytes"] is not None for row in rows) else None
               result["stage"] = "build-history"
               history = objects(command(["docker", "buildx", "history", "ls", "--format", "json", "--no-trunc"]))
               result["historyAvailable"] = history is not None
