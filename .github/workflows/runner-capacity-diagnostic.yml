@@ -1,0 +1,104 @@
+name: Temporary Weave runner capacity inventory
+
+on:
+  push:
+    branches: [diagnostic/runner-capacity-root-20261027]
+    paths: [.github/workflows/runner-capacity-diagnostic.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/runner-capacity-root-20261027'
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    timeout-minutes: 5
+    concurrency:
+      group: weave-live-mac-mini-exclusive
+      cancel-in-progress: false
+    steps:
+      - name: Read aggregate cache and filesystem capacity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import concurrent.futures
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import shutil
+          import stat
+          import subprocess
+
+          if os.environ.get('RUNNER_NAME') != 'weave-live-mac-mini':
+              raise SystemExit('Unexpected runner')
+          workspace = Path(os.environ['GITHUB_WORKSPACE'])
+          temporary = Path(os.environ['RUNNER_TEMP'])
+          home = Path.home()
+          for root in (workspace, temporary, home):
+              if not root.is_absolute() or not root.is_dir() or root.is_symlink():
+                  raise SystemExit('Invalid inventory root')
+          repository = workspace / 'weave'
+          if not (repository / 'tools').is_dir():
+              repository = workspace
+          candidates = {
+              'weave_checkout_build': repository / 'build',
+              'weave_checkout_gradle': repository / '.gradle',
+              'weave_client_build': repository / 'client/build',
+              'weave_client_dart_tool': repository / 'client/.dart_tool',
+              'weave_rust_matrix_target': repository / 'rust/matrix-protocol/target',
+              'weave_rust_sdk_target': repository / 'rust/matrix-sdk-core/target',
+              'weave_server_build': repository / 'server/build',
+              'weave_product_e2e_build': repository / 'weave-product-e2e/build',
+              'runner_temp_total': temporary,
+              'gradle_cache_total': home / '.gradle/caches',
+              'pub_cache_total': home / '.pub-cache',
+              'xcode_derived_data_total': home / 'Library/Developer/Xcode/DerivedData',
+              'simulator_devices_total': home / 'Library/Developer/CoreSimulator/Devices',
+          }
+          artifact_name = re.compile(r'weave-(?:qualification|deployment|physical)-artifacts-[1-9][0-9]*-[1-9][0-9]*')
+          artifacts = [path for path in temporary.iterdir() if artifact_name.fullmatch(path.name)]
+
+          def measure(path):
+              if not path.exists():
+                  return {'status': 'absent', 'bytes': 0}
+              info = path.lstat()
+              if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or path.is_symlink():
+                  return {'status': 'unmeasured'}
+              try:
+                  result = subprocess.run(['du', '-sk', str(path)], capture_output=True, text=True, timeout=20)
+                  if result.returncode:
+                      return {'status': 'unavailable'}
+                  size = result.stdout.split()[0]
+                  if not size.isdecimal():
+                      return {'status': 'unavailable'}
+                  return {'status': 'measured', 'bytes': int(size) * 1024}
+              except (OSError, subprocess.SubprocessError):
+                  return {'status': 'unavailable'}
+
+          with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+              measured = dict(zip(candidates, executor.map(measure, candidates.values())))
+              artifact_sizes = list(executor.map(measure, artifacts))
+          measured['runner_weave_artifact_sets'] = {
+              'count': len(artifacts),
+              'measuredCount': sum(item['status'] == 'measured' for item in artifact_sizes),
+              'bytes': sum(item.get('bytes', 0) for item in artifact_sizes),
+          }
+          usage = shutil.disk_usage(workspace)
+          docker = []
+          try:
+              result = subprocess.run(['docker', 'system', 'df', '--format', '{{json .}}'], capture_output=True, text=True, timeout=30)
+              if result.returncode == 0:
+                  for line in result.stdout.splitlines():
+                      row = json.loads(line)
+                      docker.append({key: str(row.get(key, ''))[:100] for key in ('Type', 'TotalCount', 'Active', 'Size', 'Reclaimable')})
+          except (OSError, subprocess.SubprocessError, ValueError):
+              pass
+          print(json.dumps({
+              'schemaVersion': 'weave.runner-capacity-inventory/v1',
+              'mode': 'read-only', 'supportSafe': True, 'containsSecretValues': False,
+              'filesystem': {'totalBytes': usage.total, 'usedBytes': usage.used, 'freeBytes': usage.free},
+              'directories': measured, 'dockerSummary': docker,
+          }, sort_keys=True))
+          PY
