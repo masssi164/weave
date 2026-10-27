@@ -32,7 +32,9 @@ import static org.mockito.Mockito.*;
 
 class DefaultSpaceBootstrapServiceTest {
     private final KeycloakIdentityAdminClient keycloak = mock(KeycloakIdentityAdminClient.class);
-    private final OrganizationIdentityContextResolver identities = mock(OrganizationIdentityContextResolver.class);
+    private final OrganizationIdentityContextResolver identities = OrganizationIdentityContextResolver.configured(
+            new com.massimotter.weave.backend.config.ContextAuthorizationProperties(
+                    null, null, "org:configured", null, null, null, null, null));
     private final WorkspaceCapabilityService capabilities = mock(WorkspaceCapabilityService.class);
     private final DefaultSpacePreparationPort spaces = mock(DefaultSpacePreparationPort.class);
     private final AuditEventPublisher audit = mock(AuditEventPublisher.class);
@@ -54,7 +56,6 @@ class DefaultSpaceBootstrapServiceTest {
                 new DeploymentOrganizationProperties("provider-org", "weave"),
                 new CalendarProviderBindingReadiness(calendarBindings, List.of(calendarProvider)));
         when(keycloak.configuredOrganizationId()).thenReturn("provider-org");
-        when(identities.configuredOrganizationId()).thenReturn("org:configured");
         when(keycloak.members("provider-org")).thenReturn(List.of(member("actual-owner", List.of("owner"), true)));
         when(keycloak.memberAuthorization("provider-org", "actual-owner")).thenReturn(
                 new MemberAuthorization("actual-owner", true, true, List.of("owner"), List.of("/owners")));

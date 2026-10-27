@@ -938,11 +938,11 @@ class AppLocalizationsDe extends AppLocalizations {
       'Passe Weave für dieses Gerät an: Darstellung, Sprache, Profil, Modulansicht und sichere Abmeldung.';
 
   @override
-  String get settingsSupportDiagnosticsTitle => 'Support-Diagnosen';
+  String get settingsSupportDiagnosticsTitle => 'App-Informationen';
 
   @override
   String get settingsSupportDiagnosticsDescription =>
-      'Mit diesen Werten kannst du prüfen, welcher Server und welcher unveränderliche App-Kandidat installiert sind. Sie enthalten keine Sitzungstokens oder Provider-Zugangsdaten.';
+      'Wenn du Hilfe brauchst, kannst du die Referenzen und die App-Version an den Support weitergeben. Teile niemals Passwörter oder Anmeldecodes.';
 
   @override
   String get settingsSupportServerLabel => 'Workspace-Server';
@@ -971,8 +971,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsSupportValueLoading => 'Wird geladen…';
 
   @override
-  String get settingsSupportValueUnavailable =>
-      'In diesem Build nicht eingebettet';
+  String get settingsSupportValueUnavailable => 'Nicht verfügbar';
 
   @override
   String settingsSupportVersionValue(String version, String buildNumber) {

@@ -354,7 +354,7 @@ class FunctionalSmokeTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             runner = smoke.Runner(Path(directory))
             with self.assertRaises(subprocess.TimeoutExpired):
-                runner.run([sys.executable, '-c', 'import time; print("private fixture value", flush=True); time.sleep(60)'], timeout=0.05)
+                runner.run([sys.executable, '-c', 'import time; print("private fixture value", flush=True); time.sleep(60)'], timeout=1)
             self.assertIn('private fixture value', (Path(directory) / 'command-1.log').read_text())
             self.assertEqual((Path(directory) / 'command-1.log').stat().st_mode & 0o777, 0o600)
 

@@ -1,0 +1,152 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "97ee14b55d127416aea1e3fbe50681f4d79b4da2",
+  "removalIssue": "https://github.com/masssi164/weave/issues/1736",
+  "policy": "Exact legacy selector occurrences only. Removal is allowed; additions or widening require an explicit architecture review. Do not regenerate this baseline to make a failing check pass. This is debt, not a provider-switch implementation.",
+  "selectors": [
+    {
+      "path": "server/src/main/java/com/massimotter/weave/backend/calendar/adapter/NativeCalendarProviderAdapter.java",
+      "kind": "java-annotation",
+      "signature": "@ConditionalOnProperty(name=\"weave.calendar.provider\",havingValue=\"weave-native\",matchIfMissing=true)",
+      "count": 1
+    },
+    {
+      "path": "server/src/main/java/com/massimotter/weave/backend/chat/e2e/ChatE2eCallbackReplayController.java",
+      "kind": "java-annotation",
+      "signature": "@ConditionalOnProperty(name=\"weave.chat.provider\",havingValue=ChatRuntimeProperties.MATRIX_SYNAPSE_PROVIDER)",
+      "count": 1
+    },
+    {
+      "path": "server/src/main/java/com/massimotter/weave/backend/chat/e2e/ChatE2eProviderProofController.java",
+      "kind": "java-annotation",
+      "signature": "@ConditionalOnProperty(name=\"weave.chat.provider\",havingValue=ChatRuntimeProperties.MATRIX_SYNAPSE_PROVIDER)",
+      "count": 1
+    },
+    {
+      "path": "server/src/main/java/com/massimotter/weave/backend/chat/e2e/MatrixE2eePathProofController.java",
+      "kind": "java-annotation",
+      "signature": "@ConditionalOnProperty(name=\"weave.chat.provider\",havingValue=ChatRuntimeProperties.MATRIX_SYNAPSE_PROVIDER)",
+      "count": 1
+    },
+    {
+      "path": "server/src/main/java/com/massimotter/weave/backend/chat/provider/synapse/MatrixApplicationServiceController.java",
+      "kind": "java-annotation",
+      "signature": "@ConditionalOnProperty(name=\"weave.chat.provider\",havingValue=ChatRuntimeProperties.MATRIX_SYNAPSE_PROVIDER)",
+      "count": 1
+    },
+    {
+      "path": "server/src/main/java/com/massimotter/weave/backend/chat/store/ChatQuarantineReconciliationService.java",
+      "kind": "java-annotation",
+      "signature": "@ConditionalOnProperty(name=\"weave.chat.provider\",havingValue=ChatRuntimeProperties.MATRIX_SYNAPSE_PROVIDER)",
+      "count": 1
+    },
+    {
+      "path": "server/src/main/java/com/massimotter/weave/backend/config/BoardsRuntimeConfiguration.java",
+      "kind": "java-annotation",
+      "signature": "@Value(\"${weave.boards.workspace.provider:${weave.boards.provider:local-workspace}}\")",
+      "count": 1
+    },
+    {
+      "path": "server/src/main/java/com/massimotter/weave/backend/config/CalendarCalDavConfiguration.java",
+      "kind": "java-annotation",
+      "signature": "@ConditionalOnProperty(name=\"weave.calendar.provider\",havingValue=\"nextcloud-caldav\")",
+      "count": 1
+    },
+    {
+      "path": "server/src/main/java/com/massimotter/weave/backend/config/ChatRuntimeConfiguration.java",
+      "kind": "java-annotation",
+      "signature": "@ConditionalOnProperty(name=\"weave.chat.provider\",havingValue=ChatRuntimeProperties.MATRIX_SYNAPSE_PROVIDER)",
+      "count": 3
+    },
+    {
+      "path": "server/src/main/java/com/massimotter/weave/backend/config/ChatRuntimeConfiguration.java",
+      "kind": "java-annotation",
+      "signature": "@ConditionalOnProperty(name=\"weave.chat.provider\",havingValue=ChatRuntimeProperties.WEAVE_NATIVE_PROVIDER,matchIfMissing=true)",
+      "count": 1
+    },
+    {
+      "path": "server/src/main/java/com/massimotter/weave/backend/config/MatrixApplicationServiceSecurityConfiguration.java",
+      "kind": "java-annotation",
+      "signature": "@ConditionalOnProperty(name=\"weave.chat.provider\",havingValue=ChatRuntimeProperties.MATRIX_SYNAPSE_PROVIDER)",
+      "count": 1
+    },
+    {
+      "path": "server/src/main/java/com/massimotter/weave/backend/service/files/OpenDalS3ObjectStorageAdapter.java",
+      "kind": "java-annotation",
+      "signature": "@ConditionalOnExpression(\"'${weave.files.provider:weave-native}' == 'weave-s3-minio'\")",
+      "count": 1
+    },
+    {
+      "path": "server/src/main/java/com/massimotter/weave/backend/service/files/WeaveNativeFilesAdapter.java",
+      "kind": "java-annotation",
+      "signature": "@ConditionalOnExpression(\"'${weave.files.provider:weave-native}' != 'weave-s3-minio'\")",
+      "count": 1
+    },
+    {
+      "path": "server/src/main/java/com/massimotter/weave/backend/service/files/WeaveS3FilesAdapter.java",
+      "kind": "java-annotation",
+      "signature": "@ConditionalOnExpression(\"'${weave.files.provider:weave-native}' == 'weave-s3-minio'\")",
+      "count": 1
+    },
+    {
+      "path": "server/src/main/resources/application-base.yml",
+      "kind": "yaml-selector",
+      "signature": "provider:${WEAVE_BOARDS_PROVIDER:local-workspace}",
+      "count": 1
+    },
+    {
+      "path": "server/src/main/resources/application-base.yml",
+      "kind": "yaml-selector",
+      "signature": "provider:${WEAVE_CALENDAR_PROVIDER:weave-native}",
+      "count": 1
+    },
+    {
+      "path": "server/src/main/resources/application-base.yml",
+      "kind": "yaml-selector",
+      "signature": "provider:${WEAVE_CHAT_PROVIDER:weave-native}",
+      "count": 1
+    },
+    {
+      "path": "server/src/main/resources/application-base.yml",
+      "kind": "yaml-selector",
+      "signature": "provider:${WEAVE_FILES_PROVIDER:weave-native}",
+      "count": 1
+    },
+    {
+      "path": "server/src/main/resources/application-dev.yml",
+      "kind": "yaml-selector",
+      "signature": "provider:weave-native",
+      "count": 3
+    },
+    {
+      "path": "server/src/main/resources/application-dogfood.yml",
+      "kind": "yaml-selector",
+      "signature": "provider:weave-native",
+      "count": 3
+    },
+    {
+      "path": "server/src/main/resources/application-e2e.yml",
+      "kind": "yaml-selector",
+      "signature": "provider:weave-native",
+      "count": 3
+    },
+    {
+      "path": "server/src/main/resources/application-prod.yml",
+      "kind": "yaml-selector",
+      "signature": "provider:${WEAVE_CALENDAR_PROVIDER:weave-native}",
+      "count": 1
+    },
+    {
+      "path": "server/src/main/resources/application-prod.yml",
+      "kind": "yaml-selector",
+      "signature": "provider:${WEAVE_CHAT_PROVIDER:weave-native}",
+      "count": 1
+    },
+    {
+      "path": "server/src/main/resources/application-prod.yml",
+      "kind": "yaml-selector",
+      "signature": "provider:${WEAVE_FILES_PROVIDER:weave-native}",
+      "count": 1
+    }
+  ]
+}

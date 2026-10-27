@@ -3,6 +3,7 @@ package com.massimotter.weave.backend.config;
 import tools.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.agentruntime.adapter.FileRuntimeWorkloadCredentialStore;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakAdminAccessTokenProvider;
+import com.massimotter.weave.backend.config.keycloak.SpringSecurityKeycloakAdminAccessTokenProvider;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakAgentRuntimeWorkloadIdentityAdmin;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakClientRegistrationTransport;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakRuntimeIdentityAuthority;
@@ -82,7 +83,7 @@ public class AgentRuntimeWorkloadIdentityConfiguration {
   KeycloakRuntimeIdentityAuthority runtimeIdentityAuthority(
       AgentRuntimeWorkloadIdentityProperties properties,
       AgentRuntimeEntitlementProperties entitlement,
-      @Qualifier(KeycloakAdminClientConfiguration.KEYCLOAK_ADMIN_ACCESS_TOKENS)
+      @Qualifier(com.massimotter.weave.backend.config.keycloak.KeycloakAuthConfig.KEYCLOAK_ADMIN_ACCESS_TOKENS)
           KeycloakAdminAccessTokenProvider accessTokens,
       ObjectMapper objectMapper) {
     return new KeycloakRuntimeIdentityAuthority(

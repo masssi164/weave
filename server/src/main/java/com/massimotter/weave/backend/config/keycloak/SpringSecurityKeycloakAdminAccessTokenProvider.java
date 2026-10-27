@@ -1,4 +1,4 @@
-package com.massimotter.weave.backend.config;
+package com.massimotter.weave.backend.config.keycloak;
 
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.RSAKey;

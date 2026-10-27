@@ -278,8 +278,8 @@
   "profileScreenTitle": "Profil",
   "workspaceHealthTitle": "Workspace Health",
   "settingsBrandSectionDescription": "Passe Weave für dieses Gerät an: Darstellung, Sprache, Profil, Modulansicht und sichere Abmeldung.",
-  "settingsSupportDiagnosticsTitle": "Support-Diagnosen",
-  "settingsSupportDiagnosticsDescription": "Mit diesen Werten kannst du prüfen, welcher Server und welcher unveränderliche App-Kandidat installiert sind. Sie enthalten keine Sitzungstokens oder Provider-Zugangsdaten.",
+  "settingsSupportDiagnosticsTitle": "App-Informationen",
+  "settingsSupportDiagnosticsDescription": "Wenn du Hilfe brauchst, kannst du die Referenzen und die App-Version an den Support weitergeben. Teile niemals Passwörter oder Anmeldecodes.",
   "settingsSupportServerLabel": "Workspace-Server",
   "settingsSupportCandidateCommitLabel": "Kandidaten-Commit",
   "settingsSupportVersionLabel": "Version und Build",
@@ -288,7 +288,7 @@
   "settingsSupportIdentityComplete": "Kandidatenidentität ist vollständig",
   "settingsSupportIdentityIncomplete": "Die Kandidatenmetadaten sind unvollständig; dieser Build kann das Gate für den installierten Kandidaten nicht erfüllen.",
   "settingsSupportValueLoading": "Wird geladen…",
-  "settingsSupportValueUnavailable": "In diesem Build nicht eingebettet",
+  "settingsSupportValueUnavailable": "Nicht verfügbar",
   "settingsSupportVersionValue": "{version} ({buildNumber})",
   "@settingsSupportVersionValue": {
     "placeholders": {

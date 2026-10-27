@@ -8,7 +8,7 @@
 - Sprint milestone: `Sprint 15 — Organization Embedding, Domain Facades & Provider-Neutral Proof`
 - Organization contracts: `docs/organization-embedding-contract.md`, `docs/identity-provisioning-strategy.md`, `docs/admin-provisioned-first-use.md`, `docs/admin-operator-handbook.md`
 - Provider/domain contracts: `docs/provider-replacement-and-anti-silo-contract.md`, `docs/architecture/provider-portability.md`, `docs/architecture/no-unaccounted-data-loss.md`, `docs/architecture/canonical-domains.md`
-- Product/release contracts: `docs/v0.1-golden-path.md`, `docs/iso-9241-110-dogfood-ux-gate.md`, `docs/user-handbook.md`, `docs/product-trust-provider-choice-claim-matrix.md`, `docs/release-notes/unreleased.md`
+- Product/release contracts: `docs/v0.1-golden-path.md`, `docs/iso-9241-110-product-interaction.md`, `docs/user-handbook.md`, `docs/product-trust-provider-choice-claim-matrix.md`, `docs/release-notes/unreleased.md`
 - Chat proof boundary: `docs/matrix-chat-migration-proof.md`, `docs/matrix-chat-sprint15-dry-run-policy.md`, `docs/matrix-chat-dry-run-operator-runbook.md`
 
 ## Delivered scope in PR #571

@@ -22,14 +22,17 @@ class BackendProfileClient {
       accessToken: accessToken,
       httpClient: _httpClient,
     );
-    return _send('load the profile', () async {
-      final response = await user_api.IdentityApi(api).me();
-      if (response == null) {
+    return _executeProfileRequest('load the profile', () async {
+      final identity = await user_api.IdentityApi(api).me();
+      final productProfile = await user_api.ProfileApi(api).getProductProfile();
+      if (identity == null || productProfile == null) {
         throw const AppFailure.unknown(
           'The Weave backend returned an invalid profile payload.',
         );
       }
-      return response.toDomain();
+      return identity.toDomain(
+        accessibilityPreferences: productProfile.accessibilityPreferences,
+      );
     });
   }
 
@@ -43,7 +46,7 @@ class BackendProfileClient {
       accessToken: accessToken,
       httpClient: _httpClient,
     );
-    return _send('save the profile', () async {
+    return _executeProfileRequest('save the profile', () async {
       final response = await user_api.ProfileApi(
         api,
       ).updateProductProfile(userProfileUpdateToOpenApi(update));
@@ -56,7 +59,7 @@ class BackendProfileClient {
     });
   }
 
-  Future<UserProfile> _send(
+  Future<UserProfile> _executeProfileRequest(
     String operation,
     Future<UserProfile> Function() request,
   ) async {
