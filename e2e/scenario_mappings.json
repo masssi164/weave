@@ -4696,8 +4696,8 @@
           "fragments": [
             "Files uses member copy",
             "native Back and iOS swipe retain scope and parent focus",
-            "scope selection recovers a failed root read",
-            "scope selection leaves a failed child through native Back",
+            "folder navigation recovers a failed root read",
+            "folder navigation leaves a failed child through native Back",
             "shared folder deep link has native root Back",
             "retained folder cannot display a replacement account after invalidation",
             "folder failure keeps native Back available and shared root readable"

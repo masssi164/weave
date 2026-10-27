@@ -31,6 +31,8 @@ import 'package:weave/features/files/domain/entities/files_failure.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/domain/services/files_import_picker.dart';
 import 'package:weave/features/files/presentation/files_screen.dart';
+import 'package:weave/features/files/presentation/files_locations_screen.dart';
+import 'package:weave/features/files/presentation/files_folder_route.dart';
 import 'package:weave/features/files/presentation/providers/files_provider.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
@@ -91,6 +93,7 @@ Widget _filesNavigationApp(
   GoRouter router, {
   List<dynamic> overrides = const [],
   TargetPlatform? platform,
+  double? textScale,
 }) => ProviderScope(
   overrides: [
     workspaceCapabilitySnapshotProvider.overrideWithValue(
@@ -103,10 +106,18 @@ Widget _filesNavigationApp(
     localizationsDelegates: AppLocalizations.localizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
     routerConfig: router,
+    builder: (context, child) => textScale == null
+        ? child!
+        : MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(textScale)),
+            child: child!,
+          ),
   ),
 );
 
-GoRouter _filesRouter({String initialLocation = AppRoutes.files}) => GoRouter(
+GoRouter _filesRouter({String initialLocation = '/files/private'}) => GoRouter(
   initialLocation: initialLocation,
   routes: [
     ShellRoute(
@@ -492,6 +503,45 @@ class _NavigationFilesRepository extends _FakeFilesRepository
     required String name,
     String? spaceRef,
   }) => super.createFolder(parentPath: parentPath, name: name);
+}
+
+class _ScopedPreviewFilesRepository extends _NavigationFilesRepository {
+  Completer<FileDownload>? downloadGate;
+
+  @override
+  Future<DirectoryListing> listDirectory(
+    String path, {
+    String? spaceRef,
+  }) async {
+    final listing = await super.listDirectory(path, spaceRef: spaceRef);
+    return DirectoryListing(
+      path: listing.path,
+      parentFileId: listing.parentFileId,
+      ownerKey: listing.ownerKey,
+      allowedActions: listing.allowedActions,
+      entries: const [
+        FileEntry(
+          id: 'preview-file',
+          name: 'preview.txt',
+          path: '/preview.txt',
+          isDirectory: false,
+          revision: 'preview-version',
+          allowedActions: {'download'},
+        ),
+      ],
+    );
+  }
+
+  @override
+  Future<FileDownload> downloadFile(FileEntry entry) async {
+    final pending = downloadGate;
+    if (pending != null) return pending.future;
+    return FileDownload(
+      fileName: entry.name,
+      mediaType: 'text/plain',
+      bytes: Uint8List.fromList(utf8.encode('Shared route preview bytes.')),
+    );
+  }
 }
 
 List<dynamic> _navigationOverrides(_NavigationFilesRepository repository) => [
@@ -1356,7 +1406,7 @@ void main() {
   for (final locale in ['en', 'de']) {
     for (final changedContext in [false, true]) {
       testWidgets(
-        'named Space selection and captured destination remain truthful $locale changed=$changedContext',
+        'named folder navigation and captured destination remain truthful $locale changed=$changedContext',
         (tester) async {
           tester.view.physicalSize = const Size(390, 844);
           tester.view.devicePixelRatio = 1;
@@ -1369,9 +1419,11 @@ void main() {
           final semantics = tester.ensureSemantics();
           try {
             final repository = _NamedFilesRepository();
+            final router = _filesRouter(initialLocation: AppRoutes.files);
+            addTearDown(router.dispose);
             await tester.pumpWidget(
-              _filesTestApp(
-                const FilesScreen(),
+              _filesNavigationApp(
+                router,
                 overrides: [
                   filesRepositoryProvider.overrideWithValue(repository),
                   appStartDiscoveryClientProvider.overrideWith(
@@ -1398,67 +1450,56 @@ void main() {
               ),
             );
             await tester.pumpAndSettle();
-            final selector = find.byKey(const Key('files-space-selector'));
-            await tester.ensureVisible(selector);
-            await tester.tap(selector);
-            await tester.pumpAndSettle();
             final namedOption = find.byWidgetPredicate(
               (w) =>
                   w is Semantics &&
-                  w.properties.identifier == 'files-space-option-opaque-b',
+                  w.properties.identifier == 'files-location-space-opaque-b',
             );
             expect(namedOption, findsOneWidget);
             expect(namedOption.hitTestable(), findsOneWidget);
             final optionData = tester
                 .getSemantics(namedOption)
                 .getSemanticsData();
-            expect(optionData.identifier, 'files-space-option-opaque-b');
-            expect(optionData.label, 'Research (2)');
+            expect(optionData.identifier, 'files-location-space-opaque-b');
+            expect(optionData.label, contains('Research (2)'));
+            expect(optionData.label, isNot(contains('opaque-b')));
             await tester.tap(namedOption.hitTestable());
             await tester.pumpAndSettle();
             expect(namedOption, findsNothing);
-            await tester.tap(selector);
-            await tester.pumpAndSettle();
-            expect(namedOption, findsOneWidget);
-            expect(namedOption.hitTestable(), findsOneWidget);
-            expect(
-              tester.getSemantics(namedOption).getSemanticsData().label,
-              'Research (2)',
+            ProviderContainer current() => ProviderScope.containerOf(
+              tester.element(find.byType(FilesScreen)),
             );
-            await tester.tap(namedOption.hitTestable());
-            await tester.pumpAndSettle();
-            final beforeReselect = ProviderScope.containerOf(
-              tester.element(selector),
-            ).read(filesProvider).requireValue.successfulReadGeneration;
+            final beforeReselect = current()
+                .read(filesProvider)
+                .requireValue
+                .successfulReadGeneration;
             await selectNativeDualFilesScope(tester, 'opaque-b');
             await tester.pumpAndSettle();
             expect(namedOption, findsNothing);
-            final container = ProviderScope.containerOf(
-              tester.element(selector),
-            );
             expect(
-              container
+              current()
                   .read(filesProvider)
                   .requireValue
                   .successfulReadGeneration,
               greaterThan(beforeReselect),
             );
             expect(
-              container.read(filesProvider).requireValue.rootSpaceRef,
+              current().read(filesProvider).requireValue.rootSpaceRef,
               'opaque-b',
             );
             await selectNativeDualFilesScope(tester, null);
             await tester.pumpAndSettle();
             expect(
-              container.read(filesProvider).requireValue.rootSpaceRef,
+              current().read(filesProvider).requireValue.rootSpaceRef,
               isNull,
             );
-            final privateGeneration = container
+            final privateGeneration = current()
                 .read(filesProvider)
                 .requireValue
                 .successfulReadGeneration;
             await selectNativeDualFilesScope(tester, 'opaque-b');
             await tester.pumpAndSettle();
+            final container = current();
             expect(
               container.read(filesProvider).requireValue.rootSpaceRef,
               'opaque-b',
@@ -1470,9 +1511,12 @@ void main() {
                   .successfulReadGeneration,
               greaterThan(privateGeneration),
             );
+            expect(find.byKey(const Key('files-space-selector')), findsNothing);
             expect(find.text('opaque-b'), findsNothing);
             expect(find.text('opaque-a'), findsNothing);
-            final l10n = AppLocalizations.of(tester.element(selector));
+            final l10n = AppLocalizations.of(
+              tester.element(find.byType(FilesScreen)),
+            );
             final create = find.byWidgetPredicate(
               (w) =>
                   w is Semantics &&
@@ -1883,11 +1927,161 @@ void main() {
     }
   }
 
+  for (final change in ['unchanged', 'revoked', 'account-replaced']) {
+    testWidgets('route-scoped preview retains authorization: $change', (
+      tester,
+    ) async {
+      final repository = _ScopedPreviewFilesRepository();
+      final router = _filesRouter(
+        initialLocation: AppRoutes.filesLocation(
+          '/',
+          spaceRef: 'workspace-default',
+        ),
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        _filesNavigationApp(
+          router,
+          overrides: _navigationOverrides(repository),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final screen = find.byType(FilesScreen);
+      final directory = ProviderScope.containerOf(tester.element(screen));
+      final l10n = AppLocalizations.of(tester.element(screen));
+      final open = find.byKey(const ValueKey('files-open-preview-file'));
+      if (open.hitTestable().evaluate().length != 1) {
+        await Scrollable.ensureVisible(tester.element(open), alignment: 0.5);
+        await tester.pumpAndSettle();
+      }
+      expect(open.hitTestable(), findsOneWidget);
+      await tester.tap(open.hitTestable());
+      await tester.pumpAndSettle();
+      final content = find.byKey(const Key('files-preview-content'));
+      expect(content, findsOneWidget);
+      expect(
+        tester.widget<SelectableText>(content).data,
+        'Shared route preview bytes.',
+      );
+      expect(
+        identical(
+          ProviderScope.containerOf(tester.element(content)),
+          directory,
+        ),
+        isTrue,
+      );
+      if (change == 'revoked') {
+        repository.denyRoot = true;
+        await directory.read(filesProvider.notifier).refresh();
+      } else if (change == 'account-replaced') {
+        repository.owner = 'member-b';
+        directory
+            .read(workspaceInvalidationProvider.notifier)
+            .invalidate(
+              integration: WorkspaceIntegration.files,
+              reason: IntegrationInvalidationReason.authConfigurationChanged,
+            );
+      }
+      await tester.pumpAndSettle();
+      expect(content, change == 'unchanged' ? findsOneWidget : findsNothing);
+      if (change != 'unchanged') {
+        expect(find.text(l10n.filesUnavailableSpace), findsOneWidget);
+        expect(find.text('Shared route preview bytes.'), findsNothing);
+        expect(
+          find.descendant(
+            of: find.byType(AlertDialog),
+            matching: find.text('preview.txt'),
+          ),
+          findsNothing,
+        );
+      }
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.byType(TextButton),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.byType(FilesScreen), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets(
+    'route-scoped preview discards bytes after pending-download revocation',
+    (tester) async {
+      final repository = _ScopedPreviewFilesRepository()
+        ..downloadGate = Completer<FileDownload>();
+      final router = _filesRouter(
+        initialLocation: AppRoutes.filesLocation(
+          '/',
+          spaceRef: 'workspace-default',
+        ),
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        _filesNavigationApp(
+          router,
+          overrides: _navigationOverrides(repository),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final directory = ProviderScope.containerOf(
+        tester.element(find.byType(FilesScreen)),
+      );
+      final open = find.byKey(const ValueKey('files-open-preview-file'));
+      if (open.hitTestable().evaluate().length != 1) {
+        await Scrollable.ensureVisible(tester.element(open), alignment: 0.5);
+        await tester.pumpAndSettle();
+      }
+      expect(open.hitTestable(), findsOneWidget);
+      await tester.tap(open.hitTestable());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(find.byKey(const Key('files-preview-content')), findsNothing);
+      repository.denyRoot = true;
+      await directory.read(filesProvider.notifier).refresh();
+      await tester.pump();
+      repository.downloadGate!.complete(
+        FileDownload(
+          fileName: 'preview.txt',
+          mediaType: 'text/plain',
+          bytes: Uint8List.fromList(utf8.encode('Late revoked preview bytes.')),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('files-preview-content')), findsNothing);
+      expect(find.text('Late revoked preview bytes.'), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('preview.txt'),
+        ),
+        findsNothing,
+      );
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.byType(TextButton),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('native Back and iOS swipe retain scope and parent focus', (
     tester,
   ) async {
     final repository = _NavigationFilesRepository()..earlierEntries = 12;
-    final router = _filesRouter();
+    final router = _filesRouter(
+      initialLocation: AppRoutes.filesLocation(
+        '/',
+        spaceRef: 'workspace-default',
+      ),
+    );
     addTearDown(router.dispose);
     await tester.pumpWidget(
       _filesNavigationApp(
@@ -1900,11 +2094,8 @@ void main() {
     final rootContainer = ProviderScope.containerOf(
       tester.element(find.byType(FilesScreen)),
     );
-    await rootContainer
-        .read(filesProvider.notifier)
-        .selectRootSpace('workspace-default');
     await tester.pumpAndSettle();
-    expect(find.byType(BackButton), findsNothing);
+    expect(find.byType(BackButton), findsOneWidget);
     final parentScrollable = find.descendant(
       of: find.byType(FilesScreen),
       matching: find.byWidgetPredicate(
@@ -1943,24 +2134,37 @@ void main() {
       rootContainer.read(filesProvider).requireValue.rootSpaceRef,
       'workspace-default',
     );
-    expect(router.canPop(), isFalse);
+    expect(router.canPop(), isTrue);
     await tester.tap(find.widgetWithText(ListTile, 'Documents'));
     await tester.pumpAndSettle();
     await tester.dragFrom(const Offset(1, 250), const Offset(700, 0));
     await tester.pumpAndSettle();
-    expect(router.canPop(), isFalse);
+    expect(router.canPop(), isTrue);
     expect(find.widgetWithText(ListTile, 'Documents'), findsOneWidget);
-    expect(repository.scopes.skip(1), everyElement('workspace-default'));
+    expect(repository.scopes, everyElement('workspace-default'));
     await tester.tap(find.widgetWithText(ListTile, 'Documents'));
     await tester.pumpAndSettle();
     await selectNativeDualFilesScope(tester, null);
     await tester.pumpAndSettle();
+    expect(router.canPop(), isTrue);
+    expect(
+      ProviderScope.containerOf(
+        tester.element(find.byType(FilesScreen)),
+      ).read(filesProvider).requireValue.rootSpaceRef,
+      isNull,
+    );
+    expect(
+      GoRouterState.of(tester.element(find.byType(FilesScreen))).uri.path,
+      '/files/private',
+    );
+    await tester.pageBack();
+    await tester.pumpAndSettle();
     expect(router.canPop(), isFalse);
-    expect(rootContainer.read(filesProvider).requireValue.rootSpaceRef, isNull);
+    expect(router.routeInformationProvider.value.uri.path, AppRoutes.files);
     expect(repository.scopes.last, isNull);
   });
 
-  testWidgets('scope selection recovers a failed root read', (tester) async {
+  testWidgets('folder navigation recovers a failed root read', (tester) async {
     final repository = _NavigationFilesRepository();
     final router = _filesRouter();
     addTearDown(router.dispose);
@@ -1968,7 +2172,7 @@ void main() {
       _filesNavigationApp(router, overrides: _navigationOverrides(repository)),
     );
     await tester.pumpAndSettle();
-    final container = ProviderScope.containerOf(
+    var container = ProviderScope.containerOf(
       tester.element(find.byType(FilesScreen)),
     );
     repository.denyRoot = true;
@@ -1981,13 +2185,16 @@ void main() {
     repository.denyRoot = false;
     await selectNativeDualFilesScope(tester, 'workspace-default');
     await tester.pumpAndSettle();
+    container = ProviderScope.containerOf(
+      tester.element(find.byType(FilesScreen)),
+    );
     final state = container.read(filesProvider).requireValue;
     expect(state.rootSpaceRef, 'workspace-default');
     expect(state.hasSuccessfulCurrentRead, isTrue);
     expect(find.widgetWithText(ListTile, 'Documents'), findsOneWidget);
   });
 
-  testWidgets('scope selection leaves a failed child through native Back', (
+  testWidgets('folder navigation leaves a failed child through native Back', (
     tester,
   ) async {
     final repository = _NavigationFilesRepository()..denyFolder = true;
@@ -1997,7 +2204,7 @@ void main() {
       _filesNavigationApp(router, overrides: _navigationOverrides(repository)),
     );
     await tester.pumpAndSettle();
-    final container = ProviderScope.containerOf(
+    var container = ProviderScope.containerOf(
       tester.element(find.byType(FilesScreen)),
     );
     await tester.tap(find.widgetWithText(ListTile, 'Documents'));
@@ -2012,7 +2219,10 @@ void main() {
     expect(find.byType(BackButton), findsOneWidget);
     await selectNativeDualFilesScope(tester, 'workspace-default');
     await tester.pumpAndSettle();
-    expect(router.canPop(), isFalse);
+    expect(router.canPop(), isTrue);
+    container = ProviderScope.containerOf(
+      tester.element(find.byType(FilesScreen)),
+    );
     final state = container.read(filesProvider).requireValue;
     expect(state.rootSpaceRef, 'workspace-default');
     expect(state.hasSuccessfulCurrentRead, isTrue);
@@ -2050,7 +2260,7 @@ void main() {
         ).read(filesProvider).requireValue.successfulReadGeneration;
         await tester.pageBack();
         await tester.pumpAndSettle();
-        expect(router.canPop(), isFalse);
+        expect(router.canPop(), isTrue);
         final container = ProviderScope.containerOf(
           tester.element(find.byType(FilesScreen)),
         );
@@ -2113,7 +2323,7 @@ void main() {
       expect(find.text('Files could not be loaded'), findsOneWidget);
       await tester.pageBack();
       await tester.pumpAndSettle();
-      expect(router.canPop(), isFalse);
+      expect(router.canPop(), isTrue);
       expect(find.widgetWithText(ListTile, 'Documents'), findsOneWidget);
       await tester.tap(find.widgetWithText(ListTile, 'Documents'));
       await tester.pumpAndSettle();
@@ -2125,7 +2335,12 @@ void main() {
     'folder failure keeps native Back available and shared root readable',
     (tester) async {
       final repository = _NavigationFilesRepository()..denyFolder = true;
-      final router = _filesRouter();
+      final router = _filesRouter(
+        initialLocation: AppRoutes.filesLocation(
+          '/',
+          spaceRef: 'workspace-default',
+        ),
+      );
       addTearDown(router.dispose);
       await tester.pumpWidget(
         _filesNavigationApp(
@@ -2137,9 +2352,6 @@ void main() {
       final container = ProviderScope.containerOf(
         tester.element(find.byType(FilesScreen)),
       );
-      await container
-          .read(filesProvider.notifier)
-          .selectRootSpace('workspace-default');
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(ListTile, 'Documents'));
       await tester.pumpAndSettle();
@@ -3365,16 +3577,40 @@ void main() {
                   ),
                 ),
               );
-              await tester.pumpWidget(
-                _filesTestApp(
-                  Builder(
-                    builder: (context) => MediaQuery(
-                      data: MediaQuery.of(
-                        context,
-                      ).copyWith(textScaler: TextScaler.linear(scale)),
-                      child: const SizedBox(height: 700, child: FilesScreen()),
-                    ),
+              final router = GoRouter(
+                initialLocation: AppRoutes.filesLocation(
+                  '/',
+                  spaceRef: 'workspace-default',
+                ),
+                routes: [
+                  GoRoute(
+                    path: AppRoutes.files,
+                    builder: (context, state) =>
+                        const Scaffold(body: FilesLocationsScreen()),
+                    routes: [
+                      GoRoute(
+                        path: AppRoutes.filesPrivateRelative,
+                        builder: (context, state) =>
+                            const FilesFolderRoute(path: '/'),
+                      ),
+                      GoRoute(
+                        path: AppRoutes.filesSpaceRelative,
+                        builder: (context, state) => const Scaffold(
+                          body: SizedBox(
+                            height: 700,
+                            child: FilesScreen(isFolderRoute: true),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
+                ],
+              );
+              addTearDown(router.dispose);
+              await tester.pumpWidget(
+                _filesNavigationApp(
+                  router,
+                  textScale: scale,
                   overrides: [
                     filesProvider.overrideWith(_PostReplaceFilesController.new),
                     weaveApiMemberSpacesProvider.overrideWith(
@@ -3384,6 +3620,16 @@ void main() {
                           'workspace-default': 'Organization workspace',
                         },
                         defaultSpaceReadable: true,
+                      ),
+                    ),
+                    appStartDiscoveryClientProvider.overrideWith(
+                      (ref) => buildTestDiscoveryClient(
+                        ref.watch(serverConfigurationRepositoryProvider),
+                      ),
+                    ),
+                    serverConfigurationRepositoryProvider.overrideWith(
+                      (ref) => _FakeServerConfigurationRepository(
+                        buildTestConfiguration(),
                       ),
                     ),
                     filesRepositoryProvider.overrideWithValue(repository),
@@ -3420,8 +3666,8 @@ void main() {
               );
               await tester.pumpAndSettle();
 
-              // Stop mid-scroll, where a pinned large title clipped the selector's
-              // semantics despite its rendered 48px height.
+              // Stop mid-scroll, where a pinned large title previously clipped
+              // interactive toolbar semantics despite their rendered height.
               final gesture = await tester.startGesture(
                 tester.getCenter(find.byType(CustomScrollView)),
               );
@@ -3439,14 +3685,40 @@ void main() {
               // top; a scrolling title must not hide or disable them.
               tester.state<ScrollableState>(scrollable).position.jumpTo(0);
               await tester.pumpAndSettle();
-              final selector = find.byKey(const Key('files-space-selector'));
-              expect(tester.getSize(selector).height, greaterThanOrEqualTo(48));
-              await tester.tap(selector);
+              expect(
+                find.byKey(const Key('files-space-selector')),
+                findsNothing,
+              );
+              expect(find.text('Organization workspace'), findsWidgets);
+              // pageBack uses an English tooltip; exercise the real localized Back button.
+              final back = find.byType(BackButton);
+              expect(back.hitTestable(), findsOneWidget);
+              await tester.tap(back.hitTestable());
               await tester.pumpAndSettle();
-              await tester.tap(find.text(l10n.filesPrivateSpace).last);
+              expect(find.byType(FilesLocationsScreen), findsOneWidget);
+              final privateLocation = find.byWidgetPredicate(
+                (widget) =>
+                    widget is Semantics &&
+                    widget.properties.identifier == 'files-location-private',
+              );
+              expect(privateLocation.hitTestable(), findsOneWidget);
+              expect(
+                tester.getSize(privateLocation).height,
+                greaterThanOrEqualTo(48),
+              );
+              expect(
+                tester.getSemantics(privateLocation).getSemanticsData().label,
+                contains(l10n.filesPrivateSpace),
+              );
+              await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
+              await expectLater(
+                tester,
+                meetsGuideline(labeledTapTargetGuideline),
+              );
+              await tester.tap(privateLocation);
               await tester.pumpAndSettle();
               final container = ProviderScope.containerOf(
-                tester.element(selector),
+                tester.element(find.byType(FilesScreen)),
               );
               expect(
                 container.read(filesProvider).requireValue.rootSpaceRef,

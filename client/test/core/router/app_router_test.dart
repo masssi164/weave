@@ -43,6 +43,7 @@ import 'package:weave/features/chat/presentation/chat_room_screen.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/presentation/files_screen.dart';
+import 'package:weave/features/files/presentation/files_locations_screen.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/help/presentation/help_screen.dart';
 import 'package:weave/features/home/presentation/home_screen.dart';
@@ -1455,7 +1456,7 @@ void main() {
         for (final routeAndType in <(String, Type)>[
           (AppRoutes.home, HomeScreen),
           (AppRoutes.chat, ChatScreen),
-          (AppRoutes.files, FilesScreen),
+          (AppRoutes.files, FilesLocationsScreen),
           (AppRoutes.settings, SettingsScreen),
           (AppRoutes.profile, ProfileScreen),
         ]) {
