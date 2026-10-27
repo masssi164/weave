@@ -3,6 +3,7 @@ package com.massimotter.weave.backend.identity;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.massimotter.weave.backend.api.error.ApiErrorException;
 import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
 import java.util.List;
 import java.util.Map;
@@ -123,11 +124,11 @@ class OrganizationIdentityContextResolverTest {
         for (List<String> roles : List.of(List.<String>of(), List.of("superadmin"), List.of("owner", "member"))) {
             assertThatThrownBy(() -> resolver.resolveVerifiedMember(
                     "https://auth.example.invalid/realms/weave", "person-1", roles, List.of("/members")))
-                    .isInstanceOf(com.massimotter.weave.backend.exception.ApiErrorException.class);
+                    .isInstanceOf(ApiErrorException.class);
         }
         assertThatThrownBy(() -> resolver.resolveVerifiedMember(
                 "https://auth.example.invalid/realms/weave", "person-1", null, List.of()))
-                .isInstanceOf(com.massimotter.weave.backend.exception.ApiErrorException.class);
+                .isInstanceOf(ApiErrorException.class);
     }
 
     @Test
@@ -135,17 +136,17 @@ class OrganizationIdentityContextResolverTest {
         for (String subject : List.of("", "subject with spaces", "subject#other", "subject" + (char) 0)) {
             assertThatThrownBy(() -> resolver.resolveVerifiedMember(
                     "https://auth.example.invalid/realms/weave", subject, List.of("member"), List.of("/members")))
-                    .isInstanceOf(com.massimotter.weave.backend.exception.ApiErrorException.class);
+                    .isInstanceOf(ApiErrorException.class);
         }
         assertThatThrownBy(() -> resolver.resolveVerifiedMember(
                 "", "person-1", List.of("member"), List.of()))
-                .isInstanceOf(com.massimotter.weave.backend.exception.ApiErrorException.class);
+                .isInstanceOf(ApiErrorException.class);
         assertThatThrownBy(() -> resolver.resolveVerifiedMember(
                 "https://auth.example.invalid/realms/weave", "person-1", List.of("member"), null))
-                .isInstanceOf(com.massimotter.weave.backend.exception.ApiErrorException.class);
+                .isInstanceOf(ApiErrorException.class);
         assertThatThrownBy(() -> resolver.resolveVerifiedMember(
                 "https://auth.example.invalid/realms/weave", "person-1", List.of("member"), List.of("/members\n")))
-                .isInstanceOf(com.massimotter.weave.backend.exception.ApiErrorException.class);
+                .isInstanceOf(ApiErrorException.class);
     }
 
     private static Jwt jwt(Map<String, Object> claims) {

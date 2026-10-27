@@ -46,9 +46,10 @@ class KeycloakAdminTransportTest {
     properties
         .keycloak()
         .setBaseUrl(URI.create("http://127.0.0.1:" + server.getAddress().getPort()));
-    RestClient client =
-        new KeycloakAuthConfig()
-            .keycloakIdentityAdminRestClient(RestClient.builder(), tokens, properties);
+    RestClient.Builder builder =
+        RestClient.builder().baseUrl(properties.keycloak().baseUrl().toString());
+    KeycloakAuthConfig.configureTransport(builder, tokens, properties.keycloak());
+    RestClient client = builder.build();
 
     int status =
         client
@@ -78,9 +79,10 @@ class KeycloakAdminTransportTest {
     properties
         .keycloak()
         .setBaseUrl(URI.create("http://127.0.0.1:" + server.getAddress().getPort()));
-    RestClient client =
-        new KeycloakAuthConfig()
-            .keycloakIdentityAdminRestClient(RestClient.builder(), tokens, properties);
+    RestClient.Builder builder =
+        RestClient.builder().baseUrl(properties.keycloak().baseUrl().toString());
+    KeycloakAuthConfig.configureTransport(builder, tokens, properties.keycloak());
+    RestClient client = builder.build();
 
     client.get().uri("/admin/realms/weave/organizations").retrieve().toBodilessEntity();
 
