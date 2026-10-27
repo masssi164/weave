@@ -1,4 +1,4 @@
-name: Temporary Weave runner capacity inventory
+name: Temporary Weave owned image inventory
 
 on:
   push:
@@ -17,12 +17,11 @@ jobs:
       group: weave-live-mac-mini-exclusive
       cancel-in-progress: false
     steps:
-      - name: Read aggregate cache and filesystem capacity
+      - name: Inspect only Weave image provenance and current references
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import concurrent.futures
           import json
           import os
           from pathlib import Path
@@ -33,72 +32,98 @@ jobs:
 
           if os.environ.get('RUNNER_NAME') != 'weave-live-mac-mini':
               raise SystemExit('Unexpected runner')
-          workspace = Path(os.environ['GITHUB_WORKSPACE'])
-          temporary = Path(os.environ['RUNNER_TEMP'])
-          home = Path.home()
-          for root in (workspace, temporary, home):
-              if not root.is_absolute() or not root.is_dir() or root.is_symlink():
-                  raise SystemExit('Invalid inventory root')
-          repository = workspace / 'weave'
-          if not (repository / 'tools').is_dir():
-              repository = workspace
-          candidates = {
-              'weave_checkout_build': repository / 'build',
-              'weave_checkout_gradle': repository / '.gradle',
-              'weave_client_build': repository / 'client/build',
-              'weave_client_dart_tool': repository / 'client/.dart_tool',
-              'weave_rust_matrix_target': repository / 'rust/matrix-protocol/target',
-              'weave_rust_sdk_target': repository / 'rust/matrix-sdk-core/target',
-              'weave_server_build': repository / 'server/build',
-              'weave_product_e2e_build': repository / 'weave-product-e2e/build',
-              'runner_temp_total': temporary,
-              'gradle_cache_total': home / '.gradle/caches',
-              'pub_cache_total': home / '.pub-cache',
-              'xcode_derived_data_total': home / 'Library/Developer/Xcode/DerivedData',
-              'simulator_devices_total': home / 'Library/Developer/CoreSimulator/Devices',
-          }
-          artifact_name = re.compile(r'weave-(?:qualification|deployment|physical)-artifacts-[1-9][0-9]*-[1-9][0-9]*')
-          artifacts = [path for path in temporary.iterdir() if artifact_name.fullmatch(path.name)]
+          digest = re.compile(r'sha256:[0-9a-f]{64}')
+          sha = re.compile(r'[0-9a-f]{40}')
+          container = re.compile(r'[0-9a-f]{64}')
+          known_modules = {'server', 'weave-mcp-server', 'keycloak-runtime'}
 
-          def measure(path):
-              if not path.exists():
-                  return {'status': 'absent', 'bytes': 0}
-              info = path.lstat()
-              if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or path.is_symlink():
-                  return {'status': 'unmeasured'}
-              try:
-                  result = subprocess.run(['du', '-sk', str(path)], capture_output=True, text=True, timeout=20)
-                  if result.returncode:
-                      return {'status': 'unavailable'}
-                  size = result.stdout.split()[0]
-                  if not size.isdecimal():
-                      return {'status': 'unavailable'}
-                  return {'status': 'measured', 'bytes': int(size) * 1024}
-              except (OSError, subprocess.SubprocessError):
-                  return {'status': 'unavailable'}
+          def command(args, timeout=30):
+              result = subprocess.run(['docker', *args], capture_output=True, text=True, timeout=timeout)
+              if result.returncode:
+                  raise SystemExit('Docker inventory unavailable')
+              return result.stdout
 
-          with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-              measured = dict(zip(candidates, executor.map(measure, candidates.values())))
-              artifact_sizes = list(executor.map(measure, artifacts))
-          measured['runner_weave_artifact_sets'] = {
-              'count': len(artifacts),
-              'measuredCount': sum(item['status'] == 'measured' for item in artifact_sizes),
-              'bytes': sum(item.get('bytes', 0) for item in artifact_sizes),
-          }
-          usage = shutil.disk_usage(workspace)
-          docker = []
-          try:
-              result = subprocess.run(['docker', 'system', 'df', '--format', '{{json .}}'], capture_output=True, text=True, timeout=30)
-              if result.returncode == 0:
-                  for line in result.stdout.splitlines():
-                      row = json.loads(line)
-                      docker.append({key: str(row.get(key, ''))[:100] for key in ('Type', 'TotalCount', 'Active', 'Size', 'Reclaimable')})
-          except (OSError, subprocess.SubprocessError, ValueError):
-              pass
+          def safe_private_file(path):
+              if not path.is_absolute() or any(p.is_symlink() for p in (path, *path.parents)):
+                  raise SystemExit('Private ledger path rejected')
+              info = path.stat()
+              if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077 or info.st_nlink != 1 or info.st_size > 256 * 1024:
+                  raise SystemExit('Private ledger safety check failed')
+
+          ledger_path = Path.home() / '.weave/artifact-runtime-images/ledger.json'
+          retained = set()
+          pending = set()
+          retained_sets = 0
+          if ledger_path.exists():
+              safe_private_file(ledger_path)
+              value = json.loads(ledger_path.read_text())
+              if value.get('schemaVersion') != 'weave.runtime-image-ledger/v1' or value.get('ownerUid') != os.getuid():
+                  raise SystemExit('Private ledger schema rejected')
+              retained_sets = len(value.get('retainedSets', []))
+              for entry in value.get('retainedSets', []):
+                  retained.update(entry.get('images', {}).values())
+              pending.update(value.get('pendingImageIds', []))
+              if not all(isinstance(v, str) and digest.fullmatch(v) for v in retained | pending):
+                  raise SystemExit('Private ledger image identity rejected')
+
+          containers = command(['container', 'ls', '--all', '--quiet', '--no-trunc']).split()
+          if not all(container.fullmatch(v) for v in containers) or len(containers) > 1000:
+              raise SystemExit('Container inventory rejected')
+          used = set()
+          for offset in range(0, len(containers), 50):
+              used.update(command(['container', 'inspect', '--format', '{{.Image}}', *containers[offset:offset + 50]]).split())
+          if not all(digest.fullmatch(v) for v in used):
+              raise SystemExit('Container image identities rejected')
+
+          image_ids = sorted(set(command(['image', 'ls', '--all', '--quiet', '--no-trunc']).split()))
+          if not all(digest.fullmatch(v) for v in image_ids) or len(image_ids) > 2000:
+              raise SystemExit('Image inventory rejected')
+          # The projection deliberately omits environment values, commands, unrelated labels,
+          # container names, operator paths, and private fixture/provisioning state.
+          fields = [
+              '{{json .Id}}', '{{json .Size}}', '{{json .RepoTags}}', '{{json .RepoDigests}}',
+              '{{json (index .Config.Labels "org.opencontainers.image.source")}}',
+              '{{json (index .Config.Labels "org.opencontainers.image.revision")}}',
+              '{{json (index .Config.Labels "com.massimotter.weave.module")}}',
+              '{{json (index .Config.Labels "com.massimotter.weave.spec-digest")}}',
+          ]
+          rows = []
+          for offset in range(0, len(image_ids), 25):
+              result = command(['image', 'inspect', '--format', '\t'.join(fields), *image_ids[offset:offset + 25]])
+              for line in result.splitlines():
+                  values = [json.loads(v) for v in line.split('\t')]
+                  if len(values) != len(fields):
+                      raise SystemExit('Image projection rejected')
+                  image_id, size, tags, references, source, revision, module, spec = values
+                  if source != 'https://github.com/masssi164/weave' or module not in known_modules:
+                      continue
+                  if not digest.fullmatch(image_id) or not isinstance(size, int) or size < 0:
+                      raise SystemExit('Weave image identity rejected')
+                  # Invalid old labels are reported only as boolean flags, never raw strings.
+                  valid_revision = isinstance(revision, str) and bool(sha.fullmatch(revision))
+                  valid_spec = isinstance(spec, str) and bool(digest.fullmatch(spec))
+                  rows.append({
+                      'imageId': image_id, 'module': module, 'virtualBytes': size,
+                      'sourceCommit': revision if valid_revision else None,
+                      'validSpecDigest': valid_spec,
+                      'tagCount': len(tags or []), 'registryReferenceCount': len(references or []),
+                      'referencedByAnyContainer': image_id in used,
+                      'protectedByRetainedSet': image_id in retained,
+                      'recordedForPrune': image_id in pending,
+                      'unreferencedUntaggedOutsideRetainedSets': not tags and not references and image_id not in used and image_id not in retained,
+                  })
+          eligible = [v for v in rows if v['unreferencedUntaggedOutsideRetainedSets'] and v['sourceCommit'] and v['validSpecDigest']]
+          usage = shutil.disk_usage(Path(os.environ['GITHUB_WORKSPACE']))
           print(json.dumps({
-              'schemaVersion': 'weave.runner-capacity-inventory/v1',
-              'mode': 'read-only', 'supportSafe': True, 'containsSecretValues': False,
-              'filesystem': {'totalBytes': usage.total, 'usedBytes': usage.used, 'freeBytes': usage.free},
-              'directories': measured, 'dockerSummary': docker,
+              'schemaVersion': 'weave.owned-image-inventory/v1', 'mode': 'read-only',
+              'supportSafe': True, 'containsSecretValues': False,
+              'freeBytes': usage.free, 'minimumFreeBytes': 20 * 1024 ** 3,
+              'installedImageCount': len(image_ids), 'containerCount': len(containers),
+              'retainedSetCount': retained_sets, 'pendingImageCount': len(pending),
+              'weaveImages': rows,
+              'candidateCount': len(eligible),
+              'candidateVirtualBytesUpperBound': sum(v['virtualBytes'] for v in eligible),
+              'actualReclaimableBytes': None,
+              'buildCacheOwnership': 'not-proven',
           }, sort_keys=True))
           PY
