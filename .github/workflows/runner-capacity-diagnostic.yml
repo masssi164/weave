@@ -75,26 +75,25 @@ jobs:
           if not all(digest.fullmatch(v) for v in used):
               raise SystemExit('Container image identities rejected')
 
-          image_ids = sorted(set(command(['image', 'ls', '--all', '--quiet', '--no-trunc']).split()))
+          image_ids = sorted(set(command(['image', 'ls', '--all', '--quiet', '--no-trunc', '--filter', 'label=org.opencontainers.image.source=https://github.com/masssi164/weave']).split()))
           if not all(digest.fullmatch(v) for v in image_ids) or len(image_ids) > 2000:
               raise SystemExit('Image inventory rejected')
           # The projection deliberately omits environment values, commands, unrelated labels,
           # container names, operator paths, and private fixture/provisioning state.
-          fields = [
-              '{{json .Id}}', '{{json .Size}}', '{{json .RepoTags}}', '{{json .RepoDigests}}',
-              '{{json (index .Config.Labels "org.opencontainers.image.source")}}',
-              '{{json (index .Config.Labels "org.opencontainers.image.revision")}}',
-              '{{json (index .Config.Labels "com.massimotter.weave.module")}}',
-              '{{json (index .Config.Labels "com.massimotter.weave.spec-digest")}}',
-          ]
           rows = []
           for offset in range(0, len(image_ids), 25):
-              result = command(['image', 'inspect', '--format', '\t'.join(fields), *image_ids[offset:offset + 25]])
-              for line in result.splitlines():
-                  values = [json.loads(v) for v in line.split('\t')]
-                  if len(values) != len(fields):
-                      raise SystemExit('Image projection rejected')
-                  image_id, size, tags, references, source, revision, module, spec = values
+              result = command(['image', 'inspect', *image_ids[offset:offset + 25]])
+              for value in json.loads(result):
+                  # Full inspection stays process-local; only this closed projection is emitted.
+                  labels = (value.get('Config') or {}).get('Labels') or {}
+                  image_id = value.get('Id')
+                  size = value.get('Size')
+                  tags = value.get('RepoTags')
+                  references = value.get('RepoDigests')
+                  source = labels.get('org.opencontainers.image.source')
+                  revision = labels.get('org.opencontainers.image.revision')
+                  module = labels.get('com.massimotter.weave.module')
+                  spec = labels.get('com.massimotter.weave.spec-digest')
                   if source != 'https://github.com/masssi164/weave' or module not in known_modules:
                       continue
                   if not digest.fullmatch(image_id) or not isinstance(size, int) or size < 0:
