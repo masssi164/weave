@@ -66,7 +66,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          image_id="$(infra/weave-workspace/scripts/build_runtime_state_image.sh)"
+          image_id="$(infra/weave-workspace/scripts/build_runtime_state_image.sh --platform linux/amd64)"
           docker tag "$image_id" weave-runtime-state:ci-s3
           echo 'WEAVE_MINIO_TEST_IMAGE=weave-runtime-state:ci-s3' >> "$GITHUB_ENV"
       - run: ./gradlew --no-daemon --stacktrace protocolFacadeFoundationCi
