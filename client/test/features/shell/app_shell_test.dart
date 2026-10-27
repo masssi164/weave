@@ -15,6 +15,7 @@ import 'package:weave/features/chat/presentation/providers/chat_security_reposit
 import 'package:weave/features/chat/presentation/chat_screen.dart';
 import 'package:weave/features/calendar/presentation/calendar_screen.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
+import 'package:weave/features/app/domain/entities/member_space_access_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/app/domain/entities/workspace_home_snapshot.dart';
@@ -159,6 +160,12 @@ void main() {
             FakeChatSecurityRepository(),
           ),
           userProfileProvider.overrideWith((ref) async => _memberProfile),
+          weaveApiMemberSpacesProvider.overrideWith(
+            (ref) async => const MemberSpaceAccessSnapshot(
+              visibleSpaceRefs: {},
+              defaultSpaceReadable: false,
+            ),
+          ),
           filesRepositoryProvider.overrideWithValue(
             filesRepository ??
                 FakeFilesRepository(
