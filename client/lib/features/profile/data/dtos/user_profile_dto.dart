@@ -3,7 +3,9 @@ import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/generated/user_api/api.dart' as openapi;
 
 extension AuthenticatedUserResponseMapper on openapi.AuthenticatedUserResponse {
-  UserProfile toDomain() {
+  UserProfile toDomain({
+    Map<String, String> accessibilityPreferences = const <String, String>{},
+  }) {
     final requiredUsername = _requiredString(username, 'username');
     return UserProfile(
       userId: _requiredString(userId, 'userId'),
@@ -15,6 +17,7 @@ extension AuthenticatedUserResponseMapper on openapi.AuthenticatedUserResponse {
       timezone: _optionalNonBlank(timezone) ?? 'UTC',
       roles: roles,
       groups: groups,
+      accessibilityPreferences: Map.unmodifiable(accessibilityPreferences),
     );
   }
 }
@@ -32,6 +35,7 @@ extension ProductProfileResponseMapper on openapi.ProductProfileResponse {
       timezone: _optionalNonBlank(timezone) ?? 'UTC',
       roles: const <String>[],
       groups: const <String>[],
+      accessibilityPreferences: Map.unmodifiable(accessibilityPreferences),
     );
   }
 }

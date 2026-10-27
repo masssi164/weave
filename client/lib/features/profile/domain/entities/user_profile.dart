@@ -11,6 +11,7 @@ class UserProfile {
     this.email,
     this.roles = const <String>[],
     this.groups = const <String>[],
+    this.accessibilityPreferences = const <String, String>{},
   });
 
   final String userId;
@@ -22,6 +23,10 @@ class UserProfile {
   final String timezone;
   final List<String> roles;
   final List<String> groups;
+  final Map<String, String> accessibilityPreferences;
+
+  bool get prefersReducedMotion =>
+      accessibilityPreferences['reducedMotion']?.trim().toLowerCase() == 'true';
 }
 
 extension UserProfilePermissions on UserProfile {

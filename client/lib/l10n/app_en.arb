@@ -1135,11 +1135,11 @@
   "@settingsBrandSectionDescription": {
     "description": "Subtle branded copy shown in the settings header card"
   },
-  "settingsSupportDiagnosticsTitle": "Support diagnostics",
+  "settingsSupportDiagnosticsTitle": "App information",
   "@settingsSupportDiagnosticsTitle": {
     "description": "Settings section title for support-safe server and installed build identity"
   },
-  "settingsSupportDiagnosticsDescription": "Use these values to confirm which server and immutable app candidate are installed. They contain no session tokens or provider credentials.",
+  "settingsSupportDiagnosticsDescription": "Share the references and app version with support if you need help. Never share passwords or sign-in codes.",
   "@settingsSupportDiagnosticsDescription": {
     "description": "Description of the support-safe build diagnostics card"
   },
@@ -1175,7 +1175,7 @@
   "@settingsSupportValueLoading": {
     "description": "Value shown while support diagnostics are loading"
   },
-  "settingsSupportValueUnavailable": "Not embedded in this build",
+  "settingsSupportValueUnavailable": "Unavailable",
   "@settingsSupportValueUnavailable": {
     "description": "Value shown when immutable candidate metadata is unavailable"
   },

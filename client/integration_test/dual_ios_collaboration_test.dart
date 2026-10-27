@@ -22,10 +22,7 @@ import 'package:weave/features/app/domain/entities/workspace_capability_snapshot
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/core/persistence/secure_store.dart';
-import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/widgets/success_state.dart';
-import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
-import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/data/dtos/auth_session_dto.dart';
@@ -424,19 +421,11 @@ Finder nativeDualHandoffSignIn(String label) => find.descendant(
 
 String nativeDualOnboardingDiagnostic({
   required String role,
-  required String authState,
-  required String visibleState,
-  required String errorCode,
-  required Map<String, int> counts,
+  required Map<String, int> visibleWidgetCounts,
 }) {
-  String known(String value, Set<String> allowed) =>
-      allowed.contains(value) ? value : 'unavailable';
   return 'NATIVE_PRODUCT_STAGE phase=onboarding-failed '
-      'actor=${known(role, {'A', 'B'})} '
-      'authState=${known(authState, MemberAuthOnboardingStage.values.map((state) => state.serialized).toSet())} '
-      'visibleState=${known(visibleState, {'handoff_ready', 'handoff_error', 'authenticated_redirect'})} '
-      'errorCode=${known(errorCode, {'none', 'WEAVE-APP-START-DISCOVERY-INVALID', 'WEAVE-APP-START-DISCOVERY-FAILED', 'WEAVE-APP-START-TIMEOUT', 'WEAVE-APP-START-TLS-FAILED', 'WEAVE-APP-START-DNS-FAILED', 'WEAVE-APP-START-NETWORK-FAILED', 'WEAVE-LAN-UNREACHABLE', 'WEAVE-HANDOFF-INVALID', 'WEAVE-SSO-CANCELLED', 'WEAVE-SSO-CONFIGURATION-MISSING', 'WEAVE-SSO-NOT-COMPLETE', 'WEAVE-SESSION-STORAGE-FAILED', 'WEAVE-SSO-UNSUPPORTED-DEVICE', 'WEAVE-SSO-UNKNOWN', 'WEAVE-MOBILE-OFFLINE-SESSION-DENIED', 'WEAVE-WORKSPACE-BOOTSTRAP-NOT-READY', 'PlatformException', 'StateError', 'FormatException'})} '
-      '${['organization', 'handoff', 'ready', 'signIn', 'workspace'].map((name) => '${name}Count=${(counts[name] ?? 0).clamp(0, 999)}').join(' ')}';
+      "actor=${role == 'A' || role == 'B' ? role : 'unavailable'} "
+      '${['organization', 'handoff', 'ready', 'signIn', 'workspace'].map((name) => '${name}Count=${(visibleWidgetCounts[name] ?? 0).clamp(0, 999)}').join(' ')}';
 }
 
 Future<void> safelyReportDualOnboardingFailure({
@@ -464,32 +453,10 @@ Future<void> _reportOnboardingFailure(
   if (failure != null) {
     emitNativeAuthFailureDiagnostic(failure, simulatorDriver: true);
   }
-  final store = container.read(preferencesStoreProvider);
-  Future<Map<String, dynamic>> read(String key) async {
-    final raw = await store.getString(key);
-    if (raw == null || raw.length > 16384) return {};
-    return jsonDecode(raw) as Map<String, dynamic>;
-  }
-
-  final auth = await read(dogfoodAuthStateStorageKey);
-  final visible = await read(dogfoodVisibleStateStorageKey);
-  final consumed = await read(lastHandoffConsumedStorageKey);
   emitNativeProductDiagnostic(
     nativeDualOnboardingDiagnostic(
       role: role,
-      authState: auth['state'] is String
-          ? auth['state'] as String
-          : 'unavailable',
-      visibleState: visible['state'] is String
-          ? visible['state'] as String
-          : 'unavailable',
-      errorCode:
-          (visible['errorCode'] ??
-                  consumed['errorCode'] ??
-                  auth['errorCode'] ??
-                  'none')
-              .toString(),
-      counts: {
+      visibleWidgetCounts: {
         'organization': find.byType(OrganizationAccessScreen).evaluate().length,
         'handoff': find.byType(MemberHandoffScreen).evaluate().length,
         'ready': find
@@ -930,14 +897,6 @@ void main() {
           expect(signIn, findsOneWidget);
           final onboardingContainer = ProviderScope.containerOf(
             tester.element(find.byType(WeaveApp)),
-          );
-          final rawState = await onboardingContainer
-              .read(preferencesStoreProvider)
-              .getString(dogfoodAuthStateStorageKey);
-          expect(rawState, isNotNull);
-          expect(
-            (jsonDecode(rawState!) as Map<String, dynamic>)['state'],
-            'ready_for_sso',
           );
           final selected = await onboardingContainer.read(
             savedServerConfigurationProvider.future,

@@ -1563,13 +1563,13 @@ abstract class AppLocalizations {
   /// Settings section title for support-safe server and installed build identity
   ///
   /// In en, this message translates to:
-  /// **'Support diagnostics'**
+  /// **'App information'**
   String get settingsSupportDiagnosticsTitle;
 
   /// Description of the support-safe build diagnostics card
   ///
   /// In en, this message translates to:
-  /// **'Use these values to confirm which server and immutable app candidate are installed. They contain no session tokens or provider credentials.'**
+  /// **'Share the references and app version with support if you need help. Never share passwords or sign-in codes.'**
   String get settingsSupportDiagnosticsDescription;
 
   /// Label for the support-safe workspace server origin
@@ -1623,7 +1623,7 @@ abstract class AppLocalizations {
   /// Value shown when immutable candidate metadata is unavailable
   ///
   /// In en, this message translates to:
-  /// **'Not embedded in this build'**
+  /// **'Unavailable'**
   String get settingsSupportValueUnavailable;
 
   /// Formatted installed version and build number

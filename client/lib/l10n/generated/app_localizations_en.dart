@@ -930,11 +930,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'Tune Weave for this device: appearance, language, profile context, module visibility, and safe sign-out.';
 
   @override
-  String get settingsSupportDiagnosticsTitle => 'Support diagnostics';
+  String get settingsSupportDiagnosticsTitle => 'App information';
 
   @override
   String get settingsSupportDiagnosticsDescription =>
-      'Use these values to confirm which server and immutable app candidate are installed. They contain no session tokens or provider credentials.';
+      'Share the references and app version with support if you need help. Never share passwords or sign-in codes.';
 
   @override
   String get settingsSupportServerLabel => 'Workspace server';
@@ -963,7 +963,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsSupportValueLoading => 'Loading…';
 
   @override
-  String get settingsSupportValueUnavailable => 'Not embedded in this build';
+  String get settingsSupportValueUnavailable => 'Unavailable';
 
   @override
   String settingsSupportVersionValue(String version, String buildNumber) {
