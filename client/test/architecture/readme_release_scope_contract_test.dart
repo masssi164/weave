@@ -4,22 +4,50 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test(
-    'README Product screenshots describe the active maturity track honestly',
+    'README design illustrations distinguish concepts from executable evidence',
     () async {
       final readme = await File('README.md').readAsString();
-      final productScreenshots = _section(readme, '## Product screenshots');
+      final illustrations = _section(readme, '## Design illustrations');
 
-      expect(productScreenshots, contains('active product-maturity'));
-      expect(productScreenshots, contains('01-setup-start.svg'));
-      expect(productScreenshots, contains('02-review-service-endpoints.svg'));
-      expect(productScreenshots, contains('03-chat-room.svg'));
-      expect(productScreenshots, contains('04-files-documents.svg'));
-      expect(productScreenshots, contains('05-settings.svg'));
+      expect(illustrations, contains('earlier design concepts'));
+      expect(illustrations, contains('one organization origin'));
+      expect(illustrations, contains('OrgManifest'));
+      expect(illustrations, contains('endpoint setup belongs to deployment'));
       expect(
-        productScreenshots,
-        isNot(contains('06-calendar-setup-readiness-preview.svg')),
+        illustrations,
+        contains('executable product evidence comes from the native acceptance'),
       );
-      expect(productScreenshots, isNot(contains('07-boards-preview.svg')));
+      expect(illustrations, isNot(contains('active product-maturity')));
+
+      final images = RegExp(
+        r'<img src="([^"]+)" alt="([^"]+)" width="560">',
+      ).allMatches(illustrations).toList();
+
+      expect(images.map((image) => image.group(1)).toList(), <String>[
+        '../docs/assets/marketing/01-setup-start.svg',
+        '../docs/assets/marketing/02-review-service-endpoints.svg',
+        '../docs/assets/marketing/03-chat-room.svg',
+        '../docs/assets/marketing/04-files-documents.svg',
+        '../docs/assets/marketing/05-settings.svg',
+      ]);
+
+      for (final image in images) {
+        final assetPath = image.group(1)!;
+        final altText = image.group(2)!;
+
+        expect(
+          File(assetPath).existsSync(),
+          isTrue,
+          reason: '$assetPath exists',
+        );
+        expect(altText.trim(), isNotEmpty, reason: '$assetPath has alt text');
+        expect(altText.toLowerCase(), isNot(contains('preview')));
+      }
+
+      final lowerIllustrations = illustrations.toLowerCase();
+      for (final gatedSurface in ['calendar', 'deck', 'boards', 'tasks']) {
+        expect(lowerIllustrations, isNot(contains(gatedSurface)));
+      }
     },
   );
 
@@ -30,8 +58,8 @@ void main() {
     final calendarRoadmap = _section(roadmap, '## Shared calendars');
     final boardsRoadmap = _section(roadmap, '## Boards/tasks');
 
+    expect(roadmap.toLowerCase(), isNot(contains('preview')));
     expect(calendarRoadmap, contains('06-calendar-roadmap-readiness.svg'));
-    expect(calendarRoadmap.toLowerCase(), isNot(contains('preview')));
     expect(
       calendarRoadmap,
       contains('shared workspace, team, and channel scheduling'),
@@ -42,7 +70,6 @@ void main() {
     );
 
     expect(boardsRoadmap, contains('07-boards-feature-gate.svg'));
-    expect(boardsRoadmap.toLowerCase(), isNot(contains('preview')));
     expect(boardsRoadmap, contains('active Weave scope behind feature gates'));
     expect(boardsRoadmap, contains('provider-neutral'));
     expect(boardsRoadmap, contains('must not claim a live Vikunja'));
