@@ -34,7 +34,7 @@ class DogfoodPreparationServiceTest {
     private final KeycloakIdentityAdminClient keycloak = mock(KeycloakIdentityAdminClient.class);
     private final WorkspaceCapabilityService capabilities = mock(WorkspaceCapabilityService.class);
     private final OrganizationIdentityContextResolver identities = OrganizationIdentityContextResolver.configured(
-            new com.massimotter.weave.backend.config.ContextAuthorizationProperties(
+            new com.massimotter.weave.backend.security.config.ContextAuthorizationProperties(
                     null, null, "org", null, null, null, null, null));
     private final IdentityOpaqueReferenceCodec references = mock(IdentityOpaqueReferenceCodec.class);
     private final DogfoodSpacePreparationPort spaces = mock(DogfoodSpacePreparationPort.class);

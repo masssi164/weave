@@ -40,7 +40,7 @@ import static org.mockito.Mockito.*;
 class DefaultSpaceBootstrapServiceTest {
     private final KeycloakIdentityAdminClient keycloak = mock(KeycloakIdentityAdminClient.class);
     private final OrganizationIdentityContextResolver identities = OrganizationIdentityContextResolver.configured(
-            new com.massimotter.weave.backend.config.ContextAuthorizationProperties(
+            new com.massimotter.weave.backend.security.config.ContextAuthorizationProperties(
                     null, null, "org:configured", null, null, null, null, null));
     private final WorkspaceCapabilityService capabilities = mock(WorkspaceCapabilityService.class);
     private final DefaultSpacePreparationPort spaces = mock(DefaultSpacePreparationPort.class);
