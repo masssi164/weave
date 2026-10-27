@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.config;
 
+import com.massimotter.weave.backend.config.keycloak.SpringSecurityKeycloakAdminAccessTokenProvider;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakAgentRuntimeWorkloadIdentityAdmin;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakRuntimeIdentityAuthority;
 import java.net.URI;

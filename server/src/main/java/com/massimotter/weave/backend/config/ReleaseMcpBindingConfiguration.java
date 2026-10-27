@@ -2,6 +2,7 @@ package com.massimotter.weave.backend.config;
 
 import com.massimotter.weave.backend.agentruntime.adapter.FileReleaseMcpBindingRepository;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakAdminAccessTokenProvider;
+import com.massimotter.weave.backend.config.keycloak.KeycloakAuthConfig;
 import com.massimotter.weave.backend.agentruntime.adapter.KeycloakRuntimeIdentityAuthority;
 import com.massimotter.weave.backend.agentruntime.adapter.McpExchangedTokenPolicy;
 import com.massimotter.weave.backend.agentruntime.application.McpWorkloadAuthorizationService;
@@ -37,7 +38,7 @@ public class ReleaseMcpBindingConfiguration {
   RuntimeEntitlementAuthority releaseMcpEntitlementAuthority(
       AgentRuntimeWorkloadIdentityProperties properties,
       AgentRuntimeEntitlementProperties entitlement,
-      @Qualifier(KeycloakAdminClientConfiguration.KEYCLOAK_ADMIN_ACCESS_TOKENS)
+      @Qualifier(KeycloakAuthConfig.KEYCLOAK_ADMIN_ACCESS_TOKENS)
           KeycloakAdminAccessTokenProvider accessTokens,
       ObjectMapper mapper) {
     return new KeycloakRuntimeIdentityAuthority(

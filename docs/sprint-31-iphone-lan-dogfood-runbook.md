@@ -1,7 +1,10 @@
 # Sprint 31 runbook — Physical iPhone LAN dogfood
 
-Status: the trust and physical-device notes remain applicable; delivery now follows
-the direct Compose path in `docs/ios-dogfood-distribution.md`.
+Status: **historical Sprint 31 diagnostic runbook, not a current release procedure**.
+Trust and physical-device notes still apply. Use `docs/ios-dogfood-distribution.md`
+for delivery and `docs/dogfood-auth-onboarding-plan.md` for current evidence.
+The private preference-based handoff/session scripts discussed below are legacy
+diagnostics; their results cannot establish current candidate acceptance.
 
 Sprint 31 prepared Massimo's first real physical iPhone test on the same LAN as the Mac. It does not require public DNS or trusted internet TLS for this local dogfood profile.
 
@@ -118,46 +121,42 @@ Expected tester path before Massimo is asked to try the build:
 1. Install or update Weave as a profile or release app with stable bundle ID `com.massimotter.weave`, provisioning Team ID `KNDHGC2KV6`, developer certificate label `Apple Development: massimo164@me.com (6RUS2Z848X)`, and signing/provisioning profile class. A normal update or trust-preserving app-state reset must not require trusting the developer profile again.
 2. For local self-signed HTTPS, install and fully trust the generated Weave Local Development CA on the iPhone before SSO. Safari/AppAuth use system trust; the app must not hide certificate trust failures. Normal stack restart/recreate must not rotate this CA or the leaf certificate unless explicit rotation is requested.
 3. Tap or scan the invite/QR/handoff.
-4. The app fetches `/api/platform/config`, saves OIDC/API/facade configuration, writes `last_handoff_consumed_v1`, writes `dogfood_auth_state_v1=ready_for_sso`, and shows a handoff-aware workspace sign-in state.
-5. Tap Sign In. The copied app preferences must move to `dogfood_auth_state_v1=sso_in_progress`; a no-op Sign In button is a hard failure.
+4. The app fetches `/api/platform/config`, saves ordinary product configuration, and shows an accessible organization sign-in action.
+5. Tap Sign In. The system browser must open and complete OIDC; a no-op Sign In button is a hard failure.
 6. Complete the identity first-login path in the system browser from the Keycloak required-action activation flow, including account activation and password setup. Passkey/WebAuthn setup should be offered when the dogfood identity profile supports it; otherwise record the support-safe unsupported reason. Do not type a password into the Weave app.
-7. After returning to Weave, copied app preferences must show `dogfood_auth_state_v1=workspace_ready`, and Weave must enter the authenticated workspace/home without raw provider/setup copy.
+7. After returning to Weave, the authenticated workspace/home must be usable without raw provider/setup copy. Native UI evidence, not copied preferences, proves this.
 8. Force-quit and reopen the app. The saved mobile session must restore without another interactive login.
 9. Run the trust-preserving app-state reset path, open the current handoff or organization sign-in path, and complete manual login to the workspace again. This proves fresh-session/manual-login recovery from a user perspective without deleting the Developer App trust anchor. A true uninstall/reinstall is a separate physical-trust-disruptive reset and must be explicitly requested.
 10. Verify dogfood mail from Safari on the iPhone at `https://mail.weave.test:44443` for the current LAN dogfood port profile. Mailpit must capture identity mail locally, remain restricted to the configured private LAN, and never send dogfood mail externally. Loopback port `8025` is only an internal runner-check detail.
 11. Verify `DOGFOOD_TRUST_STABILITY_RESULT` before handoff. If the trust checker emits `DOGFOOD_TRUST_STABILITY_BLOCKED`, report that blocker instead of asking Massimo to retest.
 
-After the full path, copy the app preferences and run:
+The automated ordinary-product prerequisite now verifies the exact-candidate
+native functional receipt (created by the protected functional smoke runner):
 
 ```sh
-WEAVE_DOGFOOD_ACTIVATION_EVIDENCE_JSON=build/dogfood/activation-massimo-home.json \
 tools/dogfood_member_onboarding_gate.sh \
-  --prefs-plist build/dogfood/appdata/com.massimotter.weave.plist \
-  --expected-handoff-ref handoff-s32-massimo-dogfood-home \
-  --expected-run-id s32-massimo-dogfood
+  --functional-evidence-file build/dogfood/functional-smoke.json \
+  --expected-candidate "<qualified candidate SHA>" \
+  --expected-source-tree "<qualified source-tree SHA>" \
+  --expected-specification "<accepted specification SHA>" \
+  --qualification-run-id "<run ID>" \
+  --qualification-run-attempt "<attempt>" \
+  --stage physical
 ```
 
-The command emits `DOGFOOD_MEMBER_ONBOARDING_RESULT` only when the copied app state is support-safe, reaches `workspace_ready`, and includes `dogfood_auth_state_history_v1` with `sso_in_progress`, `authenticated`, `workspace_bootstrap_loading`, and `workspace_ready` in order. With `WEAVE_DOGFOOD_ACTIVATION_EVIDENCE_JSON` set, it also emits `DOGFOOD_ACTIVATION_MAIL_RESULT` only when the activation invite evidence matches the handoff, proves `UPDATE_PASSWORD` required-action mail was sent, and Mailpit contains the local identity mail without printing the action link. That ordered history is the support-safe proof that Sign In opened the browser flow, the app returned after successful credentials, and workspace bootstrap completed. Use `--skip-mailpit` only for a local dry run; it is not sufficient dogfood completion evidence.
+The command accepts only matching, complete native product evidence. It can also
+check Mailpit activation evidence using `WEAVE_DOGFOOD_ACTIVATION_EVIDENCE_JSON`
+and `--expected-handoff-ref`; this is independent from the functional receipt.
+Neither check proves the first owner's browser activation or manual login;
+record that separately as human acceptance after the protected prerequisites pass.
 
 The release acceptance contract records this scenario as live runtime evidence scoped to source `dogfood-member-onboarding`. The generic `live-stack-e2e` lane proves stack login/chat/files/provider/workspace markers, but it must not claim or block on the member invite activation markers unless `tools/dogfood_member_onboarding_gate.sh` produced the dogfood onboarding log.
 
-If the simulator gate is green but the phone is unplugged or Wi-Fi-unreachable, report `SIMULATOR_E2E_GREEN` and `PHYSICAL_DEVICE_E2E_PENDING` separately. The smallest remaining physical command sequence is:
-
-```sh
-WEAVE_IOS_DEVICE_ID=<plugged-iphone-id> \
-WEAVE_IOS_LOCAL_CA_TRUST_STATUS=trusted \
-WEAVE_IOS_RESET_MODE=app_state \
-WEAVE_DOGFOOD_DEEPLINK='<current weave://join... URL>' \
-tools/dogfood_ios_deeplink_smoke.sh
-
-WEAVE_DOGFOOD_ACTIVATION_EVIDENCE_JSON=build/dogfood/activation-massimo-home.json \
-tools/dogfood_member_onboarding_gate.sh \
-  --prefs-plist build/dogfood/appdata/com.massimotter.weave.plist \
-  --expected-handoff-ref handoff-s32-massimo-dogfood-home \
-  --expected-run-id s32-massimo-dogfood
-```
-
-The first command proves installed-client handoff readiness on the plugged iPhone. The second command is valid only after Sign In, first-login activation/password/passkey handling, workspace entry, force-quit restore, trust-preserving app-state reset/manual login, and Mailpit capture have all completed.
+If the simulator gate is green but the phone is unplugged or Wi-Fi-unreachable,
+report `SIMULATOR_E2E_GREEN` and `PHYSICAL_DEVICE_E2E_PENDING` separately.
+Follow the current distribution procedure; do not treat the historical
+`dogfood_ios_deeplink_smoke.sh` preference-based success marker as a substitute
+for real iPhone UI acceptance.
 
 The member path must not ask for OIDC issuer, OIDC client ID, Matrix URL, Nextcloud URL, provider hostname, provider diagnostics, SecretRef, or credential URL. Local development may ask the tester to enable Developer Mode once, trust the local CA once, and trust the Developer App once when Apple policy requires it. Repeated local CA or Developer App trust after normal stack restart, app update, or trust-preserving app-state reset is a release blocker; production/customer links must use publicly trusted TLS and production-signed app distribution.
 
