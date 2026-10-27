@@ -40,7 +40,7 @@ jobs:
           def command(args, timeout=30):
               result = subprocess.run(['docker', *args], capture_output=True, text=True, timeout=timeout)
               if result.returncode:
-                  raise SystemExit('Docker inventory unavailable')
+                  raise SystemExit('Docker inventory unavailable at ' + ' '.join(args[:2]) + ': exit ' + str(result.returncode))
               return result.stdout
 
           def safe_private_file(path):
