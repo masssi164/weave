@@ -10,9 +10,31 @@ The server owns Weave product facades, authorization, audit, provider boundaries
 - Context/Space authorization is the gate for workspace-scoped provider data.
 - Prefer Cucumber/JUnit and facade contract tests for product behavior; map release-grade behavior back to `../e2e/scenario_mappings.json`.
 
-Validation from `server/`:
+## Java/Spring workflow
 
-- `./gradlew test`
+Read `docs/java-spring-standard.md` from the repository root and use the applicable `.agents/skills/weave-*` workflow. The shared standard owns declarative HTTP interfaces, concise functional/Stream API style, bean lifetimes, runtime provider state and native/AOT evidence. Do not duplicate its policy here or treat existing violations as templates.
+
+## Module ownership during extraction
+
+Read `docs/architecture/server-domain-ownership.md` and the affected domain's README/AGENTS. Files, Calendar and Chat actual runtimes (controllers, services, providers, settings and Boot imports), models and transactional JPA adapters are under their `server/domains/` owners. The sole executable is `server/app`; Boards, Office, DevOps, Agent Runtime, Integrations, Guest Access, Portability, Decisions and Meetings now have owning runtime projects for their existing implementations. Shared catalogs/Platform/Home now consume actual owner declarations; selected App production and export dependencies use the existing resolver. Shared Admin now consumes owner declarations; representative selected packaged PostgreSQL startup checks exist. Typed installed workspace statuses, conditional Matrix bootstrap and single-client installed navigation are implemented against pending weave-specs#172. Specification acceptance and platform/live qualification remain open. Incomplete future providers remain explicitly incomplete; module existence does not imply release inclusion. Owning domain checks must not compile against App. Do not recreate old root copies or claim reduced-domain product readiness from packaging alone; accepted bootstrap/schema/client contracts and live qualification still apply.
+
+Shared Java build mechanics live in `server/gradle/scripts/domain-library.gradle`; each library owns its dependencies. Core cannot import optional domain implementation. Shared Security/Identity/Spaces persistence stays with its actual responsibility; no generic dumping ground for domain entities or providers.
+
+Delete obsolete code rather than commenting it out. Record reason, replacement and compatibility impact in the commit and owning domain README. Retain agreed future functionality, not obsolete implementation layers. Update Gradle dependencies, artifact input closure, source guards, domain tests and documentation with each source move.
+
+## Entity-first and ORM-first persistence
+
+Follow `docs/architecture/entity-first-persistence.md`, reconciled with the corpus in weave-specs#170. Entities own ORM-expressible schema, and ordinary data access uses JPA/Spring Data instead of duplicate handwritten SQL. Generate the PostgreSQL baseline from compiled mappings; generated SQL is an artifact, not a second model.
+
+The current initializer remains transitional until generated-baseline integrity and recovery checks pass. No released-user compatibility requirement forces retention of every development migration. This does not authorize resetting owner data, rewriting an applied persistent schema or removing unmapped integrity rules. Domain-owned controllers/services and schema cutover are separate completion boundaries.
+
+Validation from the repository root:
+
+- `./gradlew javaAgentContractCheck :server:app:javaAgentReferenceTest` for bounded standard/reference checks, not migration/native qualification.
+- `./gradlew :server:domains:files:check :server:domains:calendar:check` for domain libraries.
+- `./gradlew :server:app:entitySchemaCheck` for offline generation.
+- `./gradlew :server:app:postgresJpaTest --tests '*EntityFirstBaselinePostgresTest'` for generated-baseline PostgreSQL contracts.
+- `./gradlew coreArchitectureCi` and `./gradlew serverCi` for the applicable combined gates; existing protocol/API checks remain required.
 
 ## Global Weave agent baseline
 

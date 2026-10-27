@@ -155,13 +155,13 @@ def require_flutter_matrix_boundary() -> None:
         "Weave User API room bindings remain separate from Matrix message transport",
     )
     require(
-        "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
+        "server/app/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
         "chatLegacyRestDataPlaneRoutesAreRemovedInFavorOfMatrixFacade",
         "/api/chat/conversations/channel-general/messages",
         "status().isNotFound()",
     )
     require(
-        "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
+        "server/app/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
         "whoamiUsesRumaValidatedIdentityDerivedFromOidcSubject",
         "stockOpenClawMemberReceiptAndTypingCallsStayOnCanonicalChat",
         "roomLifecycleStateAndProfileProjectCanonicalChat",
@@ -198,7 +198,7 @@ def require_flutter_matrix_boundary() -> None:
         "projectMatrixJson",
     )
     require(
-        "server/src/test/java/com/massimotter/weave/backend/chat/adapter/WeaveCanonicalChatAdapterTest.java",
+        "server/app/src/test/java/com/massimotter/weave/backend/chat/adapter/WeaveCanonicalChatAdapterTest.java",
         "repeatedTransactionReturnsSameCanonicalMessageAndSingleChange",
         "conformanceAccountsForPortableLossyAndUnsupportedChatSemantics",
         "northboundIdentifiersRemainCanonicalAndProviderNeutral",

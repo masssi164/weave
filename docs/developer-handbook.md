@@ -12,8 +12,8 @@ Weave is now a monorepo product stack:
 | --- | --- |
 | `client/` | Flutter mobile/desktop app shell, custom chat/files/settings UX, client validation, accessibility, deterministic screenshots. |
 | `server/` | Product API/BFF, auth/profile facade, files/calendar/boards facades, authorization, audit, readiness, and backend contract tests. |
-| `weave-application-core/`, `weave-files-core/` | Framework-free canonical values, use cases, and ports. |
-| `weave-persistence-jpa/`, `weave-runtime-*-adapters/` | Portable entity persistence and explicitly composed provider/security adapters. |
+| `server/core/model`, domain `model` libraries | Framework-free values, use cases and owning contracts. |
+| `server/core`, domain `persistence` and Agent Runtime adapter libraries | Responsibility-owned persistence and provider/security boundaries. |
 | `weave-mcp-server/` | Separate workload-only Spring AI MCP process using the generated Weave User API client for product HTTP calls. |
 | `weave-product-e2e/` | Plain-Java real-browser/OIDC/User API/MCP product proof; no runtime beans or implementation-module dependency. |
 | `infra/` | Local/dev stack, Caddy, Keycloak, optional providers, Docker Compose orchestration, live-stack smoke and E2E environment. |
@@ -84,6 +84,15 @@ The root `./gradlew` is the monorepo build/delivery source of truth. GitHub Acti
 | `ci` | Canonical aggregate for the PR-safe monorepo gate set. |
 
 Each task requires the same tools and dependency setup as the underlying ecosystem command; for example docs tasks need pinned dependencies installed in `build/docs-venv` or the active Python environment from `docs/requirements.txt`, server checks need Java 21+, client checks need Flutter/Dart, and admin checks need Node/npm dependencies. `./gradlew ci` writes sanitized evidence to `build/evidence/ci-summary.json`; CI uploads `build/evidence/**` and deterministic docs outputs as artifacts. If local `./gradlew doctor` reports JDK 17, point `JAVA_HOME` at JDK 21+ rather than weakening the gate.
+
+## Focused Server domain checks
+
+For focused Server feedback, use
+`./gradlew :server:domains:check -Pdomains=files,chat`.
+The selected-domain JVM lane defaults to `all` after any matching branch pin;
+it does not replace the complete Server/PostgreSQL/JNI gates or make production
+packaging domain-selectable. See [Selected domain JVM verification](development/domain-verification.md)
+for selection rules, selected/individual CI dispatch, required domain dependencies and owning test lanes.
 
 ## Everyday Flutter workflow
 

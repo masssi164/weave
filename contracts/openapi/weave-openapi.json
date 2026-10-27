@@ -5177,13 +5177,11 @@
       "Protocols": {
         "properties": {
           "matrixClientServerBaseUrl": {
+            "description": "Required exactly when Chat is installed; otherwise absent.",
             "format": "uri",
             "type": "string"
           }
         },
-        "required": [
-          "matrixClientServerBaseUrl"
-        ],
         "type": "object"
       },
       "ProviderAdapterReadinessEvidenceResponse": {
@@ -6959,40 +6957,16 @@
         "type": "object"
       },
       "WorkspaceCapabilitiesResponse": {
-        "description": "Workspace capability snapshot exposed to Weave clients.",
+        "description": "Required Core policy and typed statuses of installed domains, keyed by stable domain identity. Presence means installation, independently of readiness and member authorization.",
         "properties": {
           "adminControlPlane": {
             "$ref": "#/components/schemas/WorkspaceCapabilityStatusResponse"
           },
-          "agentRuntimeControl": {
-            "$ref": "#/components/schemas/WorkspaceCapabilityStatusResponse"
-          },
-          "boards": {
-            "$ref": "#/components/schemas/WorkspaceCapabilityStatusResponse"
-          },
-          "calendar": {
-            "$ref": "#/components/schemas/WorkspaceCapabilityStatusResponse"
-          },
-          "chat": {
-            "$ref": "#/components/schemas/WorkspaceCapabilityStatusResponse"
-          },
-          "decisionsEvidence": {
-            "$ref": "#/components/schemas/WorkspaceCapabilityStatusResponse"
-          },
-          "documentsCollaboration": {
-            "$ref": "#/components/schemas/WorkspaceCapabilityStatusResponse"
-          },
-          "files": {
-            "$ref": "#/components/schemas/WorkspaceCapabilityStatusResponse"
-          },
-          "manualsHelp": {
-            "$ref": "#/components/schemas/WorkspaceCapabilityStatusResponse"
-          },
-          "meetingsCalls": {
-            "$ref": "#/components/schemas/WorkspaceCapabilityStatusResponse"
-          },
-          "releaseEvidence": {
-            "$ref": "#/components/schemas/WorkspaceCapabilityStatusResponse"
+          "domains": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/WorkspaceCapabilityStatusResponse"
+            },
+            "type": "object"
           },
           "shellAccess": {
             "$ref": "#/components/schemas/WorkspaceCapabilityStatusResponse"
@@ -7000,16 +6974,7 @@
         },
         "required": [
           "adminControlPlane",
-          "agentRuntimeControl",
-          "boards",
-          "calendar",
-          "chat",
-          "decisionsEvidence",
-          "documentsCollaboration",
-          "files",
-          "manualsHelp",
-          "meetingsCalls",
-          "releaseEvidence",
+          "domains",
           "shellAccess"
         ],
         "type": "object"
@@ -7126,6 +7091,12 @@
             "type": "string"
           }
         },
+        "required": [
+          "enabled",
+          "grantedCapabilities",
+          "policyState",
+          "readiness"
+        ],
         "type": "object"
       },
       "WorkspaceHomeActionResponse": {

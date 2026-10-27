@@ -147,6 +147,9 @@ void main() {
             workspaceConnectionStateProvider.overrideWithValue(
               _workspaceConnectionState(),
             ),
+            weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
+              (ref) async => _workspaceCapabilitySnapshot().value,
+            ),
             workspaceCapabilitySnapshotProvider.overrideWithValue(
               _workspaceCapabilitySnapshot(),
             ),
@@ -209,6 +212,12 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Connect Files'), findsNothing);
+        expect(
+          find.widgetWithText(ListTile, 'My private files'),
+          findsOneWidget,
+        );
+        await tester.tap(find.widgetWithText(ListTile, 'My private files'));
+        await tester.pumpAndSettle();
         expect(find.widgetWithText(ListTile, 'Documents'), findsOneWidget);
         expect(find.widgetWithText(ListTile, 'Readme.md'), findsOneWidget);
 
@@ -269,6 +278,12 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Connect Files'), findsNothing);
+        expect(
+          find.widgetWithText(ListTile, 'My private files'),
+          findsOneWidget,
+        );
+        await tester.tap(find.widgetWithText(ListTile, 'My private files'));
+        await tester.pumpAndSettle();
         expect(
           filesRepository.lastConfiguredBaseUrl.toString(),
           'https://api.weave.test/api',

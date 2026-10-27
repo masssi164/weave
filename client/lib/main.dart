@@ -1,62 +1,21 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/bootstrap/presentation/bootstrap_gate.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/l10n/app_locale_preference.dart';
 import 'package:weave/core/l10n/app_locale_preference_provider.dart';
-import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/core/router/app_router.dart';
 import 'package:weave/core/theme/app_theme.dart';
 import 'package:weave/core/theme/app_theme_preference.dart';
 import 'package:weave/core/theme/app_theme_preference_provider.dart';
-import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
-import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
-import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
-import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
-import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
-import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
-import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
-
-const _pendingDeepLinkKey = 'pending_deep_link_url';
-const _dogfoodResetQueryKey = 'dogfood_reset';
-const _dogfoodResetAppStateValue = 'app_state';
-
-/// Consumes the bounded app-local reset control only on a canonical app link.
-/// The clean link is validated before any preferences or session are removed.
-Uri? canonicalDogfoodAppStateResetLink(Uri uri) {
-  if (uri.scheme != 'weave' ||
-      uri.host != 'join' ||
-      (uri.path.isNotEmpty && uri.path != '/') ||
-      uri.userInfo.isNotEmpty ||
-      uri.hasFragment ||
-      uri.queryParameters.length != 2 ||
-      uri.queryParametersAll.values.any((values) => values.length != 1) ||
-      uri.queryParameters[_dogfoodResetQueryKey] !=
-          _dogfoodResetAppStateValue ||
-      !uri.queryParameters.containsKey('organization_origin')) {
-    return null;
-  }
-  final cleanQuery = Map<String, String>.from(uri.queryParameters)
-    ..remove(_dogfoodResetQueryKey);
-  final cleanUri = uri.replace(queryParameters: cleanQuery);
-  try {
-    final access = const OrganizationAccessParser().parse(cleanUri);
-    return access.handoff == null ? cleanUri : null;
-  } on AppFailure {
-    return null;
-  }
-}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -71,101 +30,24 @@ class WeaveApp extends ConsumerStatefulWidget {
   ConsumerState<WeaveApp> createState() => _WeaveAppState();
 }
 
-class _WeaveAppState extends ConsumerState<WeaveApp>
-    with WidgetsBindingObserver {
+class _WeaveAppState extends ConsumerState<WeaveApp> {
+  final AppLinks _appLinks = AppLinks();
   StreamSubscription<Uri>? _linkSubscription;
-  ProviderSubscription<AsyncValue<UserProfile?>>? _profileSubscription;
-  final List<Timer> _pendingDeepLinkTimers = [];
-  late final Future<bool> _workspaceWasReadyAtLaunch;
-  bool _sessionContinuityRecorded = false;
   bool _hasResolvedBootstrap = false;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _workspaceWasReadyAtLaunch = _readWorkspaceReadyAtLaunch();
-    _profileSubscription = ref.listenManual<AsyncValue<UserProfile?>>(
-      userProfileProvider,
-      (_, next) {
-        next.whenData((profile) {
-          if (profile != null) {
-            unawaited(_recordRestoredSession());
-          }
-        });
-      },
-      fireImmediately: true,
-    );
-    _linkSubscription = AppLinks().uriLinkStream.listen(
+    _linkSubscription = _appLinks.uriLinkStream.listen(
       (uri) => unawaited(_openAppLink(uri)),
       onError: (_) {},
     );
-    _schedulePendingDeepLinkPoll();
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _profileSubscription?.close();
     _linkSubscription?.cancel();
-    for (final timer in _pendingDeepLinkTimers) {
-      timer.cancel();
-    }
-    _pendingDeepLinkTimers.clear();
     super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _schedulePendingDeepLinkPoll();
-    }
-  }
-
-  void _schedulePendingDeepLinkPoll() {
-    _pendingDeepLinkTimers.add(
-      Timer(const Duration(milliseconds: 250), () {
-        if (mounted) {
-          unawaited(_openPendingNativeDeepLink());
-        }
-      }),
-    );
-    _pendingDeepLinkTimers.add(
-      Timer(const Duration(seconds: 2), () {
-        if (mounted) {
-          unawaited(_openPendingNativeDeepLink());
-        }
-      }),
-    );
-  }
-
-  Future<void> _openPendingNativeDeepLink() async {
-    final SharedPreferencesAsync preferences;
-    try {
-      preferences = SharedPreferencesAsync();
-    } catch (_) {
-      return;
-    }
-    final String? pendingDeepLink;
-    try {
-      pendingDeepLink = await preferences.getString(_pendingDeepLinkKey);
-    } catch (_) {
-      return;
-    }
-    if (pendingDeepLink == null || pendingDeepLink.isEmpty) {
-      return;
-    }
-    try {
-      await preferences.remove(_pendingDeepLinkKey);
-    } catch (_) {}
-    final uri = Uri.tryParse(pendingDeepLink);
-    if (uri != null) {
-      final location = initialLocationForDefaultRoute(uri.toString());
-      if (location != AppRoutes.organizationAccess) {
-        setStartupInitialLocation(location);
-      }
-      await _openAppLink(uri);
-    }
   }
 
   Future<void> _openAppLink(Uri uri) async {
@@ -173,97 +55,14 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
     if (location == AppRoutes.organizationAccess || !mounted) {
       return;
     }
-    if (await _resetDogfoodAppStateIfRequested(uri)) {
+    if (!_hasResolvedBootstrap) {
+      setStartupInitialLocation(location);
       return;
     }
     try {
       ref.read(appRouterProvider).go(location);
     } catch (_) {
       setStartupInitialLocation(location);
-    }
-  }
-
-  Future<bool> _resetDogfoodAppStateIfRequested(Uri uri) async {
-    final cleanUri = canonicalDogfoodAppStateResetLink(uri);
-    if (cleanUri == null) {
-      return false;
-    }
-    final preferences = SharedPreferencesAsync();
-    for (final key in const [
-      serverConfigurationStorageKey,
-      lastHandoffConsumedStorageKey,
-      dogfoodAuthStateStorageKey,
-      dogfoodAuthStateHistoryStorageKey,
-      dogfoodVisibleStateStorageKey,
-    ]) {
-      try {
-        await preferences.remove(key);
-      } catch (_) {}
-    }
-    const secureStorage = FlutterSecureStorage(
-      iOptions: IOSOptions(
-        accessibility: KeychainAccessibility.first_unlock_this_device,
-      ),
-      mOptions: MacOsOptions(
-        accessibility: KeychainAccessibility.first_unlock_this_device,
-      ),
-    );
-    for (final key in const [authSessionStorageKey]) {
-      try {
-        await secureStorage.delete(key: key);
-      } catch (_) {}
-    }
-    try {
-      await preferences.setString(_pendingDeepLinkKey, cleanUri.toString());
-    } catch (_) {}
-    _schedulePendingDeepLinkPoll();
-    return true;
-  }
-
-  Future<bool> _readWorkspaceReadyAtLaunch() async {
-    try {
-      final raw = await ref
-          .read(preferencesStoreProvider)
-          .getString(dogfoodAuthStateStorageKey);
-      if (raw == null || raw.isEmpty) {
-        return false;
-      }
-      final decoded = jsonDecode(raw);
-      return decoded is Map<String, dynamic> &&
-          decoded['state'] ==
-              MemberAuthOnboardingStage.workspaceReady.serialized &&
-          decoded['supportSafe'] == true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Future<void> _recordRestoredSession() async {
-    if (_sessionContinuityRecorded || !await _workspaceWasReadyAtLaunch) {
-      return;
-    }
-    _sessionContinuityRecorded = true;
-    final store = ref.read(preferencesStoreProvider);
-    try {
-      final rawHandoff = await store.getString(lastHandoffConsumedStorageKey);
-      if (rawHandoff == null || rawHandoff.isEmpty) {
-        return;
-      }
-      final decoded = jsonDecode(rawHandoff);
-      if (decoded is! Map<String, dynamic> || decoded['supportSafe'] != true) {
-        return;
-      }
-      final recorder = MemberAuthOnboardingStateRecorder(store: store);
-      await recorder.recordSupportSafeHandoffEvidence(
-        MemberAuthOnboardingStage.sessionRestored,
-        handoffEvidence: decoded,
-      );
-      await recorder.recordSupportSafeHandoffEvidence(
-        MemberAuthOnboardingStage.workspaceReady,
-        handoffEvidence: decoded,
-      );
-    } catch (_) {
-      // Session evidence must never interrupt a successful authenticated launch.
     }
   }
 
@@ -306,19 +105,24 @@ class _WeaveAppState extends ConsumerState<WeaveApp>
           data: (selection) => selection,
           orElse: () => const AppLocaleSelection(),
         );
-    final profileLocale = _profileLocale(
-      ref
-          .watch(userProfileProvider)
-          .maybeWhen(data: (profile) => profile?.locale, orElse: () => null),
-    );
+    final profile = ref
+        .watch(userProfileProvider)
+        .maybeWhen(data: (profile) => profile, orElse: () => null);
+    final profileLocale = _profileLocale(profile?.locale);
     final appLocale = localeSelection.userPreference == null
         ? profileLocale
         : localeSelection.locale;
     return MaterialApp.router(
       title: 'Weave',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightFor(themeSelection),
-      darkTheme: AppTheme.darkFor(themeSelection),
+      theme: AppTheme.lightFor(
+        themeSelection,
+        reducedMotion: profile?.prefersReducedMotion ?? false,
+      ),
+      darkTheme: AppTheme.darkFor(
+        themeSelection,
+        reducedMotion: profile?.prefersReducedMotion ?? false,
+      ),
       themeMode: themeSelection.themeMode,
       locale: appLocale,
       routerConfig: router,

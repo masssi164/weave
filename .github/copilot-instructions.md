@@ -12,6 +12,8 @@ Weave is a regulated-quality monorepo. Review for evidence, traceability, and cl
 
 ## What to flag
 
+For Java/Spring changes, apply `docs/java-spring-standard.md` and the relevant workflow in `.agents/skills/` (discovery and provenance: `docs/agent-skills.md`). These are the shared coding rules; do not invent a separate review style contract. In particular distinguish stable adapter registration from runtime provider selection and require the matching executable evidence rather than accepting annotations or reduced line count alone.
+
 - Missing spec link for changed product behavior.
 - Missing mapped Gherkin scenario for user/admin/operator-observable behavior.
 - Missing evidence gate, CI command, or support-safe artifact.

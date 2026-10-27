@@ -13,7 +13,7 @@ import subprocess
 import tempfile
 import time
 
-from dogfood_prepare import (ROOT, ContractError, effective_reviewed_env_file, identity_digest,
+from dogfood_prepare import (ROOT, ContractError, effective_reviewed_env_file, fixture_binding, identity_digest,
     ledger_for, load_context, operator_backend, operator_driver, operator_grant_evidence,
     operator_ledger, private_directory, private_read, private_write, public_setup,
     validate_operator_envelope)
@@ -89,6 +89,47 @@ def publish_managed_fixture(path: Path, ledger_path: Path, ledger: dict, envelop
     operator_grant_evidence(ledger)
     private_write(ledger_path, ledger)
     private_write(path, fixture)
+
+
+def verify_member_workspace(context, candidate: dict, runner, directory: Path, tester_slot: str,
+                            identity_file: Path | None = None) -> dict:
+    """Read-only handoff prerequisite, called under the existing exclusive Dogfood session lock."""
+    from compose_runtime import _service_container
+    if context.environment != "dogfood" or context.isolated_namespace is not None or tester_slot not in {"A", "B"}:
+        raise ContractError("persistent-ordinary-member-required")
+    identity_file = identity_file or Path.home() / ".weave/dogfood/functional-smoke-identities.json"
+    fixture = private_read(identity_file)
+    binding = fixture_binding(context, identity_file, fixture)["members"][tester_slot]
+    ledger = private_read(ledger_for(identity_file), 65536)
+    prior = operator_grant_evidence(ledger)
+    if (ledger.get("authorizationKind") != "dogfood-operator" or prior is None
+            or prior["receipt"]["stage"] != "provision-members-ready"):
+        raise ContractError("managed-test-member-preparation-required")
+    before = _service_container(context, "backend", deadline=time.monotonic() + 30)
+    operator_backend(context, candidate, before, runner)
+    plan = {**ledger["plan"], "nonce": secrets.token_hex(16)}
+    envelope = operator_driver(context, before, plan, candidate, directory, "verify-members", previous=prior["receipt"])
+    receipt = validate_operator_envelope(envelope, previous=prior["receipt"])["receipt"]
+    if receipt["status"] != "passed":
+        raise ContractError(receipt["boundary"])
+    if (receipt["operation"] != "verify-members" or receipt["nonce"] != plan["nonce"]
+            or any(receipt[key] != candidate[key] for key in candidate)):
+        raise ContractError("member-workspace-candidate-mismatch")
+    member = next(item for item in receipt["members"] if item["slot"] == tester_slot)
+    observed = {"accountDigest": identity_digest("weave-account", plan["issuerUrl"], member["accountRef"]),
+                "organizationDigest": identity_digest("weave-organization", plan["issuerUrl"], receipt["organizationId"])}
+    if observed != binding:
+        raise ContractError("member-workspace-identity-conflict")
+    after = _service_container(context, "backend", deadline=time.monotonic() + 30)
+    operator_backend(context, candidate, after, runner)
+    if before["Id"] != after["Id"] or before["Image"] != after["Image"]:
+        raise ContractError("deployed-image-changed-during-preparation")
+    return {"schemaVersion": "weave.member-workspace-preparation/v1", **candidate,
+            "environment": "dogfood", "status": "passed", "testerSlot": tester_slot,
+            "organizationRole": "member", **observed, "spaceRef": "workspace-default",
+            "grantVersion": member["grantVersion"], "memberAccessVerified": True,
+            "authenticationEvidence": False, "humanAcceptance": False,
+            "supportSafe": True, "containsSecretValues": False}
 
 
 def prepare_context(context, identity_file: Path, *, collaboration_output: Path | None = None,

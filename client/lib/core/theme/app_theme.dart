@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:weave/core/theme/app_theme_preference.dart';
+import 'package:weave/core/theme/weave_motion_theme.dart';
 
 /// Centralised Material 3 theme definitions for the Weave app.
 ///
@@ -32,20 +33,49 @@ abstract final class AppTheme {
     ),
   );
 
-  static ThemeData lightFor(AppThemeSelection selection) {
-    return selection.usesHighContrastPalette ? highContrastLight : light;
-  }
+  static final _reducedLight = _buildTheme(
+    light.colorScheme,
+    reducedMotion: true,
+  );
+  static final _reducedDark = _buildTheme(
+    dark.colorScheme,
+    reducedMotion: true,
+  );
+  static final _reducedHighContrastLight = _buildTheme(
+    highContrastLight.colorScheme,
+    reducedMotion: true,
+  );
+  static final _reducedHighContrastDark = _buildTheme(
+    highContrastDark.colorScheme,
+    reducedMotion: true,
+  );
 
-  static ThemeData darkFor(AppThemeSelection selection) {
-    return selection.usesHighContrastPalette ? highContrastDark : dark;
-  }
+  static ThemeData lightFor(
+    AppThemeSelection selection, {
+    bool reducedMotion = false,
+  }) => selection.usesHighContrastPalette
+      ? (reducedMotion ? _reducedHighContrastLight : highContrastLight)
+      : (reducedMotion ? _reducedLight : light);
 
-  static ThemeData _buildTheme(ColorScheme colorScheme) {
+  static ThemeData darkFor(
+    AppThemeSelection selection, {
+    bool reducedMotion = false,
+  }) => selection.usesHighContrastPalette
+      ? (reducedMotion ? _reducedHighContrastDark : highContrastDark)
+      : (reducedMotion ? _reducedDark : dark);
+
+  static ThemeData _buildTheme(
+    ColorScheme colorScheme, {
+    bool reducedMotion = false,
+  }) {
     return ThemeData(
       useMaterial3: true,
       colorScheme: colorScheme,
       visualDensity: VisualDensity.adaptivePlatformDensity,
       textTheme: _textTheme,
+      extensions: <ThemeExtension<dynamic>>[
+        WeaveMotionTheme(profileReducedMotion: reducedMotion),
+      ],
     );
   }
 

@@ -69,7 +69,9 @@ class ResolveAppBootstrap {
         // Prepare the separate Matrix session automatically. The coordinator
         // shares an in-flight open with Chat; independent capabilities do not
         // wait for its network or browser recovery.
-        unawaited(_prepareChat());
+        if (configuration.serviceEndpoints.matrixHomeserverUrl != null) {
+          unawaited(_prepareChat());
+        }
         return const BootstrapState.ready();
       }
 

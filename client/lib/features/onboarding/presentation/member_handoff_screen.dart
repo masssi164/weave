@@ -1,28 +1,23 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
-import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
-import 'package:weave/core/persistence/shared_preferences_store.dart';
+import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/router/app_routes.dart';
+import 'package:weave/core/theme/weave_motion_theme.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/core/widgets/success_state.dart';
 import 'package:weave/features/auth/domain/entities/auth_failure.dart';
 import 'package:weave/features/auth/presentation/auth_failure_message.dart';
 import 'package:weave/features/auth/presentation/providers/auth_flow_controller.dart';
-import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
 import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
 import 'package:weave/features/server_config/presentation/providers/saved_server_configuration_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
-
-const dogfoodVisibleStateStorageKey = 'dogfood_visible_state_v1';
 
 final discoverOrganizationAccessProvider = Provider<DiscoverOrganizationAccess>(
   (ref) {
@@ -31,17 +26,9 @@ final discoverOrganizationAccessProvider = Provider<DiscoverOrganizationAccess>(
     return DiscoverOrganizationAccess(
       repository: ref.watch(serverConfigurationRepositoryProvider),
       discoveryClient: AppStartDiscoveryClient(httpClient: httpClient),
-      evidenceStore: ref.watch(preferencesStoreProvider),
     );
   },
 );
-
-final memberAuthOnboardingStateRecorderProvider =
-    Provider<MemberAuthOnboardingStateRecorder>((ref) {
-      return MemberAuthOnboardingStateRecorder(
-        store: ref.watch(preferencesStoreProvider),
-      );
-    });
 
 class MemberHandoffScreen extends ConsumerStatefulWidget {
   const MemberHandoffScreen({super.key, required this.uri});
@@ -57,7 +44,6 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
   Object? _failure;
   AuthFailure? _signInFailure;
   OrganizationAccess? _access;
-  String? _lastVisibleStateRecorded;
   bool _signInBusy = false;
 
   @override
@@ -72,19 +58,12 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
       final access = await ref
           .read(discoverOrganizationAccessProvider)
           .call(widget.uri);
-      if (mounted) {
-        // Discovery has committed the canonical profile. Refresh existing readers
-        // before exposing the action that starts OIDC and workspace consumers.
-        ref.invalidate(savedServerConfigurationProvider);
-        setState(() => _access = access);
-      }
+      if (!mounted) return;
+      ref.invalidate(savedServerConfigurationProvider);
+      setState(() => _access = access);
     } catch (error) {
       if (!mounted) return;
-      final errorCode = supportSafeHandoffErrorCode(error);
-      await _recordVisibleFailure(errorCode);
-      if (mounted) {
-        setState(() => _failure = error);
-      }
+      setState(() => _failure = error);
     }
   }
 
@@ -97,9 +76,8 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
             'The organization workspace is not ready.',
           );
     }
-    if (bootstrap.phase != BootstrapPhase.ready) {
-      return false;
-    }
+    if (bootstrap.phase != BootstrapPhase.ready) return false;
+
     final access = const OrganizationAccessParser().parse(widget.uri);
     final selected = await ref
         .read(serverConfigurationRepositoryProvider)
@@ -113,6 +91,7 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
         'The organization workspace is not ready.',
       );
     }
+
     final origin = selected?.organizationOrigin;
     final incoming = access.organizationOrigin;
     if (origin == null ||
@@ -127,11 +106,7 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
         'WEAVE-ORGANIZATION-ACCESS-INVALID: This link does not match the signed-in organization.',
       );
     }
-    await ref
-        .read(memberAuthOnboardingStateRecorderProvider)
-        .record(MemberAuthOnboardingStage.workspaceReady, access: access);
-    if (!mounted) return true;
-    _recordVisibleStateOnce('authenticated_redirect', access: access);
+
     if (mounted) context.go(AppRoutes.home);
     return true;
   }
@@ -139,96 +114,76 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final motion = context.weaveMotion;
     final busy = _signInBusy || ref.watch(authFlowControllerProvider).isBusy;
-    final setupNavigation = AppBar(
-      title: Text(l10n.setupTitle),
-      leading: IconButton(
-        tooltip: l10n.signInBackToSetupButton,
-        icon: const Icon(Icons.arrow_back),
-        onPressed: busy
-            ? null
-            : () {
-                if (context.canPop()) {
-                  context.pop();
-                } else {
-                  context.go(AppRoutes.organizationAccess);
-                }
-              },
-      ),
-    );
+
+    final Widget state;
     final failure = _failure;
+    final signInFailure = _signInFailure;
     if (failure != null) {
       final errorCode = supportSafeHandoffErrorCode(failure);
-      final errorCodeText = l10n.memberHandoffErrorCode(errorCode);
       final guidance = errorCode == 'WEAVE-APP-START-TLS-FAILED'
           ? l10n.memberHandoffTlsErrorGuidance
           : l10n.memberHandoffErrorGuidance;
-      _recordVisibleStateOnce('handoff_error', errorCode: errorCode);
-      return Scaffold(
-        appBar: setupNavigation,
-        body: SafeArea(
-          child: Center(
-            child: ErrorState(
-              message: l10n.memberHandoffErrorTitle,
-              guidance: '$guidance\n$errorCodeText',
-              semanticLabel:
-                  '${l10n.memberHandoffErrorTitle}. $guidance. $errorCodeText',
-              retryLabel: l10n.retryButton,
-              onRetry: () {
-                setState(() => _failure = null);
-                _consume();
-              },
-            ),
-          ),
-        ),
+      state = ErrorState(
+        key: const ValueKey('handoff-error'),
+        message: l10n.memberHandoffErrorTitle,
+        guidance: '$guidance\n${l10n.memberHandoffErrorCode(errorCode)}',
+        retryLabel: l10n.retryButton,
+        onRetry: () {
+          setState(() => _failure = null);
+          _consume();
+        },
+      );
+    } else if (_access != null && signInFailure != null) {
+      state = ErrorState(
+        key: const ValueKey('handoff-sign-in-error'),
+        message: authFailureMessage(l10n, signInFailure),
+        guidance: l10n.memberHandoffSignInRetryGuidance,
+        retryLabel: l10n.signInButton,
+        onRetry: busy ? null : () => _startSignIn(context),
+      );
+    } else if (_access != null) {
+      state = SuccessState(
+        key: const ValueKey('handoff-ready'),
+        message: l10n.memberHandoffReadyTitle,
+        guidance: l10n.signInDescription,
+        actionLabel: busy ? l10n.signInInProgress : l10n.signInButton,
+        liveRegion: false,
+        onAction: busy ? null : () => _startSignIn(context),
+      );
+    } else {
+      state = LoadingState(
+        key: const ValueKey('handoff-loading'),
+        message: l10n.memberHandoffLoadingTitle,
+        hint: l10n.memberHandoffLoadingHint,
       );
     }
-    final access = _access;
-    if (access != null) {
-      _recordVisibleStateOnce('handoff_ready', access: access);
-      final signInFailure = _signInFailure;
-      return Scaffold(
-        appBar: setupNavigation,
-        body: SafeArea(
-          child: Center(
-            child: signInFailure == null
-                ? SuccessState(
-                    message: l10n.memberHandoffReadyTitle,
-                    guidance: l10n.memberHandoffReadyGuidance(
-                      access.organizationLabel,
-                      access.workspaceLabel,
-                    ),
-                    actionLabel: busy
-                        ? l10n.signInInProgress
-                        : l10n.signInButton,
-                    liveRegion: false,
-                    onAction: busy
-                        ? null
-                        : () {
-                            _startSignIn(context);
-                          },
-                  )
-                : ErrorState(
-                    message: authFailureMessage(l10n, signInFailure),
-                    guidance: l10n.memberHandoffSignInRetryGuidance,
-                    retryLabel: l10n.signInButton,
-                    onRetry: busy
-                        ? null
-                        : () {
-                            _startSignIn(context);
-                          },
-                  ),
-          ),
-        ),
-      );
-    }
-    _recordVisibleStateOnce('handoff_loading');
+
     return Scaffold(
+      appBar: AppBar(
+        title: Text(l10n.setupTitle),
+        leading: IconButton(
+          tooltip: l10n.signInBackToSetupButton,
+          icon: const Icon(Icons.arrow_back),
+          onPressed: busy
+              ? null
+              : () {
+                  if (context.canPop()) {
+                    context.pop();
+                  } else {
+                    context.go(AppRoutes.organizationAccess);
+                  }
+                },
+        ),
+      ),
       body: SafeArea(
         child: Center(
-          child: LoadingState(
-            message: l10n.memberHandoffLoadingTitle,
-            hint: l10n.memberHandoffLoadingHint,
+          child: AnimatedSwitcher(
+            duration: motion.standard,
+            switchInCurve: motion.standardCurve,
+            switchOutCurve: motion.standardCurve,
+            child: state,
           ),
         ),
       ),
@@ -236,16 +191,11 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
   }
 
   Future<void> _startSignIn(BuildContext context) async {
-    final access = _access;
     setState(() {
       _signInBusy = true;
       _signInFailure = null;
     });
     try {
-      await ref
-          .read(memberAuthOnboardingStateRecorderProvider)
-          .record(MemberAuthOnboardingStage.ssoInProgress, access: access);
-      if (!mounted) return;
       final signedIn = await ref
           .read(authFlowControllerProvider.notifier)
           .signIn();
@@ -254,171 +204,41 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
         final failure =
             ref.read(authFlowControllerProvider).failure ??
             const AuthFailure.unknown('Unable to sign in right now.');
-        await ref
-            .read(memberAuthOnboardingStateRecorderProvider)
-            .recordAuthFailure(failure, access: access);
-        if (mounted) {
-          setState(() {
-            _signInBusy = false;
-            _signInFailure = failure;
-          });
-        }
+        setState(() {
+          _signInBusy = false;
+          _signInFailure = failure;
+        });
         return;
       }
-      await ref
-          .read(memberAuthOnboardingStateRecorderProvider)
-          .record(MemberAuthOnboardingStage.authenticated, access: access);
-      if (!mounted) return;
-      await ref
-          .read(memberAuthOnboardingStateRecorderProvider)
-          .record(
-            MemberAuthOnboardingStage.workspaceBootstrapLoading,
-            access: access,
-          );
-      if (!mounted) return;
+
       final bootstrap = ref.read(appBootstrapProvider).asData?.value;
-      final workspaceReady = bootstrap?.phase == BootstrapPhase.ready;
-      await ref
-          .read(memberAuthOnboardingStateRecorderProvider)
-          .record(
-            workspaceReady
-                ? MemberAuthOnboardingStage.workspaceReady
-                : MemberAuthOnboardingStage.recoverableError,
-            access: access,
-            errorCode: workspaceReady
-                ? null
-                : 'WEAVE-WORKSPACE-BOOTSTRAP-NOT-READY',
+      if (bootstrap?.phase != BootstrapPhase.ready) {
+        setState(() {
+          _signInBusy = false;
+          _signInFailure = const AuthFailure.protocol(
+            'The authenticated workspace did not become ready.',
           );
-      if (!workspaceReady) {
-        const failure = AuthFailure.protocol(
-          'The authenticated workspace did not become ready.',
-        );
-        if (mounted) {
-          setState(() {
-            _signInBusy = false;
-            _signInFailure = failure;
-          });
-        }
+        });
         return;
       }
-      if (mounted && context.mounted) {
-        setState(() => _signInBusy = false);
-        context.go(AppRoutes.home);
-      }
+
+      setState(() => _signInBusy = false);
+      if (context.mounted) context.go(AppRoutes.home);
     } on AuthFailure catch (failure) {
-      if (mounted) {
-        await ref
-            .read(memberAuthOnboardingStateRecorderProvider)
-            .recordAuthFailure(failure, access: access);
-        if (!mounted) return;
-        setState(() {
-          _signInBusy = false;
-          _signInFailure = failure;
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _signInBusy = false;
+        _signInFailure = failure;
+      });
     } catch (error) {
-      final failure = AuthFailure.unknown(
-        'Unable to sign in right now.',
-        cause: error,
-      );
       if (!mounted) return;
-      await ref
-          .read(memberAuthOnboardingStateRecorderProvider)
-          .recordAuthFailure(failure, access: access);
-      if (mounted) {
-        setState(() {
-          _signInBusy = false;
-          _signInFailure = failure;
-        });
-      }
-    }
-  }
-
-  Future<void> _recordVisibleFailure(String errorCode) async {
-    await ref
-        .read(preferencesStoreProvider)
-        .setString(
-          lastHandoffConsumedStorageKey,
-          jsonEncode(<String, Object>{
-            'schemaVersion': 'weave.client.last_handoff_consumed.v1',
-            'recordedAt': DateTime.now().toUtc().toIso8601String(),
-            'result': 'failed',
-            'phase': _failurePhase(errorCode),
-            'inviteScheme': widget.uri.scheme,
-            'inviteHost': widget.uri.host,
-            'invitePath': widget.uri.path,
-            if (_queryValue('handoff_ref') != null)
-              'handoffRef': _queryValue('handoff_ref')!,
-            if (_queryValue('run_id') != null) 'runId': _queryValue('run_id')!,
-            if (_queryValue('org') != null)
-              'organizationSlug': _queryValue('org')!,
-            if (_queryValue('workspace') != null)
-              'workspaceSlug': _queryValue('workspace')!,
-            'errorCode': errorCode,
-            'supportSafe': true,
-          }),
+      setState(() {
+        _signInBusy = false;
+        _signInFailure = AuthFailure.unknown(
+          'Unable to sign in right now.',
+          cause: error,
         );
-  }
-
-  String? _queryValue(String key) {
-    final value = widget.uri.queryParameters[key];
-    return value == null || value.isEmpty ? null : value;
-  }
-
-  String _failurePhase(String errorCode) {
-    if (errorCode == 'WEAVE-HANDOFF-INVALID' ||
-        errorCode == 'WEAVE-HANDOFF-MISSING-BASE' ||
-        errorCode == 'WEAVE-HANDOFF-SECRET-BLOCKED' ||
-        errorCode == 'WEAVE-LINK-UNREACHABLE' ||
-        errorCode == 'WEAVE-LAN-UNREACHABLE') {
-      return 'parse';
+      });
     }
-    if (errorCode.startsWith('WEAVE-APP-START-')) {
-      return 'app_start_discovery';
-    }
-    return 'save_configuration';
-  }
-
-  void _recordVisibleStateOnce(
-    String state, {
-    OrganizationAccess? access,
-    String? errorCode,
-  }) {
-    final handoff = access?.handoff;
-    final key = [
-      state,
-      access?.organizationOrigin.host ?? '',
-      handoff?.handoffRef ?? '',
-      handoff?.runId ?? '',
-      errorCode ?? '',
-    ].join('|');
-    if (_lastVisibleStateRecorded == key) {
-      return;
-    }
-    _lastVisibleStateRecorded = key;
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) return;
-      await ref
-          .read(preferencesStoreProvider)
-          .setString(
-            dogfoodVisibleStateStorageKey,
-            jsonEncode(<String, Object>{
-              'schemaVersion': 'weave.client.dogfood_visible_state.v1',
-              'recordedAt': DateTime.now().toUtc().toIso8601String(),
-              'route': AppRoutes.join,
-              'state': state,
-              if (access != null)
-                'organizationOriginHost': access.organizationOrigin.host,
-              if (handoff != null) ...{
-                'handoffRef': handoff.handoffRef,
-                'runId': handoff.runId,
-                'organizationSlug': handoff.organizationSlug,
-                'workspaceSlug': handoff.workspaceSlug,
-              },
-              if (errorCode != null) 'errorCode': errorCode,
-              'supportSafe': true,
-            }),
-          );
-    });
   }
 }

@@ -5,7 +5,7 @@ These diagrams are presentation-ready product flows for the North-Star MVP evide
 Executable scenario anchors:
 
 - Frontend Live Stack: `e2e/features/live_stack_app.feature`
-- Backend Cucumber: `server/src/test/resources/features/openproject-boards-workspace.feature`
+- Backend Cucumber: `server/app/src/test/resources/features/openproject-boards-workspace.feature`
 - Infra Live Gates: `infra/weave-workspace/openproject-boards-live-e2e.sh`, operator checks, support-bundle redaction tests, and restore-smoke checks
 
 Source/quality-check anchors:

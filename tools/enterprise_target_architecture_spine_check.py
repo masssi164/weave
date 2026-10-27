@@ -19,7 +19,7 @@ CATALOG = ROOT / "e2e/suites/scenario_catalog.json"
 LOCK = ROOT / "specs/weave-specs.lock.json"
 SOURCE_OF_TRUTH = ROOT / "docs/specification-source-of-truth.md"
 E2E_README = ROOT / "e2e/README.md"
-SERVER_BOUNDARY_TEST = ROOT / "server/src/test/java/com/massimotter/weave/backend/architecture/ServerArchitectureBoundaryTest.java"
+SERVER_BOUNDARY_TEST = ROOT / "server/app/src/test/java/com/massimotter/weave/backend/architecture/ServerArchitectureBoundaryTest.java"
 
 # Keep stable historical tags while their scenarios assert the approved target.
 MARKERS = {
@@ -141,7 +141,7 @@ def main() -> int:
         "@enterprise-target-provider-switch-no-drift-foundation",
     ):
         paths = {entry.get("path") for entry in by_tag[tag].get("additionalEvidence", [])}
-        if not any(path and path.startswith("server/src/test/") for path in paths):
+        if not any(path and path.startswith("server/app/src/test/") for path in paths):
             fail(f"mapping {tag} lost its independent server test reference")
 
     print(

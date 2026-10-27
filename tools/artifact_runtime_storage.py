@@ -21,6 +21,7 @@ import time
 from typing import Callable
 
 from runtime_image_registry import NAMES
+from build_artifacts import RUNTIME_PLATFORMS
 
 
 DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
@@ -94,7 +95,9 @@ def _locked(path: Path):
 def _verified_set(manifest: dict, images: dict) -> dict:
     if (not isinstance(manifest, dict)
             or manifest.get("schemaVersion") != "weave.build-artifact/v1"
-            or manifest.get("component") != "runtime-linux-amd64"
+            or not isinstance(manifest.get("component"), str)
+            or manifest.get("component") not in RUNTIME_PLATFORMS
+            or manifest.get("target") != RUNTIME_PLATFORMS.get(manifest.get("component"))
             or not isinstance(images, dict) or set(images) != COMPONENTS
             or not all(isinstance(value, str) and DIGEST.fullmatch(value) for value in images.values())):
         raise RuntimeStorageError("runtime-image-verified-set-invalid")

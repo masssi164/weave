@@ -12,11 +12,11 @@ registerCommandTask('clientDeterministicCi', file('client'), ['bash', '-lc', 'fl
 tasks.register('serverCi') {
     group = 'verification'
     description = 'Run core and adapter architecture tests plus the authoritative PostgreSQL JPA contract gate.'
-    dependsOn ':weave-application-core:test',
-            ':weave-files-core:test',
-            ':weave-persistence-jpa:test',
-            ':server:test',
-            ':server:postgresJpaTest'
+    dependsOn ':server:core:model:test',
+            ':server:domains:files:check',
+            ':server:core:test', ':server:domains:agent-runtime:persistence:test', ':server:domains:chat:persistence:test', ':server:domains:portability:persistence:test',
+            ':server:app:test',
+            ':server:app:postgresJpaTest'
 }
 registerCommandTask('adminDeterministicCi', file('admin-console'), ['npm', 'run', 'ci'], 'Run admin console npm CI checks.')
 registerRootCommandTask('generateOpenApiContract', ['bash', 'tools/generate_openapi_contract.sh'], 'Generate the server-owned OpenAPI artifact used by typed consumers.')
@@ -24,12 +24,26 @@ registerRootCommandTask('checkOpenApiContractFresh', ['bash', 'tools/check_opena
 registerRootCommandTask('openApiProjectionContractTest', ['python3', 'tools/openapi_codegen_test.py'], 'Verify generated type semantics and fail-closed freshness checks.')
 registerRootCommandTask('openApiNormalizationContractTest', ['python3', '-m', 'unittest', 'tools/normalize_openapi_contracts_test.py'], 'Verify generated OpenAPI partitioning and lossless normalization.')
 tasks.named('generateOpenApiContract') {
-    dependsOn ':server:openApiContractExport'
+    dependsOn ':server:app:openApiContractExport'
     environment 'WEAVE_OPENAPI_SKIP_EXPORT', 'true'
+    environment 'WEAVE_OPENAPI_EXPORT_DIR', project(':server:app').ext.weaveApiExportDirectory.get().asFile.absolutePath
+    doFirst {
+        def server = project(':server')
+        if (server.ext.weaveDomainSelection.domains != server.ext.weaveDomainCatalog.domains.keySet().sort()) {
+            throw new GradleException('Tracked full API contracts require -Pdomains=all; use :server:app:selectedApiContractCheck for a reduced export.')
+        }
+    }
 }
 tasks.named('checkOpenApiContractFresh') {
-    dependsOn ':server:openApiContractExport', 'openApiNormalizationContractTest'
+    dependsOn ':server:app:openApiContractExport', 'openApiNormalizationContractTest'
     environment 'WEAVE_OPENAPI_SKIP_EXPORT', 'true'
+    environment 'WEAVE_OPENAPI_EXPORT_DIR', project(':server:app').ext.weaveApiExportDirectory.get().asFile.absolutePath
+    doFirst {
+        def server = project(':server')
+        if (server.ext.weaveDomainSelection.domains != server.ext.weaveDomainCatalog.domains.keySet().sort()) {
+            throw new GradleException('Tracked full API contracts require -Pdomains=all; use :server:app:selectedApiContractCheck for a reduced export.')
+        }
+    }
 }
 configurations { adminOpenApiGenerator }
 dependencies { adminOpenApiGenerator 'org.openapitools:openapi-generator-cli:7.17.0' }
@@ -72,7 +86,7 @@ tasks.named('clientGeneratedCalendarTemporalWire') {
 registerRootCommandTask('clientOpenApiDriftPrevention', ['bash', 'tools/run_pure_client_test.sh', 'test/architecture/openapi_drift_prevention_contract_test.dart'], 'Block client OpenAPI facade drift for DTOs, raw JSON parsing, provider reachability, and hardcoded copy.')
 registerRootCommandTask('nativeQualificationContractTest', ['bash', '-c', 'python3 client/tool/native_qualification_test.py && python3 client/tool/dual_ios_collaboration_test.py'], 'Verify native and dual-simulator qualification command/evidence semantics without a live runtime.')
 registerRootCommandTask('hostedArtifactContractTest', ['python3', '-m', 'unittest',
-        'tools.build_artifacts_test', 'tools.sign_iphone_artifact_test',
+        'tools.build_artifacts_test', 'tools.runtime_image_registry_test', 'tools.sign_iphone_artifact_test',
         'tools.artifact_consumers_test', 'tools.prepare_iphone_artifact_test',
         'tools.artifact_evidence_test', 'tools.member_test_scenario_test',
         'tools.prepare_member_scenario_test', 'tools.artifact_runtime_storage_test'],
@@ -168,7 +182,7 @@ tasks.register('mcpCi') {
 tasks.register('contractAuthorityArchitectureCheck') {
     group = 'verification'
     description = 'Verify the root-orchestrated server/OpenAPI contract authority baseline without running live infrastructure.'
-    dependsOn ':server:test', 'mcpCi', 'docsStructureCheck', 'checkOpenApiContractFresh', 'checkAdminApiClientFresh', 'checkAdminPublicUserApiClientFresh', 'checkClientUserApiFresh'
+    dependsOn ':server:app:test', 'mcpCi', 'docsStructureCheck', 'checkOpenApiContractFresh', 'checkAdminApiClientFresh', 'checkAdminPublicUserApiClientFresh', 'checkClientUserApiFresh'
 }
 registerRootCommandTask('infraStatic', ['bash', '-lc', "find infra/weave-workspace/tests -maxdepth 1 -type f -name '*-test.sh' -print0 | sort -z | xargs -0 -n1 bash"], 'Run the canonical Compose, bounded Keycloak migration, and static infrastructure contract checks.')
 registerRootCommandTask('docsBuild', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; rm -rf build/docs/user build/docs/admin; "$PYTHON" -m mkdocs build --strict --site-dir build/docs/user; "$PYTHON" -m mkdocs build --strict --site-dir build/docs/admin'], 'Build deterministic user and admin MkDocs outputs with strict validation.')
@@ -194,8 +208,7 @@ registerRootCommandTask('sprint29HumanValidationCheck', ['python3', 'tools/sprin
 registerRootCommandTask('commercialAdapterReadinessCheck', ['python3', 'tools/commercial_adapter_readiness_check.py'], 'Validate Sprint 28 commercial adapter readiness specs, go/no-go matrix, and implementation-start guard.')
 registerRootCommandTask('sprint30HotPhaseCheck', ['python3', 'tools/sprint30_hot_phase_check.py'], 'Validate Sprint 30 hot-phase slogan, unified setup, member onboarding, support-safe evidence, and Weaver governance guardrails.')
 registerRootCommandTask('sprint31LanDogfoodCheck', ['python3', 'tools/sprint31_lan_dogfood_check.py'], 'Validate Sprint 31 physical iPhone LAN dogfood command, handoff, client boundary, and support-safe evidence.')
-registerRootCommandTask('dogfoodActivationMailCheckTest', ['python3', 'tools/dogfood_activation_mail_check_test.py'], 'Run fixture tests for support-safe dogfood activation mail evidence checks.')
-registerRootCommandTask('dogfoodIosSessionContinuityCheckTest', ['python3', 'tools/dogfood_ios_session_continuity_check_test.py'], 'Run fixture tests for support-safe physical iPhone session restoration evidence.')
+registerRootCommandTask('dogfoodActivationMailCheckTest', ['python3', '-m', 'unittest', 'tools.dogfood_activation_mail_check_test'], 'Verify support-safe activation mail validation independently from native qualification.')
 registerRootCommandTask('iosDogfoodDistributionCheck', ['python3', 'tools/ios_dogfood_distribution_check.py'], 'Validate development-signed in-place iPhone dogfood preparation after exact-SHA E2E.')
 registerRootCommandTask('liveStackRunnerHygieneCheck', ['python3', 'tools/live_stack_runner_hygiene_check.py'], 'Validate bounded self-hosted Compose execution and testApp-owned cleanup.')
 registerRootCommandTask('crossDomainProviderProofCheck', ['python3', 'tools/cross_domain_provider_proof_check.py'], 'Validate Sprint 27 Calendar, Files, Identity provider-boundary fixtures, scoreboard, claim gate, and acceptance mapping.')
@@ -220,7 +233,7 @@ registerRootCommandTask('gradleStructureCheck', ['python3', 'tools/gradle_struct
 // Historical bootstrap, enterprise/RC and sprint document gates remain explicit tasks above.
 // The current release aggregate proves deterministic claims and evidence validators, never live acceptance.
 // Preserve the caller-selected Python; a login shell can replace it with an older system interpreter.
-registerRootCommandTask('releaseEvidenceCheck', ['bash', '-c', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" tools/docs_check.py --release-notes-only && python3 tools/readme_release_notes.py --check && python3 tools/screenshot_evidence_check.py && python3 tools/release_claim_matrix_check.py && python3 tools/product_trust_claim_matrix_check.py && python3 tools/product_reality_claim_gate_check.py && python3 tools/provider_lab_check.py && python3 tools/chat_provider_switch_check.py && python3 tools/operator_recovery_check.py && python3 tools/operator_recovery_check_test.py && python3 tools/cross_domain_provider_proof_check.py && python3 tools/dogfood_activation_mail_check_test.py && python3 tools/dogfood_ios_session_continuity_check_test.py && python3 tools/ios_dogfood_distribution_check.py && python3 tools/human_testing_automated_evidence_test.py && python3 tools/multi_user_e2e_evidence_test.py && python3 tools/dogfood_deployment_evidence_test.py && python3 tools/candidate_source_mapping_test.py && python3 tools/runner_capacity_preflight_test.py && python3 tools/candidate_pipeline_check.py && python3 tools/obsolete_first_run_contract_check.py && python3 tools/release_trust_claim_control_check.py && python3 tools/release_notes_label_check_test.py && python3 tools/release_notes_generate.py --input tools/fixtures/release_notes_prs.json --output tools/fixtures/release_notes_unreleased.expected.md --check && python3 -m unittest tools.test_verify_main_promotion_evidence tools.test_project_delivery_projection -v && python3 client/tool/native_qualification_test.py -v && python3 tools/physical_iphone_human_evidence_test.py'], 'Validate current release claims, accessibility boundaries, recovery/privacy fixtures, exact-candidate automated and human evidence, native qualification, and physical preparation without executing live journeys.')
+registerRootCommandTask('releaseEvidenceCheck', ['bash', '-c', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" tools/docs_check.py --release-notes-only && python3 tools/readme_release_notes.py --check && python3 tools/screenshot_evidence_check.py && python3 tools/release_claim_matrix_check.py && python3 tools/product_trust_claim_matrix_check.py && python3 tools/product_reality_claim_gate_check.py && python3 tools/provider_lab_check.py && python3 tools/chat_provider_switch_check.py && python3 tools/operator_recovery_check.py && python3 tools/operator_recovery_check_test.py && python3 tools/cross_domain_provider_proof_check.py && python3 tools/dogfood_activation_mail_check_test.py && python3 -m unittest tools.dogfood_functional_smoke_test && python3 tools/ios_dogfood_distribution_check.py && python3 tools/human_testing_automated_evidence_test.py && python3 tools/multi_user_e2e_evidence_test.py && python3 tools/dogfood_deployment_evidence_test.py && python3 tools/candidate_source_mapping_test.py && python3 tools/runner_capacity_preflight_test.py && python3 tools/candidate_pipeline_check.py && python3 tools/obsolete_first_run_contract_check.py && python3 tools/release_trust_claim_control_check.py && python3 tools/release_notes_label_check_test.py && python3 tools/release_notes_generate.py --input tools/fixtures/release_notes_prs.json --output tools/fixtures/release_notes_unreleased.expected.md --check && python3 -m unittest tools.test_verify_main_promotion_evidence tools.test_project_delivery_projection -v && python3 client/tool/native_qualification_test.py -v && python3 tools/physical_iphone_human_evidence_test.py'], 'Validate current release claims, accessibility boundaries, recovery/privacy fixtures, exact-candidate automated and human evidence, native qualification, and physical preparation without executing live journeys.')
 
 tasks.register('docsCheck') {
     group = 'verification'

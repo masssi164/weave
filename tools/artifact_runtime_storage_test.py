@@ -18,7 +18,7 @@ def digest(number: int) -> str:
 
 
 def fixture(number: int) -> tuple[dict, dict]:
-    manifest = {"schemaVersion": "weave.build-artifact/v1", "component": "runtime-linux-amd64",
+    manifest = {"schemaVersion": "weave.build-artifact/v1", "component": "runtime-linux-arm64", "target": "linux/arm64",
                 "sourceCommit": f"{number:040x}", "inputDigest": digest(number + 1000),
                 "payload": {"sha256": digest(number + 2000)}}
     images = dict(zip(("backend", "mcp", "keycloak", "runtimeState"),
@@ -69,7 +69,7 @@ class RuntimeStorageTest(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
+        self.root = Path(self.temporary.name).resolve()
         self.ledger = self.root / "private/ledger.json"
         self.docker = Docker()
 
@@ -324,7 +324,7 @@ class RuntimeStorageTest(unittest.TestCase):
         manifest["component"] = "ios-device"
         with self.assertRaises(storage.RuntimeStorageError):
             storage.record_verified_runtime(manifest, images, ledger=self.ledger, docker=self.docker)
-        manifest["component"] = "runtime-linux-amd64"
+        manifest["component"] = "runtime-linux-arm64"
         del images["keycloak"]
         with self.assertRaises(storage.RuntimeStorageError):
             storage.record_verified_runtime(manifest, images, ledger=self.ledger, docker=self.docker)

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Weave Configuration and Beans"
+  short_description: "Keep bean wiring stable and providers runtime-routed"
+  default_prompt: "Use $weave-config-and-beans to implement this Weave configuration or runtime provider change safely."

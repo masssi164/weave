@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import copy
 import json
 import os
 from pathlib import Path
@@ -19,6 +20,21 @@ import runtime_registry_auth as auth
 class ImageRegistryTests(unittest.TestCase):
     source = "a" * 40
     spec = "sha256:" + "b" * 64
+    runtime = {"domains": ["calendar", "chat", "files"], "flavor": "jvm"}
+
+    def validate(self, receipt, source=None, platform="linux/arm64"):
+        return registry.validate_receipt(receipt, source or self.source, self.spec,
+                                         platform=platform, runtime=self.runtime)
+
+    def publish(self, platform="linux/arm64"):
+        return registry.publish(self.images(), self.source, self.spec,
+                                platform=platform, runtime=self.runtime)
+
+    def receipt(self):
+        return {"schemaVersion": "weave.runtime-images/v2", "sourceCommit": self.source,
+                "specDigest": self.spec, "platform": "linux/arm64", "runtime": self.runtime,
+                "images": {key: {"imageId": image, "reference": registry.NAMES[key] + "@" + image}
+                           for key, image in self.images().items()}}
 
     def images(self) -> dict[str, str]:
         return {key: "sha256:" + str(index) * 64
@@ -32,6 +48,8 @@ class ImageRegistryTests(unittest.TestCase):
 
     def test_private_push_produces_immutable_digest_receipt(self):
         def fake_docker(command, *, input_text=None):
+            if command[:2] == ["image", "inspect"]:
+                return json.dumps([{"Id": command[-1], "Os": "linux", "Architecture": "arm64"}])
             if "login" in command:
                 self.assertEqual(input_text, "fixture-token")
             if "push" in command:
@@ -39,34 +57,66 @@ class ImageRegistryTests(unittest.TestCase):
             return ""
 
         with patch.dict(os.environ, self.context()), patch.object(registry, "_docker", side_effect=fake_docker) as runner:
-            receipt = registry.publish(self.images(), self.source, self.spec)
-        self.assertEqual(registry.validate_receipt(receipt, self.source, self.spec), self.images())
-        self.assertEqual(runner.call_count, 9)
+            receipt = self.publish()
+        self.assertEqual(self.validate(receipt), self.images())
+        self.assertEqual(runner.call_count, 13)
         for key, entry in receipt["images"].items():
             self.assertTrue(entry["reference"].startswith(registry.NAMES[key] + "@sha256:"))
             self.assertNotIn(":candidate-", entry["reference"])
 
     def test_rejects_mutable_or_cross_repository_receipts(self):
-        receipt = {"schemaVersion": "weave.runtime-images/v2", "sourceCommit": self.source,
-                   "specDigest": self.spec, "platform": "linux/amd64",
-                   "images": {key: {"imageId": image, "reference": registry.NAMES[key] + "@" + image}
-                              for key, image in self.images().items()}}
-        registry.validate_receipt(receipt, self.source, self.spec)
+        receipt = self.receipt()
+        self.validate(receipt)
         with self.assertRaises(ArtifactError):
-            registry.validate_receipt(receipt, "c" * 40, self.spec)
+            self.validate(receipt, "c" * 40)
         receipt["images"]["mcp"]["reference"] = "ghcr.io/attacker/mcp@sha256:" + "f" * 64
         with self.assertRaises(ArtifactError):
-            registry.validate_receipt(receipt, self.source, self.spec)
+            self.validate(receipt)
         receipt["images"]["mcp"]["reference"] = registry.NAMES["mcp"] + ":latest"
         with self.assertRaises(ArtifactError):
-            registry.validate_receipt(receipt, self.source, self.spec)
+            self.validate(receipt)
+
+    def test_receipt_binds_platform_domains_and_runtime_flavor(self):
+        for field, changed in (("platform", "linux/amd64"),
+                               ("runtime", {"domains": ["files"], "flavor": "jvm"}),
+                               ("runtime", {"domains": self.runtime["domains"], "flavor": "native"}),
+                               ("runtime", None)):
+            receipt = copy.deepcopy(self.receipt())
+            receipt[field] = changed
+            with self.subTest(field=field, changed=changed), self.assertRaisesRegex(ArtifactError, "receipt-invalid"):
+                self.validate(receipt)
+
+    def test_mismatched_image_platform_fails_before_registry_mutation(self):
+        with patch.dict(os.environ, self.context()), patch.object(registry, "_docker", return_value=json.dumps([
+                {"Id": self.images()["backend"], "Os": "linux", "Architecture": "amd64"}])) as docker, \
+                self.assertRaisesRegex(ArtifactError, "image-platform-mismatch"):
+            self.publish()
+        self.assertEqual([call.args[0][:2] for call in docker.call_args_list], [["image", "inspect"]])
+
+    def test_amd64_requires_explicit_manual_producer(self):
+        with patch.dict(os.environ, self.context()), patch.object(registry, "_docker") as docker, \
+                self.assertRaisesRegex(ArtifactError, "manual-only"):
+            self.publish("linux/amd64")
+        docker.assert_not_called()
+        def fake_docker(command, *, input_text=None):
+            if command[:2] == ["image", "inspect"]:
+                return json.dumps([{"Id": command[-1], "Os": "linux", "Architecture": "amd64"}])
+            if "push" in command:
+                return "candidate: digest: sha256:" + "f" * 64 + " size: 1234"
+            return ""
+        context = {**self.context(), "GITHUB_EVENT_NAME": "workflow_dispatch"}
+        with patch.dict(os.environ, context), patch.object(registry, "_docker", side_effect=fake_docker):
+            receipt = self.publish("linux/amd64")
+        self.assertEqual(self.validate(receipt, platform="linux/amd64"), self.images())
+        with self.assertRaises(ArtifactError):
+            self.validate(receipt)
 
     def test_rejects_untrusted_publication_context_before_login(self):
         context = self.context()
         context["GITHUB_REPOSITORY"] = "fork/weave"
         with patch.dict(os.environ, context), patch.object(registry, "_docker") as docker, \
                 self.assertRaisesRegex(ArtifactError, "context-invalid"):
-            registry.publish(self.images(), self.source, self.spec)
+            self.publish()
         docker.assert_not_called()
 
     def test_auth_is_run_scoped_and_cleanup_is_exact(self):

@@ -57,7 +57,7 @@ def _identity(context: ComposeContext) -> dict[str, str]:
         from artifact_consumers import ArtifactError, candidate_composition
         try:
             composition = candidate_composition(commit)
-            if composition["components"]["runtime-linux-amd64"]["sourceCommit"] != source:
+            if composition["components"]["runtime-linux-arm64"]["sourceCommit"] != source:
                 raise ArtifactError("runtime-producer-mismatch")
         except (ArtifactError, KeyError):
             raise ContractError("Space preparation source differs from the candidate composition") from None

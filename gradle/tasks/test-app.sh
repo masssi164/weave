@@ -210,9 +210,11 @@ if [[ -z "${SERVER_IMAGE}" && -z "${MCP_IMAGE}" ]]; then
   SERVER_IMAGE="${LOCAL_SERVER_TAG}"
   MCP_IMAGE="${LOCAL_MCP_TAG}"
   log "Building Server and MCP from the exact candidate."
+  resolved_domains="$(python3 "${REPOSITORY_ROOT}/tools/domain_selection_resolver.py" --release-selection --format csv)"
   WEAVE_OPENDAL_CLASSIFIER=linux-x86_64 \
     "${REPOSITORY_ROOT}/gradlew" --no-daemon --max-workers=2 \
-    :server:bootJar \
+    "-Pdomains=${resolved_domains}" \
+    :server:app:bootJar :server:app:verifySelectedArtifact \
     :weave-mcp-server:bootJar
   image_created="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   image_version="test-app-${candidate_commit:0:12}"
@@ -224,12 +226,13 @@ if [[ -z "${SERVER_IMAGE}" && -z "${MCP_IMAGE}" ]]; then
     --build-arg "WEAVE_SBOM_REFERENCE=local-test-app-not-published"
     --build-arg "WEAVE_PROVENANCE_REFERENCE=local-test-app-not-published"
   )
-  docker build \
+  python3 "${REPOSITORY_ROOT}/tools/build_artifacts_hosted.py" \
+    --root "${REPOSITORY_ROOT}" \
+    --component runtime-linux-amd64 \
+    --domains "${resolved_domains}" \
+    --local-backend-image "${SERVER_IMAGE}" \
     --platform linux/amd64 \
-    "${common_build_args[@]}" \
-    --tag "${SERVER_IMAGE}" \
-    --file "${REPOSITORY_ROOT}/server/Dockerfile" \
-    "${REPOSITORY_ROOT}"
+    "${common_build_args[@]}"
   docker build \
     --platform linux/amd64 \
     "${common_build_args[@]}" \
@@ -260,6 +263,7 @@ elif [[ -z "${KEYCLOAK_IMAGE}" ]]; then
   KEYCLOAK_IMAGE="$(
     python3 "${WORKSPACE_ROOT}/scripts/build_keycloak_image.py" \
       --root "${REPOSITORY_ROOT}" \
+      --platform linux/amd64 \
       --candidate-commit "${image_source_commit}"
   )"
 else
@@ -278,7 +282,7 @@ validate_runtime_image \
 # any persistent dogfood deployment or publish a runtime image.
 export WEAVE_RUNTIME_STATE_IMAGE
 if [[ -z "${WEAVE_BUILD_ARTIFACT_ROOT:-}" ]]; then
-  WEAVE_RUNTIME_STATE_IMAGE="$(bash "${WORKSPACE_ROOT}/scripts/build_runtime_state_image.sh")"
+  WEAVE_RUNTIME_STATE_IMAGE="$(bash "${WORKSPACE_ROOT}/scripts/build_runtime_state_image.sh" --platform linux/amd64)"
 fi
 
 if [[ -n "${candidate_manifest_path}" ]]; then

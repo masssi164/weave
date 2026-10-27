@@ -142,9 +142,6 @@ def failure_marker(category: str, stage: str, reason: str) -> None:
 def onboarding_diagnostics(output: str) -> list[str]:
     pattern = (r'(?:flutter: )?(NATIVE_PRODUCT_STAGE phase=onboarding-failed '
                r'actor=(?:A|B|unavailable) '
-               r'authState=(?:handoff_received|platform_config_loaded|ready_for_sso|sso_in_progress|authenticated|workspace_bootstrap_loading|session_restored|workspace_ready|recoverable_error|terminal_setup_error|unavailable) '
-               r'visibleState=(?:handoff_ready|handoff_error|authenticated_redirect|unavailable) '
-               r'errorCode=(?:none|WEAVE-APP-START-DISCOVERY-INVALID|WEAVE-APP-START-DISCOVERY-FAILED|WEAVE-APP-START-TIMEOUT|WEAVE-APP-START-TLS-FAILED|WEAVE-APP-START-DNS-FAILED|WEAVE-APP-START-NETWORK-FAILED|WEAVE-LAN-UNREACHABLE|WEAVE-HANDOFF-INVALID|WEAVE-SSO-CANCELLED|WEAVE-SSO-CONFIGURATION-MISSING|WEAVE-SSO-NOT-COMPLETE|WEAVE-SESSION-STORAGE-FAILED|WEAVE-SSO-UNSUPPORTED-DEVICE|WEAVE-SSO-UNKNOWN|WEAVE-MOBILE-OFFLINE-SESSION-DENIED|WEAVE-WORKSPACE-BOOTSTRAP-NOT-READY|PlatformException|StateError|FormatException|unavailable) '
                + ' '.join(name + r'Count=[0-9]{1,3}' for name in ('organization', 'handoff', 'ready', 'signIn', 'workspace')) + ')')
     records = []
     for line in output.split('\n'):
@@ -502,10 +499,8 @@ def wait_for_flutter_shell(process, log_path: Path, phase: str, timeout: float =
             onboarding = onboarding or onboarding_diagnostics(observed)
             if process.poll() is not None:
                 if onboarding:
-                    network = any('errorCode=' + code + ' ' in onboarding[0] for code in
-                                  ('WEAVE-APP-START-TIMEOUT', 'WEAVE-APP-START-TLS-FAILED', 'WEAVE-APP-START-DNS-FAILED', 'WEAVE-APP-START-NETWORK-FAILED', 'WEAVE-LAN-UNREACHABLE'))
-                    raise NativeFailure('infrastructure' if network else 'integration', phase + '-onboarding',
-                                        'discovery-network-failed' if network else 'ready-sso-not-observed')
+                    # Visible UI counts prove the journey failed, not its transport cause.
+                    raise NativeFailure('integration', phase + '-onboarding', 'ready-sso-not-observed')
                 raise NativeFailure('infrastructure', phase + '-app-start', 'integration-app-exited-before-readiness')
             if 'NATIVE_PRODUCT_STAGE phase=shell-ready' in observed:
                 print(f'NATIVE_IOS_APP_START_RESULT status=ready phase={phase} supportSafe=true', flush=True)

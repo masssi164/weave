@@ -114,6 +114,12 @@ IntegrationConnectionState _mapBackendCapabilityConnection({
   required WorkspaceCapabilityState capability,
   IntegrationInvalidation? invalidation,
 }) {
+  if (!capability.installed) {
+    return IntegrationConnectionState(
+      integration: integration,
+      status: IntegrationConnectionStatus.unavailableOnPlatform,
+    );
+  }
   if (invalidation != null) {
     return IntegrationConnectionState(
       integration: integration,
@@ -201,7 +207,9 @@ WorkspaceCapabilitySnapshot _applyMemberSpaceAccess(
     WorkspaceCapabilityState capability,
     bool admitted,
   ) {
-    if (admitted || !capability.isReady) return capability;
+    if (!capability.installed || admitted || !capability.isReady) {
+      return capability;
+    }
     return WorkspaceCapabilityState(
       capability: capability.capability,
       readiness: WorkspaceCapabilityReadiness.blocked,
@@ -278,28 +286,7 @@ WorkspaceCapabilitySnapshot _mapBackendFacadeLocalSnapshot(
 ) {
   final shellAccess = _mapShellAccessCapability(appAuth);
 
-  return WorkspaceCapabilitySnapshot(
-    shellAccess: shellAccess,
-    chat: _mapBackendOwnedCapability(
-      capability: WorkspaceCapability.chat,
-      shellAccess: appAuth,
-    ),
-    files: _mapBackendOwnedCapability(
-      capability: WorkspaceCapability.files,
-      shellAccess: appAuth,
-    ),
-    calendar: _mapBackendOwnedCapability(
-      capability: WorkspaceCapability.calendar,
-      shellAccess: appAuth,
-    ),
-    boards: _mapBackendOwnedCapability(
-      capability: WorkspaceCapability.boards,
-      shellAccess: appAuth,
-    ),
-    agentRuntimeControl: _mapDisabledPolicyCapability(
-      WorkspaceCapability.agentRuntimeControl,
-    ),
-  );
+  return WorkspaceCapabilitySnapshot(shellAccess: shellAccess);
 }
 
 WorkspaceCapabilitySnapshot _mergeWorkspaceCapabilitySnapshots({
@@ -363,7 +350,8 @@ WorkspaceCapabilityState _mergeWorkspaceCapabilityState({
   required WorkspaceCapabilityState backend,
 }) {
   return WorkspaceCapabilityState(
-    capability: local.capability,
+    capability: backend.capability,
+    installed: backend.installed,
     readiness: backend.readiness,
     connectionStatus: local.connectionStatus,
     recoveryRequirement: local.recoveryRequirement,
@@ -408,33 +396,4 @@ WorkspaceCapabilityState _mapShellAccessCapability(
         recoveryRequirement: appAuth.recoveryRequirement,
       ),
   };
-}
-
-WorkspaceCapabilityState _mapBackendOwnedCapability({
-  required WorkspaceCapability capability,
-  required IntegrationConnectionState shellAccess,
-}) {
-  if (shellAccess.status != IntegrationConnectionStatus.connected) {
-    return WorkspaceCapabilityState(
-      capability: capability,
-      readiness: WorkspaceCapabilityReadiness.blocked,
-      recoveryRequirement: shellAccess.recoveryRequirement,
-    );
-  }
-
-  return WorkspaceCapabilityState(
-    capability: capability,
-    readiness: WorkspaceCapabilityReadiness.ready,
-    connectionStatus: IntegrationConnectionStatus.connected,
-  );
-}
-
-WorkspaceCapabilityState _mapDisabledPolicyCapability(
-  WorkspaceCapability capability,
-) {
-  return WorkspaceCapabilityState(
-    capability: capability,
-    readiness: WorkspaceCapabilityReadiness.unavailable,
-    policyState: WorkspaceCapabilityPolicyState.disabled,
-  );
 }

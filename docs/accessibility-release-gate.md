@@ -51,7 +51,7 @@ Sprint 9 treats setup, provider switching/report review, Calls/MatrixRTC readine
 | Sprint 9 flow | Required evidence shape | Current automated anchor |
 | --- | --- | --- |
 | Admin setup and domain registry review | keyboard-accessible setup progression, stable domain labels, and no raw provider setup in member paths | `test/features/onboarding/setup_flow_test.dart`, `test/release_1/v0_1_release_spine_contract_test.dart` |
-| Provider switching and report review | dry-run, lossy, conflict, rollback, member-impact, and blocked-apply states are reachable and text-first | `admin-console/src/App.test.tsx`, `server/src/test/java/com/massimotter/weave/backend/controller/AdminControlPlaneControllerTest.java` |
+| Provider switching and report review | dry-run, lossy, conflict, rollback, member-impact, and blocked-apply states are reachable and text-first | `admin-console/src/App.test.tsx`, `server/app/src/test/java/com/massimotter/weave/backend/controller/AdminControlPlaneControllerTest.java` |
 | Calls/MatrixRTC readiness | join/start states fail closed with labeled controls and honest signaling, RTC-authorization, media-E2EE, and SFU readiness copy | `test/features/chat/channel_workspace_test.dart`, `docs/meeting-architecture-decision.md` |
 | Member capability states | provider-neutral states are exposed as semantic text and never require provider diagnostics | `test/features/settings/settings_screen_test.dart`, `test/features/app/weave_app_backend_capability_flow_test.dart` |
 

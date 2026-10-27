@@ -354,7 +354,7 @@ class DefaultSpaceBootstrapTest(unittest.TestCase):
                                 WEAVE_IMAGE_SOURCE_COMMIT="f" * 40)
         artifact = types.ModuleType("artifact_consumers")
         artifact.ArtifactError = type("ArtifactError", (ValueError,), {})
-        artifact.candidate_composition = Mock(return_value={"components": {"runtime-linux-amd64": {"sourceCommit": "f" * 40}}})
+        artifact.candidate_composition = Mock(return_value={"components": {"runtime-linux-arm64": {"sourceCommit": "f" * 40}}})
         with patch.dict(sys.modules, {"artifact_consumers": artifact}), \
                 patch.dict(os.environ, {"WEAVE_BUILD_ARTIFACT_ROOT": "/owned/artifacts"}), \
                 patch.object(bootstrap, "_git", side_effect=["b" * 40, "d" * 40, ""]) as git:
@@ -362,7 +362,7 @@ class DefaultSpaceBootstrapTest(unittest.TestCase):
                              {"candidateCommit": "b" * 40, "sourceTree": "d" * 40, "specificationCommit": "e" * 40})
         self.assertEqual(git.call_count, 3)
         artifact.candidate_composition.assert_called_once_with("b" * 40)
-        artifact.candidate_composition.return_value["components"]["runtime-linux-amd64"]["sourceCommit"] = "a" * 40
+        artifact.candidate_composition.return_value["components"]["runtime-linux-arm64"]["sourceCommit"] = "a" * 40
         with patch.dict(sys.modules, {"artifact_consumers": artifact}), \
                 patch.dict(os.environ, {"WEAVE_BUILD_ARTIFACT_ROOT": "/owned/artifacts"}), \
                 patch.object(bootstrap, "_git", side_effect=["b" * 40, "d" * 40, ""]), \

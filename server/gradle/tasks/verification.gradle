@@ -42,40 +42,37 @@ tasks.named('test') {
     useJUnitPlatform {
         excludeTags 'postgres'
     }
-    systemProperty 'weave.matrix.protocol.library.path', matrixProtocolLibrary.absolutePath
+    systemProperty 'weave.matrix.protocol.library.path', matrixProtocolLibrary.get().absolutePath
 }
 
-tasks.register('openApiContractExport', Test) {
+tasks.register('javaAgentReferenceTest', Test) {
     group = 'verification'
-    description = 'Export the server-owned OpenAPI contract without mutating the main test results.'
+    description = 'Run bounded JVM HTTP/bean and same-instance provider-routing examples without JNI or live infrastructure.'
     dependsOn tasks.named('testClasses')
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
-    maxParallelForks = 1
-    systemProperty 'weave.openapi.export.path', rootProject.layout.buildDirectory
-            .file('openapi/weave-openapi.raw.json')
-            .get()
-            .asFile
-            .absolutePath
     filter {
-        includeTestsMatching '*OpenApiDocumentationTest'
+        includeTestsMatching '*DeclarativeHttpClientReferenceTest'
+        includeTestsMatching '*ConfigurationPropertiesReferenceTest'
+        includeTestsMatching '*FilesProviderResolverTest'
     }
     useJUnitPlatform {
-        // Cucumber suites discover their own scenarios outside the class filter.
-        // Export runs only the Jupiter metadata tests, never runtime journeys.
+        // Cucumber performs its own discovery outside Gradle class filters.
         includeEngines 'junit-jupiter'
     }
-    outputs.upToDateWhen { false }
 }
 
 tasks.register('postgresJpaTest', Test) {
+    if ('calendar' in project(':server').ext.weaveDomainSelection.domains) {
+        dependsOn ':server:domains:calendar:postgresTest'
+    }
     group = 'verification'
     description = 'Run the authoritative JPA repository, constraint, transaction, migration, and restore contracts against PostgreSQL.'
     dependsOn tasks.named('buildMatrixRustCoreJni'), tasks.named('testClasses')
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     maxParallelForks = 1
-    systemProperty 'weave.matrix.protocol.library.path', matrixProtocolLibrary.absolutePath
+    systemProperty 'weave.matrix.protocol.library.path', matrixProtocolLibrary.get().absolutePath
     systemProperty 'weave.test.postgres', 'true'
     testLogging {
         exceptionFormat = 'full'
@@ -94,9 +91,11 @@ tasks.register('postgresJpaTest', Test) {
         includeTestsMatching '*AgentRuntimeControlServiceTest'
         includeTestsMatching '*AgentRuntimeWorkloadReconciliationServiceTest'
         includeTestsMatching '*JpaAuditEventPublisherTest'
+        includeTestsMatching '*JpaAuditEventPublisherPostgresTest'
         includeTestsMatching '*JpaCanonicalChatLedgerRecoveryTest'
         includeTestsMatching '*JpaCanonicalChatStoreTest'
         includeTestsMatching '*MatrixE2eeStateServicePersistenceTest'
+        includeTestsMatching '*MatrixE2eeRelationalStorePostgresTest'
         includeTestsMatching '*MatrixDeviceProofPostgresTest'
         includeTestsMatching '*MatrixBackupVersionPostgresTest'
         includeTestsMatching '*MatrixFacadeClientStateServicePersistenceTest'
@@ -107,7 +106,9 @@ tasks.register('postgresJpaTest', Test) {
         includeTestsMatching '*JpaProviderBindingRepositoryPostgresTest'
         includeTestsMatching '*CalendarBindingBootstrapPersistenceTest'
         includeTestsMatching '*JpaOrganizationBootstrapRepositoryTest'
+        includeTestsMatching '*IdentityAdminOperationStorePostgresTest'
         includeTestsMatching '*JpaMigrationRunEvidenceRepositoryTest'
+        includeTestsMatching '*JpaMigrationRunEvidenceRepositoryPostgresTest'
         includeTestsMatching '*JpaOperationIntentRepositoryPostgresTest'
         includeTestsMatching '*FilesMutationIntentServicePostgresTest'
         includeTestsMatching '*FilesUserApiNativeIntegrationTest'

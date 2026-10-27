@@ -177,59 +177,12 @@ def main() -> None:
     android_manifest = read("client/android/app/src/main/AndroidManifest.xml")
     if "weave_member_handoff" not in android_manifest or "android:scheme=\"weave\"" not in android_manifest:
         fail("Android must register a separate Weave member handoff scheme on MainActivity")
-    ios_smoke = read("tools/dogfood_ios_deeplink_smoke.sh")
-    for phrase in [
-        "WEAVE_IOS_LOCAL_CA_TRUST_STATUS",
-        "ios-local-tls-preflight.json",
-        "PHYSICAL_DEVICE_TLS_PENDING",
-    ]:
-        if phrase not in ios_smoke:
-            fail(f"iOS physical smoke missing local TLS preflight guard: {phrase}")
-    iphone_entry = read("tools/dogfood_iphone_entry.sh")
-    for phrase in [
-        "https://api.weave.test:44443",
-        "WEAVE_DOGFOOD_API_BASE_URL",
-        "API_BASE_URL/api/platform/config",
-    ]:
-        if phrase not in iphone_entry:
-            fail(f"iPhone entry missing canonical API platform config default: {phrase}")
     ios_entitlements = read("client/ios/Runner/Runner.entitlements")
     if "$(AppIdentifierPrefix)com.massimotter.weave" not in ios_entitlements:
         fail("iOS Keychain application identity must remain stable across dogfood updates")
-    ios_distribution = read(".github/workflows/ios-dogfood.yml")
-    for phrase in ["ios-dogfood", "dogfood", "xcrun altool --upload-app"]:
-        if phrase not in ios_distribution:
-            fail(f"iOS TestFlight workflow missing {phrase}")
-    session_restore = read("tools/dogfood_ios_session_restore_smoke.sh")
-    for phrase in ["--terminate-existing", "dogfood_ios_session_continuity_check.py"]:
-        if phrase not in session_restore:
-            fail(f"iOS session restore smoke missing {phrase}")
+    # The archived sprint fixture delegates current delivery boundaries to the
+    # existing protected-artifact/external-UI checker, never private app state.
     run(["python3", "tools/ios_dogfood_distribution_check.py"])
-    run(["python3", "tools/dogfood_ios_session_continuity_check_test.py"])
-    with tempfile.TemporaryDirectory() as tmp:
-        result = run(
-            [
-                "bash",
-                "tools/dogfood_ios_deeplink_smoke.sh",
-            ],
-            expect_success=False,
-            env={
-                "WEAVE_IOS_DEVICE_ID": "placeholder-device",
-                "WEAVE_DOGFOOD_DEEPLINK": (
-                    "weave://join?handoff_ref=handoff-s32-massimo-dogfood-home"
-                    "&run_id=s32-massimo-dogfood"
-                    "&platform_config_url=https%3A%2F%2Fweave.test%3A44443%2Fapi%2Fplatform%2Fconfig"
-                ),
-                "WEAVE_IOS_LOCAL_CA_TRUST_STATUS": "manual_pending",
-                "WEAVE_DOGFOOD_EVIDENCE_DIR": tmp,
-                "FLUTTER_BIN": "/usr/bin/true",
-            },
-        )
-        if "PHYSICAL_DEVICE_TLS_PENDING" not in result.stderr:
-            fail("iOS physical smoke must fail before launch when local CA trust is pending")
-        preflight = Path(tmp) / "ios-local-tls-preflight.json"
-        if not preflight.exists():
-            fail("iOS physical smoke must write local TLS preflight evidence before failing")
     handoff_bundle = read("tools/dogfood_handoff_bundle.py")
     for phrase in [
         "dogfoodRoute",
@@ -282,11 +235,10 @@ def main() -> None:
         assert_no_forbidden(rel)
     runbook = read("docs/sprint-31-iphone-lan-dogfood-runbook.md")
     for phrase in [
-        "WEAVE-APP-START-TLS-FAILED",
-        "PHYSICAL_DEVICE_TLS_PENDING",
+        "Historical reference",
+        "ios-dogfood-distribution.md",
         "simulator CA injection is not physical dogfood proof",
         "public HTTPS route with a publicly trusted certificate",
-        "publicly trusted dogfood endpoint",
         "simulator handoff evidence is not physical-device E2E",
     ]:
         if phrase not in runbook:

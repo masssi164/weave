@@ -548,40 +548,32 @@ print("receipt-reducer-passed")
                     diagnostic.close()
 
     def test_onboarding_diagnostics_are_exact_bounded_and_classify_executed_ui_failure(self):
-        record = ('NATIVE_PRODUCT_STAGE phase=onboarding-failed actor=A authState=ready_for_sso '
-                  'visibleState=handoff_ready errorCode=none organizationCount=0 handoffCount=1 '
+        record = ('NATIVE_PRODUCT_STAGE phase=onboarding-failed actor=A organizationCount=0 handoffCount=1 '
                   'readyCount=1 signInCount=0 workspaceCount=0')
         self.assertEqual(ios.onboarding_diagnostics(record), [record])
         self.assertEqual(ios.onboarding_diagnostics('flutter: ' + record), [record])
         self.assertEqual(ios.onboarding_diagnostics(record + '\n' + record), [record])
         for bad in [record + ' private=credential', 'private ' + record, 'flutter: flutter: ' + record,
                     record + '\r', record.replace('Count=1', 'Count=1000'), record.replace('actor=A', 'actor=secret'),
-                    record.replace('errorCode=none', 'errorCode=https://private.invalid/token')]:
+                    record.replace('organizationCount=0', 'authState=ready_for_sso organizationCount=0')]:
             self.assertEqual(ios.onboarding_diagnostics(bad), [])
         with tempfile.TemporaryDirectory() as directory:
             log = Path(directory) / 'flutter.log'
             process = unittest.mock.Mock();process.poll.return_value = 1
             for marker, category, phase in [(record, 'integration', 'initial-onboarding'),
-                (record.replace('errorCode=none', 'errorCode=WEAVE-APP-START-TLS-FAILED'), 'infrastructure', 'initial-onboarding'),
                 ('host failed without UI evidence', 'infrastructure', 'initial-app-start')]:
                 log.write_text(marker + '\n')
                 with self.assertRaises(ios.NativeFailure) as caught: ios.wait_for_flutter_shell(process, log, 'initial')
                 self.assertEqual((caught.exception.category, caught.exception.stage), (category, phase))
 
-    def test_onboarding_auth_classifications_preserve_only_existing_public_codes(self):
-        template = ('NATIVE_PRODUCT_STAGE phase=onboarding-failed actor=A authState=recoverable_error '
-                    'visibleState=handoff_ready errorCode={} organizationCount=0 handoffCount=1 '
-                    'readyCount=0 signInCount=0 workspaceCount=0')
-        codes = ['WEAVE-SSO-CANCELLED', 'WEAVE-SSO-CONFIGURATION-MISSING', 'WEAVE-SSO-NOT-COMPLETE',
-                 'WEAVE-SESSION-STORAGE-FAILED', 'WEAVE-SSO-UNSUPPORTED-DEVICE', 'WEAVE-SSO-UNKNOWN',
-                 'WEAVE-MOBILE-OFFLINE-SESSION-DENIED', 'WEAVE-WORKSPACE-BOOTSTRAP-NOT-READY']
-        for code in codes:
-            with self.subTest(code=code):
-                record = template.format(code)
-                self.assertEqual(ios.onboarding_diagnostics(record), [record])
-                for private in [code + '-private', code + ' account=value', 'https://private.invalid',
-                                code + '\r', 'private@example.invalid', code + 'x' * 81]:
-                    self.assertEqual(ios.onboarding_diagnostics(template.format(private)), [])
+    def test_onboarding_diagnostics_reject_removed_private_state_fields(self):
+        record = ('NATIVE_PRODUCT_STAGE phase=onboarding-failed actor=B organizationCount=0 '
+                  'handoffCount=1 readyCount=0 signInCount=0 workspaceCount=0')
+        self.assertEqual(ios.onboarding_diagnostics(record), [record])
+        for private in ('authState=authenticated', 'visibleState=handoff_ready',
+                        'errorCode=WEAVE-APP-START-TLS-FAILED', 'https://private.invalid'):
+            with self.subTest(private=private):
+                self.assertEqual(ios.onboarding_diagnostics(record + ' ' + private), [])
 
     def test_chat_readiness_diagnostics_are_fixed_bounded_and_private_safe(self):
         marker = ('NATIVE_PRODUCT_STAGE phase=chat-readiness-failed chatPhase=loading '

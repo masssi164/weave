@@ -1,39 +1,17 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
-import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/core/widgets/weave_logo.dart';
-import 'package:weave/features/auth/domain/entities/auth_failure.dart';
 import 'package:weave/features/auth/presentation/auth_failure_message.dart';
 import 'package:weave/features/auth/presentation/providers/auth_flow_controller.dart';
-import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
-import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
 import 'package:weave/features/server_config/presentation/providers/saved_server_configuration_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
-
-final lastHandoffConsumedProvider = FutureProvider<Map<String, Object?>?>((
-  ref,
-) async {
-  final raw = await ref
-      .watch(preferencesStoreProvider)
-      .getString(lastHandoffConsumedStorageKey);
-  if (raw == null || raw.isEmpty) {
-    return null;
-  }
-  final decoded = jsonDecode(raw);
-  if (decoded is Map<String, dynamic>) {
-    return decoded;
-  }
-  return null;
-});
 
 class SignInScreen extends ConsumerWidget {
   const SignInScreen({super.key});
@@ -43,7 +21,6 @@ class SignInScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final configuration = ref.watch(savedServerConfigurationProvider);
     final authState = ref.watch(authFlowControllerProvider);
-    final lastHandoff = ref.watch(lastHandoffConsumedProvider);
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.signInScreenTitle)),
@@ -161,31 +138,11 @@ class SignInScreen extends ConsumerWidget {
                           onPressed: authState.isBusy
                               ? null
                               : () async {
-                                  final handoffEvidence = lastHandoff.value;
-                                  await _recordAuthStage(
-                                    ref,
-                                    handoffEvidence,
-                                    MemberAuthOnboardingStage.ssoInProgress,
-                                  );
-                                  if (!context.mounted) return;
                                   final signedIn = await ref
                                       .read(authFlowControllerProvider.notifier)
                                       .signIn();
                                   if (!context.mounted) return;
                                   if (signedIn) {
-                                    await _recordAuthStage(
-                                      ref,
-                                      handoffEvidence,
-                                      MemberAuthOnboardingStage.authenticated,
-                                    );
-                                    if (!context.mounted) return;
-                                    await _recordAuthStage(
-                                      ref,
-                                      handoffEvidence,
-                                      MemberAuthOnboardingStage
-                                          .workspaceBootstrapLoading,
-                                    );
-                                    if (!context.mounted) return;
                                     final bootstrap = ref.read(
                                       appBootstrapProvider,
                                     );
@@ -193,35 +150,12 @@ class SignInScreen extends ConsumerWidget {
                                         bootstrap.hasError ||
                                         bootstrap.value?.phase !=
                                             BootstrapPhase.ready) {
-                                      await _recordAuthFailure(
-                                        ref,
-                                        handoffEvidence,
-                                        const AuthFailure.protocol(
-                                          'The authenticated workspace did not become ready.',
-                                        ),
-                                      );
                                       return;
                                     }
-                                    await _recordAuthStage(
-                                      ref,
-                                      handoffEvidence,
-                                      MemberAuthOnboardingStage.workspaceReady,
-                                    );
                                     if (!context.mounted) {
                                       return;
                                     }
                                     context.go(AppRoutes.home);
-                                  } else {
-                                    final failure = ref
-                                        .read(authFlowControllerProvider)
-                                        .failure;
-                                    if (failure != null) {
-                                      await _recordAuthFailure(
-                                        ref,
-                                        handoffEvidence,
-                                        failure,
-                                      );
-                                    }
                                   }
                                 },
                           semanticLabel: l10n.signInButton,
@@ -258,51 +192,6 @@ class SignInScreen extends ConsumerWidget {
       ),
     );
   }
-}
-
-Future<void> _recordAuthStage(
-  WidgetRef ref,
-  Map<String, Object?>? handoffEvidence,
-  MemberAuthOnboardingStage stage,
-) async {
-  if (!_hasSupportSafeSavedHandoff(handoffEvidence)) {
-    return;
-  }
-  await MemberAuthOnboardingStateRecorder(
-    store: ref.read(preferencesStoreProvider),
-  ).recordSupportSafeHandoffEvidence(stage, handoffEvidence: handoffEvidence!);
-}
-
-Future<void> _recordAuthFailure(
-  WidgetRef ref,
-  Map<String, Object?>? handoffEvidence,
-  AuthFailure failure,
-) async {
-  if (!_hasSupportSafeSavedHandoff(handoffEvidence)) {
-    return;
-  }
-  await MemberAuthOnboardingStateRecorder(
-    store: ref.read(preferencesStoreProvider),
-  ).recordAuthFailureFromHandoffEvidence(
-    failure,
-    handoffEvidence: handoffEvidence!,
-  );
-}
-
-bool _hasSupportSafeSavedHandoff(Map<String, Object?>? handoffEvidence) {
-  if (handoffEvidence == null || handoffEvidence['supportSafe'] != true) {
-    return false;
-  }
-  final organizationOriginHost = handoffEvidence['organizationOriginHost'];
-  if (organizationOriginHost is String && organizationOriginHost.isNotEmpty) {
-    return true;
-  }
-  final handoffRef = handoffEvidence['handoffRef'];
-  final runId = handoffEvidence['runId'];
-  return handoffRef is String &&
-      handoffRef.isNotEmpty &&
-      runId is String &&
-      runId.isNotEmpty;
 }
 
 class _MissingConfigurationCard extends StatelessWidget {

@@ -3,18 +3,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:weave/features/files/presentation/files_screen.dart';
 import 'package:weave/features/files/presentation/providers/files_provider.dart';
 
-/// Each native folder page retains its own listing and scroll/focus context.
+/// Each location/folder page owns its listing, scroll and focus context.
 /// Authorization and repository invalidation still come from the parent scope.
 class FilesFolderRoute extends StatelessWidget {
   const FilesFolderRoute({
     super.key,
-    required this.folderId,
+    this.folderId,
     required this.path,
     this.spaceRef,
     this.ownerKey,
   });
 
-  final String folderId;
+  /// Null only for the selected private or shared location's root directory.
+  final String? folderId;
   final String path;
   final String? spaceRef;
   final String? ownerKey;
@@ -32,6 +33,11 @@ class FilesFolderRoute extends StatelessWidget {
         ),
       ),
     ],
-    child: Scaffold(body: FilesScreen(initialPath: path, isFolderRoute: true)),
+    child: Scaffold(
+      body: FilesScreen(
+        initialPath: path,
+        isFolderRoute: folderId != null || path == '/',
+      ),
+    ),
   );
 }

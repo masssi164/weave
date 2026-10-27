@@ -87,11 +87,11 @@ jobs:
           set -euo pipefail
           umask 077
           python3 tools/build_artifacts.py resolve \
-            --candidate "$DOGFOOD_COMMIT" --components runtime-linux-amd64 \
+            --candidate "$DOGFOOD_COMMIT" --components runtime-linux-arm64 \
             --scenario fixtures/member-client-baseline/v1.json \
             --output "$WEAVE_CANDIDATE_COMPOSITION"
           python3 tools/build_artifacts.py consume \
-            --candidate "$DOGFOOD_COMMIT" --components runtime-linux-amd64 \
+            --candidate "$DOGFOOD_COMMIT" --components runtime-linux-arm64 \
             --composition "$WEAVE_CANDIDATE_COMPOSITION" \
             --directory "$WEAVE_BUILD_ARTIFACT_ROOT"
 

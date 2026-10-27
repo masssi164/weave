@@ -26,6 +26,12 @@ App-config alignment:
 - Member onboarding and release qualification require validated HTTPS origins and preserved CA trust. HTTP protocol fixtures remain test-only and must not relax the product bootstrap contract.
 - iPhone delivery requires two concurrent real iOS apps using the shared member scenario with two ordinary members and current shared-Space grants. Runtime fixtures carry the current run identity; do not compile per-run credentials or identities into reusable artifacts. macOS desktop checks remain manual-only. Physical preparation preserves the owner's app/session and observes a retained workspace or normal sign-in; owner HIL remains pending until the human reports it.
 
+Shell route composition, navigation semantics and membership refresh behavior use the stable
+`ShellDestination` identities. Positional router/widget indices are adapters to the selected
+list, not feature identities. Keep the accepted manifest validation and installed-feature
+selection coordinated with Server/generated contracts; do not infer installation from provider
+readiness or introduce per-Server Flutter builds.
+
 Accessibility is mandatory:
 - interactive controls must provide at least `48x48` logical touch targets
 - icon-only actions must have semantics labels
@@ -51,3 +57,13 @@ Monorepo alignment:
 - Follow `docs/developer-handbook.md`, `docs/gitflow-pr-workflow.md`, `docs/weave-operating-model.md`, and relevant domain docs before coding, opening PRs, merging, or declaring work complete.
 - If the user asks to finish a sprint/milestone, derive acceptance from GitHub issues/milestones, repo specs/tasks, docs, CI policy, and evidence; do not require the user to restate issue acceptance criteria.
 - Use protected `main`, short-lived branches, exactly one `release-notes-*` label per PR, smallest meaningful local gates, green CI, fallback review evidence, and GitHub closure verification before reporting completion.
+
+## Installed workspace domains
+
+Consume the generated required Core statuses and typed domain-status map. Presence identifies
+installation; readiness and member authorization do not remove an installed navigation entry.
+Use stable domain IDs for destinations and route guards, preserve the router across membership
+refresh, and send omitted-domain retained/deep links to Home without invoking absent APIs.
+The manifest protocols container stays required; Matrix metadata is conditional on installed
+Chat and remains strictly validated when Chat is present. Do not invent a Matrix URL for no-Chat
+servers. Coordinated #172 acceptance remains separate from implementation test readiness.

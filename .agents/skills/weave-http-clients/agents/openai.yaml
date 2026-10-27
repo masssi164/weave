@@ -1,0 +1,4 @@
+interface:
+  display_name: "Weave HTTP Interfaces"
+  short_description: "Use declarative Spring HTTP clients safely"
+  default_prompt: "Use $weave-http-clients to implement and verify this Weave outbound HTTP boundary."

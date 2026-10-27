@@ -1629,7 +1629,7 @@ def bootstrap_cleanup_started() -> None:
 
 
 @contextmanager
-def _dogfood_session_lock(context: ComposeContext) -> Iterator[None]:
+def _dogfood_session_lock(context: ComposeContext, *, resetting: bool = False) -> Iterator[None]:
     """Serialize reset with complete owner and Space setup operations."""
 
     lock_root = context.generated_root / "operations"
@@ -1658,6 +1658,8 @@ def _dogfood_session_lock(context: ComposeContext) -> Iterator[None]:
             fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             raise ContractError("another dogfood bootstrap or reset operation is active") from None
+        if not resetting:
+            _require_complete_dogfood_session(context)
         yield
     finally:
         os.close(lock_fd)
@@ -2017,24 +2019,65 @@ def preflight_dogfood_reset(context: ComposeContext) -> None:
     prepare(context)
 
 
-def _dogfood_owner_session_files(context: ComposeContext) -> tuple[Path, Path]:
-    """Validate only the two host-side records belonging to the disposable session."""
+def _owned_session_file(path: Path) -> None:
+    """Validate an exact retirement target without following links or reading credentials."""
+    try:
+        metadata = path.lstat()
+    except FileNotFoundError:
+        return
+    if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid()
+            or metadata.st_nlink != 1 or stat.S_IMODE(metadata.st_mode) != 0o600):
+        raise ContractError("dogfood session record must be one owned private regular file")
 
+
+def _dogfood_owner_session_files(context: ComposeContext) -> tuple[Path, Path]:
     root = context.generated_root / "owner-bootstrap"
     for directory in (context.generated_root, root):
-        if directory.is_symlink() or (
-            directory.exists()
-            and (not directory.is_dir() or directory.stat().st_uid != os.getuid())
-        ):
+        if directory.is_symlink() or (directory.exists() and (
+                not directory.is_dir() or directory.stat().st_uid != os.getuid())):
             raise ContractError("dogfood owner session directory must be owned and not a symlink")
     files = (root / "request-anchor.json", root / "evidence.json")
     for path in files:
-        if path.is_symlink() or (
-            path.exists()
-            and (not path.is_file() or path.stat().st_uid != os.getuid())
-        ):
-            raise ContractError("dogfood owner session record must be an owned regular file")
+        _owned_session_file(path)
     return files
+
+
+def _dogfood_member_session_files() -> tuple[Path, Path]:
+    # The shared recipe owns exactly these two files, not arbitrary operator input paths.
+    root = Path.home() / ".weave" / "dogfood"
+    for directory in (root.parent, root):
+        if directory.is_symlink() or (directory.exists() and (
+                not directory.is_dir() or directory.stat().st_uid != os.getuid()
+                or stat.S_IMODE(directory.stat().st_mode) & 0o077)):
+            raise ContractError("dogfood member session directory must be owned and private")
+    files = (root / "functional-smoke-identities.json",
+             root / "functional-smoke-identities.preparation-ledger.json")
+    for path in files:
+        _owned_session_file(path)
+    return files
+
+
+def _dogfood_reset_marker(context: ComposeContext) -> Path:
+    for directory in (context.generated_root, context.generated_root / "operations"):
+        if directory.is_symlink() or (directory.exists() and (
+                not directory.is_dir() or directory.stat().st_uid != os.getuid())):
+            raise ContractError("dogfood session directory must be owned and not a symlink")
+    marker = context.generated_root / "operations" / "session-reset.pending.json"
+    _owned_session_file(marker)
+    return marker
+
+
+def _require_complete_dogfood_session(context: ComposeContext) -> None:
+    if context.environment == "dogfood" and _dogfood_reset_marker(context).exists():
+        raise ContractError("dogfood-session-reset-incomplete")
+
+
+def _sync_session_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
 
 
 def reset_dogfood(context: ComposeContext) -> None:
@@ -2044,9 +2087,16 @@ def reset_dogfood(context: ComposeContext) -> None:
         raise ContractError("reset is available only for the dogfood environment")
     if context.env["WEAVE_COMPOSE_PROJECT"] != "weave-dogfood":
         raise ContractError("dogfood reset requires WEAVE_COMPOSE_PROJECT=weave-dogfood")
-    with _dogfood_session_lock(context):
+    with _dogfood_session_lock(context, resetting=True):
         preflight_dogfood_reset(context)
-        _dogfood_owner_session_files(context)
+        # Fence ordinary setup before teardown. An interrupted reset is resumed by reset,
+        # never by reusing old identities against a partly replaced database.
+        records = (*_dogfood_owner_session_files(context), *_dogfood_member_session_files())
+        marker = _dogfood_reset_marker(context)
+        if not marker.exists():
+            _private_json(marker, {"schemaVersion": "weave.dogfood-session-reset/v1",
+                                   "environment": "dogfood", "supportSafe": True})
+        _sync_session_directory(marker.parent)
         compose(context, "down", "--volumes", "--remove-orphans")
         cleanup_retired_dogfood()
         for key in (
@@ -2056,8 +2106,16 @@ def reset_dogfood(context: ComposeContext) -> None:
         ):
             _remove_exact_dogfood_resource("volume", context.env[key])
         _remove_exact_dogfood_resource("network", context.env["WEAVE_DOCKER_NETWORK"])
-        for path in _dogfood_owner_session_files(context):
+        # Revalidate after teardown, before retiring credentials and their immutable ledger.
+        _dogfood_owner_session_files(context)
+        _dogfood_member_session_files()
+        for path in records:
             path.unlink(missing_ok=True)
+        for directory in {path.parent for path in records if path.parent.exists()}:
+            _sync_session_directory(directory)
+        marker.unlink()
+        _sync_session_directory(marker.parent)
+        # At this point every old binding is retired. A failed startup can safely retry up.
         execute(context, "up", [])
 
 
@@ -2087,6 +2145,7 @@ def execute(context: ComposeContext, command: str, extra: list[str]) -> None:
 
         bootstrap_space(context, extra)
     elif command == "up":
+        _require_complete_dogfood_session(context)
         script(context, "init_secrets.py")
         script(context, "render_config.py")
         prepare(context)

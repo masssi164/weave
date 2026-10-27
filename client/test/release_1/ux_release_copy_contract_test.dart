@@ -4,8 +4,8 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  group('ISO 9241-110 dogfood UX release gate', () {
-    final gate = File('../docs/iso-9241-110-dogfood-ux-gate.md');
+  group('ISO 9241-110 product interaction release gate', () {
+    final gate = File('../docs/iso-9241-110-product-interaction.md');
 
     test(
       'documents precise planning states and first-use acceptance criteria',
@@ -24,6 +24,8 @@ void main() {
           'First-use acceptance criteria',
           'Prompting checklist for future agent work',
           'Provider diagnostics | Hidden from members',
+          'Dogfood is an evidence and delivery lane, not a UX variant',
+          'Motion and reduced motion',
         ]) {
           expect(markdown, contains(required));
         }

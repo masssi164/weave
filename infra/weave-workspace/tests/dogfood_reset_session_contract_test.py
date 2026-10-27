@@ -6,6 +6,7 @@ from __future__ import annotations
 import fcntl
 import hashlib
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -26,6 +27,15 @@ class DogfoodResetSessionContractTest(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
+        self.enterContext(patch.object(Path, "home", return_value=self.root))
+        self.member_root = self.root / ".weave" / "dogfood"
+        self.member_root.parent.mkdir(mode=0o700)
+        self.member_root.mkdir(mode=0o700)
+        self.identities = self.member_root / "functional-smoke-identities.json"
+        self.ledger = self.member_root / "functional-smoke-identities.preparation-ledger.json"
+        for path in (self.identities, self.ledger):
+            path.write_text('{"private": "old-session"}', encoding="utf-8")
+            path.chmod(0o600)
         self.generated = self.root / "generated"
         self.session = self.generated / "owner-bootstrap"
         self.session.mkdir(parents=True, mode=0o700)
@@ -100,6 +110,9 @@ class DogfoodResetSessionContractTest(unittest.TestCase):
         def remove_resource(kind, name):
             self.assertTrue(self.anchor.exists())
             self.assertTrue(self.evidence.exists())
+            self.assertTrue(self.identities.exists())
+            self.assertTrue(self.ledger.exists())
+            self.assertTrue(runtime._dogfood_reset_marker(self.context).exists())
             removed.append((kind, name))
 
         def start_empty_stack(context, command, extra):
@@ -107,6 +120,9 @@ class DogfoodResetSessionContractTest(unittest.TestCase):
             self.assertEqual((command, extra), ("up", []))
             self.assertFalse(self.anchor.exists())
             self.assertFalse(self.evidence.exists())
+            self.assertFalse(self.identities.exists())
+            self.assertFalse(self.ledger.exists())
+            self.assertFalse(runtime._dogfood_reset_marker(self.context).exists())
 
         with self.isolated_runtime() as mocks:
             mocks["_remove_exact_dogfood_resource"].side_effect = remove_resource
@@ -152,6 +168,119 @@ class DogfoodResetSessionContractTest(unittest.TestCase):
             mocks["execute"].assert_not_called()
         self.assertTrue(self.anchor.exists())
         self.assertTrue(self.evidence.exists())
+
+    def test_incomplete_reset_blocks_preparation_and_up_until_explicit_retry(self) -> None:
+        with self.isolated_runtime() as mocks:
+            mocks["_remove_exact_dogfood_resource"].side_effect = ContractError("volume is busy")
+            with self.assertRaisesRegex(ContractError, "volume is busy"):
+                runtime.reset_dogfood(self.context)
+        self.assertTrue(self.identities.exists())
+        self.assertTrue(self.ledger.exists())
+        with self.assertRaisesRegex(ContractError, "dogfood-session-reset-incomplete"):
+            with runtime._dogfood_session_lock(self.context):
+                self.fail("partial session was admitted")
+        with patch.object(runtime, "script") as script:
+            with self.assertRaisesRegex(ContractError, "dogfood-session-reset-incomplete"):
+                runtime.execute(self.context, "up", [])
+            script.assert_not_called()
+        with self.isolated_runtime():
+            runtime.reset_dogfood(self.context)
+        self.assertFalse(self.identities.exists())
+        self.assertFalse(self.ledger.exists())
+        with runtime._dogfood_session_lock(self.context):
+            pass
+
+    def test_partial_record_retirement_remains_fenced_and_resumable(self) -> None:
+        unlink = Path.unlink
+        def interrupted(path, *args, **kwargs):
+            if path == self.ledger:
+                raise OSError("interrupted record retirement")
+            return unlink(path, *args, **kwargs)
+        with self.isolated_runtime() as mocks, patch.object(Path, "unlink", interrupted):
+            with self.assertRaisesRegex(OSError, "interrupted record retirement"):
+                runtime.reset_dogfood(self.context)
+            mocks["execute"].assert_not_called()
+        self.assertFalse(self.identities.exists())
+        self.assertTrue(self.ledger.exists())
+        with self.assertRaisesRegex(ContractError, "dogfood-session-reset-incomplete"):
+            with runtime._dogfood_session_lock(self.context):
+                self.fail("incomplete retirement was admitted")
+        with self.isolated_runtime():
+            runtime.reset_dogfood(self.context)
+        self.assertFalse(self.ledger.exists())
+        self.assertFalse(runtime._dogfood_reset_marker(self.context).exists())
+
+    def test_unsafe_member_record_blocks_before_teardown(self) -> None:
+        for path in (self.identities, self.ledger):
+            for kind in ("symlink", "hardlink", "directory", "public", "foreign-owner"):
+                with self.subTest(path=path.name, kind=kind):
+                    original = path.read_bytes()
+                    path.unlink()
+                    target = self.root / "unrelated"
+                    target.write_text("preserve", encoding="utf-8")
+                    target.chmod(0o600)
+                    if kind == "symlink":
+                        path.symlink_to(target)
+                    elif kind == "hardlink":
+                        os.link(target, path)
+                    elif kind == "directory":
+                        path.mkdir()
+                    else:
+                        path.write_bytes(original)
+                        path.chmod(0o644 if kind == "public" else 0o600)
+                    with ExitStack() as stack:
+                        if kind == "foreign-owner":
+                            lstat = Path.lstat
+                            def foreign(candidate, *args, **kwargs):
+                                metadata = lstat(candidate, *args, **kwargs)
+                                if candidate == path:
+                                    return SimpleNamespace(st_mode=metadata.st_mode,
+                                        st_uid=os.getuid() + 1, st_nlink=1)
+                                return metadata
+                            stack.enter_context(patch.object(Path, "lstat", foreign))
+                        mocks = stack.enter_context(self.isolated_runtime())
+                        with self.assertRaises(ContractError):
+                            runtime.reset_dogfood(self.context)
+                        mocks["compose"].assert_not_called()
+                        mocks["_remove_exact_dogfood_resource"].assert_not_called()
+                    self.assertEqual(target.read_text(encoding="utf-8"), "preserve")
+                    if kind == "directory":
+                        path.rmdir()
+                    else:
+                        path.unlink()
+                    path.write_bytes(original)
+                    path.chmod(0o600)
+
+    def test_linked_member_directory_blocks_before_teardown(self) -> None:
+        real = self.member_root.with_name("other-dogfood")
+        self.member_root.rename(real)
+        self.member_root.symlink_to(real, target_is_directory=True)
+        with self.isolated_runtime() as mocks:
+            with self.assertRaises(ContractError):
+                runtime.reset_dogfood(self.context)
+            mocks["compose"].assert_not_called()
+        self.assertTrue((real / self.identities.name).exists())
+        self.member_root.unlink()
+        real.rename(self.member_root)
+
+    def test_normal_up_and_down_preserve_both_member_records(self) -> None:
+        before = (self.identities.read_bytes(), self.ledger.read_bytes())
+        with patch.object(runtime, "compose"):
+            runtime.execute(self.context, "down", [])
+        with (patch.object(runtime, "script"), patch.object(runtime, "prepare"),
+              patch.object(runtime, "compose"), patch.object(runtime, "verify_dogfood_identity"),
+              patch.object(runtime, "runtime_root_services", return_value=())):
+            runtime.execute(self.context, "up", [])
+        self.assertEqual((self.identities.read_bytes(), self.ledger.read_bytes()), before)
+
+    def test_reset_without_member_files_and_repeated_reset_are_supported(self) -> None:
+        self.identities.unlink()
+        self.ledger.unlink()
+        with self.isolated_runtime() as mocks:
+            runtime.reset_dogfood(self.context)
+            runtime.reset_dogfood(self.context)
+            self.assertEqual(mocks["execute"].call_count, 2)
+        self.assertFalse(runtime._dogfood_reset_marker(self.context).exists())
 
     def test_ordinary_down_preserves_owner_session(self) -> None:
         before = (self.anchor.read_bytes(), self.evidence.read_bytes())

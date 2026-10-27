@@ -108,10 +108,14 @@ void main() {
       ]);
       final files = filesRoute();
       expect(files.path, AppRoutes.files);
-      expect(files.builder, isNotNull);
-      final folder = files.routes.single as GoRoute;
-      expect(folder.path, AppRoutes.filesFolderRelative);
-      expect(folder.builder, isNotNull);
+      expect(files.pageBuilder, isNotNull);
+      expect(files.routes, hasLength(2));
+      for (final location in files.routes.cast<GoRoute>()) {
+        expect(location.pageBuilder, isNotNull);
+        final folder = location.routes.single as GoRoute;
+        expect(folder.path, AppRoutes.filesFolderRelative);
+        expect(folder.pageBuilder, isNotNull);
+      }
       expect(routerSource, contains('CalendarScreen'));
       expect(routerSource, isNot(contains('DeckScreen')));
       expect(routesSource, contains('/home'));

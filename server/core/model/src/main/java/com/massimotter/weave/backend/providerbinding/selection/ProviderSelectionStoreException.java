@@ -1,0 +1,8 @@
+package com.massimotter.weave.backend.providerbinding.selection;
+
+
+public class ProviderSelectionStoreException extends RuntimeException {
+    public ProviderSelectionStoreException(String message, Throwable cause) {
+        super(message, cause);
+    }
+}

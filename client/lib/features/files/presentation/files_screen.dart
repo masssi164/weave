@@ -299,12 +299,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
       slivers.add(
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-          sliver: SliverToBoxAdapter(
-            child: _DirectoryToolbar(
-              state: state,
-              canSelectRoot: !widget.isFolderRoute,
-            ),
-          ),
+          sliver: SliverToBoxAdapter(child: _DirectoryToolbar(state: state)),
         ),
       );
       if (state.uploadStatus.phase != FilesUploadPhase.idle) {
@@ -665,71 +660,19 @@ class _StaleDirectoryNotice extends StatelessWidget {
 }
 
 class _DirectoryToolbar extends ConsumerWidget {
-  const _DirectoryToolbar({required this.state, required this.canSelectRoot});
+  const _DirectoryToolbar({required this.state});
 
   final FilesViewState state;
-  final bool canSelectRoot;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final listing = state.directoryListing;
     final access = ref.watch(weaveApiMemberSpacesProvider).asData?.value;
-    final spaces = access?.visibleSpaceRefs ?? const <String>{};
-    final selectedSpace = state.rootSpaceRef;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (canSelectRoot) ...[
-          InputDecorator(
-            decoration: InputDecoration(labelText: l10n.filesSpaceLabel),
-            child: Semantics(
-              identifier: 'files-space-selector',
-              child: DropdownButton<String>(
-                key: const Key('files-space-selector'),
-                value: selectedSpace ?? '',
-                isExpanded: true,
-                selectedItemBuilder: (context) => [
-                  Text(l10n.filesPrivateSpace),
-                  for (final space in spaces.toList()..sort())
-                    Text(_filesScopeLabel(l10n, space, access)),
-                  if (selectedSpace != null && !spaces.contains(selectedSpace))
-                    Text(l10n.filesUnavailableSpace),
-                ],
-                items: [
-                  DropdownMenuItem(
-                    value: '',
-                    child: Semantics(
-                      identifier: 'files-space-option-private',
-                      child: Text(l10n.filesPrivateSpace),
-                    ),
-                  ),
-                  for (final space in spaces.toList()..sort())
-                    DropdownMenuItem(
-                      value: space,
-                      child: Semantics(
-                        identifier: 'files-space-option-$space',
-                        child: Text(_filesScopeLabel(l10n, space, access)),
-                      ),
-                    ),
-                  if (selectedSpace != null && !spaces.contains(selectedSpace))
-                    DropdownMenuItem(
-                      value: selectedSpace,
-                      enabled: false,
-                      child: Text(l10n.filesUnavailableSpace),
-                    ),
-                ],
-                onChanged: state.isBusy
-                    ? null
-                    : (value) => ref
-                          .read(filesProvider.notifier)
-                          .selectRootSpace(value == '' ? null : value),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-        ],
         _PathBreadcrumbs(
           path: state.currentPath,
           isBusy: state.isBusy,
@@ -764,6 +707,9 @@ class _DirectoryToolbar extends ConsumerWidget {
                   onPressed: state.isBusy
                       ? null
                       : () async {
+                          final operationController = ref.read(
+                            filesProvider.notifier,
+                          );
                           final operationRepository = ref.read(
                             filesRepositoryProvider,
                           );
@@ -782,10 +728,18 @@ class _DirectoryToolbar extends ConsumerWidget {
                               ),
                             ),
                           );
+                          // A dialog may outlive its original directory route.
+                          if (folderName == null || !context.mounted) return;
                           final active = ref.read(filesProvider).asData?.value;
-                          if (folderName == null ||
-                              !context.mounted ||
-                              active == null ||
+                          if (active == null ||
+                              !identical(
+                                operationController,
+                                ref.read(filesProvider.notifier),
+                              ) ||
+                              active.directoryListing?.ownerKey !=
+                                  state.directoryListing?.ownerKey ||
+                              active.directoryListing?.parentFileId !=
+                                  state.directoryListing?.parentFileId ||
                               active.rootSpaceRef != state.rootSpaceRef ||
                               active.currentPath != state.currentPath ||
                               !identical(
@@ -1119,18 +1073,15 @@ void _openAncestor(BuildContext context, String path, String? spaceRef) {
   final router = GoRouter.of(context);
   var found = false;
   Navigator.of(context).popUntil((route) {
-    final arguments = route.settings.arguments;
-    final isRoot = route.settings.name == AppRoutes.files;
-    final routePath = isRoot
-        ? '/'
-        : arguments is Map
-        ? arguments['folderPath']
-        : null;
-    if (routePath == path) {
+    final location = route.settings.arguments;
+    if (location is FilesRouteLocation &&
+        location.path == path &&
+        location.spaceRef == spaceRef) {
       found = true;
       return true;
     }
-    return isRoot || route.isFirst;
+    // The overview contains locations; it is not their directory root.
+    return route.settings.name == AppRoutes.files || route.isFirst;
   });
   if (!found) router.go(AppRoutes.filesLocation(path, spaceRef: spaceRef));
 }
@@ -1237,6 +1188,7 @@ class _CreateFolderDialogState extends State<_CreateFolderDialog> {
     final name = _controller.text.trim();
 
     return AlertDialog(
+      scrollable: true,
       title: Text(l10n.filesCreateFolderDialogTitle),
       content: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1290,24 +1242,48 @@ class _FilePreview extends ConsumerWidget {
   const _FilePreview({
     required this.entry,
     required this.rootSpaceRef,
+    required this.ownerKey,
     required this.download,
   });
   final FileEntry entry;
   final String? rootSpaceRef;
+  final String? ownerKey;
   final Future<FileDownload> download;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final current = ref.watch(filesProvider).asData?.value;
+    final value = ref.watch(filesProvider);
+    final current = value.asData?.value;
+    final capabilities = ref.watch(workspaceCapabilitySnapshotProvider);
+    final spaces = rootSpaceRef == null
+        ? null
+        : ref.watch(weaveApiMemberSpacesProvider);
     final stillAvailable =
+        !value.isLoading &&
+        !value.hasError &&
+        !capabilities.isLoading &&
+        !capabilities.hasError &&
+        capabilities.asData?.value.files.isReady == true &&
+        (rootSpaceRef == null ||
+            (spaces?.isLoading == false &&
+                spaces?.hasError == false &&
+                spaces?.asData?.value?.visibleSpaceRefs.contains(
+                      rootSpaceRef,
+                    ) ==
+                    true)) &&
         current?.rootSpaceRef == rootSpaceRef &&
+        current?.directoryFailure == null &&
+        current?.directoryListing?.ownerKey == ownerKey &&
         current?.directoryListing?.entries.any(
-              (item) => item.id == entry.id && item.allows('download'),
+              (item) =>
+                  item.id == entry.id &&
+                  item.revision == entry.revision &&
+                  item.allows('download'),
             ) ==
             true;
     return AlertDialog(
-      title: Text(entry.name),
+      title: Text(stillAvailable ? entry.name : l10n.filesScreenTitle),
       content: SizedBox(
         width: 560,
         child: !stillAvailable
@@ -1422,16 +1398,26 @@ class _FileEntryTile extends ConsumerWidget {
                       ? null
                       : () => showDialog<void>(
                           context: context,
-                          builder: (_) => _FilePreview(
-                            entry: entry,
-                            rootSpaceRef: ref
-                                .read(filesProvider)
-                                .asData
-                                ?.value
-                                .rootSpaceRef,
-                            download: ref
-                                .read(filesProvider.notifier)
-                                .downloadForPreview(entry),
+                          // Dialog routes do not inherit the directory's scoped providers.
+                          builder: (_) => UncontrolledProviderScope(
+                            container: ProviderScope.containerOf(context),
+                            child: _FilePreview(
+                              entry: entry,
+                              rootSpaceRef: ref
+                                  .read(filesProvider)
+                                  .asData
+                                  ?.value
+                                  .rootSpaceRef,
+                              ownerKey: ref
+                                  .read(filesProvider)
+                                  .asData
+                                  ?.value
+                                  .directoryListing
+                                  ?.ownerKey,
+                              download: ref
+                                  .read(filesProvider.notifier)
+                                  .downloadForPreview(entry),
+                            ),
                           ),
                         ),
                   icon: const Icon(Icons.visibility_outlined),
