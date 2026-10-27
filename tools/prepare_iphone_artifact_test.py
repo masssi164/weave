@@ -109,6 +109,7 @@ class PhysicalArtifactPreparation(unittest.TestCase):
         self.assertEqual(result["humanAcceptance"], "pending")
         self.assertEqual(result["schemaVersion"], "weave.hil-preparation/v5")
         self.assertEqual(result["memberWorkspace"], self.member)
+        self.assertEqual(self.verify_member.call_count, 2)
         self.assertEqual(self.verify_routing.call_args.args[3], {key: self.member[key] for key in ("accountDigest", "organizationDigest")})
         self.assertTrue(result["ordinaryStartup"]["driverCleanupComplete"])
         commands = self.instances[0].commands
@@ -132,6 +133,22 @@ class PhysicalArtifactPreparation(unittest.TestCase):
             result = self.prepare()
         self.assertEqual(result["status"], "incomplete")
         self.assertEqual(result["boundary"], "physical-startup-identity-changed")
+
+    def test_member_revoked_during_device_work_blocks_final_handoff(self):
+        self.verify_member.side_effect = [self.member, preparation.ContractError("space-access-conflict")]
+        result = self.prepare()
+        self.assertEqual(result["status"], "incomplete")
+        self.assertEqual(result["boundary"], "space-access-conflict")
+        self.assertEqual(self.verify_member.call_count, 2)
+        self.assertEqual(result["humanAcceptance"], "pending")
+
+    def test_changed_member_or_grant_during_device_work_cannot_replace_initial_binding(self):
+        for changed in ({**self.member, "accountDigest": "c" * 64},
+                        {**self.member, "grantVersion": '"sm-4"'}):
+            self.verify_member.side_effect = [self.member, changed]
+            result = self.prepare()
+            self.assertEqual(result["status"], "incomplete")
+            self.assertEqual(result["boundary"], "member-workspace-changed-during-preparation")
 
     def test_preexisting_driver_is_not_overwritten_or_uninstalled(self):
         self.preexisting_driver = True

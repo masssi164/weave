@@ -138,6 +138,11 @@ def prepare(candidate: str, device: str, qualification_run: int, qualification_a
             verify_installed_build(runner, actor)
             runner.run(['xcrun', 'devicectl', 'device', 'uninstall', 'app', '--device', device, DRIVER], timeout=60)
             owned_driver = False
+            current_member = verify_member_workspace(context,
+                {key: composition[key] for key in ('candidateCommit', 'sourceTree', 'specificationCommit')},
+                runner, directory, tester_slot)
+            if current_member != receipt['memberWorkspace']:
+                raise SmokeError('member-workspace-changed-during-preparation')
             receipt.update(status='passed', ordinaryStartup={**startup, 'organizationContextVerified': True,
                            'installedBuildVerified': True, 'driverCleanupComplete': True},
                            deviceIdentitySha256=hashlib.sha256(udid.encode()).hexdigest(),
