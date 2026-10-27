@@ -29,6 +29,25 @@ class _RecordingServerConfigurationRepository
 }
 
 void main() {
+  test('handoff errors expose only stable product support codes', () {
+    expect(
+      supportSafeHandoffErrorCode(
+        const AppFailure.validation('WEAVE-HANDOFF-INVALID: Missing origin.'),
+      ),
+      'WEAVE-HANDOFF-INVALID',
+    );
+    expect(
+      supportSafeHandoffErrorCode(
+        const AppFailure.validation('Unexpected provider payload: secret'),
+      ),
+      'WEAVE-HANDOFF-FAILED',
+    );
+    expect(
+      supportSafeHandoffErrorCode(Exception('Bearer secret')),
+      'WEAVE-HANDOFF-FAILED',
+    );
+  });
+
   for (final hint in ['platform_config_url', 'discovery_url']) {
     test('$hint cannot change the canonical bootstrap request', () async {
       final requests = <Uri>[];

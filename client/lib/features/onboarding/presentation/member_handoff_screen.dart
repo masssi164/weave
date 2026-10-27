@@ -178,11 +178,13 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
         ),
       ),
       body: SafeArea(
-        child: AnimatedSwitcher(
-          duration: motion.standard,
-          switchInCurve: motion.standardCurve,
-          switchOutCurve: motion.standardCurve,
-          child: Center(child: state),
+        child: Center(
+          child: AnimatedSwitcher(
+            duration: motion.standard,
+            switchInCurve: motion.standardCurve,
+            switchOutCurve: motion.standardCurve,
+            child: state,
+          ),
         ),
       ),
     );

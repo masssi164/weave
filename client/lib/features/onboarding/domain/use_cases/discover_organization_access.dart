@@ -35,12 +35,11 @@ class DiscoverOrganizationAccess {
 }
 
 String supportSafeHandoffErrorCode(Object error) {
-  if (error is AppFailure) {
-    final message = error.message;
-    final separator = message.indexOf(':');
-    return separator > 0 ? message.substring(0, separator) : message;
-  }
-  return error.runtimeType.toString();
+  final message = error is AppFailure ? error.message : '';
+  final code = message.split(':').first;
+  return RegExp(r'^WEAVE-[A-Z0-9-]+$').hasMatch(code)
+      ? code
+      : 'WEAVE-HANDOFF-FAILED';
 }
 
 class AppStartConfiguration {

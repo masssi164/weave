@@ -333,6 +333,10 @@ void main() {
       await tester.pump();
 
       expect(find.text('Workspace ready for sign-in'), findsOneWidget);
+      final transition = tester.widget<AnimatedSwitcher>(
+        find.byType(AnimatedSwitcher),
+      );
+      expect(transition.child?.key, const ValueKey('handoff-ready'));
       expect(find.textContaining('massimo-dogfood'), findsNothing);
       expect(find.text('Sign In'), findsOneWidget);
       expect(nativeDualHandoffSignIn('Sign In'), findsOneWidget);
