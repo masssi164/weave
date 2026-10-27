@@ -106,3 +106,36 @@ The Organisation access screen must always expose a functional **Sign in** actio
 - Add widget/integration tests for every localized state above.
 - Add dogfood runbook steps for trust-preserving app-state reset, manual login, session restore, and Mailpit inbox verification.
 - Add trust-stability evidence for local cert persistence, stable iOS signing/provisioning, and no repeated developer trust prompt after normal update/app-state reset.
+
+
+## Session retirement and shared identity context
+
+The implementation dependency for member preparation is the declarative Keycloak Admin
+HTTP boundary in #1732. The existing `KeycloakIdentityAdminClient` remains responsible
+for current provider reads, managed fixture sequencing, operation admission and safe errors.
+Preparation and default-Space bootstrap now derive their already-verified identity contexts
+through `OrganizationIdentityContextResolver.resolveVerifiedMember`; neither manufactures a
+JWT, opens a second provider transport, or infers another tenant/role.
+
+An explicit fixed Dogfood reset retires both
+`~/.weave/dogfood/functional-smoke-identities.json` and its
+`functional-smoke-identities.preparation-ledger.json` sidecar, together with the two generated
+owner-bootstrap session records. Ownership, private file modes, regular-file type and hardlink/
+symlink boundaries are checked before teardown and again before retirement. Other private files,
+persistent TLS roots, infrastructure credentials and installed iPhone/Keychain state are not reset.
+Ordinary `up` and `down` preserve the fixture and ledger.
+
+The existing operation lock serializes preparation and reset. Before destructive teardown,
+reset persists `generated/operations/session-reset.pending.json` under the selected environment's
+generated root. Partial teardown or interrupted record retirement leaves that fence in place;
+normal preparation and `up` fail with `dogfood-session-reset-incomplete`. Rerun the explicit reset
+to finish retiring that session. Do not delete the fence manually or restore only one sidecar.
+The fence is removed only after all exact records have been retired and their containing
+directories synced. If the subsequent empty-stack startup fails, ordinary `up` can safely retry.
+
+This correction does not turn setup-owner evidence into ordinary-member handoff evidence.
+The broader #1742 recipe, explicit setup actor, designated human tester and corresponding
+canonical handoff contract still need their coordinated implementation and qualification.
+The current accepted owner prerequisite remains until that contract changes; no wider role or
+membership grant is introduced by this correction. Unit/contract tests are not live collaboration
+or physical VoiceOver acceptance.

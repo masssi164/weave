@@ -6,7 +6,6 @@ import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditRedactionLevel;
 import com.massimotter.weave.backend.config.DeploymentOrganizationProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
-import com.massimotter.weave.backend.identity.IdentityReferences;
 import com.massimotter.weave.backend.identity.invitation.KeycloakIdentityAdminClient;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
@@ -21,7 +20,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Stream;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -99,11 +97,7 @@ public class DefaultSpaceBootstrapService {
                 throw error(HttpStatus.CONFLICT, "default-space-owner-unavailable");
             }
             String issuer = resourceServer.getJwt().getIssuerUri();
-            return new OrganizationIdentityContext(identities.configuredOrganizationId(), issuer, owner.subject(),
-                    IdentityReferences.primaryIdentityKey(issuer, owner.subject()),
-                    IdentityReferences.accountId(issuer, owner.subject()), owner.roles(), owner.groups(), List.of(),
-                    Stream.concat(owner.roles().stream().map(role -> "role_claim:" + role),
-                            owner.groups().stream().map(group -> "group_claim:" + group)).sorted().toList());
+            return identities.resolveVerifiedMember(issuer, owner.subject(), owner.roles(), owner.groups());
         } catch (ApiErrorException failure) {
             throw failure;
         } catch (RuntimeException failure) {
