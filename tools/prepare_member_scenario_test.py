@@ -88,7 +88,7 @@ class PreparedMemberScenarioTest(unittest.TestCase):
         self.assertFalse(result["authenticationEvidence"])
         self.assertFalse(result["humanAcceptance"])
         self.assertEqual(result["compositionDigest"], "sha256:" + "e" * 64)
-        approved = smoke.identities(self.fixture, smoke.canonical_origin(self.context.env["WEAVE_PUBLIC_URL"]), False)
+        approved = smoke.identities(self.fixture, smoke.canonical_origin(self.context.env["WEAVE_PUBLIC_URL"]))
         with patch.object(preparation, "public_setup", return_value=(b"", {"caSha256Fingerprint": self.fingerprint})):
             binding = smoke.approved_identity_binding(self.context, self.fixture, approved)
         self.assertEqual(set(binding["members"]), {"A", "B"})
@@ -117,6 +117,62 @@ class PreparedMemberScenarioTest(unittest.TestCase):
         self.assertEqual(before["passwords"], after["passwords"])
         self.assertEqual(first, preparation.private_read(self.fixture))
         self.assertEqual(self.seen_requests[0]["previousReceipt"]["members"][0]["grantVersion"], '"sm-3"')
+
+    def verify_workspace(self, mutate=lambda value: None, slot="B"):
+        def invoke(context, backend, plan, candidate, directory, operation, previous=None):
+            request = preparation.operator_request(context, plan, candidate, operation, previous, None)
+            self.assertEqual(request["schemaVersion"], "weave.dogfood-operator-preparation-request/v3")
+            self.assertNotIn("initialCredentials", request)
+            self.assertEqual(operation, "verify-members")
+            value = self.envelope(plan)
+            value["receipt"].update(operation="verify-members", stage="verify-members-ready")
+            del value["privateData"]["members"]
+            mutate(value)
+            return value
+        with patch.object(preparation, "public_setup", return_value=(b"", {"caSha256Fingerprint": self.fingerprint})), \
+                patch.object(managed, "operator_driver", side_effect=invoke), patch.object(managed, "operator_backend"), \
+                patch("compose_runtime._service_container", return_value={"Id": "1" * 64, "Image": "sha256:" + "2" * 64}), \
+                patch.object(managed, "private_write", side_effect=AssertionError("handoff must not write fixtures")), \
+                patch.object(managed, "operator_ledger", side_effect=AssertionError("handoff must not create a plan")):
+            return managed.verify_member_workspace(self.context, self.candidate, Mock(), self.directory, slot, self.fixture)
+
+    def test_handoff_selects_existing_member_and_preserves_fixture_and_ledger_bytes(self):
+        self.run_preparation()
+        ledger_path = preparation.ledger_for(self.fixture)
+        before = (self.fixture.read_bytes(), ledger_path.read_bytes())
+        result = self.verify_workspace()
+        self.assertEqual(result["schemaVersion"], "weave.member-workspace-preparation/v1")
+        self.assertEqual(result["testerSlot"], "B")
+        self.assertEqual(result["organizationRole"], "member")
+        self.assertEqual(result["grantVersion"], '"sm-3"')
+        self.assertTrue(result["memberAccessVerified"])
+        self.assertFalse(result["authenticationEvidence"])
+        self.assertFalse(result["humanAcceptance"])
+        self.assertEqual(before, (self.fixture.read_bytes(), ledger_path.read_bytes()))
+        self.assertNotIn("password", json.dumps(result))
+
+    def test_handoff_rejects_rebound_identity_stale_grant_and_wrong_candidate(self):
+        self.run_preparation()
+        for mutation in (lambda value: value["receipt"]["members"][1].update(accountRef="acct_" + "9" * 32),
+                         lambda value: value["receipt"]["members"][1].update(grantVersion='"sm-4"'),
+                         lambda value: value["receipt"].update(candidateCommit="d" * 40),
+                         lambda value: value["receipt"].update(nonce="e" * 32),
+                         lambda value: value["receipt"].update(outcome="CREATED")):
+            with self.assertRaises(ContractError):
+                self.verify_workspace(mutation)
+
+    def test_read_only_request_rejects_missing_preparation_or_initial_passwords(self):
+        plan = preparation.new_plan(self.context)
+        prior = self.envelope(plan)["receipt"]
+        with self.assertRaises(ContractError):
+            preparation.operator_request(self.context, plan, self.candidate, "verify-members", None, None)
+        with self.assertRaises(ContractError):
+            preparation.operator_request(self.context, plan, self.candidate, "verify-members", prior, None,
+                                         {"A": "A" * 32, "B": "B" * 32})
+        self.context.environment = "e2e"
+        self.context.isolated_namespace = "owned-e2e"
+        with self.assertRaisesRegex(ContractError, "persistent-ordinary-member-required"):
+            managed.verify_member_workspace(self.context, self.candidate, Mock(), self.directory, "A", self.fixture)
 
     def test_partial_setup_retains_ledger_and_never_emits_usable_fixture_or_authentication_pass(self):
         result = self.run_preparation(status="incomplete", boundary="space-access-conflict")

@@ -10,6 +10,10 @@ public interface DogfoodSpacePreparationPort {
     List<Grant> grantTwo(String organizationRef, String ownerAccountRef,
             List<Target> targets, Runnable recheckIdentity, java.util.function.Consumer<List<Grant>> audit);
 
+    /** Verify existing, version-bound grants without creating or repairing either membership. */
+    List<Grant> verifyTwo(String organizationRef, String ownerAccountRef,
+            List<Target> targets, Runnable recheckIdentity);
+
     record Target(String accountRef, String expectedEtag) {}
 
     record Grant(String accountRef, String strongEtag, boolean created) {}

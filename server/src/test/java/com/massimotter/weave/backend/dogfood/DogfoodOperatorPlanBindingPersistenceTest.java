@@ -10,6 +10,25 @@ import com.massimotter.weave.backend.testing.JpaTestDatabase;
 import org.junit.jupiter.api.Test;
 
 class DogfoodOperatorPlanBindingPersistenceTest {
+    @Test void readOnlyVerificationRequiresExistingBindingAndNeverPublishesOne() {
+        var source = JpaTestDatabase.entityFirstDataSource("operator-plan-read-only");
+        var events = JpaTestDatabase.repository(source, AuditEventJpaRepository.class);
+        var audit = JpaTestDatabase.transactional(source, new JpaAuditEventPublisher(events, JSON));
+        var binding = JpaTestDatabase.transactional(source, new DogfoodOperatorPlanBinding(events, audit));
+        String owner = "acct_" + "0".repeat(32), handle = "mem_" + "o".repeat(32);
+        Request verification = verificationRequest(null);
+        assertThatThrownBy(() -> binding.bind(verification, "org", owner, handle)).isInstanceOf(Blocked.class);
+        assertThat(events.findAll()).isEmpty();
+        binding.bind(managedRequest(), "org", owner, handle);
+        var original = events.findAll().getFirst();
+        binding.bind(verification, "org", owner, handle);
+        assertThat(events.findAll()).hasSize(1);
+        assertThat(events.findAll().getFirst().occurredAt()).isEqualTo(original.occurredAt());
+        assertThatThrownBy(() -> binding.bind(verification, "org", "acct_" + "1".repeat(32), handle))
+                .isInstanceOf(Blocked.class);
+        assertThat(events.findAll()).hasSize(1);
+    }
+
     @Test void managedProgressKeepsOpaqueAccountAndCompletedPhasesAcrossRetry() {
         var source = JpaTestDatabase.entityFirstDataSource("managed-identity-progress");
         var events = JpaTestDatabase.repository(source, AuditEventJpaRepository.class);

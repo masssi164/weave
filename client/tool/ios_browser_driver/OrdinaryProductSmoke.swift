@@ -262,24 +262,31 @@ extension BrowserDriver {
 
   func smokeFilesRoot(_ app: XCUIApplication, privateScope: Bool) throws {
     try smokeTap(app, "nav-files")
-    try smokeAwaitFilesRead(app)
-    // A tab switch may restore a folder. Scope selection belongs to the root;
-    // reach it through the ordinary breadcrumb without replacing member state.
-    let location = try smokeElement(app, identifier: "files-location-root", searchTowardTop: true)
-    if !location.isSelected {
-      guard location.isEnabled else { throw NSError(domain: "ordinary-smoke-control-disabled", code: 1) }
-      location.tap()
-      // A deep link can reveal an older retained root. First observe its
-      // root-only control, then request a new read through ordinary refresh.
-      _ = try smokeElement(app, identifier: "files-space-selector", searchTowardTop: true)
-      try smokeRefreshFiles(app)
+    // Tab restoration can retain a directory route. Return through ordinary
+    // Back navigation, then choose the current authorized location row.
+    let deadline = Date().addingTimeInterval(40)
+    var remainingBacks = 8
+    var nextBackAt = Date.distantPast
+    while Date() < deadline {
+      let privateLocation = app.descendants(matching: .any).matching(identifier: "files-location-private")
+      guard privateLocation.count <= 1 else { throw NSError(domain: "ordinary-smoke-files-locations-ambiguous", code: 1) }
+      if privateLocation.count == 1 && privateLocation.element.isHittable { break }
+      let back = app.buttons.matching(NSPredicate(format: "label IN %@", ["Back", "Zurück"]))
+      guard back.count <= 1 else { throw NSError(domain: "ordinary-smoke-files-back-ambiguous", code: 1) }
+      if back.count == 1 && back.element.isHittable && back.element.isEnabled && Date() >= nextBackAt {
+        guard remainingBacks > 0 else { throw NSError(domain: "ordinary-smoke-files-locations-unavailable", code: 1) }
+        back.element.tap()
+        remainingBacks -= 1
+        nextBackAt = Date().addingTimeInterval(1)
+      }
+      Thread.sleep(forTimeInterval: 0.25)
     }
-    let previous = try smokeAwaitFilesRead(app)
-    let selector = try smokeElement(app, identifier: "files-space-selector", searchTowardTop: true)
-    guard selector.isEnabled else { throw NSError(domain: "ordinary-smoke-control-disabled", code: 1) }
-    selector.tap()
-    try smokeTap(app, privateScope ? "files-space-option-private" : "files-space-option-workspace-default")
-    try smokeAwaitFilesRead(app, after: previous)
+    let overview = app.descendants(matching: .any).matching(identifier: "files-location-private")
+    guard overview.count == 1 && overview.element.isHittable else {
+      throw NSError(domain: "ordinary-smoke-files-locations-unavailable", code: 1)
+    }
+    try smokeTap(app, privateScope ? "files-location-private" : "files-location-space-workspace-default")
+    try smokeAwaitFilesRead(app)
     try smokeRefreshFiles(app)
     // Reaching the root breadcrumb also positions the scan above all entries.
     let root = try smokeElement(app, identifier: "files-location-root", searchTowardTop: true)
@@ -387,6 +394,58 @@ extension BrowserDriver {
     XCTAssertTrue(signIn.element.waitForExistence(timeout: 60))
   }
 
+  func testOrdinaryRouting() throws {
+    continueAfterFailure = false
+    let fixture = try XCTUnwrap(JSONSerialization.jsonObject(with: nativeFixtureData()) as? [String: Any])
+    let runId = try XCTUnwrap(fixture["runId"] as? String)
+    let nonce = try XCTUnwrap(fixture["nonce"] as? String)
+    let origin = try XCTUnwrap(fixture["organizationOrigin"] as? String)
+    let url = try XCTUnwrap(URLComponents(string: origin))
+    guard Set(fixture.keys) == Set(["schemaVersion", "runId", "nonce", "organizationOrigin"]),
+          fixture["schemaVersion"] as? String == "weave.ordinary-routing-input/v1",
+          runId.hasPrefix("routing-"), nonce.count == 32,
+          nonce.utf8.allSatisfy({ (48...57).contains($0) || (97...102).contains($0) }),
+          url.scheme == "https", url.host != nil, url.user == nil, url.password == nil,
+          url.query == nil, url.fragment == nil, url.path == "/" else {
+      throw NSError(domain: "ordinary-routing-invalid-input", code: 1)
+    }
+    let app = XCUIApplication(bundleIdentifier: "com.massimotter.weave")
+    app.activate()
+    let deadline = Date().addingTimeInterval(60)
+    while Date() < deadline {
+      var resources = [String: String]()
+      let state: String
+      let signIn = app.buttons.matching(NSPredicate(format: "label IN %@", Self.signInLabels))
+      guard signIn.count <= 1 else { throw NSError(domain: "ordinary-routing-sign-in-ambiguous", code: 1) }
+      if app.state == .runningForeground && Self.ordinaryWorkspaceObserved(app) {
+        state = "retained-workspace"
+        try smokeTap(app, "nav-settings")
+        let help = app.descendants(matching: .any).matching(identifier: "settings-current-account-reference")
+        if help.count == 0 { try smokeTap(app, "settings-help") }
+        resources = try smokeAwaitIdentityReferences(app, identifiers: [
+          ("account", "settings-current-account-reference"), ("organization", "settings-current-organization-reference")
+        ], deadline: deadline)
+      } else if app.state == .runningForeground && signIn.count == 1 && signIn.element.isEnabled && signIn.element.isHittable {
+        state = "normal-sign-in"
+        let origins = app.staticTexts.matching(NSPredicate(format: "label IN %@", [origin, String(origin.dropLast())]))
+        guard origins.count == 1 && origins.element.isHittable else {
+          throw NSError(domain: "ordinary-routing-visible-origin-mismatch", code: 1)
+        }
+        let observed = origins.element.label.hasSuffix("/") ? origins.element.label : origins.element.label + "/"
+        resources["organizationOrigin"] = SHA256.hash(data: Data(observed.utf8)).map { String(format: "%02x", $0) }.joined()
+      } else {
+        Thread.sleep(forTimeInterval: 0.25)
+        continue
+      }
+      let result: [String: Any] = ["schemaVersion": "weave.ordinary-routing-result/v1", "runId": runId,
+        "nonce": nonce, "status": "passed", "visibleState": state, "resources": resources]
+      let bytes = try JSONSerialization.data(withJSONObject: result, options: [.sortedKeys])
+      print("WEAVE_ORDINARY_ROUTING_RESULT " + String(decoding: bytes, as: UTF8.self))
+      return
+    }
+    throw NSError(domain: "ordinary-routing-visible-context-unavailable", code: 1)
+  }
+
   func testOrdinaryPreparation() throws {
     continueAfterFailure = false
     let fixture = try XCTUnwrap(JSONSerialization.jsonObject(with: nativeFixtureData()) as? [String: Any])
@@ -444,9 +503,6 @@ extension BrowserDriver {
     }
     var resources = [String: String]()
     switch fixture.operation {
-    case "discover":
-      // Entry-only diagnostic. The host excludes this from functional acceptance.
-      for tab in ["nav-chat", "nav-files", "nav-calendar"] { try smokeTap(app, tab) }
     case "identity":
       try smokeTap(app, "nav-settings")
       try smokeTap(app, "settings-help")

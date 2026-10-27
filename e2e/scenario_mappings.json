@@ -312,21 +312,34 @@
     },
     {
       "tag": "@weave-v01-dogfood-owner-invite-activation",
-      "scenario": "Dogfood first-owner invite activation reaches the workspace",
+      "scenario": "Isolated first-owner invitation activates through the normal browser",
       "feature": "e2e/features/v0_1_dogfood_release.feature",
-      "executableTest": "tools/dogfood_member_onboarding_gate.sh",
+      "executableTest": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/FreshProductFlow.java",
       "evidenceMarkers": [
-        "DOGFOOD_MEMBER_ONBOARDING_RESULT",
-        "DOGFOOD_ACTIVATION_MAIL_RESULT",
-        "DOGFOOD_POST_LOGIN_CHAT_FILES_RESULT",
-        "DOGFOOD_TRUST_STABILITY_RESULT",
-        "DOGFOOD_SESSION_CONTINUITY_RESULT"
+        "WEAVE_TEST_APP_RESULT status=passed activation=browser pkce=S256"
       ],
       "evidenceMode": "live-runtime",
       "runtimeSources": [
-        "dogfood-member-onboarding"
+        "test-app-full"
       ],
       "additionalEvidence": [
+        {
+          "path": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/FreshProductFlow.java",
+          "fragments": [
+            "bootstrapOwner(ownerEmail)",
+            "ownerInbox.awaitActivationLink",
+            "validateHumanBootstrapToken",
+            "reconcileIdentitySession",
+            "memberInbox.awaitActivationLink"
+          ]
+        },
+        {
+          "path": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/OidcBrowserJourney.java",
+          "fragments": [
+            "S256",
+            "void activate("
+          ]
+        },
         {
           "path": "tools/dogfood_activation_mail_check.py",
           "fragments": [
@@ -336,96 +349,11 @@
           ]
         },
         {
-          "path": "client/test/features/onboarding/discover_organization_access_test.dart",
-          "fragments": [
-            "manual server URI discovers without synthetic invitation metadata",
-            "saves DNS-first weave.test app-start configuration",
-            "surfaces a stable error when app-start discovery is unreachable"
-          ]
-        },
-        {
-          "path": "client/test/features/onboarding/member_handoff_screen_test.dart",
-          "fragments": [
-            "starts interactive sign-in from the handoff ready action",
-            "localizes sign-in failures on the handoff ready action",
-            "Offline tokens not allowed"
-          ]
-        },
-        {
-          "path": "tools/dogfood_functional_smoke.py",
-          "fragments": [
-            "weave.ordinary-product-ui-result/v1",
-            "retainedStateRestartVerified",
-            "independentPeerReadbackVerified"
-          ]
-        },
-        {
-          "path": "tools/dogfood_onboarding_evidence_check.py",
-          "fragments": [
-            "functional_smoke_passed",
-            "ownerActivation=not-proven",
-            "DOGFOOD_MEMBER_ONBOARDING_RESULT"
-          ]
-        },
-        {
-          "path": "client/tool/ios_browser_driver/OrdinaryProductSmoke.swift",
-          "fragments": [
-            "WEAVE_FUNCTIONAL_UI_RESULT",
-            "files-refresh",
-            "calendar-refresh"
-          ]
-        },
-        {
-          "path": "tools/dogfood_trust_stability_check.py",
-          "fragments": [
-            "DOGFOOD_TRUST_STABILITY_RESULT",
-            "DOGFOOD_TRUST_STABILITY_BLOCKED",
-            "developerTrustStatus",
-            "localTlsStable",
-            "signingStable"
-          ]
-        },
-        {
-          "path": "client/test/features/auth/data/repositories/oidc_auth_session_repository_test.dart",
-          "fragments": [
-            "a new repository instance restores the persisted session",
-            "refresh-after-process-close",
-            "concurrent feature restores share one refresh",
-            "staggered restores refresh once despite a delayed session read",
-            "failed shared refresh allows a later ordinary retry",
-            "a new account never joins the previous account refresh",
-            "late shared refresh cannot restore a signed-out session",
-            "temporary refresh failure preserves the device-bound session",
-            "rejected refresh grant clears the unusable local session"
-          ]
-        },
-        {
           "path": "docs/ios-dogfood-distribution.md",
           "fragments": [
-            "Full Compose E2E",
-            "update in place",
-            "destructive_uninstall"
-          ]
-        },
-        {
-          "path": "docs/dogfood-auth-onboarding-plan.md",
-          "fragments": [
-            "Exact-candidate native product evidence",
-            "Owner invitation activation and manual first sign-in remain separate human acceptance evidence",
-            "Dogfood Mailpit check: test/reset emails are captured locally, visible to operator, and not sent externally.",
-            "Repeated developer-team/profile trust prompts are a dogfood blocker"
-          ]
-        },
-        {
-          "path": "client/test/integrations/weave_api/presentation/providers/workspace_home_session_test.dart",
-          "fragments": [
-            "missing current session cannot advertise ready workspace and retry recovers"
-          ]
-        },
-        {
-          "path": "client/test/features/app/presentation/providers/workspace_connection_provider_test.dart",
-          "fragments": [
-            "preserves denied and configured backend capabilities after Space admission"
+            "test-app-full",
+            "External qualification owners",
+            "human acceptance"
           ]
         }
       ]
@@ -6099,7 +6027,7 @@
     },
     {
       "tag": "@human-ready-owner-space-preparation",
-      "scenario": "Physical preparation establishes usable owner workspace access",
+      "scenario": "Initial administrative setup establishes the shared workspace",
       "feature": "e2e/features/enterprise_human_testing_readiness.feature",
       "executableTest": "weave-product-e2e/src/main/java/com/massimotter/weave/e2e/DefaultSpacePreparationJourney.java",
       "evidenceMarkers": [
@@ -6117,23 +6045,16 @@
             "spacePreparation.prepare(\"VERIFIED\")",
             "defaultSpacePreparedBeforeMemberTesting"
           ]
-        },
-        {
-          "path": ".github/workflows/ios-dogfood.yml",
-          "fragments": [
-            "Establish and verify current owner default Space access",
-            "ownerWorkspace"
-          ]
         }
       ]
     },
     {
-      "tag": "@human-ready-owner-space-access-preserved",
-      "scenario": "Repeated preparation preserves explicit Space access decisions",
+      "tag": "@human-ready-member-revalidation",
+      "scenario": "Repeated preparation preserves explicit access decisions",
       "feature": "e2e/features/enterprise_human_testing_readiness.feature",
-      "executableTest": "tools/test_verify_main_promotion_evidence.py",
+      "executableTest": "tools/prepare_member_scenario_test.py",
       "evidenceMarkers": [
-        "test_owner_workspace_requires_current_access_and_removed_temporary_authority"
+        "test_handoff_rejects_rebound_identity_stale_grant_and_wrong_candidate"
       ],
       "evidenceMode": "offline-spec"
     },
@@ -6152,7 +6073,7 @@
     },
     {
       "tag": "@human-ready-physical-startup",
-      "scenario": "Physical readiness provides ordinary startup for the owner to sign in",
+      "scenario": "Physical readiness provides ordinary startup for the selected member to sign in",
       "feature": "e2e/features/enterprise_human_testing_readiness.feature",
       "executableTest": "tools/prepare_iphone_artifact.py",
       "evidenceMarkers": [
@@ -6164,8 +6085,8 @@
       ]
     },
     {
-      "tag": "@human-ready-personal-authentication",
-      "scenario": "Personal owner authentication is the expected next HIL action",
+      "tag": "@human-ready-personal-member-authentication",
+      "scenario": "Personal member authentication is the expected next HIL action",
       "feature": "e2e/features/enterprise_human_testing_readiness.feature",
       "executableTest": "tools/prepare_iphone_artifact_test.py",
       "evidenceMarkers": [
@@ -6455,6 +6376,36 @@
         "test_wrong_architecture_toolchain_or_source_inputs_cannot_be_reused",
         "test_untrusted_producer_never_extracts_downloaded_payload",
         "test_scenario_change_requires_fresh_composition_without_rebuilding_binary"
+      ],
+      "evidenceMode": "offline-spec"
+    },
+    {
+      "tag": "@human-ready-member-workspace",
+      "scenario": "Physical preparation verifies the selected persistent ordinary member",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": "tools/prepare_member_scenario_test.py",
+      "evidenceMarkers": [
+        "test_handoff_selects_existing_member_and_preserves_fixture_and_ledger_bytes"
+      ],
+      "evidenceMode": "offline-spec"
+    },
+    {
+      "tag": "@human-ready-member-mismatch",
+      "scenario": "An unrelated retained account cannot satisfy the member handoff",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": "tools/prepare_iphone_artifact_test.py",
+      "evidenceMarkers": [
+        "test_changed_visible_identity_cannot_produce_prepared_receipt"
+      ],
+      "evidenceMode": "offline-spec"
+    },
+    {
+      "tag": "@human-ready-member-receipt",
+      "scenario": "Member preparation evidence cannot be relabelled as human acceptance",
+      "feature": "e2e/features/enterprise_human_testing_readiness.feature",
+      "executableTest": "tools/test_verify_main_promotion_evidence.py",
+      "evidenceMarkers": [
+        "test_handoff_requires_exact_normal_member_authority_without_authentication_claim"
       ],
       "evidenceMode": "offline-spec"
     }

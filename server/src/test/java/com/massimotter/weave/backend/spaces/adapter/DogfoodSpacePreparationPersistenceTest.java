@@ -71,6 +71,27 @@ class DogfoodSpacePreparationPersistenceTest {
                 .isInstanceOf(IllegalStateException.class);
         assertThat(members.findByIdOrganizationRefAndIdSpaceRef("org", "workspace-default")).hasSize(1);
     }
+
+    @Test void verificationNeverCreatesMissingGrantsAndRetainsExactVersions() {
+        var expected = List.of(new DogfoodSpacePreparationPort.Target(A, "\"sm-0\""),
+                new DogfoodSpacePreparationPort.Target(B, "\"sm-0\""));
+        assertThatThrownBy(() -> operator.verifyTwo("org", OWNER, expected, () -> {}))
+                .isInstanceOf(DogfoodSpacePreparationPort.VersionConflict.class);
+        assertThat(members.findByIdOrganizationRefAndIdSpaceRef("org", "workspace-default")).hasSize(1);
+        operator.grantTwo("org", OWNER, targets(), () -> {}, result -> {});
+        AtomicBoolean checked = new AtomicBoolean();
+        assertThat(operator.verifyTwo("org", OWNER, expected, () -> checked.set(true)))
+                .allMatch(grant -> !grant.created() && "\"sm-0\"".equals(grant.strongEtag()));
+        assertThat(checked).isTrue();
+        assertThatThrownBy(() -> operator.verifyTwo("org", OWNER, targets(), () -> {}))
+                .isInstanceOf(DogfoodSpacePreparationPort.VersionConflict.class);
+        var revoked = members.findByIdOrganizationRefAndIdSpaceRefAndIdPersonRef("org", "workspace-default", B).orElseThrow();
+        revoked.revoke(Instant.now()); members.saveAndFlush(revoked);
+        assertThatThrownBy(() -> operator.verifyTwo("org", OWNER, expected, () -> {}))
+                .isInstanceOf(DogfoodSpacePreparationPort.Conflict.class);
+        assertThat(admin.get("org", "workspace-default", OWNER, A).strongEtag()).isEqualTo("\"sm-0\"");
+        assertThat(members.findByIdOrganizationRefAndIdSpaceRef("org", "workspace-default")).hasSize(3);
+    }
     @Test void staleStrongVersionAndForeignOrganizationBlockWithoutRewriting() {
         var grants = operator.grantTwo("org", OWNER, targets(), () -> {}, result -> {});
         admin.grant("org", "workspace-default", OWNER, A, Set.of(Permission.VIEW, Permission.EDIT), grants.getFirst().strongEtag(), false);

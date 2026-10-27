@@ -61,6 +61,10 @@ public class DogfoodPreparationService {
             requirePreviousOwner();
             spaces.verifyOwner(owner.context().organizationId(), owner.context().accountId());
             bindings.bind(request, owner.context().organizationId(), owner.context().accountId(), owner.handle());
+            if ("verify-members".equals(request.operation())) {
+                verifyManagedMembers();
+                return envelope("none");
+            }
             if ("provision-members".equals(request.operation())) {
                 provisionManagedMembers();
                 return envelope("none");
@@ -222,6 +226,42 @@ public class DogfoodPreparationService {
                         "result", "VERIFIED", "authenticationEvidence", false));
     }
 
+    private void verifyManagedMembers() {
+        // Reuse the audited fixture authority. This path cannot create identities, credentials or grants.
+        for (int i = 0; i < 2; i++) inspectPreparedMember(i);
+        var targets = java.util.stream.IntStream.range(0, 2).mapToObj(i -> new DogfoodSpacePreparationPort.Target(
+                progress.get(i).accountRef(), request.previousReceipt().members().get(i).grantVersion())).toList();
+        var grants = spaces.verifyTwo(owner.context().organizationId(), owner.context().accountId(), targets, () -> {
+            Owner fresh = currentOwner();
+            require(fresh.context().accountId().equals(owner.context().accountId()), "owner-unavailable");
+            for (int i = 0; i < 2; i++) inspectPreparedMember(i);
+        });
+        for (int i = 0; i < 2; i++) {
+            var old = progress.get(i); var grant = grants.get(i);
+            require(!grant.created() && old.accountRef().equals(grant.accountRef()), "space-access-conflict");
+            progress.set(i, new MemberReceipt(old.slot(), old.intentRef(), old.invitationHandle(), old.memberHandle(),
+                    old.accountRef(), grant.strongEtag(), old.intentState(), "VERIFIED"));
+        }
+    }
+
+    private void inspectPreparedMember(int index) {
+        var intent = inspectManaged(index);
+        require(intent != null && intent.status() == ProvisioningIntentStatus.APPLIED && intent.appliedSubject() != null,
+                "managed-test-identity-conflict");
+        var live = keycloak.memberAuthorization(organization.keycloakId(), intent.appliedSubject());
+        require(live.enabled() && live.activated() && live.subject().equals(intent.appliedSubject())
+                && live.roles().equals(List.of("member")), "managed-test-identity-conflict");
+        String account = IdentityReferences.accountId(request.plan().issuerUrl(), live.subject());
+        String handle = references.member(organization.keycloakId(), live.subject());
+        var previous = request.previousReceipt().members().get(index);
+        require(previous.accountRef().equals(account) && previous.memberHandle().equals(handle)
+                && !account.equals(owner.context().accountId()), "operator-reference-conflict");
+        var observed = progress.get(index);
+        require(java.util.Objects.equals(previous.invitationHandle(), observed.invitationHandle()), "operator-reference-conflict");
+        progress.set(index, new MemberReceipt(observed.slot(), observed.intentRef(), observed.invitationHandle(), handle,
+                account, null, "APPLIED", "NOT_REQUESTED"));
+    }
+
     private ProvisioningIntent inspect(int index) {
         var planned = request.plan().members().get(index);
         List<ProvisioningIntent> history = intents.findByActorAndCorrelation(owner.context().organizationId(),
@@ -291,8 +331,13 @@ public class DogfoodPreparationService {
 
     private Owner currentOwner() {
         require(organization.configured() && organization.keycloakId().equals(keycloak.configuredOrganizationId()), "configuration-mismatch");
-        var owners = keycloak.members(organization.keycloakId()).stream().filter(member -> member.roles().contains("owner")).toList();
-        require(owners.size() == 1 && owners.getFirst().enabled() && owners.getFirst().roles().equals(List.of("owner")), "owner-unavailable");
+        String issuer = resourceServer.getJwt().getIssuerUri();
+        require(request.plan().issuerUrl().equals(issuer), "configuration-mismatch");
+        String expected = request.previousReceipt() == null ? null : request.previousReceipt().intendedOwnerAccountRef();
+        var owners = keycloak.members(organization.keycloakId()).stream().filter(member -> member.roles().contains("owner"))
+                .filter(member -> expected == null || expected.equals(IdentityReferences.accountId(issuer, member.subject()))).toList();
+        require(owners.size() == 1, expected == null ? "owner-unavailable" : "operator-reference-conflict");
+        require(owners.getFirst().enabled() && owners.getFirst().roles().equals(List.of("owner")), "owner-unavailable");
         var provider = owners.getFirst();
         var live = keycloak.memberAuthorization(organization.keycloakId(), provider.subject());
         require(live.enabled() && live.activated() && live.roles().equals(List.of("owner"))
@@ -300,8 +345,6 @@ public class DogfoodPreparationService {
         String name = provider.displayName();
         require(name != null && !name.isBlank() && name.codePointCount(0, name.length()) <= 200
                 && name.codePoints().noneMatch(Character::isISOControl), "owner-unavailable");
-        String issuer = resourceServer.getJwt().getIssuerUri();
-        require(request.plan().issuerUrl().equals(issuer), "configuration-mismatch");
         var context = identities.resolveVerifiedMember(issuer, live.subject(), live.roles(), live.groups());
         try { capabilities.requireCapabilityForVerifiedMember(context, "admin.policy.edit", "spaces", "dogfood-prepare-members"); }
         catch (ApiErrorException denied) { throw new Blocked("owner-policy-denied"); }

@@ -26,10 +26,10 @@ human dogfood identity and inbox when a clean test state is wanted.
 
 This replaces ambiguous "mail catcher/mailkit-style" wording with one concrete local stack component.
 
-## Dogfood owner
+## First-owner setup
 
-The initial iPhone tester is established as the first Keycloak organization owner by the bounded
-Server-owned bootstrap. The identity is distinct from disposable automation principals and is not
+The setup owner is established as the first Keycloak organization owner by the bounded
+Server-owned bootstrap. The designated member tester is a separate identity. The identity is distinct from disposable automation principals and is not
 part of the static realm baseline. The bootstrap may create the invitation once or exactly resend
 the same correlated pending invitation; it cannot create a second human and is unavailable after a
 human exists. Routine deployment never receives a human writer or realm-admin credential.
@@ -72,7 +72,7 @@ The Organisation access screen must always expose a functional **Sign in** actio
 
 ## Acceptance test matrix
 
-- Delivery gate: deterministic checks run on `dev`; the protected `dogfood` candidate consumes hosted artifacts and runs mandatory Compose plus concurrent dual-iOS Flutter UI collaboration with two ordinary members. macOS desktop testing is manual-only. Physical startup preparation starts after qualification and deployment pass, preserves the owner session and leaves HIL pending.
+- Delivery gate: deterministic checks run on `dev`; the protected `dogfood` candidate consumes hosted artifacts and runs mandatory Compose plus concurrent dual-iOS Flutter UI collaboration with two ordinary members. macOS desktop testing is manual-only. Physical startup preparation starts after qualification and deployment pass, preserves the installed session and leaves HIL pending.
 - First install or ordinary organization access, handoff link, successful SSO, app lands in workspace/home and persists a refresh/offline token.
 - Admin-created Keycloak Organization invitation uses a short TTL, Mailpit capture, support-safe evidence, and no initial password output.
 - Email completion link, QR code, and manual server URI converge on the same Organisation access screen and explicit Sign in action.
@@ -81,21 +81,21 @@ The Organisation access screen must always expose a functional **Sign in** actio
 - Missing `offline_access` role, app shows localized offline-session entitlement guidance in English and German.
 - User cancels SSO, app shows localized cancelled state and stays ready for retry.
 - Wrong/stale handoff origin, app shows localized invite refresh guidance without raw provider URLs.
-- A separate trust-preserving app-state reset and manual-login check must preserve the Developer App trust anchor; this remains the #1748 infrastructure/reset slice.
+- Ordinary sign-out and sign-in exercise session recovery through product controls. There is no test-only app-state reset bridge. A deliberate infrastructure reset has its separate bounded scope below.
 - Manual sign-in from saved configuration without handoff, successful workspace/home entry.
 - Guest account without offline entitlement remains denied with localized policy copy until guest policy exists.
 - i18n check: no new sign-in/onboarding user-facing strings bypass ARB/localization.
 - Accessibility check: ready/error states are screen-reader reachable, controls keep 48x48 logical touch targets, and retry/back actions have labels.
 - Dogfood Mailpit check: test/reset emails are captured locally, visible to operator, and not sent externally.
-- Exact-candidate native product evidence: `tools/dogfood_functional_smoke.py` produces a support-safe receipt from ordinary UI operations, two independent members, Chat/Files readback, and restart/update continuity. `tools/dogfood_onboarding_evidence_check.py` validates that receipt against the qualified candidate, source tree, specification, run and stage; it never reads private app preferences.
-- Owner invitation activation and manual first sign-in remain separate human acceptance evidence. An ordinary-member functional receipt does not prove browser activation or that Massimo completed HIL; an observed retained-owner startup is not a substitute for it.
+- Exact-candidate native product evidence: `tools/dogfood_functional_smoke.py` produces a support-safe receipt from ordinary UI operations, two independent members, Chat/Files readback, and restart/update continuity. `functional_smoke_passed` in that same module validates the receipt against the qualified candidate, source tree, specification and deployment run. `tools/verify_main_promotion_evidence.py` consumes it; neither reads private app preferences.
+- Owner invitation activation and manual first sign-in remain separate human acceptance evidence. The isolated `FreshProductFlow` full mode separately tests first-owner and member activation with the normal browser and Mailpit. An ordinary-member functional receipt or observed startup does not prove that a human completed activation or HIL.
 - Physical iPhone candidate check: install over Wi-Fi when device reachability works; if Wi-Fi install is unavailable, install over USB before asking Massimo to test.
-- The legacy `tools/dogfood_iphone_entry.sh` remains a manual developer diagnostic/build path. Its output cannot substitute for protected hosted-artifact preparation. Use `Prepare Human Test` for current delivery; it signs and installs the qualified artifact and observes ordinary startup without compiling or replacing the owner's login.
+- `Prepare Human Test` is the physical delivery entry point. `tools/prepare_iphone_artifact.py` signs and installs the qualified artifact and observes ordinary startup without compiling or replacing the tester's login. The former local installer and private-plist diagnostic chain have been removed.
 - Members enter only the installation origin (`https://weave.test` for the standard-port Dogfood example). The product gateway delivers the canonical OrgManifest v2 at `/api/platform/config`; its generated User API base is `https://api.weave.test/api` in that example. Other installations retain their configured public origins and ports. The active development channel is the development-signed in-place profile update; TestFlight is not part of the dogfood prerequisite.
-- The native product runner relaunches the installed process and verifies retained authenticated Chat/Files state. Legacy preference-backed `tools/dogfood_ios_session_restore_smoke.sh` is diagnostic-only until migrated with the #1748 reset work, not current release evidence.
+- The existing native product runners relaunch the installed process and verify current identity and authenticated Chat/Files state from ordinary controls and actual readback. The deployment smoke also verifies an in-place update; no preference ledger is accepted as session-continuity evidence.
 - Trust stability check: the local TLS CA and leaf certificate fingerprints remain stable across normal stack restart/recreate unless explicit rotation is requested.
-- iOS signing trust check: the dogfood app keeps the same bundle ID `com.massimotter.weave`, provisioning Team ID `KNDHGC2KV6`, developer certificate label `Apple Development: massimo164@me.com (6RUS2Z848X)`, signing identity/profile class, and installed-app trust assumptions across normal update or app-state reset. A normal update/app-state reset must not ask Massimo to trust the developer again.
-- Physical reset check: update-in-place is the default, app-state reset is the trust-preserving fresh path, and destructive uninstall is explicit opt-in because it can remove the Developer App trust anchor.
+- iOS signing trust check: the dogfood app keeps the same bundle ID `com.massimotter.weave`, provisioning Team ID `KNDHGC2KV6`, developer certificate label `Apple Development: massimo164@me.com (6RUS2Z848X)`, signing identity/profile class, and installed-app trust assumptions across a normal update. A normal update must not ask Massimo to trust the developer again.
+- Physical installation check: update-in-place is the protected path. Normal preparation never uninstalls the app or clears its configuration, session or Keychain state.
 - Trust-domain evidence distinguishes Apple Developer Mode, Developer App trust, local TLS trust for `weave.test`, iOS app signing/provisioning stability for the installed app, and AppAuth/OIDC browser/session trust.
 - Repeated developer-team/profile trust prompts are a dogfood blocker, even if Wi-Fi or USB install technically succeeds.
 
@@ -104,8 +104,8 @@ The Organisation access screen must always expose a functional **Sign in** actio
 - Keep Mailpit directly connected to Keycloak; extend it beyond Keycloak only if backend-owned outbound email becomes an explicit product contract.
 - Convert the current handoff/sign-in flow into a typed onboarding state machine instead of relying on route side effects.
 - Add widget/integration tests for every localized state above.
-- Add dogfood runbook steps for trust-preserving app-state reset, manual login, session restore, and Mailpit inbox verification.
-- Add trust-stability evidence for local cert persistence, stable iOS signing/provisioning, and no repeated developer trust prompt after normal update/app-state reset.
+- Keep ordinary sign-in, session restore and private Mailpit activation coverage assigned to the existing external owners in [iOS Dogfood distribution](ios-dogfood-distribution.md#external-qualification-owners).
+- Add trust-stability evidence for local cert persistence, stable iOS signing/provisioning, and no repeated developer trust prompt after a normal in-place update.
 
 
 ## Session retirement and shared identity context
@@ -133,9 +133,9 @@ to finish retiring that session. Do not delete the fence manually or restore onl
 The fence is removed only after all exact records have been retired and their containing
 directories synced. If the subsequent empty-stack startup fails, ordinary `up` can safely retry.
 
-This correction does not turn setup-owner evidence into ordinary-member handoff evidence.
-The broader #1742 recipe, explicit setup actor, designated human tester and corresponding
-canonical handoff contract still need their coordinated implementation and qualification.
-The current accepted owner prerequisite remains until that contract changes; no wider role or
-membership grant is introduced by this correction. Unit/contract tests are not live collaboration
-or physical VoiceOver acceptance.
+Setup-owner evidence does not establish ordinary-member handoff readiness. Routine delivery
+selects one stable ordinary member, A or B, from the same reviewed scenario and verifies its
+current identity and shared-Space access. First-owner creation remains an explicit, separate
+setup action. The broader initial-admin recipe in #1742 retains its own remaining acceptance
+scope; this delivery correction does not grant broader roles or memberships. Unit/contract tests
+are not live collaboration or physical VoiceOver acceptance.

@@ -22,11 +22,11 @@ from tools.artifact_evidence_test import composition_fixture, component_fixture
 from tools.member_test_scenario import scenario_sha256
 
 
-def receipt(stage='physical', sha='a' * 40, tree='b' * 40, spec='c' * 40, run_id=123, attempt=1):
+def receipt(stage='deployment', sha='a' * 40, tree='b' * 40, spec='c' * 40, run_id=123, attempt=1):
     composition = composition_fixture(sha, tree, spec)
     return {
         'artifactComposition': composition, 'scenarioSha256': scenario_sha256(),
-        'actorProfile': 'retained-owner-and-member' if stage == 'physical' else 'two-ordinary-members',
+        'actorProfile': 'two-ordinary-members',
         'runtimeBuildArtifact': component_fixture(composition, 'runtime-linux-amd64'),
         'simulatorBuildArtifact': component_fixture(composition, 'ios-simulator'),
         'schemaVersion': 'weave.dogfood-functional-smoke/v3', 'candidateCommit': sha,
@@ -44,7 +44,7 @@ def receipt(stage='physical', sha='a' * 40, tree='b' * 40, spec='c' * 40, run_id
         'appBuildSha256': '1' * 64, 'peerAppBuildSha256': '2' * 64, 'routingSha256': '3' * 64,
         'exportedFileSha256': '4' * 64, 'deployedImage': 'sha256:' + '5' * 64,
         'deviceIdentitySha256': '6' * 64,
-        'build': {'bundleId': smoke.BUNDLE, 'buildNumber': '20', 'mode': 'profile' if stage == 'physical' else 'debug'},
+        'build': {'bundleId': smoke.BUNDLE, 'buildNumber': '20', 'mode': 'debug'},
         'startedAtUtc': '2026-10-22T10:00:00Z', 'verifiedAtUtc': '2026-10-22T10:30:00Z',
     }
 
@@ -92,13 +92,13 @@ class FunctionalSmokeTest(unittest.TestCase):
                 self.assertEqual(runner.environment, original)
                 execute.assert_not_called()
 
-    def test_both_functional_stages_check_toolchain_before_native_commands(self):
-        for stage in ('deployment', 'physical'):
+    def test_deployment_checks_toolchain_before_native_commands(self):
+        for stage in ('deployment',):
             with self.subTest(stage=stage), tempfile.TemporaryDirectory() as directory:
                 output = Path(directory) / 'functional-smoke.json'
                 arguments = ['dogfood_functional_smoke.py', '--stage', stage, '--candidate', 'a' * 40,
                              '--qualification-run-id', '123', '--qualification-run-attempt', '1',
-                             '--output', str(output), '--device-id', 'approved-phone']
+                             '--output', str(output)]
                 context = SimpleNamespace(env={key: 'https://' + host + '.fixture.invalid' for key, host in (
                     ('WEAVE_PUBLIC_URL', 'org'), ('WEAVE_API_ORIGIN', 'api'),
                     ('WEAVE_AUTH_URL', 'auth'), ('WEAVE_MATRIX_URL', 'matrix'))})
@@ -129,119 +129,167 @@ class FunctionalSmokeTest(unittest.TestCase):
             path.write_text('existing')
             smoke.ensure_prepared_identities(SimpleNamespace(), path)
 
-    def test_retained_owner_binding_precedes_writes_and_separates_administrator_and_test_members(self):
+    def test_ordinary_member_binding_precedes_writes_and_rejects_an_owner_session(self):
         binding = {'owner': {'accountDigest': 'a' * 64, 'organizationDigest': 'c' * 64},
                    'members': {'A': {'accountDigest': 'd' * 64, 'organizationDigest': 'c' * 64},
                                'B': {'accountDigest': 'b' * 64, 'organizationDigest': 'c' * 64}}}
-        values = {'account': 'a' * 64, 'peerAccount': 'b' * 64, 'organization': 'c' * 64}
-        smoke.verify_actor_binding(binding, values, 'physical', 'A')
-        smoke.verify_actor_binding(binding, values, 'physical', 'B')
-        with self.assertRaisesRegex(smoke.SmokeError, '^approved-current-test-member-identity-mismatch$'):
-            smoke.verify_actor_binding(binding, values, 'deployment', 'A')
-        for key in ('account', 'organization'):
-            invalid = {**values, key: 'e' * 64}
-            with self.assertRaisesRegex(smoke.SmokeError, '^retained-owner-identity-mismatch$'):
-                smoke.verify_actor_binding(binding, invalid, 'physical', 'A')
+        values = {'account': 'd' * 64, 'peerAccount': 'b' * 64, 'organization': 'c' * 64}
+        smoke.verify_actor_binding(binding, values, 'A')
+        smoke.verify_actor_binding(binding, values, 'B')
+        for key, wrong in (('account', 'a' * 64), ('organization', 'e' * 64)):
+            with self.assertRaisesRegex(smoke.SmokeError, '^approved-current-test-member-identity-mismatch$'):
+                smoke.verify_actor_binding(binding, {**values, key: wrong}, 'A')
         source = Path(smoke.__file__).read_text()
-        self.assertLess(source.index("verify_actor_binding(binding, resources, args.stage, 'A')"), source.index("phase('A', 'chat-create')"))
+        self.assertLess(source.index("verify_actor_binding(binding, resources, 'A')"), source.index("phase('A', 'chat-create')"))
         self.assertLess(source.index('ensure_prepared_identities(context, args.identity_file)'), source.index('with _dogfood_session_lock(context),'))
 
-    def valid(self, value):
-        return smoke.functional_smoke_passed(value, 'a' * 40, 'b' * 40, 'c' * 40, 123, 1, 'physical')
+    def test_retired_physical_functional_entry_and_receipts_are_rejected(self):
+        for option in ('--stage physical', '--stage deployment --diagnostic-only', '--stage deployment --device-id phone'):
+            with patch.object(sys, 'argv', ['dogfood_functional_smoke.py', *option.split(), '--candidate', 'a' * 40,
+                                           '--qualification-run-id', '123', '--qualification-run-attempt', '1', '--output', 'unused.json']), \
+                    patch('sys.stderr', new_callable=io.StringIO), patch.object(smoke, 'load_context') as context:
+                with self.assertRaises(SystemExit) as failure:
+                    smoke.main()
+                self.assertEqual(failure.exception.code, 2)
+                context.assert_not_called()
+        self.assertFalse(smoke.functional_smoke_passed(receipt(stage='physical'), 'a' * 40, 'b' * 40, 'c' * 40, 123, 1, 'physical'))
 
-    def routing_configuration(self):
+    def valid(self, value):
+        return smoke.functional_smoke_passed(value, 'a' * 40, 'b' * 40, 'c' * 40, 123, 1, 'deployment')
+
+    def routing_manifest(self):
         return {
-            'schemaVersion': 3,
+            'schemaVersion': 2,
             'organizationOrigin': 'https://org.fixture.invalid/',
-            'validatedManifest': {
-                'organizationOrigin': 'https://org.fixture.invalid/',
-                'userApiBaseUrl': 'https://api.fixture.invalid/api',
-                'protocols': {'matrixClientServerBaseUrl': 'https://api.fixture.invalid'},
-                'oidc': {'issuer': 'https://auth.fixture.invalid/realms/weave'},
-            },
+            'userApiBaseUrl': 'https://api.fixture.invalid/api',
+            'protocols': {'matrixClientServerBaseUrl': 'https://api.fixture.invalid'},
+            'oidc': {'issuer': 'https://auth.fixture.invalid/realms/weave', 'clientId': 'weave-app'},
         }
 
-    def verify_saved_routing(self, configuration, physical):
+    def verify_external_routing(self, manifest=None, *, physical=False, state='retained-workspace',
+                                resources=None, expected_identity=True, status=200, response_url=None, payload=None):
+        origin = 'https://org.fixture.invalid/'
         context = SimpleNamespace(env={
-            'WEAVE_PUBLIC_URL': 'https://org.fixture.invalid/',
+            'WEAVE_PUBLIC_URL': origin,
             'WEAVE_API_ORIGIN': 'https://api.fixture.invalid',
             'WEAVE_API_URL': 'https://api.fixture.invalid/api',
             'WEAVE_AUTH_URL': 'https://auth.fixture.invalid',
-            'WEAVE_MATRIX_URL': 'https://matrix-provider.fixture.invalid',
-        })
+        }, tls_root=Path('/reviewed/tls'))
+        expected = {'accountDigest': 'a' * 64, 'organizationDigest': 'b' * 64} if expected_identity is True else expected_identity
+        observed = resources if resources is not None else (
+            {'account': 'a' * 64, 'organization': 'b' * 64} if state == 'retained-workspace' else
+            {'organizationOrigin': smoke.digest(origin.encode())})
+        class Response(io.BytesIO):
+            def geturl(self):
+                return response_url or origin + 'api/platform/config'
+        response = Response(payload if payload is not None else json.dumps(manifest or self.routing_manifest()).encode())
+        response.status = status
+        tls = smoke.ssl.create_default_context()
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            container = root / 'app-data'
-            preference = container / 'Library/Preferences' / (smoke.BUNDLE + '.plist')
-            preference.parent.mkdir(parents=True)
-            payload = plistlib.dumps({'server_configuration_v1': json.dumps(configuration)})
-            preference.write_bytes(payload)
-            runner = smoke.Runner(root)
+            runner = smoke.Runner(Path(directory))
             actor = {'physical': physical, 'id': 'owned-device'}
-
-            def read_preferences(command):
-                if physical:
-                    self.assertEqual(command[:5], ['xcrun', 'devicectl', 'device', 'copy', 'from'])
-                    self.assertEqual(command[command.index('--domain-type') + 1], 'appDataContainer')
-                    self.assertEqual(command[command.index('--domain-identifier') + 1], smoke.BUNDLE)
-                    self.assertEqual(command[command.index('--source') + 1], 'Library/Preferences/' + smoke.BUNDLE + '.plist')
-                    Path(command[command.index('--destination') + 1]).write_bytes(payload)
-                    return ''
-                self.assertEqual(command, ['xcrun', 'simctl', 'get_app_container', 'owned-device', smoke.BUNDLE, 'data'])
-                return str(container)
-
-            with patch.object(runner, 'run', side_effect=read_preferences) as execute:
+            def visible_context(actual_actor, fixture, method, *, result_parser):
+                self.assertEqual(actual_actor, actor)
+                self.assertEqual(method, 'testOrdinaryRouting')
+                self.assertEqual(fixture['organizationOrigin'], origin)
+                self.assertEqual(fixture['schemaVersion'], 'weave.ordinary-routing-input/v1')
+                self.assertEqual(len(fixture['nonce']), 32)
+                result = {'schemaVersion': 'weave.ordinary-routing-result/v1',
+                          'runId': fixture['runId'], 'nonce': fixture['nonce'], 'status': 'passed',
+                          'visibleState': state, 'resources': observed}
+                return result_parser('WEAVE_ORDINARY_ROUTING_RESULT ' + json.dumps(result), fixture)
+            with patch.object(smoke.ssl, 'create_default_context', return_value=tls) as trust, \
+                    patch.object(smoke, 'open_https', return_value=response) as request, \
+                    patch.object(runner, 'ui', side_effect=visible_context) as ui, \
+                    patch.object(runner, 'run', side_effect=AssertionError('product storage must not be read')) as command:
                 try:
-                    smoke.verify_discovered_routing(runner, actor, context)
+                    return smoke.verify_discovered_routing(runner, actor, context, expected)
                 finally:
-                    self.assertEqual(execute.call_count, 1)
+                    trust.assert_called_once_with(cafile='/reviewed/tls/ca.pem')
+                    request.assert_called_once()
+                    self.assertEqual(request.call_args.args[0].full_url, origin + 'api/platform/config')
+                    self.assertEqual(request.call_args.args[0].get_method(), 'GET')
+                    self.assertEqual(request.call_args.kwargs, {'timeout': 20})
+                    self.assertTrue(request.call_args.args[1].check_hostname)
+                    self.assertEqual(request.call_args.args[1].verify_mode, smoke.ssl.CERT_REQUIRED)
+                    command.assert_not_called()
+                    if ui.called:
+                        self.assertEqual(ui.call_count, 1)
 
-    def test_saved_routing_accepts_northbound_facade_distinct_from_provider_on_both_devices(self):
+    def test_external_routing_binds_trusted_discovery_to_current_identity_on_both_devices(self):
         for physical in (False, True):
             for facade in ('https://api.fixture.invalid', 'https://api.fixture.invalid/'):
                 with self.subTest(physical=physical, facade=facade):
-                    configuration = self.routing_configuration()
-                    configuration['validatedManifest']['protocols']['matrixClientServerBaseUrl'] = facade
-                    self.verify_saved_routing(configuration, physical)
+                    manifest = self.routing_manifest()
+                    manifest['protocols']['matrixClientServerBaseUrl'] = facade
+                    self.assertEqual(self.verify_external_routing(manifest, physical=physical), 'retained-workspace')
 
-    def test_saved_routing_rejects_provider_or_other_facade_on_both_devices(self):
-        for physical in (False, True):
-            for facade in ('https://matrix-provider.fixture.invalid', 'https://other-api.fixture.invalid',
-                           'https://org.fixture.invalid', 'https://api.fixture.invalid:8443'):
-                with self.subTest(physical=physical, facade=facade):
-                    configuration = self.routing_configuration()
-                    configuration['validatedManifest']['protocols']['matrixClientServerBaseUrl'] = facade
-                    with self.assertRaisesRegex(smoke.SmokeError, 'observed-application-routing-differs-from-reviewed-direct-context'):
-                        self.verify_saved_routing(configuration, physical)
-
-    def test_saved_routing_preserves_context_issuer_and_https_guards_on_both_devices(self):
+    def test_external_routing_rejects_wrong_origin_api_provider_issuer_and_client(self):
         changes = (
-            (('schemaVersion',), 2),
+            (('schemaVersion',), 3),
             (('organizationOrigin',), 'https://foreign.fixture.invalid'),
-            (('validatedManifest', 'organizationOrigin'), 'https://foreign.fixture.invalid'),
-            (('validatedManifest', 'userApiBaseUrl'), 'https://other-api.fixture.invalid/api'),
-            (('validatedManifest', 'userApiBaseUrl'), 'https://api.fixture.invalid/other-api'),
-            (('validatedManifest', 'oidc', 'issuer'), 'https://other-auth.fixture.invalid/realms/weave'),
-            (('validatedManifest', 'oidc', 'issuer'), 'http://auth.fixture.invalid/realms/weave'),
-            (('validatedManifest', 'oidc', 'issuer'), 'https://user:private@auth.fixture.invalid/realms/weave'),
-            (('validatedManifest', 'oidc', 'issuer'), 'https://auth.fixture.invalid/realms/weave?unexpected=1'),
-            (('validatedManifest', 'oidc', 'issuer'), 'https://auth.fixture.invalid/realms/weave#unexpected'),
-            (('validatedManifest', 'protocols', 'matrixClientServerBaseUrl'), 'http://api.fixture.invalid'),
-            (('validatedManifest', 'protocols', 'matrixClientServerBaseUrl'), 'https://user:private@api.fixture.invalid'),
-            (('validatedManifest', 'protocols', 'matrixClientServerBaseUrl'), 'https://api.fixture.invalid/provider'),
-            (('validatedManifest', 'protocols', 'matrixClientServerBaseUrl'), 'https://api.fixture.invalid?unexpected=1'),
-            (('validatedManifest', 'protocols', 'matrixClientServerBaseUrl'), 'https://api.fixture.invalid#unexpected'),
+            (('userApiBaseUrl',), 'https://other-api.fixture.invalid/api'),
+            (('userApiBaseUrl',), 'https://api.fixture.invalid/other-api'),
+            (('oidc', 'issuer'), 'https://other-auth.fixture.invalid/realms/weave'),
+            (('oidc', 'issuer'), 'http://auth.fixture.invalid/realms/weave'),
+            (('oidc', 'issuer'), 'https://user:private@auth.fixture.invalid/realms/weave'),
+            (('oidc', 'issuer'), 'https://auth.fixture.invalid/realms/other'),
+            (('oidc', 'issuer'), 'https://auth.fixture.invalid/realms/weave?unexpected=1'),
+            (('oidc', 'clientId'), 'other-client'),
+            (('protocols', 'matrixClientServerBaseUrl'), 'https://matrix-provider.fixture.invalid'),
+            (('protocols', 'matrixClientServerBaseUrl'), 'https://other-api.fixture.invalid'),
+            (('protocols', 'matrixClientServerBaseUrl'), 'https://api.fixture.invalid:8443'),
+            (('protocols', 'matrixClientServerBaseUrl'), 'http://api.fixture.invalid'),
+            (('protocols', 'matrixClientServerBaseUrl'), 'https://user:private@api.fixture.invalid'),
+            (('protocols', 'matrixClientServerBaseUrl'), 'https://api.fixture.invalid/provider'),
+            (('protocols', 'matrixClientServerBaseUrl'), 'https://api.fixture.invalid?unexpected=1'),
+            (('protocols', 'matrixClientServerBaseUrl'), 'https://api.fixture.invalid#unexpected'),
         )
-        for physical in (False, True):
-            for keys, value in changes:
-                with self.subTest(physical=physical, keys=keys, value=value):
-                    configuration = self.routing_configuration()
-                    target = configuration
-                    for key in keys[:-1]:
-                        target = target[key]
-                    target[keys[-1]] = value
-                    with self.assertRaises((smoke.SmokeError, ValueError)):
-                        self.verify_saved_routing(configuration, physical)
+        for keys, value in changes:
+            with self.subTest(keys=keys, value=value):
+                manifest = self.routing_manifest()
+                target = manifest
+                for key in keys[:-1]:
+                    target = target[key]
+                target[keys[-1]] = value
+                with self.assertRaisesRegex(smoke.SmokeError, '^public-discovery-differs-from-reviewed-direct-context$'):
+                    self.verify_external_routing(manifest)
+
+    def test_public_discovery_cannot_substitute_for_the_current_app_context(self):
+        for resources, expected in (({'account': 'c' * 64, 'organization': 'b' * 64}, True),
+                                    ({'account': 'a' * 64, 'organization': 'c' * 64}, True),
+                                    ({'account': 'a' * 64, 'organization': 'b' * 64}, None)):
+            with self.assertRaisesRegex(smoke.SmokeError, '^observed-application-identity-differs-from-reviewed-direct-context$'):
+                self.verify_external_routing(resources=resources, expected_identity=expected)
+        self.assertEqual(self.verify_external_routing(state='normal-sign-in', expected_identity=None), 'normal-sign-in')
+        with self.assertRaisesRegex(smoke.SmokeError, '^visible-organization-origin-mismatch$'):
+            self.verify_external_routing(state='normal-sign-in', resources={'organizationOrigin': 'f' * 64})
+
+    def test_external_routing_rejects_redirect_errors_oversize_and_ambiguous_discovery(self):
+        for options in ({'status': 302}, {'response_url': 'https://foreign.fixture.invalid/api/platform/config'},
+                        {'payload': b'x' * (1024 * 1024 + 1)}, {'payload': b'[]'},
+                        {'payload': b'{"schemaVersion":2,"schemaVersion":2}'}, {'payload': b'\xff'}):
+            with self.subTest(options=list(options)):
+                with self.assertRaisesRegex(smoke.SmokeError, '^public-discovery-differs-from-reviewed-direct-context$'):
+                    self.verify_external_routing(**options)
+
+    def test_routing_ui_result_is_nonce_bound_unique_and_requires_observed_resources(self):
+        fixture = {'runId': 'routing-current', 'nonce': '1' * 32}
+        result = {'schemaVersion': 'weave.ordinary-routing-result/v1', **fixture, 'status': 'passed',
+                  'visibleState': 'retained-workspace', 'resources': {'account': 'a' * 64, 'organization': 'b' * 64}}
+        encode = lambda value: 'WEAVE_ORDINARY_ROUTING_RESULT ' + json.dumps(value)
+        self.assertEqual(smoke.parse_routing_result(encode(result), fixture), result)
+        invalid = ['', encode(result) + '\n' + encode(result), 'WEAVE_ORDINARY_ROUTING_RESULT []']
+        for key in result:
+            missing = dict(result); missing.pop(key); invalid.append(encode(missing))
+        for key, value in (('nonce', '2' * 32), ('runId', 'routing-old'), ('status', 'incomplete'),
+                           ('visibleState', 'entry-requested'), ('resources', {}),
+                           ('resources', {'organizationOrigin': 'a' * 64}),
+                           ('resources', {'account': 'raw-id', 'organization': 'b' * 64})):
+            invalid.append(encode({**result, key: value}))
+        for output in invalid:
+            with self.assertRaises(smoke.SmokeError):
+                smoke.parse_routing_result(output, fixture)
 
     def test_only_complete_ordinary_producer_receipt_passes(self):
         value = receipt()
@@ -257,7 +305,7 @@ class FunctionalSmokeTest(unittest.TestCase):
             self.assertFalse(self.valid({**value, key: bad}), key)
         for bad in ([], ['A:discover'], list(smoke.OPERATIONS)[:-1], list(reversed(smoke.OPERATIONS))):
             self.assertFalse(self.valid({**value, 'operations': bad}))
-        self.assertFalse(self.valid({**value, 'build': {**value['build'], 'mode': 'debug'}}))
+        self.assertFalse(self.valid({**value, 'build': {**value['build'], 'mode': 'profile'}}))
         self.assertFalse(self.valid({**value, 'verifiedAtUtc': '2026-10-22T12:00:00Z'}))
 
     def test_private_files_proof_rejects_old_partial_and_scope_reused_receipts(self):
@@ -299,11 +347,13 @@ class FunctionalSmokeTest(unittest.TestCase):
         self.assertIn('guard let observed = observed else { return false }', fresh)
         self.assertIn('observed > previous', fresh)
         root = driver.split('func smokeFilesRoot(', 1)[1].split('func smokeCurrentPrivateFolder(', 1)[0]
-        self.assertIn('try smokeAwaitFilesRead(app, after: previous)', root)
+        self.assertIn('try smokeAwaitFilesRead(app)', root)
         self.assertIn('try smokeRefreshFiles(app)', root)
-        navigation = root.split('location.tap()', 1)[1].split('let previous =', 1)[0]
-        self.assertNotIn('after: beforeRoot', navigation)
-        self.assertLess(navigation.index('"files-space-selector"'), navigation.index('try smokeRefreshFiles(app)'))
+        self.assertIn('back.element.tap()', root)
+        self.assertIn('remainingBacks > 0', root)
+        self.assertIn('overview.count == 1 && overview.element.isHittable', root)
+        self.assertLess(root.index('"files-location-space-workspace-default"'), root.index('try smokeRefreshFiles(app)'))
+        self.assertNotIn('files-space-selector', root)
         self.assertIn('guard root.isSelected', root)
         negative = driver.split('func smokePrivateFolderAbsent(', 1)[1].split('func smokeConversation(', 1)[0]
         self.assertIn('try smokeFilesGeneration(app) == generation', negative)
@@ -341,12 +391,12 @@ class FunctionalSmokeTest(unittest.TestCase):
                        'organizationOrigin': 'https://org.fixture.invalid/', 'ownerDisplayName': 'Owner',
                        'members': [{'email': f'{role}@fixture.invalid', 'password': 'private', 'displayName': role} for role in ('a', 'b')]}
             path.write_text(json.dumps(fixture)); path.chmod(0o600)
-            self.assertEqual(smoke.identities(path, fixture['organizationOrigin'], True), fixture)
+            self.assertEqual(smoke.identities(path, fixture['organizationOrigin']), fixture)
             path.chmod(0o644)
-            with self.assertRaises(smoke.SmokeError): smoke.identities(path, fixture['organizationOrigin'], True)
+            with self.assertRaises(smoke.SmokeError): smoke.identities(path, fixture['organizationOrigin'])
             path.chmod(0o600)
             fixture['sessionToken'] = 'never-supported'; path.write_text(json.dumps(fixture))
-            with self.assertRaises(smoke.SmokeError): smoke.identities(path, fixture['organizationOrigin'], True)
+            with self.assertRaises(smoke.SmokeError): smoke.identities(path, fixture['organizationOrigin'])
             link = parent / 'link'; link.symlink_to(path)
             with self.assertRaises(smoke.SmokeError): smoke.private_json(link)
 
@@ -361,7 +411,7 @@ class FunctionalSmokeTest(unittest.TestCase):
     def test_missing_normal_auth_remains_incomplete_without_setup_impersonation(self):
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaisesRegex(smoke.SmokeError, 'approved-test-member-authentication-required'):
-                smoke.identities(Path(directory) / 'missing.json', 'https://org.fixture.invalid/', True)
+                smoke.identities(Path(directory) / 'missing.json', 'https://org.fixture.invalid/')
 
     def test_physical_fixture_uses_only_owned_signed_runner_container(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -388,20 +438,20 @@ class FunctionalSmokeTest(unittest.TestCase):
             self.assertFalse((products / 'private-member.json').exists())
 
 
-    def test_ordinary_install_launch_has_no_onboarding_payload_or_readiness_claim(self):
-        script = (smoke.ROOT / 'tools/dogfood_ios_deeplink_smoke.sh').read_text()
-        launch = script.split('  if [[ "${ORDINARY_STARTUP}" == "1" ]]; then\n    xcrun devicectl device process launch', 1)[1].split('\n  fi', 1)[0]
-        ordinary, first_use = launch.split('\n  else\n')
-        self.assertNotIn('--payload-url', ordinary)
-        self.assertIn('--payload-url', first_use)
-        result = script.split('if [[ "${ORDINARY_STARTUP}" == "1" ]]; then\n  EVIDENCE_DIR=', 1)[1].split('\nfi', 1)[0]
-        self.assertIn('"status": "installed-launch-requested"', result)
-        self.assertIn('"functionalProof": "pending"', result)
-        self.assertNotIn('"physicalDeviceHttpsVerified": true', result)
-        self.assertIn('ordinary startup requires update_in_place', script)
-        workflow = (smoke.ROOT / '.github/workflows/ios-dogfood.yml').read_text()
-        self.assertIn('python3 tools/prepare_iphone_artifact.py', workflow)
-        self.assertIn('WEAVE_IOS_RESET_MODE: update_in_place', workflow)
+    def test_external_routing_uses_normal_visible_controls_without_app_preferences(self):
+        driver = (smoke.CLIENT / 'tool/ios_browser_driver/OrdinaryProductSmoke.swift').read_text()
+        routing = driver.split('func testOrdinaryRouting()', 1)[1].split('func testOrdinaryPreparation()', 1)[0]
+        self.assertIn('origins.element.label', routing)
+        self.assertIn('origins.count == 1 && origins.element.isHittable', routing)
+        self.assertIn('Data(observed.utf8)', routing)
+        self.assertIn('smokeAwaitIdentityReferences', routing)
+        self.assertIn('"settings-current-account-reference"', routing)
+        self.assertIn('"settings-current-organization-reference"', routing)
+        self.assertNotIn('Data(origin.utf8)', routing)
+        self.assertNotIn('UserDefaults', routing)
+        producer = Path(smoke.__file__).read_text()
+        self.assertNotIn('server_configuration_v1', producer)
+        self.assertNotIn('Library/Preferences', producer)
 
     def test_ui_readback_requires_updated_title_and_completed_new_refresh(self):
         driver = (smoke.CLIENT / 'tool/ios_browser_driver/OrdinaryProductSmoke.swift').read_text()
@@ -419,7 +469,7 @@ class FunctionalSmokeTest(unittest.TestCase):
         identity = driver.split('case "identity":', 1)[1].split('case "chat-create":', 1)[0]
         self.assertLess(identity.index('"nav-settings"'), identity.index('"settings-help"'))
         self.assertLess(identity.index('"settings-help"'), identity.index('"settings-current-account-reference"'))
-        self.assertIn('"files-space-option-workspace-default"', driver)
+        self.assertIn('"files-location-space-workspace-default"', driver)
         self.assertNotIn('shared-files-choice', driver)
         self.assertNotIn('Shared organization files', driver)
         self.assertIn('var remaining = 8', driver)
@@ -443,7 +493,8 @@ class FunctionalSmokeTest(unittest.TestCase):
         self.assertIn('preview.label == expected || (preview.value as? String) == expected', preview)
         self.assertNotIn('smokeObserveText', driver)
         producer = Path(smoke.__file__).read_text()
-        self.assertIn('verify_signed(ROOT,', producer)
+        self.assertIn('verify_runtime_container(before, args.candidate)', producer)
+        self.assertIn('native_bundle(candidate=args.candidate)', producer)
         self.assertNotIn('build-for-testing', producer)
         self.assertNotIn('-allowProvisioningUpdates', producer)
 

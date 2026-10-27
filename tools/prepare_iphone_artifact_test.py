@@ -61,14 +61,6 @@ class PhysicalArtifactPreparation(unittest.TestCase):
                     path.write_text(json.dumps(value))
                 if arguments[:5] == ["xcrun", "devicectl", "device", "copy", "to"]:
                     self.fixture = json.loads(Path(arguments[arguments.index("--source") + 1]).read_text())
-                if arguments[:5] == ["xcrun", "devicectl", "device", "copy", "from"]:
-                    path = Path(arguments[arguments.index("--destination") + 1])
-                    manifest = {"organizationOrigin": owner.context.env["WEAVE_PUBLIC_URL"],
-                                "userApiBaseUrl": owner.context.env["WEAVE_API_URL"],
-                                "protocols": {"matrixClientServerBaseUrl": owner.context.env["WEAVE_API_ORIGIN"]},
-                                "oidc": {"issuer": owner.context.env["WEAVE_AUTH_URL"] + "/realms/weave"}}
-                    path.write_bytes(plistlib.dumps({"server_configuration_v1": json.dumps({"schemaVersion": 3,
-                        "organizationOrigin": owner.context.env["WEAVE_PUBLIC_URL"], "validatedManifest": manifest})}))
                 if arguments[:2] == ["xcodebuild", "test-without-building"]:
                     if owner.ui_failure:
                         raise SmokeError("native-command-failed")
@@ -92,6 +84,9 @@ class PhysicalArtifactPreparation(unittest.TestCase):
         patch.object(preparation, "Runner", DeviceRunner).start()
         patch.object(preparation, "sign", side_effect=self.sign).start()
         patch.object(preparation, "verify_signed", return_value={"status": "passed"}).start()
+        self.member = {"accountDigest": "a" * 64, "organizationDigest": "b" * 64, "testerSlot": "A"}
+        self.verify_member = patch.object(preparation, "verify_member_workspace", return_value=self.member).start()
+        self.verify_routing = patch.object(preparation, "verify_discovered_routing", return_value="retained-workspace").start()
 
     def sign(self, root, artifact, output, candidate, team, identity, device, profiles, certificate_team):
         self.assertEqual(candidate, self.candidate)
@@ -111,7 +106,10 @@ class PhysicalArtifactPreparation(unittest.TestCase):
     def test_in_place_install_uses_prebuilt_driver_without_owner_uninstall_or_compilation(self):
         result = self.prepare()
         self.assertEqual(result["status"], "passed")
-        self.assertEqual(result["ownerHIL"], "pending")
+        self.assertEqual(result["humanAcceptance"], "pending")
+        self.assertEqual(result["schemaVersion"], "weave.hil-preparation/v5")
+        self.assertEqual(result["memberWorkspace"], self.member)
+        self.assertEqual(self.verify_routing.call_args.args[3], {key: self.member[key] for key in ("accountDigest", "organizationDigest")})
         self.assertTrue(result["ordinaryStartup"]["driverCleanupComplete"])
         commands = self.instances[0].commands
         self.assertTrue(any(command[:2] == ["xcodebuild", "test-without-building"] for command in commands))
@@ -120,6 +118,20 @@ class PhysicalArtifactPreparation(unittest.TestCase):
         self.assertEqual(len(uninstalls), 1)
         self.assertEqual(uninstalls[0][-1], preparation.DRIVER)
         self.assertEqual(json.loads((self.root / "receipt.json").read_text())["status"], "passed")
+
+    def test_revoked_member_prevents_any_device_installation(self):
+        self.verify_member.side_effect = preparation.ContractError("space-access-conflict")
+        result = self.prepare()
+        self.assertEqual(result["status"], "incomplete")
+        self.assertEqual(result["boundary"], "space-access-conflict")
+        self.assertFalse(any("install" in command for command in self.instances[0].commands))
+
+    def test_changed_visible_identity_cannot_produce_prepared_receipt(self):
+        self.verify_routing.return_value = "normal-sign-in"
+        with patch("subprocess.run", return_value=SimpleNamespace(returncode=0)):
+            result = self.prepare()
+        self.assertEqual(result["status"], "incomplete")
+        self.assertEqual(result["boundary"], "physical-startup-identity-changed")
 
     def test_preexisting_driver_is_not_overwritten_or_uninstalled(self):
         self.preexisting_driver = True

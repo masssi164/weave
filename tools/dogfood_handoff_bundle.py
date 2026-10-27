@@ -64,38 +64,6 @@ def openssl_subject(path: Path) -> str | None:
     ).strip()
 
 
-def validate_device_preferences(prefs: dict, bundle: dict, started: datetime,
-                                candidate: str, spec: str) -> None:
-    if bundle.get("stackCommit") != candidate or bundle.get("specRevision") != spec:
-        raise ValueError("handoff bundle candidate/specification mismatch")
-    origin = canonical_origin(bundle["organizationOrigin"])
-    host = urlparse(origin).hostname
-    if bundle["testerVisible"]["deepLink"] != "weave://join?" + urlencode({"organization_origin": origin}):
-        raise ValueError("handoff bundle is not the canonical organization-origin link")
-    for key, schema, field, expected in (
-        ("last_handoff_consumed_v1", "weave.client.last_handoff_consumed.v1", "result", "saved_configuration"),
-        ("dogfood_visible_state_v1", "weave.client.dogfood_visible_state.v1", "state", "handoff_ready"),
-        ("dogfood_auth_state_v1", "weave.client.dogfood_auth_state.v1", "state", "ready_for_sso"),
-    ):
-        value = json.loads(prefs[key])
-        if not isinstance(value, dict) or value.get("schemaVersion") != schema:
-            raise ValueError(f"{key}: malformed typed evidence")
-        recorded = datetime.fromisoformat(value["recordedAt"].replace("Z", "+00:00"))
-        if recorded.tzinfo is None or recorded < started or recorded > datetime.now(timezone.utc):
-            raise ValueError(f"{key}: stale or future evidence")
-        if (value.get(field) != expected or value.get("supportSafe") is not True
-                or value.get("organizationOriginHost") != host):
-            raise ValueError(f"{key}: discovery did not complete for this organization")
-        # Canonical URL-only entry has no activation/handoff identifiers. Those
-        # belong to the exact-source preparation bundle, never the member URL.
-        if "handoffRef" in value or "runId" in value:
-            raise ValueError(f"{key}: obsolete handoff evidence cannot qualify URL-only entry")
-        if key == "last_handoff_consumed_v1" and (
-                value.get("accessKind") != "server_uri" or value.get("platformConfigHost") != host
-                or value.get("platformConfigPath") != "/api/platform/config"):
-            raise ValueError("saved configuration did not use canonical OrgManifest discovery")
-
-
 def git_commit() -> str:
     return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
 
@@ -129,9 +97,11 @@ def write_markdown(path: Path, payload: dict[str, object]) -> None:
         "",
         "1. Prefer a public HTTPS dogfood route with a publicly trusted certificate for Massimo-facing tests.",
         "2. If using local HTTPS, reuse the same persisted Weave Local Development CA and leaf certificate; do not rotate unless explicitly requested.",
-        "3. Update the current Weave iOS profile or release binary in place; use app-state reset for fresh semantics.",
+        "3. Use Prepare Human Test to update the qualified Weave iOS binary in place and observe ordinary startup.",
         "4. Open the deeplink from Safari or Matrix.",
-        "5. Confirm Weave shows the handoff-aware workspace sign-in state.",
+        "5. Confirm the normal sign-in screen shows the intended organization; complete ordinary SSO when needed.",
+        "",
+        "This URL and certificate bundle is informational. It is not qualification or physical-iPhone human acceptance evidence.",
         "",
         "## Public Route Acceptance",
         "",
@@ -148,13 +118,11 @@ def write_markdown(path: Path, payload: dict[str, object]) -> None:
         f"- Bundle ID: `{ios['bundleId']}`",
         f"- Provisioning Team ID: `{ios['teamId']}`",
         f"- Developer certificate Team ID: `{ios['developerCertificateTeamId']}`",
-        f"- Physical reset default: `{ios['physicalResetDefault']}`",
-        f"- Trust-preserving fresh reset: `{ios['trustPreservingFreshReset']}`",
+        f"- Installation mode: `{ios['installMode']}`",
         f"- Destructive uninstall requires explicit opt-in: `{ios['destructiveUninstallRequiresOptIn']}`",
         f"- Wi-Fi install preferred: `{ios['wifiInstallPreferred']}`",
         f"- USB fallback only: `{ios['usbFallbackOnly']}`",
         f"- Repeated developer trust allowed: `{ios['repeatedDeveloperTrustAllowed']}`",
-        f"- Trust stability marker: `{ios['trustStabilityEvidenceMarker']}`",
         "",
     ]
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -230,15 +198,13 @@ def main() -> int:
             "requiredBuildMode": "profile-or-release",
             "debugBuildsAllowed": False,
             "installEvidenceRequired": True,
-            "handoffConsumedEvidenceKey": "last_handoff_consumed_v1",
-            "physicalResetDefault": "update_in_place",
-            "trustPreservingFreshReset": "app_state",
+            "installMode": "update_in_place",
             "destructiveUninstallRequiresOptIn": True,
             "wifiInstallPreferred": True,
             "usbFallbackOnly": True,
             "repeatedDeveloperTrustAllowed": False,
-            "trustStabilityEvidenceMarker": "DOGFOOD_TRUST_STABILITY_RESULT",
         },
+        "qualificationEvidence": False,
         "supportSafe": True,
     }
     output_json = args.output_dir / "handoff.json"

@@ -21,24 +21,16 @@ Feature: Weave v0.1 dogfood production release
     And removed Calendar and Deck member routes are absent instead of hidden behind redirects
 
   @weave-v01-dogfood-owner-invite-activation
-  Scenario: Dogfood first-owner invite activation reaches the workspace
-    Given the bounded Weave Server bootstrap has provisioned a first-owner Organizations invitation without passwords, bearer tokens, provider payloads, or raw secrets
-    And the persistent human dogfood owner is separate from the disposable automation user
-    And the identity provider sends the initial credential setup mail into the local dogfood Mailpit inbox
-    When the member completes Keycloak activation in the system browser
-    And opens the same secret-free organization access through the email completion link, QR code, or server URI
-    And the Organisation access screen offers Sign In
-    And the member taps Sign In, completes OIDC Authorization Code with PKCE, and returns to Weave
-    Then external native UI and browser evidence proves the handoff, sign-in, and authenticated workspace without private app-state ledgers
-    And ordinary-member product interaction evidence proves Chat and Files are usable after login
-    And native product evidence proves that the authenticated session survives force-quit and reopen
-    And trust-preserving app-state reset plus manual sign-in from the saved organization configuration reaches the workspace
-    And Mailpit is reachable on the iPhone through the private HTTPS dogfood URL and captures identity mail without external delivery
-    And a routine repeated dogfood deployment preserves the same active Keycloak subject without re-inviting or mutating it
-    And ordinary Mailpit container replacement preserves captured dogfood mail
-    And disposable live-stack E2E cannot remove the persistent dogfood identity or inbox
-    And dogfood trust evidence proves stable local TLS certificates, stable iOS signing/provisioning, and no repeated Developer App trust prompt after normal update or app-state reset
-    And no member-visible state leaks raw provider errors, setup internals, tokens, credentials, or secret references
+  Scenario: Isolated first-owner invitation activates through the normal browser
+    Given a run-owned Full Compose environment has no human accounts or persistent Dogfood data
+    And the bounded Weave Server bootstrap creates the first-owner Organizations invitation
+    And the identity provider delivers credential setup mail only to the isolated Mailpit inbox
+    When the setup owner completes invitation activation in the normal browser
+    And completes OIDC Authorization Code with PKCE through the normal application client
+    Then the User API verifies the owner's current organization identity and owner authority
+    And an invited ordinary member independently activates and signs in through the normal browser
+    And public evidence contains no activation links, passwords, tokens, or private app-state ledgers
+    And this full onboarding result cannot substitute for two-member collaboration or physical-iPhone human acceptance
 
   @weave-v01-admin-provider-categories
   Scenario: Admin sees provider categories before member use

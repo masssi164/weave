@@ -56,14 +56,13 @@ After all mandatory dogfood automated qualification is green, manually run `Prep
 
 1. verifies all mandatory exact successful qualification and deployment evidence;
 2. starts dogfood twice and checks unchanged TLS fingerprints;
-3. optionally creates the first-owner invitation in private Mailpit;
-4. verifies the activated owner's default Space and current access;
-5. signs the qualified hosted device artifact with the stable development identity;
-6. installs over `com.massimotter.weave` on the paired iPhone and observes ordinary startup.
+3. revalidates the selected existing ordinary Dogfood member A or B and exact shared-Space grant without writes;
+4. signs the qualified hosted device artifact with the stable development identity;
+5. installs over `com.massimotter.weave` on the paired iPhone and observes ordinary startup.
 
 The stable Apple team and bundle preserve Developer App trust and app storage. Deinstallation is not part of this workflow. The local CA should need full trust on the iPhone only once.
 
-First-owner activation is separate setup; invitation links remain private at the reviewed `WEAVE_MAILPIT_URL`. Routine preparation preserves the owner app/session and accepts either the retained workspace or normal sign-in. Its `weave.hil-preparation/v4` receipt binds the actual successful qualification attempt, composition and installed binary, and leaves `ownerHIL: pending`. Personal sign-in is the expected next human action when needed. The tester then reports actual sign-in/session, navigation, Chat, Files, Calendar, accessibility, revoke/regrant and identity continuity results, including the actual owner/admin/member role. Human outcomes are `passed`, `failed` or `not-available`; absent mandatory surfaces block Main promotion. Optional Weaver/MCP and broad admin journeys retain separate acceptance.
+First-owner activation is separate setup; invitation links remain private at the reviewed `WEAVE_MAILPIT_URL`. Routine preparation selects persistent ordinary member `A` or `B` through `tester_slot`, verifies current authoritative account/organization membership and the recorded Space grant version, and preserves the app/container. A retained workspace must match that member; normal sign-in is accepted for the reviewed organization. Its `weave.hil-preparation/v5` receipt binds a read-only `memberWorkspace` proof, the actual successful qualification attempt, composition and installed binary, and leaves `humanAcceptance: pending`. Personal sign-in is the expected next human action when needed. The tester reports actual sign-in/session, navigation, Chat, Files, Calendar, accessibility, revoke/regrant and identity continuity as `actor-role: member`. Human outcomes are `passed`, `failed` or `not-available`; absent mandatory surfaces block Main promotion. Optional Weaver/MCP and broad admin journeys retain separate acceptance.
 
 ## Promotion discipline during development
 

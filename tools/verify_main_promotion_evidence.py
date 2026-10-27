@@ -50,7 +50,7 @@ def parse_human_comment(body: str, dogfood_sha: str) -> bool:
         fields[key.strip()] = value.strip()
     return (
         fields.get("dogfood") == dogfood_sha
-        and fields.get("actor-role") in {"owner", "admin", "member"}
+        and fields.get("actor-role") == "member"
         and {"dogfood", "actor-role", *REQUIRED_SURFACES} <= set(fields)
         and set(fields) <= {"dogfood", "actor-role", *REQUIRED_SURFACES, "notes"}
         and all(fields[surface] == "passed" for surface in REQUIRED_SURFACES)
@@ -448,8 +448,27 @@ def owner_workspace_passed(value: dict, sha: str, tree: str, spec: str) -> bool:
             and value.get("outcome") in ("CREATED", "VERIFIED"))
 
 
+def member_workspace_passed(value: dict, sha: str, tree: str, spec: str) -> bool:
+    if not isinstance(value, dict):
+        return False
+    expected = {
+        "schemaVersion": "weave.member-workspace-preparation/v1", "environment": "dogfood",
+        "candidateCommit": sha, "sourceTree": tree, "specificationCommit": spec,
+        "status": "passed", "spaceRef": "workspace-default", "organizationRole": "member",
+        "memberAccessVerified": True, "authenticationEvidence": False, "humanAcceptance": False,
+        "supportSafe": True, "containsSecretValues": False,
+    }
+    return (set(value) == set(expected) | {"testerSlot", "accountDigest", "organizationDigest", "grantVersion"}
+            and all(type(value.get(key)) is type(item) and value.get(key) == item for key, item in expected.items())
+            and isinstance(value.get("testerSlot"), str) and value["testerSlot"] in {"A", "B"}
+            and all(isinstance(value.get(key), str) and re.fullmatch(r"[0-9a-f]{64}", value[key])
+                    for key in ("accountDigest", "organizationDigest"))
+            and isinstance(value.get("grantVersion"), str)
+            and re.fullmatch(r'"sm-(?:0|[1-9][0-9]*)"', value["grantVersion"]) is not None)
+
+
 def preparation_passed(value: dict, sha: str, tree: str, spec: str, run_id: int, run_attempt: int) -> bool:
-    if not isinstance(value, dict) or not owner_workspace_passed(value.get("ownerWorkspace"), sha, tree, spec):
+    if not isinstance(value, dict) or not member_workspace_passed(value.get("memberWorkspace"), sha, tree, spec):
         return False
     composition = value.get("artifactComposition")
     if (not composition_passed(composition, sha, tree, spec)
@@ -473,10 +492,10 @@ def preparation_passed(value: dict, sha: str, tree: str, spec: str, run_id: int,
             or not re.fullmatch(r"sha256:[0-9a-f]{64}", str(signing.get("signedPayloadTreeDigest", "")))):
         return False
     return all(value.get(key) == expected for key, expected in {
-        "schemaVersion": "weave.hil-preparation/v4", "candidateCommit": sha,
+        "schemaVersion": "weave.hil-preparation/v5", "candidateCommit": sha,
         "sourceTree": tree, "specificationCommit": spec,
         "qualificationRunId": run_id, "qualificationRunAttempt": run_attempt, "status": "passed", "install": "update_in_place",
-        "supportSafe": True, "containsSecretValues": False, "ownerHIL": "pending",
+        "supportSafe": True, "containsSecretValues": False, "humanAcceptance": "pending",
     }.items()) and value.get("supportSafe") is True and value.get("containsSecretValues") is False and type(value.get("qualificationRunId")) is int and type(value.get("qualificationRunAttempt")) is int
 
 

@@ -163,9 +163,11 @@ def operator_request(context, plan: dict, candidate: dict, operation: str, previ
     if not (persistent or isolated):
         raise ContractError("dogfood-operator-posture-required")
     operator_plan(plan, context)
-    if (operation not in {"invitations", "grants", "provision-members"} or set(candidate) != {"candidateCommit", "sourceTree", "specificationCommit"}
+    if (operation not in {"invitations", "grants", "provision-members", "verify-members"} or set(candidate) != {"candidateCommit", "sourceTree", "specificationCommit"}
             or any(not isinstance(value, str) or not COMMIT.fullmatch(value) for value in candidate.values())
-            or (operation == "invitations" and proof is not None)
+            or (operation in {"invitations", "verify-members"} and proof is not None)
+            or (operation == "verify-members" and (not isinstance(previous, dict)
+                or previous.get("status") != "passed" or previous.get("stage") != "provision-members-ready"))
             or (operation == "grants" and (previous is None or not isinstance(proof, dict) or proof.get("nonce") != plan["nonce"]))):
         raise ContractError("dogfood-operator-request-invalid")
     if previous is not None and (not isinstance(previous, dict) or previous.get("schemaVersion") != "weave.dogfood-operator-preparation-receipt/v1"
@@ -187,7 +189,8 @@ def operator_request(context, plan: dict, candidate: dict, operation: str, previ
     if (https_origin(parsed.scheme + "://" + parsed.netloc) != plan["apiOrigin"]
             or parsed.username or parsed.password or parsed.query or parsed.fragment):
         raise ContractError("dogfood-operator-configuration-mismatch")
-    request = {"schemaVersion": "weave.dogfood-operator-preparation-request/v2" if managed else "weave.dogfood-operator-preparation-request/v1",
+    version = "v3" if operation == "verify-members" else "v2" if managed else "v1"
+    request = {"schemaVersion": "weave.dogfood-operator-preparation-request/" + version,
             "operation": operation, "environment": "dogfood", "nonce": plan["nonce"], **candidate, "apiBaseUrl": api,
             "plan": plan, "previousReceipt": previous, "proof": proof}
     if managed:
@@ -228,7 +231,7 @@ def validate_operator_envelope(value: dict, request: dict | None = None, previou
         if receipt["actorRef"] != ("operator:dogfood-prepare:" + plan_id if plan_id else None): raise ValueError()
         for key, literal in (("environment", "dogfood"), ("spaceRef", "workspace-default")):
             if receipt[key] != literal and (passed or receipt[key] is not None): raise ValueError()
-        if receipt["operation"] not in {"invitations", "grants", "provision-members"} and (passed or receipt["operation"] is not None): raise ValueError()
+        if receipt["operation"] not in {"invitations", "grants", "provision-members", "verify-members"} and (passed or receipt["operation"] is not None): raise ValueError()
         for key in ("organizationOrigin", "apiBaseUrl", "issuerUrl", "organizationId"):
             if receipt[key] is not None and not text(receipt[key], 2048): raise ValueError()
             if passed and receipt[key] is None: raise ValueError()
@@ -261,7 +264,7 @@ def validate_operator_envelope(value: dict, request: dict | None = None, previou
             if (member["intentState"] not in {"NOT_ISSUED", "PENDING", "APPLIED", "FAILED", "EXPIRED", "UNAVAILABLE"}
                     or member["grantOutcome"] not in {"NOT_REQUESTED", "CREATED", "VERIFIED", "BLOCKED"}): raise ValueError()
             if passed:
-                if not member["intentRef"] or (receipt["operation"] != "provision-members" and not member["invitationHandle"]): raise ValueError()
+                if not member["intentRef"] or (receipt["operation"] not in {"provision-members", "verify-members"} and not member["invitationHandle"]): raise ValueError()
                 if receipt["operation"] == "invitations":
                     if (member["intentState"] not in {"PENDING", "APPLIED"} or member["grantVersion"] is not None
                             or member["grantOutcome"] != "NOT_REQUESTED"): raise ValueError()
@@ -284,6 +287,9 @@ def validate_operator_envelope(value: dict, request: dict | None = None, previou
             if len(references) != len(set(references)): raise ValueError()
         if passed and receipt["operation"] == "grants" and receipt["outcome"] != ("CREATED" if any(m["grantOutcome"] == "CREATED" for m in members) else "VERIFIED"):
             raise ValueError()
+        if passed and receipt["operation"] == "verify-members" and (receipt["outcome"] != "VERIFIED"
+                or any(m["grantOutcome"] != "VERIFIED" for m in members)):
+            raise ValueError()
         if request:
             expected = {key: request[key] for key in ("operation", "nonce", "environment", "candidateCommit", "sourceTree", "specificationCommit", "apiBaseUrl")}
             expected.update({key: request["plan"][key] for key in ("planId", "organizationOrigin", "issuerUrl", "spaceRef")})
@@ -293,6 +299,7 @@ def validate_operator_envelope(value: dict, request: dict | None = None, previou
                 if previous.get(key) is not None and receipt[key] != previous[key]: raise ValueError()
             for before, after in zip(previous["members"], members):
                 if any(before[k] is not None and after[k] != before[k] for k in ("intentRef", "invitationHandle", "memberHandle", "accountRef")): raise ValueError()
+                if passed and receipt["operation"] == "verify-members" and after["grantVersion"] != before["grantVersion"]: raise ValueError()
         return value
     except (KeyError, TypeError, ValueError, AttributeError, ContractError):
         raise ContractError("dogfood-operator-receipt-invalid") from None

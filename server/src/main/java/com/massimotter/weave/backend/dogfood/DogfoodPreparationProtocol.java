@@ -105,7 +105,9 @@ public final class DogfoodPreparationProtocol {
         require(r != null && (("weave.dogfood-operator-preparation-request/v1".equals(r.schemaVersion())
                 && Set.of("invitations", "grants").contains(nullSafe(r.operation())) && r.initialCredentials() == null)
                 || ("weave.dogfood-operator-preparation-request/v2".equals(r.schemaVersion())
-                && "provision-members".equals(r.operation())))
+                && "provision-members".equals(r.operation()))
+                || ("weave.dogfood-operator-preparation-request/v3".equals(r.schemaVersion())
+                && "verify-members".equals(r.operation()) && r.initialCredentials() == null))
                 && "dogfood".equals(r.environment()) && hex(r.nonce(), 32)
                 && hex(r.candidateCommit(), 40) && hex(r.sourceTree(), 40) && hex(r.specificationCommit(), 40), "invalid-request");
         Plan p = r.plan();
@@ -137,7 +139,7 @@ public final class DogfoodPreparationProtocol {
                         && credential.password().chars().noneMatch(Character::isISOControl), "invalid-request");
             }
             require(!r.initialCredentials().get(0).password().equals(r.initialCredentials().get(1).password()), "invalid-request");
-        } else if ("invitations".equals(r.operation())) require(r.proof() == null, "invalid-request");
+        } else if (Set.of("invitations", "verify-members").contains(r.operation())) require(r.proof() == null, "invalid-request");
         else {
             Proof proof = r.proof();
             require(proof != null && "weave.dogfood-admin-preparation-proof/v1".equals(proof.schemaVersion())
@@ -151,6 +153,12 @@ public final class DogfoodPreparationProtocol {
             require(!proof.members().get(0).accountDigest().equals(proof.members().get(1).accountDigest()), "member-proof-conflict");
         }
         if (r.previousReceipt() != null) validatePrevious(r);
+        if ("verify-members".equals(r.operation())) {
+            Receipt previous = r.previousReceipt();
+            require(previous != null && "passed".equals(previous.status())
+                    && "provision-members".equals(previous.operation())
+                    && "provision-members-ready".equals(previous.stage()), "operator-reference-conflict");
+        }
         if ("grants".equals(r.operation())) {
             Receipt previous = r.previousReceipt();
             require(previous != null && "passed".equals(previous.status()) && "none".equals(previous.boundary())

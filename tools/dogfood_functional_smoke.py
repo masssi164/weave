@@ -17,6 +17,7 @@ import re
 import secrets
 import shutil
 import signal
+import ssl
 import stat
 import subprocess
 import sys
@@ -24,6 +25,7 @@ import tempfile
 import time
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
+from urllib.request import Request
 
 ROOT = Path(__file__).resolve().parents[1]
 CLIENT = ROOT / 'client'
@@ -34,6 +36,7 @@ from run_ios_simulator_product_acceptance import NativeFailure, inspect_toolchai
 from compose_env import load_context
 from compose_runtime import _dogfood_session_lock, _service_container, verify_dogfood_identity
 from dogfood_handoff_bundle import canonical_origin
+from bootstrap_https import open_https
 
 BUNDLE = 'com.massimotter.weave'
 HASH = re.compile(r'^[0-9a-f]{64}$')
@@ -73,7 +76,7 @@ def private_json(path: Path) -> dict:
         raise SmokeError('approved-test-member-authentication-required') from None
 
 
-def identities(path: Path, origin: str, physical: bool) -> dict:
+def identities(path: Path, origin: str) -> dict:
     value = private_json(path)
     if (set(value) != {'schemaVersion', 'organizationOrigin', 'members', 'ownerDisplayName'}
             or value['schemaVersion'] != 'weave.dogfood-functional-identities/v1'
@@ -108,12 +111,11 @@ def approved_identity_binding(context, path: Path, approved: dict) -> dict:
         raise SmokeError('approved-test-member-preparation-binding-required') from None
 
 
-def verify_actor_binding(binding: dict, resources: dict, stage: str, role: str) -> None:
-    expected = binding['owner'] if stage == 'physical' and role == 'A' else binding['members'][role]
+def verify_actor_binding(binding: dict, resources: dict, role: str) -> None:
+    expected = binding['members'][role]
     account = resources.get('account' if role == 'A' else 'peerAccount')
     if account != expected['accountDigest'] or resources.get('organization') != expected['organizationDigest']:
-        raise SmokeError('retained-owner-identity-mismatch' if stage == 'physical' and role == 'A'
-                         else 'approved-current-test-member-identity-mismatch')
+        raise SmokeError('approved-current-test-member-identity-mismatch')
 
 
 def parse_ui_result(output: str, fixture: dict) -> dict:
@@ -140,7 +142,7 @@ def parse_ui_result(output: str, fixture: dict) -> dict:
 def functional_smoke_passed(value: dict, sha: str, tree: str, spec: str,
                             run_id: int, attempt: int, stage: str) -> bool:
     """Shared fail-closed receipt contract used by both delivery and Main."""
-    if not isinstance(value, dict):
+    if stage != 'deployment' or not isinstance(value, dict):
         return False
     expected = {
         'schemaVersion': 'weave.dogfood-functional-smoke/v3', 'candidateCommit': sha,
@@ -160,7 +162,7 @@ def functional_smoke_passed(value: dict, sha: str, tree: str, spec: str,
     from member_test_scenario import scenario_sha256
     if value.get('scenarioSha256') != scenario_sha256():
         return False
-    if value.get('actorProfile') != ('retained-owner-and-member' if stage == 'physical' else 'two-ordinary-members'):
+    if value.get('actorProfile') != 'two-ordinary-members':
         return False
     from artifact_evidence import composition_passed, component_matches
     composition = value.get('artifactComposition')
@@ -190,7 +192,7 @@ def functional_smoke_passed(value: dict, sha: str, tree: str, spec: str,
     build = value.get('build')
     if (not isinstance(build, dict) or build.get('bundleId') != BUNDLE
             or not isinstance(build.get('buildNumber'), str) or not build['buildNumber']
-            or build.get('mode') != ('profile' if stage == 'physical' else 'debug')):
+            or build.get('mode') != 'debug'):
         return False
     try:
         started = datetime.fromisoformat(value['startedAtUtc'].replace('Z', '+00:00'))
@@ -283,7 +285,7 @@ class Runner:
             if method == 'testProductionBrowser':
                 raise SmokeError('normal-test-member-browser-authentication-required') from None
             if str(error) == 'normal-authentication-required':
-                raise SmokeError('physical-owner-authentication-required' if actor['physical'] else 'normal-test-member-authentication-required') from None
+                raise SmokeError('normal-test-member-authentication-required') from None
             raise
         finally:
             private.unlink(missing_ok=True)
@@ -325,30 +327,68 @@ def verify_installed_build(runner: Runner, actor: dict) -> None:
             raise SmokeError('installed-normal-peer-build-mismatch')
 
 
-def verify_discovered_routing(runner: Runner, actor: dict, context) -> None:
-    # Read only the normal saved discovery contract. Never read secure storage,
-    # credentials or member sessions; the raw plist remains private and transient.
-    if actor['physical']:
-        preference = runner.directory / ('context-' + str(runner.sequence) + '.plist')
-        runner.run(['xcrun', 'devicectl', 'device', 'copy', 'from', '--device', actor['id'],
-                    '--domain-type', 'appDataContainer', '--domain-identifier', BUNDLE,
-                    '--source', 'Library/Preferences/' + BUNDLE + '.plist', '--destination', str(preference)])
+def parse_routing_result(output: str, fixture: dict) -> dict:
+    from dogfood_prepare import strict_json
+    marker = 'WEAVE_ORDINARY_ROUTING_RESULT '
+    try:
+        results = [strict_json(line.split(marker, 1)[1]) for line in output.splitlines() if marker in line]
+        if len(results) != 1:
+            raise ValueError()
+        value = results[0]
+        state = value['visibleState']
+        expected_keys = {'account', 'organization'} if state == 'retained-workspace' else {'organizationOrigin'}
+        if (set(value) != {'schemaVersion', 'runId', 'nonce', 'status', 'visibleState', 'resources'}
+                or value['schemaVersion'] != 'weave.ordinary-routing-result/v1'
+                or any(value[key] != fixture[key] for key in ('runId', 'nonce'))
+                or value['status'] != 'passed' or state not in {'retained-workspace', 'normal-sign-in'}
+                or not isinstance(value['resources'], dict) or set(value['resources']) != expected_keys
+                or any(not isinstance(item, str) or not HASH.fullmatch(item) for item in value['resources'].values())):
+            raise ValueError()
+        return value
+    except (KeyError, TypeError, ValueError):
+        raise SmokeError('ordinary-routing-result-missing-stale-or-invalid') from None
+
+
+def verify_discovered_routing(runner: Runner, actor: dict, context, expected_identity: dict | None = None) -> str:
+    """Bind trusted public discovery to the current normal UI, without app storage access.
+
+    On sign-in the app displays its discovered origin. In a retained workspace,
+    Help displays fresh User API identity references bound to the configured issuer;
+    these must match the independently prepared actor and organization.
+    """
+    from dogfood_prepare import strict_json
+    try:
+        origin = canonical_origin(context.env['WEAVE_PUBLIC_URL'])
+        request = Request(origin + 'api/platform/config', headers={'Accept': 'application/json'})
+        tls = ssl.create_default_context(cafile=str(context.tls_root / 'ca.pem'))
+        with open_https(request, tls, timeout=20) as response:
+            if response.status != 200 or response.geturl() != request.full_url:
+                raise ValueError()
+            payload = response.read(1024 * 1024 + 1)
+        if len(payload) > 1024 * 1024:
+            raise ValueError()
+        manifest = strict_json(payload.decode('utf-8'))
+        if (type(manifest['schemaVersion']) is not int or manifest['schemaVersion'] != 2
+                or canonical_origin(manifest['organizationOrigin']) != origin
+                or manifest['userApiBaseUrl'].rstrip('/') != context.env['WEAVE_API_URL'].rstrip('/')
+                or canonical_origin(manifest['protocols']['matrixClientServerBaseUrl']) != canonical_origin(context.env['WEAVE_API_ORIGIN'])
+                or manifest['oidc']['issuer'] != canonical_origin(context.env['WEAVE_AUTH_URL']).rstrip('/') + '/realms/weave'
+                or manifest['oidc']['clientId'] != context.env.get('WEAVE_CLIENT_ID', 'weave-app')):
+            raise ValueError()
+    except (OSError, KeyError, TypeError, ValueError, AttributeError):
+        raise SmokeError('public-discovery-differs-from-reviewed-direct-context') from None
+    fixture = {'schemaVersion': 'weave.ordinary-routing-input/v1', 'runId': 'routing-' + secrets.token_hex(8),
+               'nonce': secrets.token_hex(16), 'organizationOrigin': origin}
+    result = runner.ui(actor, fixture, 'testOrdinaryRouting', result_parser=parse_routing_result)
+    if result['visibleState'] == 'normal-sign-in':
+        if result['resources']['organizationOrigin'] != digest(origin.encode()):
+            raise SmokeError('visible-organization-origin-mismatch')
     else:
-        container = Path(runner.run(['xcrun', 'simctl', 'get_app_container', actor['id'], BUNDLE, 'data']).strip())
-        preference = container / 'Library/Preferences' / (BUNDLE + '.plist')
-    values = plistlib.loads(preference.read_bytes())
-    configuration = json.loads(values['server_configuration_v1'])
-    manifest = configuration['validatedManifest']
-    issuer = urlsplit(manifest['oidc']['issuer'])
-    if (configuration['schemaVersion'] != 3
-            or canonical_origin(configuration['organizationOrigin']) != canonical_origin(context.env['WEAVE_PUBLIC_URL'])
-            or canonical_origin(manifest['organizationOrigin']) != canonical_origin(context.env['WEAVE_PUBLIC_URL'])
-            or manifest['userApiBaseUrl'].rstrip('/') != context.env['WEAVE_API_URL'].rstrip('/')
-            # Compose advertises the Weave facade at the API origin; the Matrix provider stays southbound.
-            or canonical_origin(manifest['protocols']['matrixClientServerBaseUrl']) != canonical_origin(context.env['WEAVE_API_ORIGIN'])
-            or issuer.scheme != 'https' or issuer.netloc != urlsplit(context.env['WEAVE_AUTH_URL']).netloc
-            or issuer.username is not None or issuer.password is not None or issuer.query or issuer.fragment):
-        raise SmokeError('observed-application-routing-differs-from-reviewed-direct-context')
+        if (not isinstance(expected_identity, dict)
+                or result['resources'] != {'account': expected_identity.get('accountDigest'),
+                                           'organization': expected_identity.get('organizationDigest')}):
+            raise SmokeError('observed-application-identity-differs-from-reviewed-direct-context')
+    return result['visibleState']
 
 def restart(runner: Runner, actor: dict) -> None:
     if actor['physical']:
@@ -370,14 +410,12 @@ def reinstall(runner: Runner, actor: dict) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--stage', required=True, choices=('deployment', 'physical'))
+    parser.add_argument('--stage', required=True, choices=('deployment',))
     parser.add_argument('--candidate', required=True)
     parser.add_argument('--qualification-run-id', required=True, type=int)
     parser.add_argument('--qualification-run-attempt', required=True, type=int)
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--identity-file', type=Path, default=Path.home() / '.weave/dogfood/functional-smoke-identities.json')
-    parser.add_argument('--device-id')
-    parser.add_argument('--diagnostic-only', action='store_true', help='Observe retained owner entry; always incomplete, never a readiness pass')
     args = parser.parse_args()
     receipt = {'schemaVersion': 'weave.dogfood-functional-smoke/v3', 'status': 'incomplete',
                'stage': args.stage, 'candidateCommit': args.candidate,
@@ -388,7 +426,6 @@ def main() -> int:
         raise SmokeError('functional-operation-terminated')
     signal.signal(signal.SIGTERM, terminate)
     devices: list[str] = []
-    physical_driver: tuple[str, str] | None = None
     cleanup_complete = False
     started = datetime.now(timezone.utc).isoformat()
     try:
@@ -397,8 +434,6 @@ def main() -> int:
         if (os.environ.get('GITHUB_ACTIONS') != 'true' or os.environ.get('GITHUB_REF') != 'refs/heads/dogfood'
                 or os.environ.get('RUNNER_NAME') != 'weave-live-mac-mini'):
             raise SmokeError('protected-exclusive-dogfood-workflow-required')
-        if args.stage == 'physical' and not args.device_id:
-            raise SmokeError('paired-owner-device-required')
         source = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
         if source != args.candidate or subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT):
             raise SmokeError('clean-exact-candidate-required')
@@ -412,8 +447,7 @@ def main() -> int:
             canonical_origin(value)
         receipt.update(sourceTree=tree, specificationCommit=spec, qualificationRunId=args.qualification_run_id,
                        qualificationRunAttempt=args.qualification_run_attempt)
-        if not args.diagnostic_only:
-            ensure_prepared_identities(context, args.identity_file)
+        ensure_prepared_identities(context, args.identity_file)
         with _dogfood_session_lock(context), tempfile.TemporaryDirectory(prefix='weave-functional-') as temporary:
             directory = Path(temporary); directory.chmod(0o700)
             runner = Runner(directory)
@@ -424,53 +458,15 @@ def main() -> int:
             runtime_artifact = verify_runtime_container(before, args.candidate)
             receipt['artifactComposition'] = candidate_composition(args.candidate)
             run_id = f"functional-{os.environ.get('GITHUB_RUN_ID', '')}-{os.environ.get('GITHUB_RUN_ATTEMPT', '')}-{args.stage}"
-            if not re.fullmatch(r'functional-[1-9][0-9]*-[1-9][0-9]*-(deployment|physical)', run_id):
+            if not re.fullmatch(r'functional-[1-9][0-9]*-[1-9][0-9]*-deployment', run_id):
                 raise SmokeError('protected-run-identity-required')
-            # Diagnostic path runs before peer fixture loading and cannot pass.
             actors = {}
-            if args.stage == 'physical':
-                from sign_iphone_artifact import verify_signed
-                signed_root = Path(os.environ.get('WEAVE_SIGNED_IPHONE_ARTIFACT', ''))
-                if not signed_root.is_absolute() or not signed_root.is_dir():
-                    raise SmokeError('verified-signed-iphone-artifact-required')
-                verify_signed(ROOT, Path(os.environ['WEAVE_BUILD_ARTIFACT_ROOT']) / 'ios-device', signed_root, args.candidate)
-                physical_app = signed_root / 'ordinary/Runner.app'
-                build = build_info(physical_app, 'profile')
-                derived = directory / 'physical-driver'
-                copy_driver_products(signed_root / 'driver/Products', derived / 'Build/Products')
-                driver_apps = list((derived / 'Build/Products').glob('**/*-Runner.app'))
-                if len(driver_apps) != 1:
-                    raise SmokeError('physical-test-runner-identity-mismatch')
-                driver_app = driver_apps[0]
-                driver_bundle = plistlib.loads((driver_app / 'Info.plist').read_bytes())['CFBundleIdentifier']
-                if driver_bundle != 'com.massimotter.weave.integration.browser.xctrunner':
-                    raise SmokeError('physical-test-runner-identity-mismatch')
-                inventory = directory / 'physical-runner-before.json'
-                runner.run(['xcrun', 'devicectl', 'device', 'info', 'apps', '--device', args.device_id,
-                            '--bundle-id', driver_bundle, '--json-output', str(inventory)])
-                if json.loads(inventory.read_text())['result']['apps']:
-                    raise SmokeError('physical-test-runner-already-owned-by-another-session')
-                physical_driver = (args.device_id, driver_bundle)
-                runner.run(['xcrun', 'devicectl', 'device', 'install', 'app', '--device', args.device_id, str(driver_app)])
-                actors['A'] = {'id': args.device_id, 'physical': True, 'destination': 'platform=iOS,id=' + args.device_id,
-                               'products': derived / 'Build/Products', 'app': physical_app, 'driverBundle': driver_bundle}
-                diagnostic = {'schemaVersion': 'weave.ordinary-product-ui/v1', 'runId': run_id, 'nonce': secrets.token_hex(16),
-                              'operation': 'discover', 'organizationOrigin': origin, 'conversation': '', 'participant': '',
-                              'folder': 'weave-smoke-diagnostic', 'privateFolder': 'weave-smoke-private-diagnostic', 'filename': 'weave-dual-initial-diagnostic.txt',
-                              'filePayload': '', 'event': '', 'updatedEvent': '', 'messageA': '', 'messageB': '', 'expected': {}}
-                verify_installed_build(runner, actors['A'])
-                restart(runner, actors['A'])
-                runner.ui(actors['A'], diagnostic)
-                verify_discovered_routing(runner, actors['A'], context)
-                receipt['ownerEntryObserved'] = True
-                if args.diagnostic_only:
-                    raise SmokeError('diagnostic-only-not-functional-acceptance')
-            approved = identities(args.identity_file, origin, args.stage == 'physical')
+            approved = identities(args.identity_file, origin)
             binding = approved_identity_binding(context, args.identity_file, approved)
             runtime, device_type = select_runtime()
             simulator_manifest, simulator_app, simulator_products = native_bundle(candidate=args.candidate)
             simulator_build = build_info(simulator_app, 'debug')
-            for role in (('B',) if args.stage == 'physical' else ('A', 'B')):
+            for role in ('A', 'B'):
                 udid = runner.run(['xcrun', 'simctl', 'create', run_id + '-' + role, device_type, runtime]).strip()
                 if not re.fullmatch(r'[0-9A-Fa-f-]{36}', udid):
                     raise SmokeError('owned-simulator-identity-invalid')
@@ -496,7 +492,7 @@ def main() -> int:
             scenario = resolve_scenario(run_id)
             content = scenario['content']
             receipt.update(scenarioSha256=scenario['scenarioSha256'],
-                           actorProfile='retained-owner-and-member' if args.stage == 'physical' else 'two-ordinary-members',
+                           actorProfile='two-ordinary-members',
                            runtimeBuildArtifact=runtime_artifact,
                            simulatorBuildArtifact=component_evidence(simulator_manifest))
             base = {'schemaVersion': 'weave.ordinary-product-ui/v1', 'runId': run_id,
@@ -509,8 +505,7 @@ def main() -> int:
                 receipt['boundaryOperation'] = role + ':' + (evidence_name or operation)
                 restart(runner, actors[role])
                 fixture = {**base, 'nonce': secrets.token_hex(16), 'operation': operation,
-                           'participant': approved['members'][1]['displayName'] if role == 'A' else
-                                          approved['ownerDisplayName'] if args.stage == 'physical' else approved['members'][0]['displayName'],
+                           'participant': approved['members'][1 if role == 'A' else 0]['displayName'],
                            'expected': {**resources, **expected}}
                 result = runner.ui(actors[role], fixture)
                 for key, value in result['resources'].items():
@@ -522,7 +517,9 @@ def main() -> int:
                         resources[key] = value
                 if operation == 'identity':
                     verify_installed_build(runner, actors[role])
-                    verify_discovered_routing(runner, actors[role], context)
+                    expected_identity = binding['members'][role]
+                    if verify_discovered_routing(runner, actors[role], context, expected_identity) != 'retained-workspace':
+                        raise SmokeError('current-member-workspace-required')
                 operations.append(role + ':' + (evidence_name or operation))
                 # Keep a private ownership ledger for retained run-owned content.
                 # It is not a credential input or release acceptance evidence.
@@ -542,9 +539,9 @@ def main() -> int:
                                'cleanupStatus': 'retained-owned-content'}, stream)
 
             phase('A', 'identity', 'identity-before')
-            verify_actor_binding(binding, resources, args.stage, 'A')
+            verify_actor_binding(binding, resources, 'A')
             phase('B', 'identity')
-            verify_actor_binding(binding, resources, args.stage, 'B')
+            verify_actor_binding(binding, resources, 'B')
             if resources['account'] == resources['peerAccount']:
                 raise SmokeError('independent-current-test-member-identities-required')
             phase('A', 'chat-create'); phase('B', 'chat-peer'); phase('A', 'chat-readback')
@@ -586,10 +583,10 @@ def main() -> int:
                            privateFilesScopeIsolationVerified=True, privateFilesPeerIsolationVerified=True, privateFilesContinuityVerified=True,
                            deployedSourceTree=runtime_artifact['sourceTree'], deployedImage=before['Image'], appBuildSha256=before_build,
                            peerAppBuildSha256=app_digest(simulator_app), exportedFileSha256=exported_digest,
-                           build=build if args.stage == 'physical' else simulator_build,
+                           build=simulator_build,
                            deviceIdentitySha256=digest(actors['A']['id'].encode()),
                            startedAtUtc=started, verifiedAtUtc=datetime.now(timezone.utc).isoformat())
-            # Remove only freshly created simulators, never the owner phone/app.
+            # Remove only the two freshly created, invocation-owned simulators.
             for udid in list(devices):
                 runner.run(['xcrun', 'simctl', 'delete', udid], timeout=60)
                 devices.remove(udid)
@@ -610,14 +607,6 @@ def main() -> int:
             except (OSError, subprocess.SubprocessError):
                 receipt['boundary'] = 'owned-simulator-cleanup-incomplete'
                 receipt['ownedSimulatorsRemoved'] = False
-                receipt['status'] = 'incomplete'
-        if physical_driver is not None:
-            try:
-                subprocess.run(['xcrun', 'devicectl', 'device', 'uninstall', 'app', '--device', physical_driver[0],
-                                physical_driver[1]], capture_output=True, timeout=60, check=True)
-            except (OSError, subprocess.SubprocessError):
-                receipt['boundary'] = 'owned-physical-test-runner-cleanup-incomplete'
-                receipt['privateInvocationInputsRemoved'] = False
                 receipt['status'] = 'incomplete'
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(receipt, indent=2, sort_keys=True) + '\n')

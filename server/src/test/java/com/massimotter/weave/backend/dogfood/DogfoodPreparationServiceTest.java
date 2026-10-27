@@ -294,6 +294,61 @@ class DogfoodPreparationServiceTest {
         assertThat(result.privateData().members()).isNull();
     }
 
+    private Receipt preparedForVerification() {
+        managedProvider();
+        var receipt = service.execute(managedRequest()).receipt();
+        assertThat(receipt.status()).isEqualTo("passed");
+        when(spaces.verifyTwo(anyString(), anyString(), anyList(), any())).thenAnswer(invocation -> {
+            ((Runnable) invocation.getArgument(3)).run();
+            List<DogfoodSpacePreparationPort.Target> targets = invocation.getArgument(2);
+            return targets.stream().map(target -> new DogfoodSpacePreparationPort.Grant(
+                    target.accountRef(), target.expectedEtag(), false)).toList();
+        });
+        clearInvocations(keycloak, spaces, bindings, audit);
+        return receipt;
+    }
+
+    @Test void verifiesBoundOrdinaryMembersReadOnlyEvenWhenAnotherOwnerExists() {
+        var prior = preparedForVerification();
+        members.add(new ProviderMember("second-owner", "second@example.test", "Second", List.of("owner"), List.of(), true));
+        var result = service.execute(verificationRequest(prior));
+        assertThat(result.receipt().status()).isEqualTo("passed");
+        assertThat(result.receipt().stage()).isEqualTo("verify-members-ready");
+        assertThat(result.receipt().outcome()).isEqualTo("VERIFIED");
+        assertThat(result.privateData().members()).isNull();
+        assertThat(result.receipt().members()).allMatch(member -> "VERIFIED".equals(member.grantOutcome())
+                && "\"sm-0\"".equals(member.grantVersion()));
+        verify(keycloak, times(2)).memberAuthorization("provider-org", "subject-A");
+        verify(keycloak, never()).provisionManagedTestMember(any(), anyString(), any());
+        verify(keycloak, never()).issue(anyString(), anyString(), anyString());
+        verify(spaces, never()).grantTwo(any(), any(), any(), any(), any());
+        verify(bindings, never()).observe(any(), anyString(), any(), anyString(), anyMap());
+        verifyNoInteractions(audit);
+    }
+
+    @Test void revokedElevatedOrReboundMemberCannotReceiveReadOnlyHandoffProof() {
+        var prior = preparedForVerification();
+        for (var current : List.of(new MemberAuthorization("subject-A", false, true, List.of("member"), List.of()),
+                new MemberAuthorization("subject-A", true, false, List.of("member"), List.of()),
+                new MemberAuthorization("subject-A", true, true, List.of("admin"), List.of()),
+                new MemberAuthorization("different-subject", true, true, List.of("member"), List.of()))) {
+            when(keycloak.memberAuthorization("provider-org", "subject-A")).thenReturn(current);
+            assertThat(service.execute(verificationRequest(prior)).receipt().boundary()).isEqualTo("managed-test-identity-conflict");
+        }
+        verify(spaces, never()).verifyTwo(any(), any(), any(), any());
+        verify(keycloak, never()).provisionManagedTestMember(any(), anyString(), any());
+    }
+
+    @Test void readOnlyHandoffPreservesStaleGrantFailureWithoutRepair() {
+        var prior = preparedForVerification();
+        when(spaces.verifyTwo(anyString(), anyString(), anyList(), any())).thenThrow(new DogfoodSpacePreparationPort.VersionConflict());
+        var result = service.execute(verificationRequest(prior));
+        assertThat(result.receipt().status()).isEqualTo("blocked");
+        assertThat(result.receipt().boundary()).isEqualTo("space-version-conflict");
+        verify(spaces, never()).grantTwo(any(), any(), any(), any(), any());
+        verify(keycloak, never()).provisionManagedTestMember(any(), anyString(), any());
+    }
+
     private void seedApplied(boolean expired) {
         var request = request("invitations");
         for (var planned : request.plan().members()) {

@@ -515,11 +515,10 @@
       ],
       "testLevel": "live-e2e",
       "assertionFocus": [
-        "fresh iOS invite activation",
-        "session restore and trust-preserving app-state reset recovery",
-        "local Mailpit capture",
-        "support-safe onboarding evidence",
-        "local TLS and iOS signing trust stability"
+        "isolated first-owner invitation and browser activation",
+        "independent ordinary-member browser sign-in",
+        "current organization identity and authority readback",
+        "support-safe evidence without private app ledgers"
       ]
     },
     {
@@ -4765,11 +4764,11 @@
       ]
     },
     {
-      "tag": "@human-ready-owner-space-access-preserved",
+      "tag": "@human-ready-member-revalidation",
       "suiteId": "v0-1-dogfood-release-spine",
       "personas": [
         "operator",
-        "admin"
+        "member"
       ],
       "domains": [
         "spaces",
@@ -4777,8 +4776,8 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "missing revoked suspended or ambiguous owner access blocks readiness",
-        "proof requires exact candidate and complete temporary authority cleanup"
+        "missing revoked suspended elevated or rebound member access blocks handoff",
+        "read-only preparation preserves credentials identity and exact grant versions"
       ]
     },
     {
@@ -4815,14 +4814,14 @@
       ],
       "testLevel": "live-e2e",
       "assertionFocus": [
-        "fresh observed retained workspace or normal sign-in",
+        "fresh observed selected member workspace or normal sign-in",
         "verified installed artifact and qualified candidate composition",
         "owner state preserved and HIL pending",
         "no extra automated personal login or local compilation"
       ]
     },
     {
-      "tag": "@human-ready-personal-authentication",
+      "tag": "@human-ready-personal-member-authentication",
       "suiteId": "v0-1-dogfood-release-spine",
       "personas": [
         "operator",
@@ -4835,7 +4834,7 @@
       "testLevel": "offline-contract",
       "assertionFocus": [
         "normal personal sign-in is the expected next HIL action",
-        "no fabricated copied or replaced owner session",
+        "no fabricated copied or replaced personal member session",
         "broken startup trust or required access still blocks preparation"
       ]
     },
@@ -5071,6 +5070,56 @@
         "unchanged complete component inputs retain original trusted producer identity",
         "wrong target toolchain source or payload rejected",
         "scenario change requires fresh candidate composition and live collaboration"
+      ]
+    },
+    {
+      "tag": "@human-ready-member-workspace",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "operator",
+        "member"
+      ],
+      "domains": [
+        "spaces",
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "selected persistent ordinary member bound to current authoritative organization and Space access",
+        "read-only proof binds candidate tree spec account and grant"
+      ]
+    },
+    {
+      "tag": "@human-ready-member-mismatch",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "operator",
+        "member"
+      ],
+      "domains": [
+        "spaces",
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "unrelated retained account blocks handoff without clearing or switching sessions"
+      ]
+    },
+    {
+      "tag": "@human-ready-member-receipt",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "operator",
+        "member"
+      ],
+      "domains": [
+        "spaces",
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "member preparation cannot fabricate authentication or human acceptance",
+        "older owner proof and mismatched member proof cannot satisfy the gate"
       ]
     }
   ]

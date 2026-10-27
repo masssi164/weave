@@ -1,7 +1,7 @@
 Feature: Human testing starts from green E2E and one exact installed dogfood build
-  Two prepared ordinary members prove real collaboration before owner testing.
+  Two prepared ordinary members prove real collaboration before human member testing.
   Hosted artifacts are reused only with verified inputs and provenance.
-  Physical startup and the owner's product and VoiceOver observations are distinct.
+  Physical startup and the tester's product and VoiceOver observations are distinct.
 
   @human-ready-native-collaboration
   Scenario: Isolated collaboration proves the native default without external providers
@@ -45,21 +45,33 @@ Feature: Human testing starts from green E2E and one exact installed dogfood bui
     And a human result cannot automatically publish a tag or production release
 
   @human-ready-owner-space-preparation
-  Scenario: Physical preparation establishes usable owner workspace access
+  Scenario: Initial administrative setup establishes the shared workspace
     Given the qualified Dogfood candidate has one activated current organization owner
     And the default Space has never existed
-    When explicit physical preparation establishes workspace access
+    When explicit initial administrative setup establishes workspace access
     Then the durable default Space admits the actual owner
     And temporary setup authority is removed before installation
-    And Files and Calendar require no manual Space setup
+    And setup ownership cannot substitute for the selected ordinary member handoff
 
-  @human-ready-owner-space-access-preserved
-  Scenario: Repeated preparation preserves explicit Space access decisions
-    Given a default Space already has durable memberships
-    When physical preparation verifies current owner access
-    Then valid access is accepted without changing memberships
-    And revoked missing suspended or ambiguous access blocks readiness
-    And proof without complete setup cleanup is rejected
+  @human-ready-member-workspace
+  Scenario: Physical preparation verifies the selected persistent ordinary member
+    Given the qualified persistent Dogfood scenario has its two managed ordinary members
+    And the human handoff explicitly selects member A or B after automated collaboration
+    When preparation reads current identity and shared workspace access
+    Then the selected account matches its server-owned provisioning identity and current organization
+    And its current organization role is member with exact active shared workspace VIEW and EDIT access
+    And current grant identity and version are bound to the same candidate source tree and specification
+    And the check changes no credentials roles memberships or sessions
+    And no temporary isolated test identity or administrator substitutes for the selected member
+
+  @human-ready-member-revalidation
+  Scenario: Repeated preparation preserves explicit access decisions
+    Given the default Space already exists with durable memberships
+    When explicit physical preparation runs
+    Then the selected ordinary member's current access is verified without modifying memberships
+    And a missing revoked suspended ambiguous or unavailable member grant blocks preparation
+    And a stale identity or current owner or administrator role blocks the member handoff
+    And no setup retry silently grants or restores access
 
   @human-ready-ordinary-functional
   Scenario: Ordinary startup proves authenticated domain behavior
@@ -75,25 +87,42 @@ Feature: Human testing starts from green E2E and one exact installed dogfood bui
     And isolated actor injection test entrypoints and relays cannot satisfy this proof
 
   @human-ready-physical-startup
-  Scenario: Physical readiness provides ordinary startup for the owner to sign in
-    Given the qualified device artifact is installed in place on the approved iPhone
-    And real two-member collaboration and persistent deployment passed
+  Scenario: Physical readiness provides ordinary startup for the selected member to sign in
+    Given the qualified device artifact is signed and installed in place on the approved iPhone
+    And fresh two-ordinary-member collaboration and persistent deployment evidence passed
     When physical preparation launches the normal application
-    Then the retained workspace or a usable normal sign-in screen is observed
-    And the result binds the installed artifact to the final qualification run and attempt
-    And owner data memberships signing trust and local stores are preserved
-    And no additional automated owner authentication suite is required
-    And automation does not establish human VoiceOver or E2EE acceptance
+    Then the app reaches the selected member's retained workspace or a usable normal sign-in screen
+    And a retained workspace matches the verified account and organization
+    And the result binds the actual installed build to the qualified candidate composition
+    And owner data memberships signing trust container Keychain and session are preserved
+    And no second automated authenticated product suite is required before handoff
+    And personal sign-in product behavior VoiceOver and E2EE assessment remain distinct human HIL
 
-  @human-ready-personal-authentication
-  Scenario: Personal owner authentication is the expected next HIL action
-    Given automated collaboration deployment and physical ordinary startup passed
-    And the owner must complete personal sign-in passkey or MFA
-    When the prepared application is handed to the owner
-    Then normal personal authentication is the next action
-    And no session is fabricated copied or replaced by operator setup authority
-    And no authenticated owner result is claimed before that action
-    And missing operating-system trust broken startup or missing prepared access still blocks handoff
+  @human-ready-member-mismatch
+  Scenario: An unrelated retained account cannot satisfy the member handoff
+    Given the iPhone retains an owner administrator or another member account
+    When preparation cannot observe the selected member workspace or usable normal sign-in
+    Then the selected member handoff is blocked with an account mismatch
+    And preparation does not clear local state copy sessions or silently switch accounts
+
+  @human-ready-member-receipt
+  Scenario: Member preparation evidence cannot be relabelled as human acceptance
+    Given fresh read-only access verification and ordinary physical startup have passed
+    When the physical preparation receipt is produced
+    Then it binds the selected persistent member and current grant to the qualified candidate
+    And an older owner-bound or mismatched member receipt cannot satisfy this handoff
+    And the access verification claims no personal authentication or human result
+    And human acceptance remains pending until the tester reports it
+
+  @human-ready-personal-member-authentication
+  Scenario: Personal member authentication is the expected next HIL action
+    Given automated member collaboration deployment and physical startup preparation passed
+    And the ordinary iPhone app requires personal sign-in passkey or MFA
+    When the tester receives the prepared application
+    Then the handoff identifies normal authentication as the selected ordinary member as the next action
+    And no personal session is fabricated copied or replaced by operator authority
+    And no authenticated personal domain result is claimed before the tester performs it
+    And missing OS trust broken startup or missing prepared access still blocks handoff
 
   @human-ready-write-readback
   Scenario: Successful writes and failed refreshes are not conflated

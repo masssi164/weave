@@ -2,7 +2,7 @@
 """Install the qualified hosted iPhone artifact and observe ordinary startup.
 
 Signing uses existing local development credentials. No application or driver is
-compiled, no personal login is automated, and the owner's container is preserved.
+compiled, no personal login is automated, and the existing container is preserved.
 """
 from __future__ import annotations
 
@@ -28,6 +28,8 @@ from sign_iphone_artifact import sign, verify_signed
 from compose_env import load_context
 from compose_runtime import _dogfood_session_lock, _service_container, verify_dogfood_identity
 from dogfood_handoff_bundle import canonical_origin
+from dogfood_prepare import ContractError
+from prepare_member_scenario import verify_member_workspace
 
 BUNDLE = 'com.massimotter.weave'
 DRIVER = 'com.massimotter.weave.integration.browser.xctrunner'
@@ -62,7 +64,8 @@ def physical_udid(details: dict) -> str:
     return value
 
 
-def prepare(candidate: str, device: str, qualification_run: int, qualification_attempt: int, output: Path) -> dict:
+def prepare(candidate: str, device: str, qualification_run: int, qualification_attempt: int, output: Path,
+            tester_slot: str = 'A') -> dict:
     if (os.environ.get('GITHUB_ACTIONS') != 'true' or os.environ.get('GITHUB_REF') != 'refs/heads/dogfood'
             or os.environ.get('RUNNER_NAME') != 'weave-live-mac-mini'):
         raise SmokeError('protected-exclusive-dogfood-workflow-required')
@@ -72,11 +75,11 @@ def prepare(candidate: str, device: str, qualification_run: int, qualification_a
     run_id = f"human-test-{os.environ.get('GITHUB_RUN_ID', '')}-{os.environ.get('GITHUB_RUN_ATTEMPT', '')}"
     if not re.fullmatch(r'human-test-[1-9][0-9]*-[1-9][0-9]*', run_id) or min(qualification_run, qualification_attempt) < 1:
         raise SmokeError('exact-physical-and-qualification-run-required')
-    receipt = {'schemaVersion': 'weave.hil-preparation/v4',
+    receipt = {'schemaVersion': 'weave.hil-preparation/v5',
                **{key: composition[key] for key in ('candidateCommit', 'sourceTree', 'specificationCommit')},
                'qualificationRunId': qualification_run, 'qualificationRunAttempt': qualification_attempt,
                'artifactComposition': composition, 'deviceBuildArtifact': component_evidence(manifest),
-               'status': 'incomplete', 'install': 'update_in_place', 'ownerHIL': 'pending',
+               'status': 'incomplete', 'install': 'update_in_place', 'humanAcceptance': 'pending',
                'supportSafe': True, 'containsSecretValues': False}
     owned_driver = False
     try:
@@ -87,6 +90,9 @@ def prepare(candidate: str, device: str, qualification_run: int, qualification_a
             verify_dogfood_identity(context)
             receipt['runtimeBuildArtifact'] = verify_runtime_container(
                 _service_container(context, 'backend', deadline=time.monotonic() + 30), candidate)
+            receipt['memberWorkspace'] = verify_member_workspace(context,
+                {key: composition[key] for key in ('candidateCommit', 'sourceTree', 'specificationCommit')},
+                runner, directory, tester_slot)
             if runner.run(['xcodebuild', '-version']).strip() != f"Xcode {manifest['toolchain']['xcode']}\nBuild version {manifest['toolchain']['xcodeBuild']}":
                 raise SmokeError('qualified-device-xcode-required')
             details = directory / 'device.json'
@@ -125,7 +131,10 @@ def prepare(candidate: str, device: str, qualification_run: int, qualification_a
             fixture = {'schemaVersion': 'weave.iphone-startup-input/v1', 'runId': run_id,
                        'nonce': secrets.token_hex(16), 'organizationOrigin': canonical_origin(context.env['WEAVE_PUBLIC_URL'])}
             startup = runner.ui(actor, fixture, 'testOrdinaryPreparation', result_parser=parse_startup_result)
-            verify_discovered_routing(runner, actor, context)
+            routing_state = verify_discovered_routing(runner, actor, context,
+                {key: receipt['memberWorkspace'][key] for key in ('accountDigest', 'organizationDigest')})
+            if routing_state != startup['visibleState']:
+                raise SmokeError('physical-startup-identity-changed')
             verify_installed_build(runner, actor)
             runner.run(['xcrun', 'devicectl', 'device', 'uninstall', 'app', '--device', device, DRIVER], timeout=60)
             owned_driver = False
@@ -133,7 +142,7 @@ def prepare(candidate: str, device: str, qualification_run: int, qualification_a
                            'installedBuildVerified': True, 'driverCleanupComplete': True},
                            deviceIdentitySha256=hashlib.sha256(udid.encode()).hexdigest(),
                            verifiedAtUtc=datetime.now(timezone.utc).isoformat())
-    except (ArtifactError, SmokeError) as error:
+    except (ArtifactError, SmokeError, ContractError) as error:
         receipt['boundary'] = str(error)
     except (OSError, ValueError, KeyError, TypeError):
         receipt['boundary'] = 'physical-artifact-preparation-incomplete'
@@ -163,8 +172,9 @@ def main() -> int:
     parser.add_argument('--qualification-run-id', type=int, required=True)
     parser.add_argument('--qualification-run-attempt', type=int, required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--tester-slot', choices=('A', 'B'), default='A')
     args = parser.parse_args()
-    value = prepare(args.candidate, args.device_id, args.qualification_run_id, args.qualification_run_attempt, args.output)
+    value = prepare(args.candidate, args.device_id, args.qualification_run_id, args.qualification_run_attempt, args.output, args.tester_slot)
     print('PREPARE_IPHONE_ARTIFACT status=' + value['status'] + ' boundary=' + value.get('boundary', 'none'))
     return 0 if value['status'] == 'passed' else 2
 

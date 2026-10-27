@@ -29,6 +29,19 @@ public class JpaDogfoodSpacePreparationAdapter implements DogfoodSpacePreparatio
     @Transactional(timeout = 45)
     public List<Grant> grantTwo(String organizationRef, String ownerAccountRef,
             List<Target> targets, Runnable recheckIdentity, java.util.function.Consumer<List<Grant>> audit) {
+        return prepareTwo(organizationRef, ownerAccountRef, targets, recheckIdentity, audit, false);
+    }
+
+    @Override
+    @Transactional(timeout = 45)
+    public List<Grant> verifyTwo(String organizationRef, String ownerAccountRef,
+            List<Target> targets, Runnable recheckIdentity) {
+        return prepareTwo(organizationRef, ownerAccountRef, targets, recheckIdentity, ignored -> {}, true);
+    }
+
+    private List<Grant> prepareTwo(String organizationRef, String ownerAccountRef,
+            List<Target> targets, Runnable recheckIdentity, java.util.function.Consumer<List<Grant>> audit,
+            boolean verifyOnly) {
         List<String> targetAccountRefs = targets == null ? null : targets.stream().map(Target::accountRef).toList();
         if (targetAccountRefs == null || targetAccountRefs.size() != 2
                 || targetAccountRefs.stream().anyMatch(value -> value == null || !value.matches("acct_[0-9a-f]{32}"))
@@ -43,6 +56,7 @@ public class JpaDogfoodSpacePreparationAdapter implements DogfoodSpacePreparatio
                 throw new Conflict();
             }
             String expected = targets.get(index).expectedEtag();
+            if (verifyOnly && (row.isEmpty() || expected == null)) throw new VersionConflict();
             if (expected != null && (row.isEmpty() || !("\"sm-" + row.get().version() + "\"").equals(expected))) {
                 throw new VersionConflict();
             }

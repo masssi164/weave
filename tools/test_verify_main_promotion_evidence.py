@@ -22,6 +22,7 @@ from tools.verify_main_promotion_evidence import (
     native_qualification_passed,
     preparation_passed,
     owner_workspace_passed,
+    member_workspace_passed,
     qualified_run,
     prepared_run,
     deployed_run,
@@ -125,15 +126,24 @@ def native_proof():
     }
 
 
+def member_workspace_proof():
+    return {"schemaVersion": "weave.member-workspace-preparation/v1", "environment": "dogfood",
+        "candidateCommit": SHA, "sourceTree": OTHER, "specificationCommit": "c" * 40,
+        "status": "passed", "testerSlot": "A", "organizationRole": "member",
+        "accountDigest": "1" * 64, "organizationDigest": "2" * 64,
+        "spaceRef": "workspace-default", "grantVersion": '"sm-3"', "memberAccessVerified": True,
+        "authenticationEvidence": False, "humanAcceptance": False, "supportSafe": True, "containsSecretValues": False}
+
+
 def preparation_proof():
     composition = composition_fixture()
     device = composition["components"]["ios-device"]
-    return {"schemaVersion": "weave.hil-preparation/v4", "candidateCommit": SHA,
+    return {"schemaVersion": "weave.hil-preparation/v5", "candidateCommit": SHA,
         "sourceTree": OTHER, "specificationCommit": "c" * 40,
         "qualificationRunId": 123, "qualificationRunAttempt": 1, "status": "passed", "install": "update_in_place",
         "artifactComposition": composition, "deviceBuildArtifact": component_fixture(composition, "ios-device"),
         "runtimeBuildArtifact": component_fixture(composition, "runtime-linux-amd64"),
-        "ownerWorkspace": owner_workspace_proof(), "ownerHIL": "pending",
+        "memberWorkspace": member_workspace_proof(), "humanAcceptance": "pending",
         "ordinaryStartup": {"schemaVersion": "weave.iphone-startup-ui/v1", "runId": "human-test-456-1",
             "nonce": "f" * 32, "status": "passed", "visibleState": "normal-sign-in", "ownerSessionReplaced": False,
             "organizationContextVerified": True, "installedBuildVerified": True, "driverCleanupComplete": True},
@@ -147,7 +157,7 @@ def preparation_proof():
 HUMAN = "\n".join(
     [
         "Weave human test v2",
-        "actor-role: owner",
+        "actor-role: member",
         f"dogfood: {SHA}",
         "sign-in: passed",
         "chat: passed",
@@ -162,6 +172,26 @@ HUMAN = "\n".join(
 
 
 class MainPromotionEvidenceTest(unittest.TestCase):
+    def test_handoff_requires_exact_normal_member_authority_without_authentication_claim(self):
+        proof = member_workspace_proof()
+        self.assertTrue(member_workspace_passed(proof, SHA, OTHER, "c" * 40))
+        for field, bad in (("organizationRole", "owner"), ("organizationRole", "admin"),
+                           ("testerSlot", "C"), ("accountDigest", "email@example.test"),
+                           ("organizationDigest", ""), ("grantVersion", "sm-3"),
+                           ("authenticationEvidence", True), ("humanAcceptance", True),
+                           ("memberAccessVerified", 1), ("candidateCommit", OTHER), ("containsSecretValues", True)):
+            self.assertFalse(member_workspace_passed({**proof, field: bad}, SHA, OTHER, "c" * 40), field)
+        prepared = preparation_proof()
+        self.assertTrue(preparation_passed(prepared, SHA, OTHER, "c" * 40, 123, 1))
+        prepared.pop("memberWorkspace")
+        prepared["ownerWorkspace"] = owner_workspace_proof()
+        self.assertFalse(preparation_passed(prepared, SHA, OTHER, "c" * 40, 123, 1))
+
+    def test_human_result_requires_testing_as_an_ordinary_member(self):
+        self.assertTrue(parse_human_comment(HUMAN, SHA))
+        for role in ("owner", "admin"):
+            self.assertFalse(parse_human_comment(HUMAN.replace("actor-role: member", "actor-role: " + role), SHA))
+
     def test_physical_preparation_rejects_a_superseded_qualified_ancestor(self) -> None:
         workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/ios-dogfood.yml').read_text()
         with tempfile.TemporaryDirectory() as directory:

@@ -30,7 +30,7 @@ Weave uses clear DevOps lanes instead of heavy classic GitFlow: `dev` for integr
   ```text
   Weave human test v2
   dogfood: <full 40-character dogfood commit SHA>
-  actor-role: owner
+  actor-role: member
   sign-in: passed
   chat: passed
   files: passed
@@ -40,10 +40,10 @@ Weave uses clear DevOps lanes instead of heavy classic GitFlow: `dev` for integr
   identity-continuity: passed
   ```
 
-  `actor-role` records the account actually used: `owner`, `admin` or `member`.
-  The repository owner reports the observation; the tested app account need not be an owner.
-  A member result must never be relabeled as owner acceptance. Physical preparation
-  leaves `ownerHIL` pending, including when the app correctly shows normal sign-in.
+  `actor-role: member` records the designated ordinary member account actually tested.
+  The repository owner reports the observation; owner/admin app accounts have separate acceptance.
+  Physical preparation revalidates the selected stable Dogfood member and current Space access,
+  and leaves `humanAcceptance` pending, including when the app correctly shows normal sign-in.
   The human tester changes a surface to `failed` or `not-available` when that
   is the result; either blocks the current #1470 main promotion. Optional
   `notes:` must remain support-safe. After the owner reports a result, rerun

@@ -33,7 +33,7 @@ Weave is not a raw bundle of provider UIs and it is not claiming to be a finishe
 
 The current app lets contributors evaluate these product surfaces directly:
 
-- guided workspace setup and service endpoint review;
+- organization-origin discovery through the public OrgManifest and ordinary member sign-in;
 - OIDC sign-in and persisted server configuration;
 - custom native Matrix chat shell with explicit recovery/retry states;
 - generated User API Files browsing and actions, and a provider-backed Calendar surface;
@@ -51,11 +51,11 @@ These areas are active product scope, but the app must keep them fail-closed unt
 - **Interop/connectors:** Slack/Teams/connector routes default off and remain backend-owned. No client-side provider shortcuts.
 - **Personal agents/automation:** later roadmap, not README hero scope.
 
-## Product screenshots
+## Design illustrations
 
-A first look at the active product-maturity experience: guided setup, service review, custom chat, basic files, and workspace settings in one Weave product shell. These screenshots are deterministic SVGs generated from checked-in source, so the README stays reviewable and reproducible without turning documentation into image-only content.
+These deterministic SVGs document earlier design concepts for setup, collaboration and settings. The current member app takes one organization origin and discovers its reviewed routes through OrgManifest; API, issuer and provider endpoint setup belongs to deployment. Current executable product evidence comes from the native acceptance flows described below.
 
-### Setup and service review
+### Earlier setup concept
 
 [<img src="../docs/assets/marketing/01-setup-start.svg" alt="Weave setup start screen showing guided workspace setup for a dogfood organization." width="560">](../docs/assets/marketing/01-setup-start.svg)
 
@@ -79,7 +79,7 @@ Weave is developed as one monorepo with dedicated product-stack directories:
 
 - `../client`: Flutter app, app shell, accessibility, chat/files/settings UX, provider-readiness presentation, and app tests.
 - `../server`: Spring Boot product API/BFF, JWT validation, profile/files/calendar/provider facades, readiness, support-safe errors, audit seams, and backend contracts.
-- `../infra`: Docker/OpenTofu stack, Caddy routing, Keycloak, optional southbound Matrix and Nextcloud providers, backups, smoke checks, and the isolated E2E environment.
+- `../infra`: Docker Compose lifecycle, Caddy routing, Keycloak, optional southbound Matrix and Nextcloud providers, backups, smoke checks, and the isolated E2E environment.
 - `../e2e`: product-language Gherkin, scenario mapping, and sanitized evidence contracts.
 - `../release`: stack manifests and release metadata.
 

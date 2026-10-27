@@ -8,11 +8,12 @@ on:
         description: Exact dogfood commit with a successful Full Compose E2E run
         required: true
         type: string
-      bootstrap_owner:
-        description: Create or resend the first owner invitation in the empty dogfood realm
+      tester_slot:
+        description: Stable ordinary Dogfood member to use for the human test
         required: true
-        default: false
-        type: boolean
+        default: A
+        type: choice
+        options: [A, B]
 
 permissions:
   actions: read
@@ -33,8 +34,7 @@ jobs:
       WEAVE_ENV_FILE: ${{ vars.WEAVE_DOGFOOD_REVIEWED_ENV_FILE }}
       WEAVE_SPEC_CORPUS_ROOT: ${{ github.workspace }}/weave-specs
       WEAVE_IOS_DEVICE_ID: ${{ secrets.WEAVE_IOS_DEVICE_ID }}
-      WEAVE_DOGFOOD_OWNER_EMAIL: ${{ secrets.WEAVE_DOGFOOD_MEMBER_EMAIL }}
-      WEAVE_DOGFOOD_OWNER_DISPLAY_NAME: ${{ vars.WEAVE_DOGFOOD_MEMBER_DISPLAY_NAME }}
+      WEAVE_HUMAN_TEST_MEMBER_SLOT: ${{ inputs.tester_slot }}
       WEAVE_CANDIDATE_COMMIT: ${{ inputs.candidate_sha }}
       WEAVE_CANDIDATE_EVIDENCE_REF: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       WEAVE_IOS_RESET_MODE: update_in_place
@@ -168,49 +168,6 @@ jobs:
             --recreate-command "./gradlew --no-daemon dogfoodUp" \
             --output build/evidence/prepare-human-test/tls-persistence.json
 
-      - name: Create first owner invitation in private Mailpit
-        if: ${{ inputs.bootstrap_owner }}
-        working-directory: weave
-        env:
-          REQUEST_FILE: ${{ runner.temp }}/dogfood-owner-bootstrap-request.json
-          EVIDENCE_FILE: ${{ github.workspace }}/weave/build/evidence/prepare-human-test/owner-bootstrap.json
-        run: |
-          umask 077
-          set -euo pipefail
-          : "${WEAVE_DOGFOOD_OWNER_EMAIL:?Configure the dogfood owner email}"
-          : "${WEAVE_DOGFOOD_OWNER_DISPLAY_NAME:?Configure the dogfood owner display name}"
-          python3 - <<'PY'
-          import hashlib
-          import json
-          import os
-          from pathlib import Path
-
-          email = os.environ["WEAVE_DOGFOOD_OWNER_EMAIL"].strip().lower()
-          request = {
-              "displayName": os.environ["WEAVE_DOGFOOD_OWNER_DISPLAY_NAME"].strip(),
-              "email": email,
-              "idempotencyKey": "owner-bootstrap-" + hashlib.sha256(email.encode()).hexdigest(),
-          }
-          path = Path(os.environ["REQUEST_FILE"])
-          descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-          with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-              json.dump(request, stream, sort_keys=True)
-              stream.write("\n")
-          PY
-          infra/weave-workspace/compose.sh dogfood bootstrap-owner \
-            --request-file "$REQUEST_FILE" \
-            --evidence-file "$EVIDENCE_FILE"
-          rm -f -- "$REQUEST_FILE"
-          jq -e '.mailMessageMatched == true and .bootstrapAuthorityAbsent == true and .supportSafe == true and .tokenAbsent == true' "$EVIDENCE_FILE" >/dev/null
-
-      - name: Establish and verify current owner default Space access
-        working-directory: weave
-        run: |
-          umask 077
-          set -euo pipefail
-          infra/weave-workspace/compose.sh dogfood bootstrap-space \
-            --evidence-file "$WEAVE_DOGFOOD_EVIDENCE_DIR/owner-space.json"
-
       - name: Sign the hosted artifact, install in place, and observe ordinary startup
         working-directory: weave
         run: |
@@ -220,57 +177,40 @@ jobs:
           [[ "$(git rev-parse origin/dogfood)" == "$DOGFOOD_COMMIT" ]]
           python3 tools/prepare_iphone_artifact.py \
             --candidate "$DOGFOOD_COMMIT" --device-id "$WEAVE_IOS_DEVICE_ID" \
+            --tester-slot "$WEAVE_HUMAN_TEST_MEMBER_SLOT" \
             --qualification-run-id "$FULL_COMPOSE_E2E_RUN_ID" \
             --qualification-run-attempt "$FULL_COMPOSE_E2E_RUN_ATTEMPT" \
             --output "$WEAVE_DOGFOOD_EVIDENCE_DIR/preparation-result.json"
 
-      - name: Bind the prepared owner Space to the installed artifact
+      - name: Verify the prepared member and installed artifact
         working-directory: weave
         run: |
           python3 - <<'PYRECORD'
           import json, os
           from pathlib import Path
-          from tools.verify_main_promotion_evidence import owner_workspace_passed, preparation_passed
+          from tools.verify_main_promotion_evidence import preparation_passed
           output = Path("build/evidence/prepare-human-test/preparation-result.json")
           receipt = json.loads(output.read_text())
-          workspace = json.loads(Path("build/evidence/prepare-human-test/owner-space.json").read_text())
           sha, tree, spec = (receipt[key] for key in ("candidateCommit", "sourceTree", "specificationCommit"))
-          if not owner_workspace_passed(workspace, sha, tree, spec):
-              raise SystemExit("Physical preparation requires current owner Space access")
-          receipt["ownerWorkspace"] = workspace
           if not preparation_passed(receipt, sha, tree, spec,
                   int(os.environ["FULL_COMPOSE_E2E_RUN_ID"]), int(os.environ["FULL_COMPOSE_E2E_RUN_ATTEMPT"])):
               raise SystemExit("Installed artifact and ordinary startup do not match the qualified candidate")
-          output.write_text(json.dumps(receipt, indent=2) + "\n")
           PYRECORD
 
       - name: Summarize tester handoff
         working-directory: weave
         run: |
           set -euo pipefail
-          mailpit_url="$(python3 - <<'PY'
-          import sys
-          from pathlib import Path
-          sys.path.insert(0, str(Path('infra/weave-workspace/scripts').resolve()))
-          from compose_env import load_context
-          print(load_context('dogfood', Path('infra/weave-workspace').resolve()).env['WEAVE_MAILPIT_URL'])
-          PY
-          )"
           {
             echo "## Human test is ready"
             echo
             echo "- Two ordinary iOS members: collaboration passed for ${DOGFOOD_COMMIT} (run ${FULL_COMPOSE_E2E_RUN_ID})"
             echo "- Dogfood Compose: running"
-            echo "- Default Space: current owner access verified; temporary setup authority removed"
+            echo "- Tester: stable ordinary Dogfood member ${WEAVE_HUMAN_TEST_MEMBER_SLOT}; current identity and Space access verified"
             echo "- iPhone: hosted artifact signed locally, updated in place, ordinary startup observed"
-            echo "- Invitation inbox: ${mailpit_url}"
-            echo "- Your test: normal sign-in if needed, then Chat, Files, Calendar and VoiceOver; owner acceptance is pending"
+            echo "- Your test: normal sign-in if needed, then Chat, Files, Calendar and VoiceOver; human acceptance is pending"
           } >> "$GITHUB_STEP_SUMMARY"
           echo "PREPARE_HUMAN_TEST_RESULT status=passed commit=${DOGFOOD_COMMIT} install=update_in_place"
-
-      - name: Remove private owner request after failure
-        if: always()
-        run: rm -f -- "${RUNNER_TEMP}/dogfood-owner-bootstrap-request.json"
 
       - name: Release retired verified runtime images after preparation
         if: always() && steps.exact_source.outcome == 'success'
@@ -285,6 +225,5 @@ jobs:
           path: |
             weave/build/evidence/prepare-human-test/preparation-result.json
             weave/build/evidence/prepare-human-test/tls-persistence.json
-            weave/build/evidence/prepare-human-test/owner-space.json
           if-no-files-found: error
           retention-days: 14

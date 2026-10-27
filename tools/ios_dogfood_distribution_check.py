@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 import json
 import re
@@ -31,42 +30,6 @@ def require(condition: bool, message: str) -> None:
 
 def check_discovery_evidence() -> None:
     origin = "https://weave.test:9443/"
-    now = datetime.now(timezone.utc)
-    candidate, spec = "a" * 40, "b" * 40
-    bundle = {"stackCommit": candidate, "specRevision": spec, "organizationOrigin": origin,
-              "testerVisible": {"deepLink": "weave://join?organization_origin=https%3A%2F%2Fweave.test%3A9443%2F"}}
-    prefs = {}
-    for key, schema, field, value in (
-        ("last_handoff_consumed_v1", "weave.client.last_handoff_consumed.v1", "result", "saved_configuration"),
-        ("dogfood_visible_state_v1", "weave.client.dogfood_visible_state.v1", "state", "handoff_ready"),
-        ("dogfood_auth_state_v1", "weave.client.dogfood_auth_state.v1", "state", "ready_for_sso"),
-    ):
-        prefs[key] = json.dumps({"schemaVersion": schema, "recordedAt": now.isoformat(), field: value,
-                                "organizationOriginHost": "weave.test", "supportSafe": True,
-                                "accessKind": "server_uri", "platformConfigHost": "weave.test",
-                                "platformConfigPath": "/api/platform/config"})
-    started = now - timedelta(seconds=5)
-    handoff.validate_device_preferences(prefs, bundle, started, candidate, spec)
-    def rejected(changed_prefs=prefs, changed_bundle=bundle):
-        try:
-            handoff.validate_device_preferences(changed_prefs, changed_bundle, started, candidate, spec)
-        except (ValueError, KeyError, TypeError):
-            return
-        raise SystemExit("invalid device discovery evidence accepted")
-    for key in prefs:
-        rejected({**prefs, key: "[]"})
-        for field, value in (("recordedAt", (started - timedelta(seconds=1)).isoformat()),
-                             ("recordedAt", (now + timedelta(days=1)).isoformat()),
-                             ("schemaVersion", "unknown"), ("supportSafe", "true"),
-                             ("organizationOriginHost", "other.test"), ("runId", "old-run")):
-            changed = json.loads(prefs[key]); changed[field] = value
-            rejected({**prefs, key: json.dumps(changed)})
-    changed = json.loads(prefs["last_handoff_consumed_v1"]); changed["result"] = "failed"
-    rejected({**prefs, "last_handoff_consumed_v1": json.dumps(changed)})
-    changed = json.loads(prefs["dogfood_auth_state_v1"]); changed["state"] = "handoff_received"
-    rejected({**prefs, "dogfood_auth_state_v1": json.dumps(changed)})
-    rejected(changed_bundle={**bundle, "stackCommit": "c" * 40})
-    rejected(changed_bundle={**bundle, "specRevision": "c" * 40})
     for value in ("http://weave.test", "https://user:password@weave.test", "https://weave.test/api",
                   "https://weave.test?token=secret", "https://weave.test#fragment", "https://weave.test:99999"):
         try:
@@ -84,6 +47,10 @@ def check_discovery_evidence() -> None:
         require("caUrl" not in generated["certificates"] and generated["certificates"]["caFile"] is None,
                 "offline bundle invented CA location")
         require((Path(output) / "handoff.md").is_file(), "handoff Markdown was not written")
+        require(generated["qualificationEvidence"] is False and generated["iosClient"]["installMode"] == "update_in_place",
+                "informational handoff bundle must not claim qualification or request app reset")
+        require(not {"handoffConsumedEvidenceKey", "trustPreservingFreshReset"}.intersection(generated["iosClient"]),
+                "handoff bundle exposes retired private-app evidence or reset instructions")
         rejected_cli = subprocess.run(["python3", str(ROOT / "tools/dogfood_handoff_bundle.py"),
                                        "--platform-config-url", "https://alternate.example/api/platform/config"],
                                       capture_output=True)
@@ -105,10 +72,54 @@ def check_discovery_evidence() -> None:
 
 
 
+RETIRED_DOGFOOD_TOOLS = (
+    "dogfood_onboarding_evidence_check.py", "dogfood_onboarding_evidence_check_test.py",
+    "dogfood_member_onboarding_gate.sh", "dogfood_ios_deeplink_smoke.sh",
+    "dogfood_ios_simulator_onboarding_smoke.sh", "dogfood_ios_session_continuity_check.py",
+    "dogfood_ios_session_continuity_check_test.py", "dogfood_ios_session_restore_smoke.sh",
+    "dogfood_post_login_chat_files_check.py", "dogfood_iphone_entry.sh", "dogfood_trust_stability_check.py",
+)
+RETIRED_APP_EVIDENCE = (
+    "last_handoff_consumed_v1", "dogfood_visible_state_v1", "dogfood_auth_state_v1",
+    "SIMULATOR_E2E_GREEN", "DOGFOOD_MEMBER_ONBOARDING_RESULT", "DOGFOOD_SESSION_CONTINUITY_RESULT",
+    "DOGFOOD_TRUST_STABILITY_RESULT", "DOGFOOD_TRUST_STABILITY_BLOCKED",
+)
+
+
+def check_external_qualification() -> None:
+    """Keep active qualification on external normal-UI/API owners after retirement."""
+    for filename in RETIRED_DOGFOOD_TOOLS:
+        require(not (ROOT / "tools" / filename).exists(), "retired private-app Dogfood tool was restored: " + filename)
+    for path in (
+        "client/tool/run_ios_simulator_product_acceptance.py",
+        "client/tool/ios_browser_driver/OrdinaryProductSmoke.swift",
+        "tools/dogfood_functional_smoke.py", "tools/prepare_iphone_artifact.py",
+    ):
+        read(path)
+    sources = [ROOT / "e2e/scenario_mappings.json"]
+    for directory in ("tools", "client/tool", ".github/workflows", "gradle/tasks"):
+        sources.extend((ROOT / directory).rglob("*"))
+    for path in sources:
+        if (not path.is_file() or path.suffix not in {".py", ".sh", ".swift", ".yml", ".gradle", ".json"}
+                or path.name == Path(__file__).name or path.name.startswith("test_") or path.stem.endswith("_test")):
+            continue
+        source = path.read_text(encoding="utf-8")
+        for retired in (*RETIRED_DOGFOOD_TOOLS, *RETIRED_APP_EVIDENCE):
+            require(retired not in source, "active qualification references retired private-app evidence: " + str(path.relative_to(ROOT)))
+    for directory, suffix in (("client/lib", ".dart"), ("client/ios/Runner", ".swift")):
+        for path in (ROOT / directory).rglob("*" + suffix):
+            source = path.read_text(encoding="utf-8")
+            require(not any(marker in source for marker in RETIRED_APP_EVIDENCE),
+                    "production client must not publish Dogfood-only evidence")
+    for path in ("tools/dogfood_functional_smoke.py", "tools/prepare_iphone_artifact.py"):
+        source = read(path)
+        require("Library/Preferences" not in source and "server_configuration_v1" not in source,
+                "external qualification must observe normal UI/API instead of saved app preferences")
+
+
 PUBLIC_PREPARATION_FILES = (
     "weave/build/evidence/prepare-human-test/preparation-result.json",
     "weave/build/evidence/prepare-human-test/tls-persistence.json",
-    "weave/build/evidence/prepare-human-test/owner-space.json",
 )
 
 
@@ -129,22 +140,16 @@ def check_public_preparation_upload(workflow: str) -> None:
     for guard in ("umask 077", "path.is_symlink()", "directory.stat().st_uid != os.getuid()", "directory.chmod(0o700)"):
         require(guard in initialization, "private physical directory ownership/mode guard missing")
     install_name = "Sign the hosted artifact, install in place, and observe ordinary startup"
-    for name in ("Create first owner invitation in private Mailpit", "Establish and verify current owner default Space access", install_name):
+    for name in (install_name,):
         step = next((step for step in steps if step.startswith("name: " + name)), None)
         require(step is not None, "required physical preparation producer is missing")
         require("        run: |\n          umask 077\n" in step,
                 "raw physical diagnostic producer must use a private creation mask")
-    setup = next(step for step in steps if step.startswith(
-        "name: Establish and verify current owner default Space access"))
-    require("infra/weave-workspace/compose.sh dogfood bootstrap-space" in setup
-            and "        if:" not in setup,
-            "owner Space access must be an unconditional preparation prerequisite")
-    require(workflow.index("name: Establish and verify current owner default Space access")
-            < workflow.index("name: " + install_name),
-            "current owner Space access must be established before installation")
-    require('receipt["ownerWorkspace"] = workspace' in workflow
-            and "owner_workspace_passed(workspace, sha, tree, spec)" in workflow,
-            "physical evidence must validate and bind owner Space access to the exact candidate")
+    require("--tester-slot \"$WEAVE_HUMAN_TEST_MEMBER_SLOT\"" in workflow
+            and "WEAVE_HUMAN_TEST_MEMBER_SLOT: ${{ inputs.tester_slot }}" in workflow,
+            "physical preparation must select a stable ordinary member")
+    for forbidden in ("bootstrap-owner", "bootstrap-space", "ownerWorkspace", "WEAVE_DOGFOOD_OWNER_"):
+        require(forbidden not in workflow, "physical handoff must not provision owner authority")
     require('preparation_passed(receipt, sha, tree, spec,' in workflow
             and 'int(os.environ["FULL_COMPOSE_E2E_RUN_ATTEMPT"])' in workflow,
             "physical startup evidence must bind the exact successful qualification attempt")
@@ -161,7 +166,7 @@ def check_public_preparation_upload(workflow: str) -> None:
             "physical installation must consume the qualified runtime and device composition")
     require(workflow.index("name: Consume the qualified runtime and iPhone artifacts")
             < workflow.index("name: " + install_name)
-            < workflow.index("name: Bind the prepared owner Space to the installed artifact")
+            < workflow.index("name: Verify the prepared member and installed artifact")
             < workflow.index("name: Summarize tester handoff"),
             "verified artifact consumption and ordinary startup must precede handoff")
     for forbidden in ("--stage physical", "flutter build", "build-for-testing", "dogfood_iphone_entry.sh"):
@@ -169,12 +174,13 @@ def check_public_preparation_upload(workflow: str) -> None:
 
 
 def check_hosted_preparation_producer(producer: str) -> None:
-    for marker in ("'schemaVersion': 'weave.hil-preparation/v4'", "'ownerHIL': 'pending'",
+    for marker in ("'schemaVersion': 'weave.hil-preparation/v5'", "'humanAcceptance': 'pending'",
                    "'install': 'update_in_place'", "'artifactComposition': composition",
                    "candidate_composition(candidate)", "native_bundle('ios-device'",
                    "verify_runtime_container(", "sign(ROOT, unsigned, signed, candidate,",
                    "verify_signed(ROOT, unsigned, signed, candidate)",
-                   "verify_installed_build(runner, actor)", "verify_discovered_routing(runner, actor, context)",
+                   "verify_installed_build(runner, actor)", "verify_discovered_routing(runner, actor, context,", "verify_member_workspace(context,",
+                   "receipt['memberWorkspace'][key]", "routing_state != startup['visibleState']",
                    "'testOrdinaryPreparation'", "parse_startup_result",
                    "{'retained-workspace', 'normal-sign-in'}", "value['ownerSessionReplaced'] is not False",
                    "'driverCleanupComplete': True"):
@@ -193,9 +199,9 @@ def check_public_preparation_upload_regressions(workflow: str) -> None:
         workflow.replace('--components runtime-linux-amd64,ios-device', '--components runtime-linux-amd64'),
         workflow.replace('--qualified --candidate', '--candidate'),
         workflow + '\n# tools/dogfood_functional_smoke.py --stage physical\n',
-        workflow.replace("Establish and verify current owner default Space access", "Optional workspace setup"),
-        workflow.replace("infra/weave-workspace/compose.sh dogfood bootstrap-space", "echo skipped setup"),
-        workflow.replace('receipt["ownerWorkspace"] = workspace', 'receipt["ownerWorkspace"] = {}'),
+        workflow.replace('--tester-slot "$WEAVE_HUMAN_TEST_MEMBER_SLOT"', '--tester-slot A'),
+        workflow + '\n# compose.sh dogfood bootstrap-owner\n',
+        workflow + '\n# compose.sh dogfood bootstrap-space\n',
         workflow.replace(literal, "          path: weave/build/evidence/prepare-human-test\n"),
         workflow.replace(PUBLIC_PREPARATION_FILES[1], "weave/build/evidence/prepare-human-test/*"),
         workflow.replace(PUBLIC_PREPARATION_FILES[1], "weave/build/evidence/prepare-human-test/ios-app-preferences.txt"),
@@ -228,12 +234,13 @@ def check_public_preparation_upload_regressions(workflow: str) -> None:
 
 def main() -> int:
     check_discovery_evidence()
+    check_external_qualification()
     workflow = read(".github/workflows/ios-dogfood.yml")
     check_public_preparation_upload_regressions(workflow)
     producer = read("tools/prepare_iphone_artifact.py")
     check_hosted_preparation_producer(producer)
-    for before, after in (("weave.hil-preparation/v4", "weave.hil-preparation/v3"),
-                          ("'ownerHIL': 'pending'", "'ownerHIL': 'passed'"),
+    for before, after in (("weave.hil-preparation/v5", "weave.hil-preparation/v3"),
+                          ("'humanAcceptance': 'pending'", "'humanAcceptance': 'passed'"),
                           ("verify_installed_build(runner, actor)", "None"),
                           ("value['ownerSessionReplaced'] is not False", "False"),
                           ("'driverCleanupComplete': True", "'driverCleanupComplete': False")):
@@ -243,8 +250,6 @@ def main() -> int:
             pass
         else:
             raise SystemExit("incomplete or fabricated physical startup evidence was accepted")
-    smoke = read("tools/dogfood_ios_deeplink_smoke.sh")
-    entry = read("tools/dogfood_iphone_entry.sh")
     project = read("client/ios/Runner.xcodeproj/project.pbxproj")
     development_entitlements = read("client/ios/Runner/RunnerDevelopment.entitlements")
     release_entitlements = read("client/ios/Runner/Runner.entitlements")
@@ -287,20 +292,6 @@ def main() -> int:
         "com.apple.developer.associated-domains" in release_entitlements,
         "the Release build must retain Associated Domains",
     )
-
-    for marker in (
-        'BUNDLE_ID="com.massimotter.weave"',
-        'EXPECTED_TEAM_ID="${WEAVE_IOS_EXPECTED_TEAM_ID:-KNDHGC2KV6}"',
-        'EXPECTED_DEVELOPER_CERT_TEAM_ID="${WEAVE_IOS_EXPECTED_DEVELOPER_CERT_TEAM_ID:-6RUS2Z848X}"',
-        "WEAVE_CANDIDATE_COMMIT",
-        "WEAVE_IOS_BUILD_NUMBER",
-        "WEAVE_BUILD_CHANNEL=development-dogfood",
-        'if [[ "${RESET_MODE}" == "destructive_uninstall" ]]',
-        "device install app",
-    ):
-        require(marker in smoke, f"development-signed installer is missing {marker!r}")
-    require('RESET_MODE="${WEAVE_IOS_RESET_MODE:-update_in_place}"' in smoke, "installer default is not in-place update")
-    require('RESET_MODE="${WEAVE_IOS_RESET_MODE:-update_in_place}"' in entry, "entrypoint default is not in-place update")
 
     for phrase in (
         "Full Compose E2E",
