@@ -1,4 +1,4 @@
-name: Temporary Weave owned image inventory
+name: Bounded retired Weave image cleanup
 
 on:
   push:
@@ -17,12 +17,13 @@ jobs:
       group: weave-live-mac-mini-exclusive
       cancel-in-progress: false
     steps:
-      - name: Inspect only Weave image provenance and current references
+      - name: Remove reviewed unused Weave image IDs without pruning parents
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import json
+          import fcntl
           import os
           from pathlib import Path
           import re
@@ -51,20 +52,41 @@ jobs:
                   raise SystemExit('Private ledger safety check failed')
 
           ledger_path = Path.home() / '.weave/artifact-runtime-images/ledger.json'
+          lock_path = ledger_path.with_suffix(ledger_path.suffix + '.lock')
+          safe_private_file(lock_path)
+          lock_descriptor = os.open(lock_path, os.O_RDWR | os.O_NOFOLLOW)
+          fcntl.flock(lock_descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
           retained = set()
           pending = set()
           retained_sets = 0
-          if ledger_path.exists():
-              safe_private_file(ledger_path)
-              value = json.loads(ledger_path.read_text())
-              if value.get('schemaVersion') != 'weave.runtime-image-ledger/v1' or value.get('ownerUid') != os.getuid():
-                  raise SystemExit('Private ledger schema rejected')
-              retained_sets = len(value.get('retainedSets', []))
-              for entry in value.get('retainedSets', []):
-                  retained.update(entry.get('images', {}).values())
-              pending.update(value.get('pendingImageIds', []))
-              if not all(isinstance(v, str) and digest.fullmatch(v) for v in retained | pending):
-                  raise SystemExit('Private ledger image identity rejected')
+          # A missing or malformed ledger must never erase retained-set protection.
+          safe_private_file(ledger_path)
+          descriptor = os.open(ledger_path, os.O_RDONLY | os.O_NOFOLLOW)
+          with os.fdopen(descriptor, 'r', encoding='utf-8') as stream:
+              info = os.fstat(stream.fileno())
+              if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077 or info.st_nlink != 1 or info.st_size > 256 * 1024:
+                  raise SystemExit('Private ledger safety check failed')
+              value = json.load(stream)
+          if (not isinstance(value, dict)
+                  or set(value) != {'schemaVersion', 'ownerUid', 'retainedSets', 'pendingImageIds'}
+                  or value['schemaVersion'] != 'weave.runtime-image-ledger/v1'
+                  or type(value['ownerUid']) is not int or value['ownerUid'] != os.getuid()
+                  or not isinstance(value['retainedSets'], list) or len(value['retainedSets']) != 2
+                  or not isinstance(value['pendingImageIds'], list) or len(value['pendingImageIds']) > 2048
+                  or not all(isinstance(v, str) and digest.fullmatch(v) for v in value['pendingImageIds'])
+                  or len(set(value['pendingImageIds'])) != len(value['pendingImageIds'])):
+              raise SystemExit('Private ledger schema rejected')
+          retained_sets = len(value['retainedSets'])
+          for entry in value['retainedSets']:
+              if (not isinstance(entry, dict)
+                      or set(entry) != {'sourceCommit', 'inputDigest', 'payloadSha256', 'images'}
+                      or not isinstance(entry['sourceCommit'], str) or not sha.fullmatch(entry['sourceCommit'])
+                      or any(not isinstance(entry[key], str) or not digest.fullmatch(entry[key]) for key in ('inputDigest', 'payloadSha256'))
+                      or not isinstance(entry['images'], dict) or set(entry['images']) != {'backend', 'mcp', 'keycloak', 'runtimeState'}
+                      or not all(isinstance(v, str) and digest.fullmatch(v) for v in entry['images'].values())):
+                  raise SystemExit('Private retained set rejected')
+              retained.update(entry['images'].values())
+          pending.update(value['pendingImageIds'])
 
           containers = command(['container', 'ls', '--all', '--quiet', '--no-trunc']).split()
           if not all(container.fullmatch(v) for v in containers) or len(containers) > 1000:
@@ -112,17 +134,54 @@ jobs:
                       'unreferencedUntaggedOutsideRetainedSets': not tags and not references and image_id not in used and image_id not in retained,
                   })
           eligible = [v for v in rows if v['unreferencedUntaggedOutsideRetainedSets'] and v['sourceCommit'] and v['validSpecDigest']]
+          reviewed = {'sha256:0505b317e7fb6de9120d689401f850bee24ca57c8498e99ab6f92ad4884a6ffb': {'sourceCommit': '97c092a4ff22ec5675eae899a066c4a45182f5a3', 'module': 'keycloak-runtime'}, 'sha256:0524deab7f861c0b9afc2f6eadfe4dfcf99feb1bd8fe25ed158a93ac187ed7d4': {'sourceCommit': '5f96518536f123b2d0f85dec398d1ab4727106e7', 'module': 'keycloak-runtime'}, 'sha256:0a33ea6778062815a80d2e1a4c5edd4781ad71b02bacee1b9a1b7f426621e44e': {'sourceCommit': '7a9755d5ab26ed702901a91fd9a58a8da1441a65', 'module': 'keycloak-runtime'}, 'sha256:0b5d6d3edc6dd2c7c73e5e3f8fdbb0738f96311ae65750f488e94a0d5a7ffe65': {'sourceCommit': 'f68c3499dbdc0ad02b56054f5e6e7cfeffe45e07', 'module': 'keycloak-runtime'}, 'sha256:217402a72aee9a190de9e4f08c0145c7df1bc3f5dba0f76d5bc33c33e53e5be8': {'sourceCommit': '0c42cbc7140dd806189f5208a10cc7382ca9a93b', 'module': 'keycloak-runtime'}, 'sha256:328b0a13a3a8d9bd93a84164e9a551f4c070f04a479f491b34bb8231d1aac79a': {'sourceCommit': 'd106855a51eabee87bb57749473d5048aadaa558', 'module': 'keycloak-runtime'}, 'sha256:38d367979c46ffe1a0e00f5dbe83a7b9426fd5a8929778a310dd5213fde7e139': {'sourceCommit': 'c7fe581f488e373ef743e6eaaccedb40b38a231d', 'module': 'keycloak-runtime'}, 'sha256:46c8e7b3848a5cc3ab39dcd279ca3b236fea89efbaf951fb40529a7d596f592e': {'sourceCommit': '1a7fb595aede850496b130db74f3ff14c46aa6e9', 'module': 'keycloak-runtime'}, 'sha256:637a07089721ab25e246d7e929ff1dad87a658fc97c5ae3ac68be7c0b900af81': {'sourceCommit': '2ee1728573d58c66ac3ba53965fb6031988c2893', 'module': 'keycloak-runtime'}, 'sha256:6c56797a433166ffee63f896398c1051242fca9985dcefd793298eb56c707d47': {'sourceCommit': '9bc860dfa3ce2846a62e12a9f72ff8c5014f2925', 'module': 'keycloak-runtime'}, 'sha256:718e954a1080c51f814e446cbefb343892162183c92b3f09b4c3e1530f801c38': {'sourceCommit': 'daadee6532df2004f543c6b360d4871873e621c4', 'module': 'keycloak-runtime'}, 'sha256:78974de60b83dac4de92a93e6d818bae2e6a790aaade3a3d6bdd93a216cdabba': {'sourceCommit': '0c42cbc7140dd806189f5208a10cc7382ca9a93b', 'module': 'keycloak-runtime'}, 'sha256:9561b5af1c833d7d4b817d43ac0c82d613704543de593c902c7f5bbfc27e967e': {'sourceCommit': '9fe85cd5402f55dea1feb48aa1458fbaedec2299', 'module': 'keycloak-runtime'}, 'sha256:9991f92d3037a825fde7c86c79f1d51e9c2e8a6259ed8e34950035e8aa25233c': {'sourceCommit': 'a822b1dea24d67e2be93d4f6069d9bd7f827f8f1', 'module': 'keycloak-runtime'}, 'sha256:99e45e5e3bffc8cfd57ba346eb8ccb63e5394b1af71af33dcbbbb3dce0287627': {'sourceCommit': '0c42cbc7140dd806189f5208a10cc7382ca9a93b', 'module': 'keycloak-runtime'}, 'sha256:9cdc252a118d3d8e4271ef098fc6b4aaa67f9fdb646116b79483921ff2d3fb19': {'sourceCommit': 'd371cf09b5cc1e6d33315eaee98d3bc04e6a010c', 'module': 'keycloak-runtime'}, 'sha256:b26526bd5d249f55f632c76a7c552810b691c6031cdca6298c8f81075f22b8b4': {'sourceCommit': '24c92cd2873947e5430647baef6f114c64a2905d', 'module': 'keycloak-runtime'}, 'sha256:b8211680c2dc51a969f3adb4e93dc7a035a0a45d2769e7ad504e665ec7e065ca': {'sourceCommit': '12e78fe5c67c86e2a57336cd5d30ff3f54e3c9a4', 'module': 'keycloak-runtime'}, 'sha256:bdf3645033d1d2c64fc316c8eca00fbe4b97fc9d35f22175d5fb5a1f7abfd20d': {'sourceCommit': '0c42cbc7140dd806189f5208a10cc7382ca9a93b', 'module': 'keycloak-runtime'}, 'sha256:be1a96d68d8e34cd131acf934a31e92cc1f9ec3d0c6a636f548ba4615ac7f866': {'sourceCommit': 'fe0b888a842550488b91ca1bcbfa806b4baab41c', 'module': 'keycloak-runtime'}, 'sha256:bf576c56302188470effee946066a87e38e2b9376d9521664b4fc83b60f49e14': {'sourceCommit': '7e3cbb7a1f338fbb45ee6742198720412f2ee4b4', 'module': 'keycloak-runtime'}, 'sha256:bf97aad9b9e893d6f268df5255a8ef7fdf0a95c5224b8a886a3c9897c6ea3bc3': {'sourceCommit': 'daadee6532df2004f543c6b360d4871873e621c4', 'module': 'keycloak-runtime'}, 'sha256:c5f5e06580a9d88381398e6e1ce9e485854c61ea29e4874f40eec52bc2743b79': {'sourceCommit': 'a822b1dea24d67e2be93d4f6069d9bd7f827f8f1', 'module': 'keycloak-runtime'}, 'sha256:d0896d5d01ac0655fe87ca8679eec5ca8c89c091af751591915e92c03306d250': {'sourceCommit': 'fe0b888a842550488b91ca1bcbfa806b4baab41c', 'module': 'keycloak-runtime'}, 'sha256:dab75aabaecc2d9d49bcdace1b4be2536838df724ad0ca12f5e2a802e581b98f': {'sourceCommit': '7e3cbb7a1f338fbb45ee6742198720412f2ee4b4', 'module': 'keycloak-runtime'}, 'sha256:e272d59ecf4491c455643422c4edb2e4350a39e6ba86da00c220e95556385d78': {'sourceCommit': 'ccc3fa81112f5adabdbf38d0b785d4f5481ee11b', 'module': 'keycloak-runtime'}, 'sha256:faa001110cea8f5db80e4be938be084e57e582d09036d6dfdac85f31bb7e89b2': {'sourceCommit': '1a7fb595aede850496b130db74f3ff14c46aa6e9', 'module': 'keycloak-runtime'}, 'sha256:fc5a09f2c6d7c245623741f87c21a4779d128aa6e0842a00c59c47d113284b6d': {'sourceCommit': '1642dff2b89d8f8058987243d7970384cb907585', 'module': 'keycloak-runtime'}, 'sha256:ff7b6b145a7095ea921822ceab009ab83c7fd5c766c798972d58d8c5103d0d27': {'sourceCommit': '0c42cbc7140dd806189f5208a10cc7382ca9a93b', 'module': 'keycloak-runtime'}}
+          # This one-time allowlist retires only independently reviewed build products.
+          # It does not adopt images into or alter the verified artifact ledger.
+          eligible_by_id = {item['imageId']: item for item in eligible}
+          removed = []
+          deferred = 0
+          free_before = shutil.disk_usage(Path(os.environ['GITHUB_WORKSPACE'])).free
+          for image_id, expected in reviewed.items():
+              if shutil.disk_usage(Path(os.environ['GITHUB_WORKSPACE'])).free >= 20 * 1024 ** 3:
+                  break
+              current = eligible_by_id.get(image_id)
+              if not current or current['sourceCommit'] != expected['sourceCommit'] or current['module'] != expected['module']:
+                  deferred += 1
+                  continue
+              # Re-read this exact immutable image immediately before removal.
+              observations = json.loads(command(['image', 'inspect', image_id]))
+              if len(observations) != 1:
+                  raise SystemExit('Exact image revalidation rejected')
+              observation = observations[0]
+              labels = (observation.get('Config') or {}).get('Labels') or {}
+              if (observation.get('Id') != image_id or observation.get('RepoTags') or observation.get('RepoDigests')
+                      or labels.get('org.opencontainers.image.source') != 'https://github.com/masssi164/weave'
+                      or labels.get('org.opencontainers.image.revision') != expected['sourceCommit']
+                      or labels.get('com.massimotter.weave.module') != expected['module']
+                      or not isinstance(labels.get('com.massimotter.weave.spec-digest'), str)
+                      or not digest.fullmatch(labels['com.massimotter.weave.spec-digest'])
+                      or image_id in retained):
+                  deferred += 1
+                  continue
+              # No force: Docker rechecks references. No parent prune: unrelated images stay intact.
+              result = subprocess.run(['docker', 'image', 'rm', '--no-prune', image_id],
+                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
+              if result.returncode:
+                  deferred += 1
+              else:
+                  removed.append(image_id)
           usage = shutil.disk_usage(Path(os.environ['GITHUB_WORKSPACE']))
           print(json.dumps({
-              'schemaVersion': 'weave.owned-image-inventory/v1', 'mode': 'read-only',
+              'schemaVersion': 'weave.reviewed-image-cleanup/v1', 'mode': 'exact-reviewed-image-ids',
               'supportSafe': True, 'containsSecretValues': False,
               'freeBytes': usage.free, 'minimumFreeBytes': 20 * 1024 ** 3,
               'installedImageCount': len(image_ids), 'containerCount': len(containers),
               'retainedSetCount': retained_sets, 'pendingImageCount': len(pending),
-              'weaveImages': rows,
+              'freeBytesBefore': free_before, 'removedImageIds': removed, 'deferredImageCount': deferred,
+              'reviewedImageCount': len(reviewed), 'ledgerModified': False,
               'candidateCount': len(eligible),
               'candidateVirtualBytesUpperBound': sum(v['virtualBytes'] for v in eligible),
-              'actualReclaimableBytes': None,
+              'observedFreeByteChange': usage.free - free_before,
               'buildCacheOwnership': 'not-proven',
           }, sort_keys=True))
           PY
