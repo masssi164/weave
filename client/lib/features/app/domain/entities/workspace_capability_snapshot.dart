@@ -28,6 +28,7 @@ class WorkspaceCapabilityState {
   const WorkspaceCapabilityState({
     required this.capability,
     required this.readiness,
+    this.installed = true,
     this.connectionStatus,
     this.recoveryRequirement = IntegrationRecoveryRequirement.none,
     this.policyState = WorkspaceCapabilityPolicyState.unavailable,
@@ -38,6 +39,19 @@ class WorkspaceCapabilityState {
     this.memberSpaceAccessUnavailable = false,
   });
 
+  const WorkspaceCapabilityState.notInstalled(this.capability)
+    : installed = false,
+      readiness = WorkspaceCapabilityReadiness.unavailable,
+      connectionStatus = null,
+      recoveryRequirement = IntegrationRecoveryRequirement.none,
+      policyState = WorkspaceCapabilityPolicyState.unavailable,
+      profileKey = null,
+      memberImpact = null,
+      supportRef = null,
+      grantedCapabilities = const [],
+      memberSpaceAccessUnavailable = false;
+
+  final bool installed;
   final WorkspaceCapability capability;
   final WorkspaceCapabilityReadiness readiness;
   final IntegrationConnectionStatus? connectionStatus;
@@ -61,44 +75,39 @@ class WorkspaceCapabilityState {
 class WorkspaceCapabilitySnapshot {
   const WorkspaceCapabilitySnapshot({
     required this.shellAccess,
-    required this.chat,
-    required this.files,
-    required this.calendar,
-    required this.boards,
-    this.meetingsCalls = const WorkspaceCapabilityState(
-      capability: WorkspaceCapability.meetingsCalls,
-      readiness: WorkspaceCapabilityReadiness.unavailable,
-      policyState: WorkspaceCapabilityPolicyState.disabled,
+    this.chat = const WorkspaceCapabilityState.notInstalled(
+      WorkspaceCapability.chat,
     ),
-    this.documentsCollaboration = const WorkspaceCapabilityState(
-      capability: WorkspaceCapability.documentsCollaboration,
-      readiness: WorkspaceCapabilityReadiness.unavailable,
-      policyState: WorkspaceCapabilityPolicyState.disabled,
+    this.files = const WorkspaceCapabilityState.notInstalled(
+      WorkspaceCapability.files,
     ),
-    this.decisionsEvidence = const WorkspaceCapabilityState(
-      capability: WorkspaceCapability.decisionsEvidence,
-      readiness: WorkspaceCapabilityReadiness.ready,
-      policyState: WorkspaceCapabilityPolicyState.allowed,
+    this.calendar = const WorkspaceCapabilityState.notInstalled(
+      WorkspaceCapability.calendar,
     ),
-    this.manualsHelp = const WorkspaceCapabilityState(
-      capability: WorkspaceCapability.manualsHelp,
-      readiness: WorkspaceCapabilityReadiness.ready,
-      policyState: WorkspaceCapabilityPolicyState.allowed,
+    this.boards = const WorkspaceCapabilityState.notInstalled(
+      WorkspaceCapability.boards,
     ),
-    this.releaseEvidence = const WorkspaceCapabilityState(
-      capability: WorkspaceCapability.releaseEvidence,
-      readiness: WorkspaceCapabilityReadiness.ready,
-      policyState: WorkspaceCapabilityPolicyState.allowed,
+    this.meetingsCalls = const WorkspaceCapabilityState.notInstalled(
+      WorkspaceCapability.meetingsCalls,
+    ),
+    this.documentsCollaboration = const WorkspaceCapabilityState.notInstalled(
+      WorkspaceCapability.documentsCollaboration,
+    ),
+    this.decisionsEvidence = const WorkspaceCapabilityState.notInstalled(
+      WorkspaceCapability.decisionsEvidence,
+    ),
+    this.manualsHelp = const WorkspaceCapabilityState.notInstalled(
+      WorkspaceCapability.manualsHelp,
+    ),
+    this.releaseEvidence = const WorkspaceCapabilityState.notInstalled(
+      WorkspaceCapability.releaseEvidence,
+    ),
+    this.agentRuntimeControl = const WorkspaceCapabilityState.notInstalled(
+      WorkspaceCapability.agentRuntimeControl,
     ),
     this.adminControlPlane = const WorkspaceCapabilityState(
       capability: WorkspaceCapability.adminControlPlane,
-      readiness: WorkspaceCapabilityReadiness.ready,
-      policyState: WorkspaceCapabilityPolicyState.allowed,
-    ),
-    this.agentRuntimeControl = const WorkspaceCapabilityState(
-      capability: WorkspaceCapability.agentRuntimeControl,
       readiness: WorkspaceCapabilityReadiness.unavailable,
-      policyState: WorkspaceCapabilityPolicyState.disabled,
     ),
   });
 
@@ -115,6 +124,9 @@ class WorkspaceCapabilitySnapshot {
   final WorkspaceCapabilityState adminControlPlane;
   final WorkspaceCapabilityState agentRuntimeControl;
 
+  bool isInstalled(WorkspaceCapability capability) =>
+      all.any((state) => state.capability == capability);
+
   List<WorkspaceCapabilityState> get all => <WorkspaceCapabilityState>[
     shellAccess,
     chat,
@@ -128,5 +140,5 @@ class WorkspaceCapabilitySnapshot {
     releaseEvidence,
     adminControlPlane,
     agentRuntimeControl,
-  ];
+  ].where((state) => state.installed).toList(growable: false);
 }

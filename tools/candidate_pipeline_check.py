@@ -153,7 +153,7 @@ def main() -> int:
     for workflow in (e2e, prepare):
         require("--qualified --candidate" in workflow and "--composition" in workflow,
                 "deployment and physical preparation must bind exact qualified component bytes")
-        for command in ("flutter build", "build-for-testing", ":server:bootJar", "docker build"):
+        for command in ("flutter build", "build-for-testing", ":server:app:bootJar", "docker build"):
             require(command not in workflow, "protected Mac workflow must consume artifacts without compilation")
 
     print("candidate-pipeline-check: passed delivery=hosted-artifacts qualification=two-ios-members macos=manual hil=explicit")

@@ -80,7 +80,7 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
           "fragments": [
             "propfindDepthOneReturnsChildrenAsDavResponses",
             "getDownloadsFileThroughFacadePath",
@@ -100,14 +100,14 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
           "fragments": [
             "putMkcolAndDeleteUseWebDavFacadeWriteUseCases",
             "preconditionFailuresReturnStableWebDavErrorWithoutProviderLeakage"
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
+          "path": "server/domains/files/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
           "fragments": [
             "webDavPutCreateFolderAndDeleteUseFacadePolicyAndPublishMutationAudit",
             "FILES_WEBDAV_WRITE_COMPLETED"
@@ -146,7 +146,7 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
           "fragments": [
             "propfindDepthOneReturnsChildrenAsDavResponses",
             "getDownloadsFileThroughFacadePath",
@@ -166,7 +166,7 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
           "fragments": [
             "calendarNativeSyncSetupExposesWeaveOwnedOsBoundariesWithoutProviderLeaks",
             "calendarLegacyRestEventDataPlaneIsRemovedInFavorOfCaldavFacade",
@@ -179,7 +179,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/architecture/ServerArchitectureBoundaryTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/architecture/ServerArchitectureBoundaryTest.java",
           "fragments": [
             "calendarCalDavMethodsRouteThroughCalendarFacadeUseCases"
           ]
@@ -205,7 +205,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
           "fragments": [
             "chatLegacyRestDataPlaneRoutesAreRemovedInFavorOfMatrixFacade",
             "/api/chat/conversations/channel-general/messages",
@@ -213,7 +213,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
           "fragments": [
             "matrixClientServerProjectionRequiresWorkspaceToken",
             "whoamiUsesRumaValidatedIdentityDerivedFromOidcSubject",
@@ -466,13 +466,13 @@
       "tag": "@weave-v01-admin-health-policy-enforcement",
       "scenario": "Admin health enforces provider readiness and member policy boundaries",
       "feature": "e2e/features/v0_1_dogfood_release.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/ProviderRegistryControllerTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/controller/ProviderRegistryControllerTest.java",
       "evidenceMarkers": [
         "V01_ADMIN_HEALTH_POLICY_ENFORCEMENT"
       ],
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/ProviderRegistryControllerTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/controller/ProviderRegistryControllerTest.java",
           "fragments": [
             "providerStatusReportsAllFacadeSeamsWithoutSecrets",
             "categories[?(@.category == 'identity-idm')]",
@@ -486,7 +486,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/WorkspaceCapabilityServiceTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/service/WorkspaceCapabilityServiceTest.java",
           "fragments": [
             "ordinaryMembersCanManageCalendarEventsWithoutAdministrativeCapabilities",
             "capability-policy-blocked",
@@ -523,13 +523,13 @@
       "tag": "@weave-v01-org-control-plane-provider-facade",
       "scenario": "Server control plane owns provider policy and audit",
       "feature": "e2e/features/v0_1_dogfood_release.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/AdminControlPlaneControllerTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/controller/AdminControlPlaneControllerTest.java",
       "evidenceMarkers": [
         "V01_ORG_CONTROL_PLANE_PROVIDER_FACADE"
       ],
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/AdminControlPlaneControllerTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/controller/AdminControlPlaneControllerTest.java",
           "fragments": [
             "adminControlPlaneRejectsMembers",
             "adminControlPlaneOverviewIsSupportSafeAndProviderNeutral",
@@ -540,7 +540,7 @@
           ]
         },
         {
-          "path": "server/src/main/java/com/massimotter/weave/backend/controller/AdminControlPlaneController.java",
+          "path": "server/core/src/main/java/com/massimotter/weave/backend/admin/api/AdminControlPlaneController.java",
           "fragments": [
             "/api/admin/control-plane",
             "/api/admin/policies/capability-whitelist",
@@ -549,7 +549,7 @@
           ]
         },
         {
-          "path": "server/src/main/java/com/massimotter/weave/backend/service/AdminControlPlaneService.java",
+          "path": "server/core/src/main/java/com/massimotter/weave/backend/admin/application/AdminControlPlaneService.java",
           "fragments": [
             "denyByDefault",
             "secretref://weave/provider/",
@@ -558,7 +558,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/AdminControlPlaneServiceTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/admin/application/AdminControlPlaneServiceTest.java",
           "fragments": [
             "whitelistEditsRemainAuthorizedButReadOnlyWithoutAuditMutation"
           ]
@@ -601,7 +601,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/provider/DomainAdapterRegistryMapperTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/discovery/application/DomainAdapterRegistryMapperTest.java",
           "fragments": [
             "coreProductDomainsCarryExecutableAdapterFitContracts",
             "providerRegistryAdapterFitSupportsMixedProviderPostureWithoutMemberProviderIds",
@@ -716,13 +716,13 @@
       "tag": "@weave-v01-keycloak-rbac-capability-policy",
       "scenario": "Keycloak roles and groups decide capability profiles before Weaver runtime",
       "feature": "e2e/features/v0_1_dogfood_release.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/WorkspaceCapabilityServiceTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/service/WorkspaceCapabilityServiceTest.java",
       "evidenceMarkers": [
         "V01_KEYCLOAK_RBAC_CAPABILITY_POLICY"
       ],
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/WorkspaceCapabilityServiceTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/service/WorkspaceCapabilityServiceTest.java",
           "fragments": [
             "disabledDomainPolicyRejectsHumanDeviceAndVerifiedMemberGrants",
             "enabledDomainPolicyDoesNotTurnReadinessIntoAuthorization",
@@ -730,7 +730,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/calendar/CalendarUserApiServiceTest.java",
+          "path": "server/domains/calendar/src/test/java/com/massimotter/weave/backend/calendar/application/CalendarUserApiServiceTest.java",
           "fragments": [
             "disabledCalendarPolicyBlocksMemberReadsAndOwnerWritesBeforeProviderAccess",
             "enabledCalendarAllowsOrdinaryMemberWritesWithCurrentEditPermission",
@@ -837,7 +837,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
           "fragments": [
             "decisionLedgerCreateAndReadUseSourceLinkedLifecycleRecords",
             "meetingCapsuleCreateAndReadStayFailClosedWithoutProviderLeakage",
@@ -859,13 +859,13 @@
       "tag": "@weave-v01-chat-domain-facade",
       "scenario": "Chat uses a canonical backend domain facade",
       "feature": "e2e/features/v0_1_dogfood_release.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
       "evidenceMarkers": [
         "WEAVE_CHAT_DOMAIN_FACADE"
       ],
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
           "fragments": [
             "matrixClientServerProjectionRequiresWorkspaceToken",
             "syncProjectsCanonicalChatThroughRustWithStableWeaveCursor",
@@ -874,7 +874,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/chat/ChatDomainFacadeServiceTest.java",
+          "path": "server/domains/chat/src/test/java/com/massimotter/weave/backend/chat/application/ChatDomainFacadeServiceTest.java",
           "fragments": [
             "matrixSendUsesCanonicalProviderAndPublishesSupportSafeAudit",
             "CHAT_MESSAGE_SENT",
@@ -882,7 +882,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
           "fragments": [
             "chatLegacyRestDataPlaneRoutesAreRemovedInFavorOfMatrixFacade",
             "chatProviderReplacementDryRunIsAdminOnlySupportSafeAndAudited",
@@ -892,14 +892,14 @@
         {
           "path": "server/README.md",
           "fragments": [
-            "Chat domain facade",
+            "Chat control and context APIs",
             "provider replacement dry-run",
             "chat.read",
             "chat.send"
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/PlatformProductContractControllerTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/controller/PlatformProductContractControllerTest.java",
           "fragments": [
             "providerReplacementDryRunReportsAntiSiloEvidenceAndRedactsDiagnostics",
             "providerReplacementDryRunRejectsRawSecretsAndUnsupportedAdapterCombinations"
@@ -918,7 +918,7 @@
       ],
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/BoardsFacadeServiceTest.java",
+          "path": "server/domains/boards/src/test/java/com/massimotter/weave/backend/boards/application/BoardsFacadeServiceTest.java",
           "fragments": [
             "taskWritesPublishSupportSafeWorkspaceAuditEvents",
             "preWriteAuditRedactsUnsafeResourceReferencesBeforeRepositoryValidation",
@@ -941,13 +941,13 @@
       "tag": "@weave-v01-meeting-capsule",
       "scenario": "A meeting capsule keeps work connected",
       "feature": "e2e/features/v0_1_dogfood_release.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
       "evidenceMarkers": [
         "V01_MEETING_CAPSULE"
       ],
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
           "fragments": [
             "meetingCapsuleCreateAndReadStayFailClosedWithoutProviderLeakage",
             "/api/chat/conversations/channel-general/meeting-capsules",
@@ -957,7 +957,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/ChatFacadeServiceTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/service/ConversationAttachedFeaturesTest.java",
           "fragments": [
             "createMeetingCapsuleFailsClosedBeforeMutationWhenAuditPublisherIsMissing"
           ]
@@ -976,13 +976,13 @@
       "tag": "@weave-v01-decision-ledger",
       "scenario": "Decisions are captured as product records",
       "feature": "e2e/features/v0_1_dogfood_release.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
       "evidenceMarkers": [
         "V01_DECISION_LEDGER"
       ],
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
           "fragments": [
             "decisionLedgerCreateAndReadUseSourceLinkedLifecycleRecords",
             "/api/chat/conversations/channel-general/decisions",
@@ -991,7 +991,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/ChatFacadeServiceTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/service/ConversationAttachedFeaturesTest.java",
           "fragments": [
             "createDecisionFailsClosedBeforeMutationWhenAuditPublisherIsMissing"
           ]
@@ -1117,7 +1117,7 @@
           ]
         },
         {
-          "path": "server/src/main/java/com/massimotter/weave/backend/model/admin/ProviderReplacementDryRunResponse.java",
+          "path": "server/domains/portability/src/main/java/com/massimotter/weave/backend/portability/api/ProviderReplacementDryRunResponse.java",
           "fragments": [
             "PortableExportImportContract",
             "SwitchPlan",
@@ -1126,7 +1126,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/AdminControlPlaneControllerTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/controller/AdminControlPlaneControllerTest.java",
           "fragments": [
             "matrixChatReplacementDryRunShowsCrossDomainImpactAndBlocksCutoverClaims",
             "migrationDryRunRequired",
@@ -1300,15 +1300,31 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/domainfacade/CanonicalDomainFacadeServicesTest.java",
+          "path": "server/domains/files/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
           "fragments": [
-            "contractsCoverRemainingNonChatDomainsWithoutThinProviderProxyVocabulary",
-            "memberReadinessFailsClosedWithoutAdminSelectedMappingsAndHidesProviderDiagnostics",
-            "canonical-domain-facade-v1"
+            "failsClosedWhenAdapterIsMissingOrUnconfigured",
+            "listFailsClosedWhenContextAuthorizationDeniesAccess",
+            "webDavPutCreateFolderAndDeleteUseFacadePolicyAndPublishMutationAudit"
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/AdminControlPlaneControllerTest.java",
+          "path": "server/domains/calendar/src/test/java/com/massimotter/weave/backend/calendar/application/CalendarFacadeServiceTest.java",
+          "fragments": [
+            "ordinaryMemberCanCreateReadAndDeleteWithinAuthorizedTeamScope",
+            "ordinaryMemberWithViewAccessStillRequiresEditBeforeCallingProvider",
+            "publishesSupportSafeAuditBeforeCalendarMutation"
+          ]
+        },
+        {
+          "path": "server/domains/boards/src/test/java/com/massimotter/weave/backend/boards/application/BoardsFacadeServiceTest.java",
+          "fragments": [
+            "createTaskRequiresEffectivePolicyGrantBeforeContextAuthorization",
+            "updateStatusFailsClosedBeforeMutationWhenAuditPublisherIsMissing",
+            "workspaceFailsClosedInsteadOfLeakingUnsafeProviderCursor"
+          ]
+        },
+        {
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/controller/AdminControlPlaneControllerTest.java",
           "fragments": [
             "adminControlPlaneOverviewIsSupportSafeAndProviderNeutral",
             "platformIdentityCannotEnterProviderReplacementPatchPanel",
@@ -1316,7 +1332,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/provider/DomainAdapterRegistryMapperTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/discovery/application/DomainAdapterRegistryMapperTest.java",
           "fragments": [
             "coreProductDomainsCarryExecutableAdapterFitContracts",
             "providerRegistryAdapterFitSupportsMixedProviderPostureWithoutMemberProviderIds",
@@ -1359,15 +1375,31 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/domainfacade/CanonicalDomainFacadeServicesTest.java",
+          "path": "server/domains/files/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
           "fragments": [
-            "contractsCoverRemainingNonChatDomainsWithoutThinProviderProxyVocabulary",
-            "canonical-domain-facade-v1",
-            "memberReadinessFailsClosedWithoutAdminSelectedMappingsAndHidesProviderDiagnostics"
+            "failsClosedWhenAdapterIsMissingOrUnconfigured",
+            "listFailsClosedWhenContextAuthorizationDeniesAccess",
+            "webDavPutCreateFolderAndDeleteUseFacadePolicyAndPublishMutationAudit"
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/AdminControlPlaneControllerTest.java",
+          "path": "server/domains/calendar/src/test/java/com/massimotter/weave/backend/calendar/application/CalendarFacadeServiceTest.java",
+          "fragments": [
+            "ordinaryMemberCanCreateReadAndDeleteWithinAuthorizedTeamScope",
+            "ordinaryMemberWithViewAccessStillRequiresEditBeforeCallingProvider",
+            "publishesSupportSafeAuditBeforeCalendarMutation"
+          ]
+        },
+        {
+          "path": "server/domains/boards/src/test/java/com/massimotter/weave/backend/boards/application/BoardsFacadeServiceTest.java",
+          "fragments": [
+            "createTaskRequiresEffectivePolicyGrantBeforeContextAuthorization",
+            "updateStatusFailsClosedBeforeMutationWhenAuditPublisherIsMissing",
+            "workspaceFailsClosedInsteadOfLeakingUnsafeProviderCursor"
+          ]
+        },
+        {
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/controller/AdminControlPlaneControllerTest.java",
           "fragments": [
             "adminControlPlaneOverviewIsSupportSafeAndProviderNeutral",
             "platformIdentityCannotEnterProviderReplacementPatchPanel",
@@ -1451,7 +1483,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/identity/lifecycle/IdentityLifecycleContractsTest.java",
+          "path": "server/core/model/src/test/java/com/massimotter/weave/backend/identity/lifecycle/IdentityLifecycleContractsTest.java",
           "fragments": [
             "reconcileUsesStableIdsAndFailsClosedForUnknownGroupsOrRoles",
             "offboardingDryRunRequiresOwnershipTransferBeforeDestructiveRemoval"
@@ -3643,7 +3675,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/AdminControlPlaneServiceTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/admin/application/AdminControlPlaneServiceTest.java",
           "fragments": [
             "supportSafe",
             "provider"
@@ -3691,7 +3723,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/context/ContextSpaceContractTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/context/ContextSpaceContractTest.java",
           "fragments": [
             "context-space.schema.json",
             "provider_bindings"
@@ -3739,7 +3771,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/AdminControlPlaneServiceTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/admin/application/AdminControlPlaneServiceTest.java",
           "fragments": [
             "providerReplacementDryRunRecordsNoDriftEvidenceAgainstPersistedReadModels",
             "boundedProof",
@@ -3781,7 +3813,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/ChatFacadeServiceTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/service/ConversationAttachedFeaturesTest.java",
           "fragments": [
             "decisionsExposeSupportSafeProvenanceAuditAndExportPosture",
             "raw provider secrets stay backend-only"
@@ -3828,7 +3860,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/agentruntime/application/AgentRuntimeControlServiceTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/agentruntime/application/AgentRuntimeControlServiceTest.java",
           "fragments": [
             "entitlementAuthority.denied = true",
             "RuntimeEntitlementState.REVOKED"
@@ -4056,7 +4088,7 @@
       "tag": "@enterprise-target-boundary-gate",
       "scenario": "Server boundary drift fails before broad package migration",
       "feature": "e2e/features/enterprise_target_architecture.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/architecture/ServerArchitectureBoundaryTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/architecture/ServerArchitectureBoundaryTest.java",
       "evidenceMarkers": [
         "ENTERPRISE_TARGET_BOUNDARY_GATE"
       ],
@@ -4066,11 +4098,11 @@
           "path": "tools/enterprise_target_architecture_spine_check.py",
           "fragments": [
             "ENTERPRISE_TARGET_BOUNDARY_GATE",
-            "server/src/test/java/com/massimotter/weave/backend/architecture/ServerArchitectureBoundaryTest.java"
+            "server/app/src/test/java/com/massimotter/weave/backend/architecture/ServerArchitectureBoundaryTest.java"
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/architecture/ServerArchitectureBoundaryTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/architecture/ServerArchitectureBoundaryTest.java",
           "fragments": [
             "calendarCalDavMethodsRouteThroughCalendarFacadeUseCases",
             "matrixClientServerProjectionUsesCanonicalChatAndNativeCoreNotRestDtos",
@@ -4109,7 +4141,7 @@
       "tag": "@enterprise-target-persistence-foundation",
       "scenario": "Weave-owned strategic state has one gated relational persistence foundation",
       "feature": "e2e/features/enterprise_target_architecture.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/provider/JpaProviderSelectionRepositoryTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/provider/JpaProviderSelectionRepositoryTest.java",
       "evidenceMarkers": [
         "ENTERPRISE_TARGET_PERSISTENCE_FOUNDATION"
       ],
@@ -4124,28 +4156,28 @@
           ]
         },
         {
-          "path": "weave-persistence-jpa/src/main/java/com/massimotter/weave/backend/persistence/jpa/provider/ProviderSelectionJpaEntity.java",
+          "path": "server/core/src/main/java/com/massimotter/weave/backend/providerbinding/persistence/ProviderSelectionJpaEntity.java",
           "fragments": [
             "weave_provider_selections",
             "ProviderSelectionJpaEntity"
           ]
         },
         {
-          "path": "weave-persistence-jpa/src/main/java/com/massimotter/weave/backend/persistence/jpa/profile/ProductProfileOverrideJpaEntity.java",
+          "path": "server/core/src/main/java/com/massimotter/weave/backend/identity/profile/persistence/ProductProfileOverrideJpaEntity.java",
           "fragments": [
             "weave_product_profile_overrides",
             "accessibility_preferences_json"
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/provider/JpaProviderSelectionRepositoryTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/provider/JpaProviderSelectionRepositoryTest.java",
           "fragments": [
             "selectionSurvivesAdapterRestartAndRetainsCanonicalOrdering",
             "portable-jpa-hibernate-validated"
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/JpaProductProfileOverrideRepositoryTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/service/JpaProductProfileOverrideRepositoryTest.java",
           "fragments": [
             "profileSurvivesAdapterRestartWithStructuredAccessibilityPreferences",
             "portable-jpa-hibernate-validated"
@@ -4157,7 +4189,7 @@
       "tag": "@enterprise-target-audit-persistence-foundation",
       "scenario": "Support-safe audit events gain a gated relational persistence foundation",
       "feature": "e2e/features/enterprise_target_architecture.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/audit/JpaAuditEventPublisherTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/audit/JpaAuditEventPublisherTest.java",
       "evidenceMarkers": [
         "ENTERPRISE_TARGET_AUDIT_PERSISTENCE_FOUNDATION"
       ],
@@ -4171,24 +4203,30 @@
           ]
         },
         {
-          "path": "weave-persistence-jpa/src/main/java/com/massimotter/weave/backend/persistence/jpa/audit/AuditEventJpaEntity.java",
+          "path": "server/core/src/main/java/com/massimotter/weave/backend/audit/persistence/AuditEventJpaEntity.java",
           "fragments": [
             "weave_audit_events",
             "uq_weave_audit_events_idempotency"
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/audit/JpaAuditEventPublisherTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/audit/JpaAuditEventPublisherTest.java",
           "fragments": [
             "appendOnlyEventSurvivesRestartAndIdempotentRetryRejectsDifferentPayload",
             "portable-jpa-hibernate-validated"
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/config/BoardsRuntimeConfigurationTest.java",
+          "path": "server/domains/boards/src/test/java/com/massimotter/weave/backend/boards/config/BoardsRuntimeConfigurationTest.java",
           "fragments": [
-            "boardsConfigurationDoesNotCreateAPersistenceFallback",
-            "persistenceCompositionPublishesOnlyTheJpaAuditAuthority"
+            "boardsConfigurationDoesNotCreateAPersistenceFallback"
+          ]
+        },
+        {
+          "path": "server/core/src/test/java/com/massimotter/weave/core/autoconfigure/CorePersistenceDiscoveryTest.java",
+          "fragments": [
+            "CoreAuditAutoConfiguration.class",
+            "hasSingleBean(AuditEventPublisher.class)"
           ]
         }
       ]
@@ -4197,7 +4235,7 @@
       "tag": "@enterprise-target-migration-evidence-persistence-foundation",
       "scenario": "Provider-switch migration run evidence gains a gated relational persistence foundation",
       "feature": "e2e/features/enterprise_target_architecture.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/migration/JpaMigrationRunEvidenceRepositoryTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/portability/persistence/JpaMigrationRunEvidenceRepositoryTest.java",
       "evidenceMarkers": [
         "ENTERPRISE_TARGET_MIGRATION_EVIDENCE_PERSISTENCE_FOUNDATION"
       ],
@@ -4212,21 +4250,21 @@
           ]
         },
         {
-          "path": "weave-persistence-jpa/src/main/java/com/massimotter/weave/backend/persistence/jpa/migration/MigrationRunEvidenceJpaEntity.java",
+          "path": "server/domains/portability/persistence/src/main/java/com/massimotter/weave/backend/portability/persistence/MigrationRunEvidenceJpaEntity.java",
           "fragments": [
             "weave_migration_run_evidence",
             "@EmbeddedId"
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/migration/JpaMigrationRunEvidenceRepositoryTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/portability/persistence/JpaMigrationRunEvidenceRepositoryTest.java",
           "fragments": [
             "evidenceSurvivesAdapterRestartAndExpiresAtTheContractBoundary",
             "portable-jpa-hibernate-validated"
           ]
         },
         {
-          "path": "server/src/main/java/com/massimotter/weave/backend/service/migration/JpaMigrationRunEvidenceRepository.java",
+          "path": "server/domains/portability/src/main/java/com/massimotter/weave/backend/portability/persistence/JpaMigrationRunEvidenceRepository.java",
           "fragments": [
             "portable-jpa-hibernate-validated",
             "Failed to persist durable migration run evidence.",
@@ -4239,7 +4277,7 @@
       "tag": "@enterprise-target-provider-switch-no-drift-foundation",
       "scenario": "Provider replacement dry-run remains a prerequisite rather than cutover proof",
       "feature": "e2e/features/enterprise_target_architecture.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/AdminControlPlaneServiceTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/admin/application/AdminControlPlaneServiceTest.java",
       "evidenceMarkers": [
         "ENTERPRISE_TARGET_PROVIDER_SWITCH_NO_DRIFT_FOUNDATION"
       ],
@@ -4254,7 +4292,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/AdminControlPlaneServiceTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/admin/application/AdminControlPlaneServiceTest.java",
           "fragments": [
             "ENTERPRISE_TARGET_PROVIDER_SWITCH_NO_DRIFT_FOUNDATION",
             "providerReplacementDryRunRecordsNoDriftEvidenceAgainstPersistedReadModels",
@@ -4262,7 +4300,7 @@
           ]
         },
         {
-          "path": "server/src/main/java/com/massimotter/weave/backend/service/AdminControlPlaneService.java",
+          "path": "server/domains/portability/src/main/java/com/massimotter/weave/backend/portability/application/ProviderReplacementDryRunService.java",
           "fragments": [
             "baselineSnapshot",
             "readModelComparison",
@@ -4275,14 +4313,14 @@
       "tag": "@open-standards-manifest",
       "scenario": "Authenticated member discovers release access surfaces",
       "feature": "e2e/features/open_standards_gateway_manifest.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/bdd/OpenStandardsGatewayStepDefinitions.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/bdd/OpenStandardsGatewayStepDefinitions.java",
       "evidenceMarkers": [
         "OPEN_STANDARDS_MANIFEST_CONTRACT"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/test/resources/features/open-standards-gateway-control-plane.feature",
+          "path": "server/app/src/test/resources/features/open-standards-gateway-control-plane.feature",
           "fragments": [
             "Authenticated member discovers release access surfaces",
             "Files advertises the guarded generated User API without public WebDAV",
@@ -4296,7 +4334,7 @@
       "tag": "@openapi-domain-boundaries",
       "scenario": "OpenAPI retains domain boundaries",
       "feature": "e2e/features/open_standards_gateway_manifest.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/bdd/OpenStandardsGatewayStepDefinitions.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/bdd/OpenStandardsGatewayStepDefinitions.java",
       "evidenceMarkers": [
         "OPENAPI_USER_DOMAIN_BOUNDARY",
         "OPENAPI_PROTOCOL_BOUNDARY"
@@ -4304,7 +4342,7 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/bdd/OpenStandardsGatewayStepDefinitions.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/bdd/OpenStandardsGatewayStepDefinitions.java",
           "fragments": [
             "/api/files/readiness",
             "/api/calendar/scopes",
@@ -4320,14 +4358,14 @@
       "tag": "@support-safe-capability-states",
       "scenario": "Disabled or degraded domains return support-safe capability states",
       "feature": "e2e/features/open_standards_gateway_manifest.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/WorkspaceControllerTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/controller/WorkspaceControllerTest.java",
       "evidenceMarkers": [
         "returnsConfiguredWorkspaceCapabilities"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/main/java/com/massimotter/weave/backend/service/WorkspaceCapabilityService.java",
+          "path": "server/core/src/main/java/com/massimotter/weave/backend/capability/WorkspaceCapabilityService.java",
           "fragments": [
             "WorkspaceCapabilityPolicyState.DISABLED",
             "WorkspaceCapabilityPolicyState.POLICY_BLOCKED",
@@ -4350,7 +4388,7 @@
       "tag": "@oidc-revoked-token",
       "scenario": "Revoked or expired bearer token fails support-safely",
       "feature": "e2e/features/oidc_protocol_access.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
       "evidenceMarkers": [
         "MATRIX_TOKEN_REVOCATION_FACADE"
       ],
@@ -4360,7 +4398,7 @@
       "tag": "@webdav-device-credential",
       "scenario": "Files WebDAV device credential can be issued, used, revoked, and denied after revoke",
       "feature": "e2e/features/oidc_protocol_access.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
       "evidenceMarkers": [
         "WEBDAV_DEVICE_CREDENTIAL_CONTRACT"
       ],
@@ -4370,7 +4408,7 @@
       "tag": "@caldav-device-credential",
       "scenario": "Calendar CalDAV device credential can be issued, used, revoked, and denied after revoke",
       "feature": "e2e/features/oidc_protocol_access.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
       "evidenceMarkers": [
         "CALDAV_DEVICE_CREDENTIAL_CONTRACT"
       ],
@@ -4390,14 +4428,14 @@
       "tag": "@files-webdav-propfind",
       "scenario": "PROPFIND Depth 0 and 1 list Weave-owned resources with WebDAV properties",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
       "evidenceMarkers": [
         "FILES_WEBDAV_PROPFIND_FACADE"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/main/java/com/massimotter/weave/backend/controller/FilesWebDavController.java",
+          "path": "server/domains/files/src/main/java/com/massimotter/weave/backend/files/api/FilesWebDavController.java",
           "fragments": [
             "case \"PROPFIND\" -> propfind(request)",
             "WebDavPropfindListing listing = filesFacadeService.webDavPropfind(path)",
@@ -4406,7 +4444,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
           "fragments": [
             "FILES_WEBDAV_PROPFIND_FACADE",
             "propfindDepthZeroReturnsMultistatusForRequestedCollectionOnly",
@@ -4423,14 +4461,14 @@
       "tag": "@files-webdav-get-head",
       "scenario": "GET and HEAD stream file content with Weave ETags",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
       "evidenceMarkers": [
         "FILES_WEBDAV_GET_HEAD_FACADE"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/main/java/com/massimotter/weave/backend/controller/FilesWebDavController.java",
+          "path": "server/domains/files/src/main/java/com/massimotter/weave/backend/files/api/FilesWebDavController.java",
           "fragments": [
             "case \"GET\" -> get(request, false)",
             "case \"HEAD\" -> get(request, true)",
@@ -4443,14 +4481,14 @@
       "tag": "@files-webdav-put-create",
       "scenario": "PUT creates a file with If-None-Match and records audit",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
+      "executableTest": "server/domains/files/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
       "evidenceMarkers": [
         "FILES_WEBDAV_PUT_CREATE_AUDIT"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
           "fragments": [
             "FILES_WEBDAV_PUT_MKCOL_DELETE_FACADE",
             "HttpHeaders.IF_MATCH",
@@ -4463,14 +4501,14 @@
       "tag": "@files-webdav-put-stale",
       "scenario": "PUT update rejects stale ETags",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
+      "executableTest": "server/domains/files/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
       "evidenceMarkers": [
         "FILES_WEBDAV_STALE_ETAG_PRECONDITION"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
           "fragments": [
             "FILES_WEBDAV_PRECONDITION_FACADE",
             "files-precondition-failed"
@@ -4482,14 +4520,14 @@
       "tag": "@files-webdav-mkcol",
       "scenario": "MKCOL creates a folder and rejects duplicates or missing parents",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
+      "executableTest": "server/domains/files/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
       "evidenceMarkers": [
         "FILES_WEBDAV_MKCOL_CONFLICTS"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/main/java/com/massimotter/weave/backend/service/FilesFacadeService.java",
+          "path": "server/domains/files/src/main/java/com/massimotter/weave/backend/files/application/FilesFacadeService.java",
           "fragments": [
             "requireParentCollection(adapter, normalizedPath, operation)",
             "A collection or file already exists at this path."
@@ -4501,14 +4539,14 @@
       "tag": "@files-webdav-delete",
       "scenario": "DELETE removes a resource with If-Match and records audit",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
+      "executableTest": "server/domains/files/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
       "evidenceMarkers": [
         "FILES_WEBDAV_DELETE_AUDIT"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
           "fragments": [
             "FILES_WEBDAV_PUT_MKCOL_DELETE_FACADE",
             "DELETE",
@@ -4521,14 +4559,14 @@
       "tag": "@files-webdav-move",
       "scenario": "MOVE handles Destination and Overwrite without provider leakage",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
+      "executableTest": "server/domains/files/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
       "evidenceMarkers": [
         "FILES_WEBDAV_COPY_MOVE_CANONICAL"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
           "fragments": [
             "FILES_WEBDAV_COPY_MOVE_LOCK_FACADE",
             "Destination",
@@ -4542,14 +4580,14 @@
       "tag": "@files-webdav-copy",
       "scenario": "COPY handles Destination and Overwrite without provider leakage",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
+      "executableTest": "server/domains/files/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
       "evidenceMarkers": [
         "FILES_WEBDAV_COPY_MOVE_CANONICAL"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
           "fragments": [
             "FILES_WEBDAV_COPY_MOVE_LOCK_FACADE",
             "Destination",
@@ -4563,14 +4601,14 @@
       "tag": "@files-webdav-lock-unlock",
       "scenario": "LOCK exposes lockdiscovery and blocks conflicting writes with 423",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/FilesFacadeServiceTest.java",
+      "executableTest": "server/domains/files/src/test/java/com/massimotter/weave/backend/files/application/FilesFacadeServiceTest.java",
       "evidenceMarkers": [
         "FILES_WEBDAV_LOCK_CONFLICT"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
           "fragments": [
             "FILES_WEBDAV_COPY_MOVE_LOCK_FACADE",
             "Lock-Token",
@@ -4583,14 +4621,14 @@
       "tag": "@files-webdav-quota",
       "scenario": "Quota exceeded maps to 507",
       "feature": "e2e/features/files_webdav_full_facade.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/controller/FilesWebDavControllerTest.java",
       "evidenceMarkers": [
         "FILES_WEBDAV_QUOTA_FACADE"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/files/NextcloudFilesAdapterTest.java",
+          "path": "server/domains/files/src/test/java/com/massimotter/weave/backend/files/provider/NextcloudFilesAdapterTest.java",
           "fragments": [
             "mapsAuthAndQuotaFailuresWithoutLeakingProviderSecrets",
             "files-quota-exceeded",
@@ -4640,7 +4678,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/files/FilesUserApiServiceTest.java",
+          "path": "server/domains/files/src/test/java/com/massimotter/weave/backend/files/application/FilesUserApiServiceTest.java",
           "fragments": [
             "anotherOrganizationCannotResolveTheSameOpaqueFileId",
             "currentReadOnlyGrantDoesNotAdvertiseMutationOrShareActions"
@@ -4652,14 +4690,14 @@
       "tag": "@caldav-discovery",
       "scenario": "CalDAV well-known discovery and principal discovery work",
       "feature": "e2e/features/calendar_caldav_facade.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
       "evidenceMarkers": [
         "CALDAV_DISCOVERY_AND_HOME_FACADE"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/main/java/com/massimotter/weave/backend/controller/CalDavCalendarController.java",
+          "path": "server/domains/calendar/src/main/java/com/massimotter/weave/backend/calendar/api/dav/CalDavCalendarController.java",
           "fragments": [
             "/.well-known/caldav",
             "principalMultistatus",
@@ -4672,14 +4710,14 @@
       "tag": "@caldav-home",
       "scenario": "Calendar home lists calendar collections",
       "feature": "e2e/features/calendar_caldav_facade.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
       "evidenceMarkers": [
         "CALDAV_DISCOVERY_AND_HOME_FACADE"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/main/java/com/massimotter/weave/backend/controller/CalDavCalendarController.java",
+          "path": "server/domains/calendar/src/main/java/com/massimotter/weave/backend/calendar/api/dav/CalDavCalendarController.java",
           "fragments": [
             "/.well-known/caldav",
             "principalMultistatus",
@@ -4692,14 +4730,14 @@
       "tag": "@caldav-calendar-query",
       "scenario": "calendar-query returns VEVENT objects for a date range",
       "feature": "e2e/features/calendar_caldav_facade.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
       "evidenceMarkers": [
         "CALDAV_QUERY_FREEBUSY_FACADE"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/main/java/com/massimotter/weave/backend/controller/CalDavCalendarController.java",
+          "path": "server/domains/calendar/src/main/java/com/massimotter/weave/backend/calendar/api/dav/CalDavCalendarController.java",
           "fragments": [
             "CALENDAR_MULTIGET",
             "FREE_BUSY_QUERY",
@@ -4713,14 +4751,14 @@
       "tag": "@caldav-calendar-multiget",
       "scenario": "calendar-multiget returns selected calendar objects",
       "feature": "e2e/features/calendar_caldav_facade.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
       "evidenceMarkers": [
         "CALDAV_MULTIGET_SYNC_FACADE"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/main/java/com/massimotter/weave/backend/controller/CalDavCalendarController.java",
+          "path": "server/domains/calendar/src/main/java/com/massimotter/weave/backend/calendar/api/dav/CalDavCalendarController.java",
           "fragments": [
             "calendarMultigetMultistatus",
             "syncCalDavResources",
@@ -4733,14 +4771,14 @@
       "tag": "@caldav-get-put-delete",
       "scenario": "GET, PUT, and DELETE use ETags and stable precondition handling",
       "feature": "e2e/features/calendar_caldav_facade.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
       "evidenceMarkers": [
         "CALDAV_GET_PUT_DELETE_FACADE_MVP"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
           "fragments": [
             "calDavEventReadPutCreateUpdateAndDeleteUseFacadeBackedIcalendar",
             "BEGIN:VCALENDAR",
@@ -4757,14 +4795,14 @@
       "tag": "@caldav-sync",
       "scenario": "sync-collection returns changed objects after mutation",
       "feature": "e2e/features/calendar_caldav_facade.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
       "evidenceMarkers": [
         "CALDAV_MULTIGET_SYNC_FACADE"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/main/java/com/massimotter/weave/backend/controller/CalDavCalendarController.java",
+          "path": "server/domains/calendar/src/main/java/com/massimotter/weave/backend/calendar/api/dav/CalDavCalendarController.java",
           "fragments": [
             "calendarMultigetMultistatus",
             "syncCalDavResources",
@@ -4777,14 +4815,14 @@
       "tag": "@caldav-freebusy",
       "scenario": "free-busy-query returns VFREEBUSY",
       "feature": "e2e/features/calendar_caldav_facade.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
       "evidenceMarkers": [
         "CALDAV_QUERY_FREEBUSY_FACADE"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/main/java/com/massimotter/weave/backend/controller/CalDavCalendarController.java",
+          "path": "server/domains/calendar/src/main/java/com/massimotter/weave/backend/calendar/api/dav/CalDavCalendarController.java",
           "fragments": [
             "CALENDAR_MULTIGET",
             "FREE_BUSY_QUERY",
@@ -4798,14 +4836,14 @@
       "tag": "@caldav-recurrence-dst",
       "scenario": "Recurring event across DST boundary is expanded consistently",
       "feature": "e2e/features/calendar_caldav_facade.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/calendar/IcalendarMapperTest.java",
+      "executableTest": "server/domains/calendar/src/test/java/com/massimotter/weave/backend/calendar/provider/icalendar/IcalendarMapperTest.java",
       "evidenceMarkers": [
         "CALDAV_RECURRENCE_DST_FACADE"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/calendar/IcalendarMapperTest.java",
+          "path": "server/domains/calendar/src/test/java/com/massimotter/weave/backend/calendar/provider/icalendar/IcalendarMapperTest.java",
           "fragments": [
             "RRULE:FREQ=WEEKLY;COUNT=3",
             "RDATE;TZID=Europe/Berlin",
@@ -4819,14 +4857,14 @@
       "tag": "@caldav-canonical-thread",
       "scenario": "Channel event keeps one canonical meeting-thread reference",
       "feature": "e2e/features/calendar_caldav_facade.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/calendar/IcalendarMapperTest.java",
+      "executableTest": "server/domains/calendar/src/test/java/com/massimotter/weave/backend/calendar/provider/icalendar/IcalendarMapperTest.java",
       "evidenceMarkers": [
         "CALDAV_CANONICAL_THREAD_PROJECTION"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
           "fragments": [
             "X-WEAVE-CONTEXT-ID:channel-engineering-general",
             "X-WEAVE-CHANNEL-ID:engineering-general",
@@ -4931,7 +4969,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
           "fragments": [
             "selectedSpaceScopesBothDirectoryAdmissionAndCandidateChecks",
             "selectedCreationRetainsEncryptionAndSeparatesIdempotencyBySpace",
@@ -4940,7 +4978,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/chat/ChatDomainFacadeServiceTest.java",
+          "path": "server/domains/chat/src/test/java/com/massimotter/weave/backend/chat/application/ChatDomainFacadeServiceTest.java",
           "fragments": [
             "selectedEmptySpaceSupportsDiscoveryFirstRoomAndSendWithoutDefaultSpaceAccess",
             "selectedSpaceRechecksCallerAndRecipientAccessInsteadOfFallingBack",
@@ -4951,7 +4989,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/chat/store/JpaCanonicalChatStoreTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/chat/persistence/JpaCanonicalChatStoreTest.java",
           "fragments": [
             "spaceReferenceWideningPreservesExistingChatAndPersistsMaximumLengthScope"
           ]
@@ -4995,7 +5033,7 @@
       "evidenceMode": "live-runtime",
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
           "fragments": [
             "openClawStartupCanLoadPushRulesCreateAFilterAndSyncAccountData",
             "stockOpenClawMemberReceiptAndTypingCallsStayOnCanonicalChat",
@@ -5023,7 +5061,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/chat/adapter/WeaveCanonicalChatAdapterTest.java",
+          "path": "server/domains/chat/src/test/java/com/massimotter/weave/backend/chat/adapter/WeaveCanonicalChatAdapterTest.java",
           "fragments": [
             "readReceiptsAndTypingRemainCanonicalUserState",
             "markRead",
@@ -5097,7 +5135,7 @@
       "tag": "@matrix-revoke",
       "scenario": "Revoked member or device loses Matrix access",
       "feature": "e2e/features/chat_matrix_facade.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
       "evidenceMarkers": [
         "MATRIX_TOKEN_REVOCATION_FACADE"
       ],
@@ -5135,7 +5173,7 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/controller/MatrixClientServerProjectionControllerTest.java",
           "fragments": [
             "versionsIsSerializedByTheLinkedRustRumaCore",
             "syncProjectsCanonicalChatThroughRustWithStableWeaveCursor",
@@ -5163,7 +5201,7 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/chat/adapter/WeaveCanonicalChatAdapterTest.java",
+          "path": "server/domains/chat/src/test/java/com/massimotter/weave/backend/chat/adapter/WeaveCanonicalChatAdapterTest.java",
           "fragments": [
             "repeatedTransactionReturnsSameCanonicalMessageAndSingleChange",
             "ChatTransactionId",
@@ -5183,7 +5221,7 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/chat/adapter/WeaveCanonicalChatAdapterTest.java",
+          "path": "server/domains/chat/src/test/java/com/massimotter/weave/backend/chat/adapter/WeaveCanonicalChatAdapterTest.java",
           "fragments": [
             "northboundIdentifiersRemainCanonicalAndProviderNeutral",
             "conformanceAccountsForPortableLossyAndUnsupportedChatSemantics",
@@ -5401,7 +5439,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/calendar/CalendarUserApiServiceTest.java",
+          "path": "server/domains/calendar/src/test/java/com/massimotter/weave/backend/calendar/application/CalendarUserApiServiceTest.java",
           "fragments": [
             "currentCalendarWorkloadReadsThroughMemberSpaceAndAuditsWithoutMaterializing",
             "revokedWorkloadSpaceFailsBeforeCalendarProviderQuery"
@@ -5732,14 +5770,14 @@
       "tag": "@native-files-webdav",
       "scenario": "Files native setup returns Weave WebDAV endpoint and Weave device credentials only",
       "feature": "e2e/features/native_os_integration_readiness.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
       "evidenceMarkers": [
         "NATIVE_FILES_WEBDAV_CONTROL_PLANE"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
           "fragments": [
             "/dav/files",
             "/api/files/client-setup/credentials",
@@ -5813,7 +5851,7 @@
       "tag": "@matrix-e2ee-provider-switch",
       "scenario": "Provider replacement accounts for encrypted history",
       "feature": "e2e/features/chat_matrix_e2ee.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/chat/adapter/WeaveCanonicalChatAdapterTest.java",
+      "executableTest": "server/domains/chat/src/test/java/com/massimotter/weave/backend/chat/adapter/WeaveCanonicalChatAdapterTest.java",
       "evidenceMarkers": [
         "MATRIX_E2EE_PROVIDER_SWITCH_BLOCKED"
       ],
@@ -6109,14 +6147,14 @@
       "tag": "@spaces-readable-name-identity",
       "scenario": "Human-readable Space names preserve opaque operation identity",
       "feature": "e2e/features/weave_spec_0005_acceptance.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/spaces/adapter/SpaceDisplayNamesPersistenceTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/spaces/adapter/SpaceDisplayNamesPersistenceTest.java",
       "evidenceMarkers": [
         "currentNamesSurviveReopenAndConflictingProvisionDoesNotRenameOrReplaceGrants"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/spaces/SpaceUserApiServiceTest.java",
+          "path": "server/core/src/test/java/com/massimotter/weave/backend/spaces/application/SpaceUserApiServiceTest.java",
           "fragments": [
             "singleReadReturnsCurrentAuthorizedDisplayName",
             "listsOnlyDurableVisibleSpacesInBoundedKeysetOrder",
@@ -6124,7 +6162,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/spaces/SpaceAdminApiServiceTest.java",
+          "path": "server/core/src/test/java/com/massimotter/weave/backend/spaces/application/SpaceAdminApiServiceTest.java",
           "fragments": [
             "changedRequestConflictsWithoutAuditOrMembershipOverwrite"
           ]
@@ -6135,21 +6173,21 @@
       "tag": "@spaces-legacy-name-preservation",
       "scenario": "Existing unnamed Spaces acquire names without losing owner data",
       "feature": "e2e/features/weave_spec_0005_acceptance.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/spaces/adapter/JpaSpaceAccessAdapterPostgresTest.java",
+      "executableTest": "server/app/src/test/java/com/massimotter/weave/backend/spaces/adapter/JpaSpaceAccessAdapterPostgresTest.java",
       "evidenceMarkers": [
         "legacyNameMigrationPreservesReferencesGrantsAndMaterializedFileRelationships"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/spaces/adapter/SpaceDisplayNamesPersistenceTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/spaces/adapter/SpaceDisplayNamesPersistenceTest.java",
           "fragments": [
             "explicitDefaultBootstrapCreatesCanonicalNameAndPreservesItsIdentityOnRetry",
             "currentNamesSurviveReopenAndConflictingProvisionDoesNotRenameOrReplaceGrants"
           ]
         },
         {
-          "path": "server/src/main/resources/db/migration/V14__space_display_names.sql",
+          "path": "server/app/src/main/resources/db/migration/V14__space_display_names.sql",
           "fragments": [
             "ALTER TABLE weave_spaces ADD COLUMN display_name",
             "PARTITION BY organization_ref ORDER BY space_ref",
@@ -6200,7 +6238,7 @@
       "evidenceMode": "live-runtime",
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/config/AdminUserHttpAdmissionTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/config/AdminUserHttpAdmissionTest.java",
           "fragments": [
             "adminSignedBearerReadsItsCurrentActorButCannotEnterUserMe",
             "nativeSignedBearerReadsUserMeButCannotEnterAdminControlPlane",
@@ -6209,7 +6247,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/service/AdminControlPlaneServiceTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/admin/application/AdminControlPlaneServiceTest.java",
           "fragments": [
             "currentActorUsesTheCanonicalAdmittedIdentityWithoutProviderSubjectOrSessionFields"
           ]
@@ -6247,13 +6285,13 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/dogfood/DogfoodPreparationContextPostgresTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/dogfood/DogfoodPreparationContextPostgresTest.java",
           "fragments": [
             "exactMinimalCommandContextValidatesServingSchemaWithoutWebSchedulersOrProviderBootstraps"
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/spaces/adapter/DogfoodSpacePreparationPersistenceTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/spaces/adapter/DogfoodSpacePreparationPersistenceTest.java",
           "fragments": [
             "createsOnlyTwoAbsentEditGrantsAndVerifiesExactGrantsWithoutChangingVersionsOrOwner"
           ]
@@ -6276,7 +6314,7 @@
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/dogfood/DogfoodPreparationProtocolTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/dogfood/DogfoodPreparationProtocolTest.java",
           "fragments": [
             "preRefreshRequiresExplicitDogfoodCandidateExactConfigAndValidationOnly",
             "unsafeDdlIsRejectedByInitializerBeforeAnyApplicationBeanCanRun",
@@ -6284,7 +6322,7 @@
           ]
         },
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/spaces/adapter/DogfoodSpacePreparationPersistenceTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/spaces/adapter/DogfoodSpacePreparationPersistenceTest.java",
           "fragments": [
             "secondTargetRevokedOrBroaderConflictLeavesFirstAbsentAndAllExistingStateUnchanged",
             "identityOrAuditFailureRollsBackBothNewGrants",
@@ -6317,14 +6355,14 @@
       "tag": "@admin-member-canonical-account-reference",
       "scenario": "Authorized administration links a current member to canonical Space identity",
       "feature": "e2e/features/admin_member_identity.feature",
-      "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/OrganizationMemberAdministrationServiceTest.java",
+      "executableTest": "server/core/src/test/java/com/massimotter/weave/backend/identity/member/application/OrganizationMemberAdministrationServiceTest.java",
       "evidenceMarkers": [
         "liveMemberAccountReferenceMatchesUserMeAndSpaceIdentityAcrossAttributeChanges"
       ],
       "evidenceMode": "offline-spec",
       "additionalEvidence": [
         {
-          "path": "server/src/test/java/com/massimotter/weave/backend/controller/OrganizationMemberAdministrationControllerTest.java",
+          "path": "server/app/src/test/java/com/massimotter/weave/backend/controller/OrganizationMemberAdministrationControllerTest.java",
           "fragments": [
             "class OrganizationMemberAdministrationControllerTest"
           ]

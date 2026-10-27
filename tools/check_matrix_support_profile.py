@@ -95,7 +95,7 @@ def check_profile(profile: str, root: Path) -> list[str]:
         if not surface or status not in STATUSES:
             errors.append(f"{row_id}: surface or status is invalid")
         if protocol != "pending":
-            problem = _assertion(protocol, root, "server/src/test/")
+            problem = _assertion(protocol, root, "server/app/src/test/")
             if problem:
                 errors.append(f"{row_id}: {problem}")
         if status in {"Supported", "Unsupported"} and protocol == "pending":

@@ -95,24 +95,21 @@ http.Response _capabilities() {
   };
   return http.Response(
     jsonEncode({
-      for (final key in [
-        'shellAccess',
-        'chat',
-        'files',
-        'calendar',
-        'boards',
-        'decisionsEvidence',
-        'manualsHelp',
-        'releaseEvidence',
-        'adminControlPlane',
-      ])
-        key: status(true),
-      for (final key in [
-        'meetingsCalls',
-        'documentsCollaboration',
-        'agentRuntimeControl',
-      ])
-        key: status(false),
+      'shellAccess': status(true),
+      'adminControlPlane': status(true),
+      'domains': {
+        for (final key in [
+          'chat',
+          'files',
+          'calendar',
+          'boards',
+          'decisions',
+          'devops',
+        ])
+          key: status(true),
+        for (final key in ['meetings', 'office', 'agent-runtime'])
+          key: status(false),
+      },
     }),
     200,
     headers: {'content-type': 'application/json'},

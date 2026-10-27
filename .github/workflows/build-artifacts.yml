@@ -5,6 +5,10 @@ on:
     branches: [dev]
   workflow_dispatch:
     inputs:
+      domains:
+        description: Optional domain selection; empty uses the actual source branch pin, then all
+        type: string
+        default: ''
       components:
         description: Component set to build or reuse
         type: choice
@@ -18,6 +22,9 @@ on:
       candidate:
         type: string
         required: true
+      domains:
+        type: string
+        default: ''
       components:
         type: string
         default: runtime-linux-amd64,ios-simulator,ios-device
@@ -39,6 +46,7 @@ jobs:
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
       needs-build: ${{ steps.plan.outputs.needs-build }}
+      domains: ${{ steps.plan.outputs.domains }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -53,7 +61,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           BUILD_COMPONENTS: ${{ inputs.components || 'runtime-linux-amd64,ios-simulator,ios-device' }}
-        run: python3 tools/build_artifacts.py plan --components "$BUILD_COMPONENTS" --output build/artifact-plan.json
+          REQUESTED_DOMAINS: ${{ inputs.domains }}
+          SOURCE_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          selection_args=(--domains "$REQUESTED_DOMAINS")
+          if [[ "$SOURCE_REF" == refs/heads/* ]]; then
+            selection_args+=(--source-branch "${SOURCE_REF#refs/heads/}" --source-commit "$GITHUB_SHA")
+          fi
+          python3 tools/build_artifacts.py plan --components "$BUILD_COMPONENTS" "${selection_args[@]}" --output build/artifact-plan.json
 
   build:
     name: Build component (${{ matrix.component }})
@@ -100,7 +117,8 @@ jobs:
       - name: Build portable component
         env:
           COMPONENT: ${{ matrix.component }}
-        run: python3 tools/build_artifacts_hosted.py --component "$COMPONENT" --output build/hosted-component
+          RESOLVED_DOMAINS: ${{ needs.plan.outputs.domains }}
+        run: python3 tools/build_artifacts_hosted.py --component "$COMPONENT" --domains "$RESOLVED_DOMAINS" --output build/hosted-component
       - name: Publish immutable component artifact
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
@@ -127,11 +145,13 @@ jobs:
           persist-credentials: false
       - name: Verify producers and compose candidate
         env:
+          RESOLVED_DOMAINS: ${{ needs.plan.outputs.domains }}
           GH_TOKEN: ${{ github.token }}
           BUILD_COMPONENTS: ${{ inputs.components || 'runtime-linux-amd64,ios-simulator,ios-device' }}
         run: >-
           python3 tools/build_artifacts.py resolve
           --components "$BUILD_COMPONENTS"
+          --domains "$RESOLVED_DOMAINS"
           --scenario fixtures/member-client-baseline/v1.json
           --output build/candidate-artifacts.json
       - name: Record composition artifact identity

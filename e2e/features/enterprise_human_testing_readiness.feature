@@ -173,7 +173,7 @@ Feature: Human testing starts from green E2E and one exact installed dogfood bui
   @human-ready-dogfood-operator-preparation
   Scenario: The reviewed Dogfood operator prepares normal test members without personal Admin sign-in
     Given one exact serving Dogfood candidate and a private named two-member preparation plan
-    And the existing unique enabled owner has current durable default-Space administration
+    And the recorded enabled setup owner has current durable default-Space administration
     When the explicit host command executes the non-listening Server preparation
     Then normal invitations or explicit managed fixture provisioning use a distinct audited operator identity
     And both prepared members complete their own ordinary application PKCE

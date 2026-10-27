@@ -89,7 +89,7 @@
       "issue": 651,
       "requiredBeforeHumanValidation": true,
       "status": "pending-current-evidence",
-      "commands": ["./gradlew :server:test --tests 'com.massimotter.weave.backend.agentruntime.*'"],
+      "commands": ["./gradlew :server:app:test --tests 'com.massimotter.weave.backend.agentruntime.*'"],
       "evidence": ["docs/evidence/weaver-security-privacy-accessibility-report.md", "infra/docs/weaver-runtime-lifecycle.md"]
     },
     {
@@ -98,8 +98,8 @@
       "requiredBeforeHumanValidation": true,
       "status": "pending-current-evidence",
       "commands": [
-        "./gradlew :server:test --tests 'com.massimotter.weave.backend.agentruntime.adapter.S3EncryptedRuntimeStateStoreTest'",
-        "./gradlew :server:postgresJpaTest --tests 'com.massimotter.weave.backend.schema.SchemaAuthorityInitializerPostgresTest'"
+        "./gradlew :server:app:test --tests 'com.massimotter.weave.backend.agentruntime.persistence.S3EncryptedRuntimeStateStoreTest'",
+        "./gradlew :server:app:postgresJpaTest --tests 'com.massimotter.weave.backend.schema.SchemaAuthorityInitializerPostgresTest'"
       ],
       "evidence": [
         "server/src/test/java/com/massimotter/weave/backend/agentruntime/adapter/S3EncryptedRuntimeStateStoreTest.java",

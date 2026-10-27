@@ -1,3 +1,8 @@
+import 'package:http/io_client.dart';
+import 'package:weave/generated/user_api/api.dart' as user_api;
+import 'package:weave/features/shell/domain/entities/shell_destination.dart';
+import 'package:weave/integrations/weave_api/data/dtos/workspace_capabilities_response_dto.dart';
+import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 import 'dart:async';
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/auth/domain/entities/auth_failure.dart';
@@ -47,7 +52,6 @@ import 'package:weave/features/files/presentation/files_locations_screen.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/help/presentation/help_screen.dart';
 import 'package:weave/features/home/presentation/home_screen.dart';
-import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
 import 'package:weave/features/onboarding/presentation/organization_access_screen.dart';
@@ -337,6 +341,8 @@ void main() {
       UserProfile? userProfile,
       FakeChatRepository? chatRepository,
       AsyncValue<WorkspaceCapabilitySnapshot> Function()? capabilities,
+      WorkspaceCapabilitySnapshot? backendCapabilities,
+      WorkspaceCapabilitySnapshot Function()? backendCapabilitiesLoader,
       bool usePersistedConfiguration = false,
       ResolveAppBootstrap? resolver,
       SignInWithOidc? interactiveSignIn,
@@ -421,7 +427,10 @@ void main() {
           // Keep router tests focused on navigation so widget-test HTTP
           // failures do not schedule Riverpod retry timers after disposal.
           weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
-            (ref) async => _workspaceCapabilitySnapshot().value,
+            (ref) async =>
+                backendCapabilitiesLoader?.call() ??
+                backendCapabilities ??
+                _workspaceCapabilitySnapshot().value,
           ),
           weaveApiMemberSpacesProvider.overrideWith(
             (ref) async => const MemberSpaceAccessSnapshot(
@@ -1423,6 +1432,281 @@ void main() {
     });
 
     testWidgets(
+      'retained Calendar branch safely leaves a reduced installation without replacing the router',
+      (tester) async {
+        var current = _workspaceCapabilitySnapshot().requireValue;
+        final container = createContainer(
+          configuration: buildTestConfiguration(),
+          secureStore: InMemorySecureStore({
+            authSessionStorageKey: AuthSessionDto.fromSession(
+              buildTestAuthSession(),
+            ).encode(),
+          }),
+          backendCapabilitiesLoader: () => current,
+          capabilities: () => AsyncData(current),
+        );
+        addTearDown(container.dispose);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const WeaveApp(),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final router = container.read(appRouterProvider);
+        router.go(AppRoutes.calendar);
+        await tester.pumpAndSettle();
+        expect(find.byType(CalendarScreen), findsOneWidget);
+        current = WorkspaceCapabilitySnapshot(
+          shellAccess: current.shellAccess,
+          files: current.files,
+        );
+        container.invalidate(weaveApiWorkspaceCapabilitySnapshotProvider);
+        container.invalidate(workspaceCapabilitySnapshotProvider);
+        await tester.pumpAndSettle();
+        expect(container.read(appRouterProvider), same(router));
+        expect(router.routeInformationProvider.value.uri.path, AppRoutes.home);
+        expect(find.byType(CalendarScreen), findsNothing);
+        router.go(AppRoutes.settings);
+        await tester.pumpAndSettle();
+        final navigation = tester.widget<NavigationBar>(
+          find.byType(NavigationBar),
+        );
+        expect(navigation.destinations.length, 3);
+        expect(navigation.selectedIndex, 2);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    Future<void> assertSelectedNavigation(
+      WidgetTester tester,
+      Set<String> selection,
+      WorkspaceCapabilitySnapshot snapshot,
+      ServerConfiguration configuration, {
+      String token = 'fixture-token',
+    }) async {
+      final savedProfiles = SharedPreferencesServerConfigurationRepository(
+        store: InMemoryPreferencesStore(),
+        deriver: ServiceEndpointDeriver(),
+      );
+      await savedProfiles.saveConfiguration(configuration);
+      final restored = (await savedProfiles.loadConfiguration())!;
+      expect(
+        restored.serviceEndpoints.matrixHomeserverUrl != null,
+        selection.contains('chat'),
+      );
+      final secureStore = InMemorySecureStore({
+        authSessionStorageKey: AuthSessionDto.fromSession(
+          buildTestAuthSession(
+            issuer: configuration.oidcIssuerUrl.toString(),
+            clientId: configuration.oidcClientRegistration.clientId,
+            accessToken: token,
+          ),
+        ).encode(),
+      });
+      final container = createContainer(
+        configuration: restored,
+        configurationRepository: savedProfiles,
+        secureStore: secureStore,
+        backendCapabilities: snapshot,
+        capabilities: () => AsyncData(snapshot),
+      );
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const WeaveApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final router = container.read(appRouterProvider);
+      expect(router.routeInformationProvider.value.uri.path, AppRoutes.home);
+      final expectedIds = [
+        'home',
+        if (selection.contains('chat')) 'chat',
+        if (selection.contains('files')) 'files',
+        if (selection.contains('calendar')) 'calendar',
+        'settings',
+      ];
+      expect(
+        tester
+            .widget<NavigationBar>(find.byType(NavigationBar))
+            .destinations
+            .length,
+        expectedIds.length,
+      );
+      for (final id in ['chat', 'files', 'calendar']) {
+        expect(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is Semantics &&
+                widget.properties.identifier == 'nav-$id',
+          ),
+          selection.contains(id) ? findsOneWidget : findsNothing,
+        );
+        if (!selection.contains(id)) {
+          router.go('/$id/retained');
+          await tester.pumpAndSettle();
+          expect(
+            router.routeInformationProvider.value.uri.path,
+            AppRoutes.home,
+          );
+        }
+      }
+      router.go(AppRoutes.settings);
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
+        expectedIds.indexOf('settings'),
+      );
+      container.invalidate(weaveApiWorkspaceCapabilitySnapshotProvider);
+      container.invalidate(weaveApiMemberSpacesProvider);
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<NavigationBar>(find.byType(NavigationBar))
+            .destinations
+            .length,
+        expectedIds.length,
+      );
+      expect(tester.takeException(), isNull);
+    }
+
+    for (final selection in [
+      <String>{'files', 'chat', 'calendar'},
+      <String>{'files'},
+      <String>{'calendar'},
+      <String>{'chat'},
+    ]) {
+      testWidgets(
+        'stable installed navigation for ${selection.join(',')} despite unready operations',
+        (tester) async {
+          Map<String, Object?> status() => {
+            'enabled': false,
+            'readiness': 'unavailable',
+            'policyState': 'disabled',
+            'grantedCapabilities': <String>[],
+          };
+          final wire = user_api.WorkspaceCapabilitiesResponse.fromJson({
+            'shellAccess': {
+              ...status(),
+              'enabled': true,
+              'readiness': 'ready',
+              'policyState': 'allowed',
+            },
+            'adminControlPlane': status(),
+            'domains': {for (final id in selection) id: status()},
+          })!;
+          await assertSelectedNavigation(
+            tester,
+            selection,
+            wire.toSnapshot(),
+            buildTestConfiguration(
+              domains: selection.toList(),
+              matrixHomeserverUrl: selection.contains('chat')
+                  ? 'https://matrix.home.internal'
+                  : null,
+            ),
+          );
+        },
+      );
+    }
+
+    testWidgets(
+      'selected packaged server bootstraps and navigates through generated consumers',
+      (tester) async {
+        final base = Platform.environment['WEAVE_SELECTED_TEST_ORIGIN']!;
+        final selection = Platform.environment['WEAVE_SELECTED_TEST_DOMAINS']!
+            .split(',')
+            .toSet();
+        final token = File(
+          Platform.environment['WEAVE_SELECTED_TEST_TOKEN_FILE']!,
+        ).readAsStringSync();
+        final result = await tester.runAsync(() async {
+          return HttpOverrides.runWithHttpOverrides(() async {
+            final transport = IOClient(HttpClient());
+            try {
+              final authentication = user_api.HttpBearerAuth()
+                ..accessToken = token;
+              final api = user_api.ApiClient(
+                basePath: base,
+                authentication: authentication,
+              )..client = transport;
+              final platform = user_api.PlatformApi(api);
+              final manifestResponse = await platform
+                  .configWithHttpInfo()
+                  .timeout(const Duration(seconds: 10));
+              expect(manifestResponse.statusCode, 200);
+              final manifestJson =
+                  jsonDecode(manifestResponse.body) as Map<String, dynamic>;
+              final manifest = user_api.OrgManifestResponse.fromJson(
+                manifestJson,
+              );
+              final status = await platform.getPlatformStatus().timeout(
+                const Duration(seconds: 10),
+              );
+              final capabilities = await user_api.WorkspaceApi(
+                api,
+              ).capabilities();
+              expect(manifest, isNotNull);
+              expect(status, isNotNull);
+              expect(capabilities, isNotNull);
+              // Future runtimes without a workspace contribution do not fabricate one.
+              // Every advertised owner must be selected, and all client-known installed
+              // features must be present regardless of runtime health/member grants.
+              expect(
+                capabilities!.domains.keys.toSet().difference(selection),
+                isEmpty,
+              );
+              for (final id
+                  in ShellDestination.values
+                      .map((destination) => destination.domainId)
+                      .whereType<String>()) {
+                expect(
+                  capabilities.domains.containsKey(id),
+                  selection.contains(id),
+                );
+              }
+              expect(status!.matrix != null, selection.contains('chat'));
+              expect(
+                manifest!.protocols.matrixClientServerBaseUrl != null,
+                selection.contains('chat'),
+              );
+              final parsed = AppStartDiscoveryClient.parseManifest(
+                manifestJson,
+                const OrganizationAccessParser().parse(
+                  Uri.parse('https://weave.test'),
+                ),
+              );
+              expect(
+                parsed.matrixClientServerBaseUrl != null,
+                selection.contains('chat'),
+              );
+              return (
+                capabilities.toSnapshot(),
+                parsed.toServerConfiguration(
+                  Uri.parse('https://weave.test'),
+                  validatedAt: DateTime.now().toUtc(),
+                ),
+              );
+            } finally {
+              transport.close();
+            }
+          }, _RealNetworkOverrides());
+        });
+        final (snapshot, configuration) = result!;
+        await assertSelectedNavigation(
+          tester,
+          selection,
+          snapshot,
+          configuration,
+          token: token,
+        );
+      },
+      skip: !Platform.environment.containsKey('WEAVE_SELECTED_TEST_ORIGIN'),
+    );
+
+    testWidgets(
       'keeps every current member route reachable when Calendar is unavailable',
       (tester) async {
         final secureStore = InMemorySecureStore({
@@ -1735,3 +2019,6 @@ void main() {
     });
   });
 }
+
+/// Real loopback transport only for the packaged-JAR lane; TLS validation remains enabled.
+class _RealNetworkOverrides extends HttpOverrides {}

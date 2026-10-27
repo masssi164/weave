@@ -161,7 +161,7 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
     }
     final subject = _verifiedSubject(session, authConfiguration);
     final homeserver = configuration.serviceEndpoints.matrixHomeserverUrl;
-    if (!_isSecureMatrixOrigin(homeserver)) {
+    if (homeserver == null || !_isSecureMatrixOrigin(homeserver)) {
       await _dropActive();
       throw const ChatFailure.configuration(
         'M_WEAVE_MATRIX_ENDPOINT_UNCONFIRMED',
@@ -460,6 +460,8 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
             'M_WEAVE_MATRIX_LOGOUT_ENDPOINT_UNCONFIRMED',
           );
         }
+        // A no-Chat installation has no Matrix session to revoke.
+        if (configuration.serviceEndpoints.matrixHomeserverUrl == null) return;
         final authState = await _authSessionRepository.restoreSession(
           AuthConfiguration(
             issuer: configuration.oidcIssuerUrl,
@@ -469,7 +471,7 @@ class WeaveMemberMatrixSessionCoordinator implements MatrixCryptoSessionPort {
         final session = authState.session;
         if (!authState.isAuthenticated || session == null) return;
         final homeserver = configuration.serviceEndpoints.matrixHomeserverUrl;
-        if (!_isSecureMatrixOrigin(homeserver)) {
+        if (homeserver == null || !_isSecureMatrixOrigin(homeserver)) {
           throw const ChatFailure.configuration(
             'M_WEAVE_MATRIX_LOGOUT_ENDPOINT_UNCONFIRMED',
           );

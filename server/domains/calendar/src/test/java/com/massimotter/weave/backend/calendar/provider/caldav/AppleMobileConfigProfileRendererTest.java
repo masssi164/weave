@@ -1,0 +1,57 @@
+package com.massimotter.weave.backend.calendar.provider.caldav;
+
+import com.massimotter.weave.backend.calendar.application.AppleMobileConfigProfile;
+import com.massimotter.weave.backend.calendar.domain.CalendarPrincipal;
+import org.junit.jupiter.api.Test;
+
+import java.nio.charset.StandardCharsets;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class AppleMobileConfigProfileRendererTest {
+
+    @Test
+    void rendersNoSecretAppleCaldavProfileMetadata() {
+        AppleMobileConfigProfileRenderer renderer = new AppleMobileConfigProfileRenderer("https://calendar.weave.test");
+
+        AppleMobileConfigProfile profile = renderer.renderUnsignedNoSecretProfile(
+                new CalendarPrincipal("subject-123", "maria"));
+
+        String plist = new String(profile.content(), StandardCharsets.UTF_8);
+        assertThat(profile.filename()).isEqualTo("weave-calendar-maria.mobileconfig");
+        assertThat(plist)
+                .contains("<string>com.apple.caldav.account</string>")
+                .contains("<key>CalDAVHostName</key>")
+                .contains("<string>calendar.weave.test</string>")
+                .contains("<key>CalDAVPort</key>")
+                .contains("<integer>443</integer>")
+                .contains("<key>CalDAVUseSSL</key>")
+                .contains("<true/>")
+                .contains("<key>CalDAVPrincipalURL</key>")
+                .contains("<string>/dav/principals/users/maria/</string>")
+                .contains("<key>CalDAVUsername</key>")
+                .contains("<string>maria</string>");
+        assertThat(plist)
+                .doesNotContain("/remote.php/dav")
+                .doesNotContain("Nextcloud")
+                .doesNotContain("app password");
+    }
+
+    @Test
+    void doesNotRenderPasswordBearerTokenOrBackendActorSecret() {
+        AppleMobileConfigProfileRenderer renderer = new AppleMobileConfigProfileRenderer("https://files.weave.test");
+
+        AppleMobileConfigProfile profile = renderer.renderUnsignedNoSecretProfile(
+                new CalendarPrincipal("user-with-backend-secret-sentinel", "alice"));
+
+        String plist = new String(profile.content(), StandardCharsets.UTF_8);
+        assertThat(plist)
+                .doesNotContain("CalDAVPassword")
+                .doesNotContain("Password")
+                .doesNotContain("Authorization")
+                .doesNotContain("Bearer")
+                .doesNotContain("backend-actor-token")
+                .doesNotContain("WEAVE_CALDAV_BACKEND_TOKEN")
+                .doesNotContain("user-with-backend-secret-sentinel");
+    }
+}

@@ -64,20 +64,36 @@ class OpenApiGeneratedConsumerTest(unittest.TestCase):
 
         assert_no_nullable(document)
 
-    def test_user_manifest_advertises_only_the_credential_free_matrix_endpoint(self) -> None:
+    def test_user_manifest_keeps_required_protocols_and_conditional_matrix_endpoint(self) -> None:
         schemas = json.loads(client.CONTRACT.read_text())["components"]["schemas"]
         manifest = schemas["OrgManifestResponse"]
         self.assertTrue({"oidc", "protocols", "userApiBaseUrl"}.issubset(manifest["required"]))
-        self.assertEqual(
-            {"matrixClientServerBaseUrl"},
-            set(schemas["Protocols"]["required"]),
-        )
+        # Required protocols remains a container; its Matrix member is conditional
+        # on installed Chat and is enforced by the serving/client bootstrap tests.
+        self.assertEqual(set(), set(schemas["Protocols"].get("required", [])))
         self.assertEqual({"matrixClientServerBaseUrl"}, set(schemas["Protocols"]["properties"]))
         self.assertEqual("uri", schemas["Protocols"]["properties"]["matrixClientServerBaseUrl"]["format"])
         generated = (client.OUTPUT / "model/protocols.dart").read_text()
-        self.assertIn("required this.matrixClientServerBaseUrl", generated)
+        self.assertIn("String? matrixClientServerBaseUrl", generated)
+        self.assertNotIn("required this.matrixClientServerBaseUrl", generated)
         self.assertNotIn("matrixOAuthIssuer", generated)
         self.assertNotIn("matrixOAuthClientId", generated)
+
+    def test_workspace_projection_requires_core_and_a_typed_installed_domain_map(self) -> None:
+        schemas = json.loads(client.CONTRACT.read_text())["components"]["schemas"]
+        workspace = schemas["WorkspaceCapabilitiesResponse"]
+        required = {"shellAccess", "adminControlPlane", "domains"}
+        self.assertEqual(required, set(workspace["required"]))
+        self.assertEqual(required, set(workspace["properties"]))
+        self.assertEqual("object", workspace["properties"]["domains"]["type"])
+        self.assertEqual(
+            {"$ref": "#/components/schemas/WorkspaceCapabilityStatusResponse"},
+            workspace["properties"]["domains"]["additionalProperties"],
+        )
+        self.assertTrue({"enabled", "readiness", "policyState", "grantedCapabilities"}
+                        .issubset(schemas["WorkspaceCapabilityStatusResponse"]["required"]))
+        generated = (client.OUTPUT / "model/workspace_capabilities_response.dart").read_text()
+        self.assertIn("Map<String, WorkspaceCapabilityStatusResponse> domains", generated)
 
     def test_current_admin_console_has_no_parallel_arc_http_transport(self) -> None:
         api_source = (admin.ROOT / "admin-console/src/api.ts").read_text()

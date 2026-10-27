@@ -21,9 +21,16 @@ BASELINE = 'tools/fixtures/java_agent_legacy_selectors.json'
 SKILLS = ('weave-spring-architecture', 'weave-http-clients',
           'weave-config-and-beans', 'weave-native-aot')
 STANDARD = 'docs/java-spring-standard.md'
-MODULES = ('server', 'weave-application-core', 'weave-files-core',
-           'weave-persistence-jpa', 'weave-runtime-provider-adapters',
-           'weave-runtime-security-adapters', 'weave-mcp-server', 'weave-product-e2e')
+# Required roots track actual extracted libraries, not the retired root Files project.
+# The walk below still inspects every production source root, including future modules.
+MODULES = ('server/app', 'server/core', 'server/core/model',
+           'server/domains/agent-runtime/model', 'server/domains/agent-runtime/persistence',
+           'server/domains/agent-runtime/provider', 'server/domains/agent-runtime/security',
+           'server/domains/portability/model', 'server/domains/portability/persistence',
+           'server/domains/chat/persistence',
+           'server/domains/files', 'server/domains/files/model', 'server/domains/files/persistence',
+           'server/domains/calendar', 'server/domains/calendar/model', 'server/domains/calendar/persistence',
+           'weave-mcp-server', 'weave-product-e2e')
 SKIP = {'.git', '.gradle', '.dart_tool', 'build', 'target', 'node_modules'}
 STRING = r'"""[\s\S]*?"""|"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\''
 JAVA_TOKEN = re.compile(rf'({STRING})|//[^\n]*|/\*[\s\S]*?\*/')
@@ -78,7 +85,6 @@ def java_selectors(source: str):
         if PROPERTY.search(annotation) or split_property or profile:
             covered.append((start, end))
             yield 'java-annotation', compact(annotation), source.count('\n', 0, start) + 1
-    # Literal access outside annotations includes Environment.getProperty/System.getenv.
     for literal in LITERAL.finditer(source):
         if any(start <= literal.start() < end for start, end in covered):
             continue
@@ -109,7 +115,7 @@ def source_paths(root: Path, failures: list[str]):
             failures.append(f'scan-root-missing-or-empty: {module}/src/main/java')
         if any(parent.is_symlink() for parent in (path, *path.parents) if parent != root and root in parent.parents):
             failures.append(f'source-symlink-not-scanned: {module}/src/main/java')
-    for module in ('server', 'weave-mcp-server'):
+    for module in ('server/app', 'weave-mcp-server'):
         if not (root / module / 'src/main/resources/application.yml').is_file():
             failures.append(f'configuration-root-missing: {module}/src/main/resources/application.yml')
     for directory, directories, files in os.walk(root):
@@ -151,7 +157,6 @@ def selector_violations(root: Path) -> list[str]:
             key = relative, kind, signature
             found[key] += 1
             if found[key] > allowed[key]:
-                # Never echo source lines, configuration values or possible secrets.
                 failures.append(f'new-startup-provider-selector: {relative}:{line}: {kind}')
     return failures
 
@@ -168,8 +173,6 @@ def skill_violations(root: Path) -> list[str]:
             continue
         source = path.read_text()
         frontmatter = re.match(r'\A---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)', source)
-        # Repository skills deliberately use plain single-line metadata. This checks
-        # the required fields, not arbitrary YAML serialization or optional metadata.
         names = re.findall(r'^name:\s*(\S[^\n]*)$', frontmatter[1] if frontmatter else '', re.M)
         descriptions = re.findall(r'^description:[ \t]*(\S[^\n]*)$', frontmatter[1] if frontmatter else '', re.M)
         description = descriptions[0].strip().strip('"\'').strip() if len(descriptions) == 1 else ''

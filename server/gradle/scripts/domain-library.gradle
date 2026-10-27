@@ -1,0 +1,39 @@
+// Shared mechanics only: every domain library owns its dependencies and beans.
+// Domain-specific coordinates prevent Files:model and Calendar:model from claiming the same capability.
+group = "com.massimotter.weave.${project.parent.name}"
+version = '0.1.0'
+
+base {
+    archivesName = "weave-${project.parent.name}-${project.name}"
+}
+
+java {
+    toolchain { languageVersion = JavaLanguageVersion.of(21) }
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+}
+
+// Runtime libraries own HTTP handlers/proxies too; preserve names required by Spring and AOT.
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs.add('-parameters')
+}
+
+// Libraries with real context suites opt in locally; model-only projects retain plain unit tasks.
+if (project.ext.has('weaveContextTests') && project.ext.get('weaveContextTests') == true) {
+    tasks.named('test', Test) {
+        useJUnitPlatform { excludeTags 'context' }
+    }
+
+    def contextTest = tasks.register('contextTest', Test) {
+        group = 'verification'
+        description = 'Run actual application-context and module imports-discovery tests.'
+        testClassesDirs = sourceSets.test.output.classesDirs
+        classpath = sourceSets.test.runtimeClasspath
+        useJUnitPlatform { includeTags 'context' }
+        shouldRunAfter tasks.named('test')
+    }
+
+    tasks.named('check') { dependsOn contextTest }
+}

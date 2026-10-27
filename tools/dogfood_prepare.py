@@ -33,7 +33,7 @@ HEX = re.compile(r"^[0-9a-f]{32}$")
 HASH = re.compile(r"^[0-9a-f]{64}$")
 COMMIT = re.compile(r"^[0-9a-f]{40}$")
 OPERATOR_BOUNDARIES = frozenset({"invalid-request", "dogfood-posture-required", "candidate-mismatch", "configuration-mismatch",
-    "schema-authority-unavailable", "owner-unavailable", "owner-policy-denied", "owner-space-access-conflict", "plan-conflict",
+    "schema-authority-unavailable", "owner-unavailable", "owner-policy-denied", "member-policy-denied", "owner-space-access-conflict", "plan-conflict",
     "operator-reference-conflict", "invitation-conflict", "invitation-expired", "invitation-revoked", "invitation-outcome-uncertain",
     "identity-unavailable", "test-member-state-conflict", "test-member-not-activated", "member-proof-required", "member-proof-conflict",
     "space-access-conflict", "space-version-conflict", "identity-provider-unavailable", "persistence-unavailable", "audit-unavailable",
