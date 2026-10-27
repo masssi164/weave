@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -39,8 +40,12 @@ class DomainUnitWorkflowTest(unittest.TestCase):
         (self.root / 'server/domains/catalog.json').write_text(json.dumps(self.catalog), encoding='utf-8')
         # This verifies transport/scheduling only; actual JVM checks have their own lane.
         wrapper = self.root / 'gradlew'
-        wrapper.write_text('#!/usr/bin/env python3\nimport json, sys\n'
-                           'print("GRADLE_ARGUMENTS=" + json.dumps(sys.argv[1:]))\n', encoding='utf-8')
+        wrapper.write_text('#!/usr/bin/env python3\nimport json, subprocess, sys\n'
+                           'print("GRADLE_ARGUMENTS=" + json.dumps(sys.argv[1:]))\n'
+                           'domains = [arg.partition("=")[2] for arg in sys.argv[1:] if arg.startswith("-Pdomains=")]\n'
+                           'result = subprocess.run([sys.executable, "tools/domain_selection_resolver.py",\n'
+                           '    "--domains", domains[-1] if domains else ""], text=True, capture_output=True, check=True)\n'
+                           'print("DOMAIN_SELECTION=" + result.stdout.strip())\n', encoding='utf-8')
         wrapper.chmod(0o755)
         self.git('init', '--quiet', '--initial-branch=dev')
         self.git('add', 'tools', 'server', 'gradlew')
@@ -159,6 +164,53 @@ class DomainUnitWorkflowTest(unittest.TestCase):
         self.assertIn("RUSTUP_TOOLCHAIN: '1.95.0'", text)
         self.assertIn("if: contains(format(',{0},', matrix.domains), ',chat,')", text)
         self.assertIn('rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal', text)
+
+    def test_full_core_ci_commands_override_dev_release_pin_and_pr_fallback(self) -> None:
+        # Run the actual full CI shell commands through the same resolver that Gradle uses.
+        # A detached PR defaults to all domains; the Dev checkout instead uses the release pin.
+        self.catalog = json.loads((ROOT / 'server/domains/catalog.json').read_text(encoding='utf-8'))
+        (self.root / 'server/domains/catalog.json').write_text(json.dumps(self.catalog), encoding='utf-8')
+        full_tasks = {
+            'coreArchitectureCi', 'canonicalDataCi', 'mcpFoundationCi', 'testAppContract',
+            'postgresPersistenceCi', 'protocolFacadeFoundationCi', 'generatedApiContractCi',
+            'generatedUserApiConsumerCi', 'generatedAdminApiConsumerCi',
+        }
+        commands = []
+        for line in (ROOT / '.github/workflows/ci.yml').read_text(encoding='utf-8').splitlines():
+            if './gradlew ' in line:
+                command = line[line.index('./gradlew '):]
+                if full_tasks.intersection(shlex.split(command)):
+                    commands.append(command)
+        self.assertEqual({task for command in commands for task in shlex.split(command)
+                          if task in full_tasks}, full_tasks)
+
+        def selection(command: str) -> dict:
+            result = subprocess.run(['bash', '-c', command], cwd=self.root,
+                                    text=True, capture_output=True, check=False)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            selections = [line.removeprefix('DOMAIN_SELECTION=') for line in result.stdout.splitlines()
+                          if line.startswith('DOMAIN_SELECTION=')]
+            self.assertEqual(len(selections), 1, result.stdout)
+            return json.loads(selections[0])
+
+        all_domains = sorted(self.catalog['domains'])
+        pinned_domains = sorted(self.catalog['selection']['pinned_domains'])
+        self.assertNotEqual(pinned_domains, all_domains)
+        for source in ('dev', 'detached-pr'):
+            if source == 'dev':
+                self.git('checkout', '--quiet', 'dev')
+            else:
+                self.git('checkout', '--quiet', '--detach', self.commit)
+            with self.subTest(source=source, implicit=True):
+                self.assertEqual(selection('./gradlew generatedApiContractCi'), {
+                    'domains': pinned_domains if source == 'dev' else all_domains,
+                    'selectionSource': 'pin' if source == 'dev' else 'all',
+                })
+            for command in commands:
+                with self.subTest(source=source, command=command):
+                    self.assertEqual(selection(command), {
+                        'domains': all_domains, 'selectionSource': 'explicit',
+                    })
 
 
 if __name__ == '__main__':

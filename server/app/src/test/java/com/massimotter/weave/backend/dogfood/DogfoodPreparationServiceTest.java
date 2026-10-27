@@ -350,7 +350,8 @@ class DogfoodPreparationServiceTest {
 
     @Test void readOnlyHandoffPreservesStaleGrantFailureWithoutRepair() {
         var prior = preparedForVerification();
-        when(spaces.verifyTwo(anyString(), anyString(), anyList(), any())).thenThrow(new DogfoodSpacePreparationPort.VersionConflict());
+        doThrow(new DogfoodSpacePreparationPort.VersionConflict()).when(spaces)
+                .verifyTwo(anyString(), anyString(), anyList(), any());
         var result = service.execute(verificationRequest(prior));
         assertThat(result.receipt().status()).isEqualTo("blocked");
         assertThat(result.receipt().boundary()).isEqualTo("space-version-conflict");
