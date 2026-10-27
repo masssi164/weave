@@ -111,8 +111,8 @@ def main() -> int:
             "Verify capacity before artifact consumption",
             "Consume the qualified runtime and iPhone artifacts",
             "Start dogfood twice and prove TLS identity is stable",
-            "Create first owner invitation in private Mailpit",
             "Sign the hosted artifact, install in place, and observe ordinary startup",
+            "Verify the prepared member and installed artifact",
         ),
         "Prepare Human Test",
     )
@@ -124,8 +124,9 @@ def main() -> int:
         "tools/dogfood_cert_persistence_smoke.py",
         "tools/prepare_iphone_artifact.py",
         "./gradlew --no-daemon dogfoodUp",
-        "load_context('dogfood'",
-        "env['WEAVE_MAILPIT_URL']",
+        "WEAVE_HUMAN_TEST_MEMBER_SLOT:",
+        '--tester-slot "$WEAVE_HUMAN_TEST_MEMBER_SLOT"',
+        "from tools.verify_main_promotion_evidence import preparation_passed",
     ):
         require(marker in prepare, f"Prepare Human Test is missing {marker!r}")
     for step_name in (
@@ -136,7 +137,8 @@ def main() -> int:
         step = prepare.split(f"      - name: {step_name}\n", 1)[1].split("      - name:", 1)[0]
         require('[[ "$(git rev-parse origin/dogfood)" == "$DOGFOOD_COMMIT" ]]' in step,
                 f"{step_name} must reject a superseded candidate")
-    for forbidden in ("TestFlight", "upload_to_testflight", "candidateManifestDigest", "environment:"):
+    for forbidden in ("TestFlight", "upload_to_testflight", "candidateManifestDigest", "environment:",
+                      "bootstrap-owner", "bootstrap_owner", "owner_email", "owner-space-preparation"):
         require(forbidden not in prepare, f"Prepare Human Test retains the retired gate {forbidden!r}")
     require("infra/weave-workspace/compose.sh dogfood bootstrap-owner" in owner, "first-owner invitation does not use the Server-owned Compose boundary")
     require("environment:" not in owner, "first-owner invitation still waits for an environment approval")
