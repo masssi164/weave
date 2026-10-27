@@ -15,7 +15,9 @@ void main() {
       expect(illustrations, contains('endpoint setup belongs to deployment'));
       expect(
         illustrations,
-        contains('executable product evidence comes from the native acceptance'),
+        contains(
+          'executable product evidence comes from the native acceptance',
+        ),
       );
       expect(illustrations, isNot(contains('active product-maturity')));
 
