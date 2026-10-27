@@ -1,29 +1,27 @@
 # Provider HTTP integration provenance
 
 This is the implementation record for [#1730](https://github.com/masssi164/weave/issues/1730)
-and its existing HTTP-client PR #1732, reconciled into domain extraction PR #1746.
+and merged HTTP-client PR #1732, integrated into domain extraction PR #1746.
 The [Java/Spring standard](../../docs/java-spring-standard.md) owns implementation rules;
-[this ownership plan](../../docs/architecture/server-domain-ownership.md) owns the living extraction status.
-This record does not define another architecture or product contract. The accepted corpus pin
-remains `f049c0b1879414eb529a3df83a18224407f1a436`.
+[the ownership plan](../../docs/architecture/server-domain-ownership.md) owns the living extraction status.
+This record does not define another architecture or product contract.
 
 ## Implemented owners
 
 | Boundary | Actual owner and transport |
 |---|---|
-| Human Keycloak administration | Core `backend.identity.keycloak.KeycloakAdminClient` declares named HTTP operations. `KeycloakAuthConfig` binds the protected transport; `identity.invitation.KeycloakIdentityAdminClient` translates domain results and `KeycloakIdentityAdminOperationPolicy` enforces exact admission/status. |
+| Human Keycloak administration | Core `identity.keycloak.KeycloakAdminClient` declares named HTTP operations. `KeycloakAuthConfig` registers the `keycloak-admin` Boot HTTP-service group; `identity.invitation.KeycloakIdentityAdminClient` translates domain results and `KeycloakIdentityAdminOperationPolicy` enforces exact admission/status. |
 | Keycloak OAuth2 client authentication and SecretRefs | Existing Core `security.keycloak` and `security.secret` implementations; no duplicate token cache or transport. |
-| Files Nextcloud WebDAV | Files `files.config.http.NextcloudHttpConfig`; `files.provider.NextcloudFilesAdapter` retains specialized DAV/streaming/207 behavior. |
-| Calendar CalDAV | Calendar runtime `calendar.config.http.CalDavHttpConfig`; REPORT/PROPFIND and bounded parsing remain provider-owned. |
-| Chat Synapse | Chat `chat.provider.synapse.config.SynapseHttpConfig`, physically under App until Chat runtime extraction; Matrix streaming/auth/status remain adapter-owned. |
-| Future Boards OpenProject | `boards.openproject.config` HTTP interface/factory; physical App ownership remains transitional. Its two verb-level operations are not claimed as a complete endpoint-specific declarative conversion. |
+| Files Nextcloud WebDAV | Files `files.provider.NextcloudFilesAdapter` retains its Spring `RestClient`, explicit DAV methods, binary streaming, 207 and ETag behavior. |
+| Calendar CalDAV | Calendar `calendar.provider.caldav.CalDavCalendarAdapter` retains its JDK `HttpClient`, REPORT/PROPFIND and bounded parsing. |
+| Chat Synapse | Chat `chat.provider.synapse.SynapseApplicationServiceClient` retains its JDK `HttpClient` and deferred secret access; Matrix streaming/auth/status remain adapter-owned. |
+| Future Boards OpenProject | Boards `boards.provider.openproject.OpenProjectBoardsClient` retains endpoint-oriented imperative `RestClient` operations until a declarative conversion removes meaningful code. |
 
-`IdentityInvitationProperties` is now Core identity-owned and remains the sole binder with
-unchanged `weave.identity.invitations` keys/defaults. The redundant incoming
-`KeycloakAdminProperties` snapshot was consolidated into that existing typed configuration.
-OpenProject's immutable client settings redact their credential in generated output.
+`IdentityInvitationProperties` is Core identity-owned and remains the sole binder with unchanged
+`weave.identity.invitations` keys/defaults. No redundant settings snapshot, generic GET/PATCH proxy,
+secret-bearing OpenProject record or one-constructor HTTP wrapper remains from the earlier draft.
 
-Core registers actual serving identity administration through module-local
+Core registers serving identity administration through module-local
 `CoreIdentityAdminAutoConfiguration` imports, without component scanning. Non-web schema/operator
 contexts do not automatically construct serving transport. The existing Dogfood operator explicitly
 imports the protected config and adapter. Construction does not read mounted credentials or contact
@@ -31,17 +29,28 @@ Keycloak; token acquisition remains deferred to an authorized operation.
 
 ## Preserved security and behavior
 
-The protected client retains exact private-key JWT authentication, SecretRef access, connection/read
-timeouts, configured URL context paths, and 401 invalidation. The closed operation policy runs before
+`@ImportHttpServices` and `RestClientHttpServiceGroupConfigurer` own production registration and
+group-local policy. Spring handles query/form encoding and JSON conversion. The anti-corruption
+layer retains strict `JsonNode` field validation rather than accepting coerced provider values.
+The protected client retains private-key JWT authentication, exact SecretRef access, connection/read
+timeouts, configured URL context paths and 401 invalidation. The closed operation policy runs before
 transport and rejects unexpected successful statuses before response conversion. Managed-fixture
-admission is request-local metadata, never an outbound header. The production RestClient test-only
-constructor was removed; owning Core tests explicitly create the same protected proxy.
+admission is request-local metadata, never an outbound header. Member tokens are never relayed and
+provider writes are never implicitly retried.
+
+Only the test-source `KeycloakAdminTestClient` creates manual proxies for owning Core transport tests.
+The obsolete `KeycloakTestTransport` helper and production proxy factory are removed. Module extraction
+preserves the accepted #1732 transport instead of maintaining a second client implementation.
 
 Dynamic Keycloak client registration remains its separate protected workload flow. The offline realm
-migration CLI and framework-owned OAuth2/JWT discovery remain separate. No provider-selection policy,
-public API, supported endpoint, dependency version, or deployment contract changed in this merge.
+migration CLI and framework-owned OAuth2/JWT discovery remain separate. Provider selection, public APIs,
+supported endpoints, dependency versions and deployment contracts are unchanged by this integration.
 
-Validation commands and exact final results are recorded in the PR/checkpoint report. Owning checks:
-`./gradlew :server:core:check :server:domains:files:check`, App provider/auth regressions and
-`checkOpenApiContractFresh`. These JVM checks do not establish native/AOT or integrated deployment
-qualification.
+## Verification
+
+Owning Core tests cover Boot registration, no construction-time credential access, context paths,
+encoded queries/forms, request-local fixture admission, exact expected statuses and 401 invalidation.
+The normal imports-discovery tests verify one serving transport and its absence in non-web contexts.
+Run `./gradlew :server:core:check :server:domains:files:check`, affected App provider/auth regressions
+and `checkOpenApiContractFresh`. The current PR records exact outcomes and remaining gates. JVM or
+static checks do not establish native/AOT, live provider, Dogfood or human acceptance.

@@ -6,9 +6,6 @@ import com.massimotter.weave.backend.boards.port.BoardQuery;
 import com.massimotter.weave.backend.boards.port.TaskQuery;
 import com.massimotter.weave.backend.boards.support.BoardsErrorCode;
 import com.massimotter.weave.backend.boards.support.BoardsException;
-import com.massimotter.weave.backend.boards.provider.openproject.config.OpenProjectAuthConfig;
-import com.massimotter.weave.backend.boards.provider.openproject.config.OpenProjectClient;
-import com.massimotter.weave.backend.boards.provider.openproject.config.OpenProjectClientProperties;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -22,6 +19,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
@@ -38,16 +36,18 @@ final class OpenProjectBoardsClient {
     private static final String CURSOR_PREFIX = "op:v1:";
     private static final String API_USER = "apikey";
 
-    private final OpenProjectClientProperties properties;
-    private final OpenProjectClient restClient;
+    private final URI baseUrl;
+    private final String apiToken;
+    private final RestClient restClient;
 
     OpenProjectBoardsClient(URI baseUrl, String apiToken, RestClient.Builder restClientBuilder) {
-        this.properties = new OpenProjectClientProperties(baseUrl, apiToken);
-        this.restClient = OpenProjectAuthConfig.client(restClientBuilder);
+        this.baseUrl = baseUrl;
+        this.apiToken = apiToken == null ? "" : apiToken.trim();
+        this.restClient = restClientBuilder == null ? RestClient.builder().build() : restClientBuilder.build();
     }
 
     boolean isConfigured() {
-        return properties.configured();
+        return baseUrl != null && baseUrl.isAbsolute() && !apiToken.isBlank();
     }
 
     BoardPage<OpenProjectProjectSnapshot> listProjects(BoardQuery query) {
@@ -136,7 +136,11 @@ final class OpenProjectBoardsClient {
     private JsonNode get(String path, Map<String, String> queryParams, String operation, String mode) {
         URI uri = uri(path, queryParams);
         try {
-            return restClient.get(uri, basicAuthHeader());
+            return restClient.get()
+                    .uri(uri)
+                    .header(HttpHeaders.AUTHORIZATION, basicAuthHeader())
+                    .retrieve()
+                    .body(JsonNode.class);
         } catch (RestClientResponseException exception) {
             throw httpError(operation, exception, mode);
         } catch (ResourceAccessException exception) {
@@ -155,7 +159,13 @@ final class OpenProjectBoardsClient {
     private JsonNode patch(String path, Map<String, Object> body, String operation) {
         URI uri = uri(path, Map.of());
         try {
-            return restClient.patch(uri, basicAuthHeader(), body);
+            return restClient.patch()
+                    .uri(uri)
+                    .header(HttpHeaders.AUTHORIZATION, basicAuthHeader())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .body(JsonNode.class);
         } catch (RestClientResponseException exception) {
             throw httpError(operation, exception, "write");
         } catch (ResourceAccessException exception) {
@@ -189,13 +199,13 @@ final class OpenProjectBoardsClient {
     }
 
     private URI uri(String path, Map<String, String> queryParams) {
-        UriComponentsBuilder builder = UriComponentsBuilder.fromUri(properties.baseUrl()).path(path);
+        UriComponentsBuilder builder = UriComponentsBuilder.fromUri(baseUrl).path(path);
         queryParams.forEach(builder::queryParam);
         return builder.build().encode().toUri();
     }
 
     private String basicAuthHeader() {
-        return "Basic " + HttpHeaders.encodeBasicAuth(API_USER, properties.apiToken(), java.nio.charset.StandardCharsets.UTF_8);
+        return "Basic " + HttpHeaders.encodeBasicAuth(API_USER, apiToken, java.nio.charset.StandardCharsets.UTF_8);
     }
 
     private BoardsException httpError(String operation, RestClientResponseException exception, String mode) {
@@ -396,6 +406,6 @@ final class OpenProjectBoardsClient {
     }
 
     private URI webUri(String path) {
-        return UriComponentsBuilder.fromUri(properties.baseUrl()).replacePath(path).replaceQuery(null).build().toUri();
+        return UriComponentsBuilder.fromUri(baseUrl).replacePath(path).replaceQuery(null).build().toUri();
     }
 }

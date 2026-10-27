@@ -88,6 +88,29 @@ public final class OrganizationIdentityContextResolver {
                 providerRoleMappings(roles, groups));
     }
 
+    /**
+     * Canonical context after an authoritative provider read, without minting a JWT or session.
+     * Callers must have verified current membership, activation and subject through the existing
+     * identity adapter. Setup never supplies a tenant or substitutes a requested role here.
+     */
+    public OrganizationIdentityContext resolveVerifiedMember(
+            String issuer, String subject, List<String> roles, List<String> groups) {
+        if (!hasText(issuer) || !hasText(subject) || !hasText(configuredOrganizationId())
+                || roles == null || roles.size() != 1 || roles.getFirst() == null || !WEAVE_ORG_ROLES.contains(roles.getFirst())
+                || groups == null || groups.stream().anyMatch(group -> !hasText(group)
+                    || group.chars().anyMatch(Character::isISOControl))) {
+            throw new ApiErrorException(HttpStatus.FORBIDDEN, "verified-member-context-invalid",
+                    "A current verified organization member is required.", Map.of("module", "identity"));
+        }
+        validateIdentitySegment(issuer, "iss", MAX_IDENTITY_ISSUER_LENGTH);
+        validateIdentitySegment(subject, "sub", MAX_IDENTITY_SUBJECT_LENGTH);
+        List<String> currentRoles = List.copyOf(roles);
+        List<String> currentGroups = groups.stream().distinct().sorted().toList();
+        return new OrganizationIdentityContext(configuredOrganizationId(), issuer, subject,
+                IdentityReferences.primaryIdentityKey(issuer, subject), IdentityReferences.accountId(issuer, subject),
+                currentRoles, currentGroups, List.of(), providerRoleMappings(currentRoles, currentGroups));
+    }
+
     /** Human HTTP admission may assert the configured data scope, never select another tenant. */
     public boolean matchesConfiguredTenant(Jwt jwt) {
         if (jwt == null || properties.defaultTenantId().isBlank()) {
@@ -138,7 +161,7 @@ public final class OrganizationIdentityContextResolver {
     private static void validateIdentitySegment(String value, String claim, int maxLength) {
         if (value.length() > maxLength
                 || value.indexOf('#') >= 0
-                || value.chars().anyMatch(Character::isWhitespace)) {
+                || value.chars().anyMatch(character -> Character.isWhitespace(character) || Character.isISOControl(character))) {
             throw new ApiErrorException(
                     HttpStatus.BAD_REQUEST,
                     "invalid-identity-claim",

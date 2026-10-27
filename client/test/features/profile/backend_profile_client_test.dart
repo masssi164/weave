@@ -28,11 +28,25 @@ http.StreamedResponse _jsonResponse(Map<String, Object?> json) {
 
 void main() {
   group('BackendProfileClient', () {
-    test('fetches /api/me through the backend identity facade', () async {
-      late http.BaseRequest capturedRequest;
+    test('combines identity and product accessibility preferences', () async {
+      final requests = <http.BaseRequest>[];
       final client = BackendProfileClient(
         httpClient: _RecordingHttpClient((request) async {
-          capturedRequest = request;
+          requests.add(request);
+          if (request.url.path == '/api/me') {
+            return _jsonResponse({
+              'userId': 'user-123',
+              'username': 'alice',
+              'email': 'alice@example.test',
+              'emailVerified': true,
+              'displayName': 'Alice Example',
+              'locale': 'en',
+              'timezone': 'Europe/Berlin',
+              'roles': ['member'],
+              'groups': ['workspace-default'],
+            });
+          }
+          expect(request.url.path, '/api/profile');
           return _jsonResponse({
             'userId': 'user-123',
             'username': 'alice',
@@ -41,8 +55,8 @@ void main() {
             'displayName': 'Alice Example',
             'locale': 'en',
             'timezone': 'Europe/Berlin',
-            'roles': ['member'],
-            'groups': ['workspace-default'],
+            'accessibilityPreferences': {'reducedMotion': 'true'},
+            'profileVisibility': 'private',
           });
         }),
       );
@@ -52,10 +66,18 @@ void main() {
         accessToken: 'token-123',
       );
 
-      expect(capturedRequest.url.toString(), 'https://api.weave.test/api/me');
-      expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
+      expect(requests.map((request) => request.url.path), [
+        '/api/me',
+        '/api/profile',
+      ]);
+      expect(
+        requests.map((request) => request.headers['Authorization']).toSet(),
+        {'Bearer token-123'},
+      );
       expect(profile.displayName, 'Alice Example');
       expect(profile.roles, ['member']);
+      expect(profile.accessibilityPreferences, {'reducedMotion': 'true'});
+      expect(profile.prefersReducedMotion, isTrue);
     });
 
     test('patches /api/profile through the backend profile facade', () async {

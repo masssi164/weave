@@ -4,9 +4,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:weave/core/persistence/preferences_store.dart';
 import 'package:weave/core/failures/app_failure.dart';
-import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
 import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
@@ -30,30 +28,26 @@ class _RecordingServerConfigurationRepository
   }
 }
 
-class _RecordingPreferencesStore implements PreferencesStore {
-  final strings = <String, String>{};
-
-  @override
-  Future<bool?> getBool(String key) async => null;
-
-  @override
-  Future<String?> getString(String key) async => strings[key];
-
-  @override
-  Future<void> remove(String key) async {
-    strings.remove(key);
-  }
-
-  @override
-  Future<void> setBool(String key, bool value) async {}
-
-  @override
-  Future<void> setString(String key, String value) async {
-    strings[key] = value;
-  }
-}
-
 void main() {
+  test('handoff errors expose only stable product support codes', () {
+    expect(
+      supportSafeHandoffErrorCode(
+        const AppFailure.validation('WEAVE-HANDOFF-INVALID: Missing origin.'),
+      ),
+      'WEAVE-HANDOFF-INVALID',
+    );
+    expect(
+      supportSafeHandoffErrorCode(
+        const AppFailure.validation('Unexpected provider payload: secret'),
+      ),
+      'WEAVE-HANDOFF-FAILED',
+    );
+    expect(
+      supportSafeHandoffErrorCode(Exception('Bearer secret')),
+      'WEAVE-HANDOFF-FAILED',
+    );
+  });
+
   for (final hint in ['platform_config_url', 'discovery_url']) {
     test('$hint cannot change the canonical bootstrap request', () async {
       final requests = <Uri>[];
@@ -134,7 +128,6 @@ void main() {
     () async {
       // V01_ORG_MANIFEST_CLIENT_ADMIN_SPLIT: sole generated v2 bootstrap contract.
       final repository = _RecordingServerConfigurationRepository();
-      final evidenceStore = _RecordingPreferencesStore();
       final httpClient = MockClient((request) async {
         expect(
           request.url.toString(),
@@ -160,7 +153,6 @@ void main() {
           await DiscoverOrganizationAccess(
             repository: repository,
             discoveryClient: AppStartDiscoveryClient(httpClient: httpClient),
-            evidenceStore: evidenceStore,
           ).call(
             Uri.parse(
               '/join?organization_origin=https%3A%2F%2Fweave.example%2F',
@@ -170,27 +162,11 @@ void main() {
       expect(access.organizationOrigin, Uri.parse('https://weave.example/'));
       expect(access.handoff, isNull);
       expect(repository.saved, isNotNull);
-
-      final evidence =
-          jsonDecode(evidenceStore.strings[lastHandoffConsumedStorageKey]!)
-              as Map<String, dynamic>;
-      expect(evidence['accessKind'], 'server_uri');
-      expect(evidence['organizationOriginHost'], 'weave.example');
-      expect(evidence, isNot(contains('handoffRef')));
-      expect(evidence, isNot(contains('organizationSlug')));
-
-      final authState =
-          jsonDecode(evidenceStore.strings[dogfoodAuthStateStorageKey]!)
-              as Map<String, dynamic>;
-      expect(authState['state'], 'ready_for_sso');
-      expect(authState['organizationOriginHost'], 'weave.example');
-      expect(authState, isNot(contains('handoffRef')));
     },
   );
 
   test('saves DNS-first weave.test app-start configuration', () async {
     final repository = _RecordingServerConfigurationRepository();
-    final evidenceStore = _RecordingPreferencesStore();
     final httpClient = MockClient((request) async {
       expect(
         request.url.toString(),
@@ -215,7 +191,6 @@ void main() {
     await DiscoverOrganizationAccess(
       repository: repository,
       discoveryClient: AppStartDiscoveryClient(httpClient: httpClient),
-      evidenceStore: evidenceStore,
     ).call(
       Uri.parse(
         'https://weave.test:44443/join?handoff_ref=invite-abc123&org=massimo-dogfood&workspace=home&run_id=s32-check',
@@ -236,34 +211,12 @@ void main() {
       saved.serviceEndpoints.matrixHomeserverUrl.toString(),
       'https://matrix.weave.test:44443',
     );
-    final evidence =
-        jsonDecode(evidenceStore.strings[lastHandoffConsumedStorageKey]!)
-            as Map<String, dynamic>;
-    expect(evidence['schemaVersion'], 'weave.client.last_handoff_consumed.v1');
-    expect(evidence['handoffRef'], 'invite-abc123');
-    expect(evidence['organizationSlug'], 'massimo-dogfood');
-    expect(evidence['workspaceSlug'], 'home');
-    expect(evidence['platformConfigHost'], 'weave.test');
-    expect(evidence['platformConfigPath'], '/api/platform/config');
-    expect(evidence['result'], 'saved_configuration');
-    expect(evidence['supportSafe'], isTrue);
-
-    final authState =
-        jsonDecode(evidenceStore.strings[dogfoodAuthStateStorageKey]!)
-            as Map<String, dynamic>;
-    expect(authState['schemaVersion'], 'weave.client.dogfood_auth_state.v1');
-    expect(authState['state'], 'ready_for_sso');
-    expect(authState['handoffRef'], 'invite-abc123');
-    expect(authState['organizationSlug'], 'massimo-dogfood');
-    expect(authState['workspaceSlug'], 'home');
-    expect(authState['supportSafe'], isTrue);
   });
 
   test(
     'legacy alternate endpoint cannot substitute a matching-origin manifest',
     () async {
       final repository = _RecordingServerConfigurationRepository();
-      final evidenceStore = _RecordingPreferencesStore();
       final requests = <Uri>[];
       final httpClient = MockClient((request) async {
         requests.add(request.url);
@@ -301,7 +254,6 @@ void main() {
       await DiscoverOrganizationAccess(
         repository: repository,
         discoveryClient: AppStartDiscoveryClient(httpClient: httpClient),
-        evidenceStore: evidenceStore,
       ).call(
         Uri.parse(
           'weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fapi.weave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
@@ -312,19 +264,13 @@ void main() {
         'https://weave.test:44443/api/platform/config',
       ]);
       expect(repository.saved, isNotNull);
-      final evidence =
-          jsonDecode(evidenceStore.strings[lastHandoffConsumedStorageKey]!)
-              as Map<String, dynamic>;
-      expect(evidence['result'], 'saved_configuration');
-      expect(evidence['handoffRef'], 'handoff-s32-massimo-dogfood-home');
     },
   );
 
   test(
-    'records exact failure marker when app-start discovery is unreachable',
+    'surfaces a stable error when app-start discovery is unreachable',
     () async {
       final repository = _RecordingServerConfigurationRepository();
-      final evidenceStore = _RecordingPreferencesStore();
       final httpClient = MockClient((request) async {
         throw http.ClientException(
           'Failed host lookup: ${request.url.host}',
@@ -336,31 +282,21 @@ void main() {
         DiscoverOrganizationAccess(
           repository: repository,
           discoveryClient: AppStartDiscoveryClient(httpClient: httpClient),
-          evidenceStore: evidenceStore,
         ).call(
           Uri.parse(
             'weave://join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&run_id=s32-massimo-dogfood&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fapi.weave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
           ),
         ),
-        throwsA(isA<AppFailure>()),
+        throwsA(
+          isA<AppFailure>().having(
+            (failure) => failure.message,
+            'message',
+            contains('WEAVE-APP-START-DNS-FAILED'),
+          ),
+        ),
       );
 
       expect(repository.saved, isNull);
-      final evidence =
-          jsonDecode(evidenceStore.strings[lastHandoffConsumedStorageKey]!)
-              as Map<String, dynamic>;
-      expect(evidence['result'], 'failed');
-      expect(evidence['phase'], 'app_start_discovery');
-      expect(evidence['errorCode'], 'WEAVE-APP-START-DNS-FAILED');
-      expect(evidence['handoffRef'], 'handoff-s32-massimo-dogfood-home');
-      expect(evidence['supportSafe'], isTrue);
-
-      final authState =
-          jsonDecode(evidenceStore.strings[dogfoodAuthStateStorageKey]!)
-              as Map<String, dynamic>;
-      expect(authState['state'], 'recoverable_error');
-      expect(authState['errorCode'], 'WEAVE-APP-START-DNS-FAILED');
-      expect(authState['supportSafe'], isTrue);
     },
   );
 

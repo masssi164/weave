@@ -280,7 +280,7 @@
       ],
       "additionalEvidence": [
         {
-          "path": "docs/iso-9241-110-dogfood-ux-gate.md",
+          "path": "docs/iso-9241-110-product-interaction.md",
           "fragments": [
             "Preview is not a release-scope state",
             "First-use acceptance criteria",
@@ -338,52 +338,41 @@
         {
           "path": "client/test/features/onboarding/discover_organization_access_test.dart",
           "fragments": [
-            "ready_for_sso",
-            "recoverable_error",
-            "weave.client.dogfood_auth_state.v1"
+            "manual server URI discovers without synthetic invitation metadata",
+            "saves DNS-first weave.test app-start configuration",
+            "surfaces a stable error when app-start discovery is unreachable"
           ]
         },
         {
           "path": "client/test/features/onboarding/member_handoff_screen_test.dart",
           "fragments": [
-            "sso_in_progress",
-            "WEAVE-MOBILE-OFFLINE-SESSION-DENIED",
+            "starts interactive sign-in from the handoff ready action",
+            "localizes sign-in failures on the handoff ready action",
             "Offline tokens not allowed"
           ]
         },
         {
-          "path": "tools/dogfood_ios_deeplink_smoke.sh",
+          "path": "tools/dogfood_functional_smoke.py",
           "fragments": [
-            "dogfood_auth_state_v1",
-            "ready_for_sso",
-            "rawLaunchIsNotSufficient",
-            "installResetMode"
+            "weave.ordinary-product-ui-result/v1",
+            "retainedStateRestartVerified",
+            "independentPeerReadbackVerified"
           ]
         },
         {
           "path": "tools/dogfood_onboarding_evidence_check.py",
           "fragments": [
-            "dogfood_auth_state_history_v1",
-            "workspace_bootstrap_loading",
-            "auth history does not prove browser return",
+            "functional_smoke_passed",
+            "ownerActivation=not-proven",
             "DOGFOOD_MEMBER_ONBOARDING_RESULT"
           ]
         },
         {
-          "path": "tools/dogfood_post_login_chat_files_check.py",
+          "path": "client/tool/ios_browser_driver/OrdinaryProductSmoke.swift",
           "fragments": [
-            "DOGFOOD_POST_LOGIN_CHAT_FILES_RESULT",
-            "chatState=usable",
-            "filesState=usable"
-          ]
-        },
-        {
-          "path": "tools/dogfood_ios_simulator_onboarding_smoke.sh",
-          "fragments": [
-            "SIMULATOR_E2E_GREEN",
-            "pending_native_deeplink_url",
-            "ready_for_sso",
-            "physical iPhone SSO"
+            "WEAVE_FUNCTIONAL_UI_RESULT",
+            "files-refresh",
+            "calendar-refresh"
           ]
         },
         {
@@ -394,23 +383,6 @@
             "developerTrustStatus",
             "localTlsStable",
             "signingStable"
-          ]
-        },
-        {
-          "path": "tools/dogfood_ios_session_restore_smoke.sh",
-          "fragments": [
-            "--terminate-existing",
-            "dogfood_ios_session_continuity_check.py",
-            "ios-session-continuity.json"
-          ]
-        },
-        {
-          "path": "tools/dogfood_ios_session_continuity_check.py",
-          "fragments": [
-            "session_restored",
-            "workspace_ready",
-            "DOGFOOD_SESSION_CONTINUITY_RESULT",
-            "keychainContentsInspected"
           ]
         },
         {
@@ -438,8 +410,8 @@
         {
           "path": "docs/dogfood-auth-onboarding-plan.md",
           "fragments": [
-            "Trust-preserving app-state reset or first install, handoff link, successful SSO, app lands in workspace/home and persists a refresh/offline token.",
-            "Trust-preserving app-state reset, open same current handoff, manual login succeeds and records fresh handoff evidence without deleting the Developer App trust anchor.",
+            "Exact-candidate native product evidence",
+            "Owner invitation activation and manual first sign-in remain separate human acceptance evidence",
             "Dogfood Mailpit check: test/reset emails are captured locally, visible to operator, and not sent externally.",
             "Repeated developer-team/profile trust prompts are a dogfood blocker"
           ]
@@ -4762,8 +4734,8 @@
           "fragments": [
             "Files uses member copy",
             "native Back and iOS swipe retain scope and parent focus",
-            "scope selection recovers a failed root read",
-            "scope selection leaves a failed child through native Back",
+            "folder navigation recovers a failed root read",
+            "folder navigation leaves a failed child through native Back",
             "shared folder deep link has native root Back",
             "retained folder cannot display a replacement account after invalidation",
             "folder failure keeps native Back available and shared root readable"

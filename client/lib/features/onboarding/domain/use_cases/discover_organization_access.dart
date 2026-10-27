@@ -1,11 +1,9 @@
 import 'dart:convert';
 import 'dart:async';
 
-import 'package:weave/core/persistence/preferences_store.dart';
 import 'package:http/http.dart' as http;
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/generated/user_api/api.dart' as user_api;
-import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
 import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_client_registration.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_provider_type.dart';
@@ -17,155 +15,31 @@ class DiscoverOrganizationAccess {
   const DiscoverOrganizationAccess({
     required ServerConfigurationRepository repository,
     required AppStartDiscoveryClient discoveryClient,
-    PreferencesStore? evidenceStore,
   }) : _repository = repository,
-       _discoveryClient = discoveryClient,
-       _evidenceStore = evidenceStore;
+       _discoveryClient = discoveryClient;
 
   final ServerConfigurationRepository _repository;
   final AppStartDiscoveryClient _discoveryClient;
-  final PreferencesStore? _evidenceStore;
 
   Future<OrganizationAccess> call(Uri uri) async {
-    final OrganizationAccess access;
-    try {
-      access = const OrganizationAccessParser().parse(uri);
-    } catch (error) {
-      await _recordRawAccessFailure(uri, error);
-      rethrow;
-    }
-    try {
-      await _recordAuthOnboardingState(
-        MemberAuthOnboardingStage.handoffReceived,
-        access,
-      );
-      final appStart = await _discoveryClient.fetch(access);
-      await _recordAuthOnboardingState(
-        MemberAuthOnboardingStage.platformConfigLoaded,
-        access,
-      );
-      await _repository.saveConfiguration(
-        appStart.toServerConfiguration(
-          access.organizationOrigin,
-          validatedAt: DateTime.now().toUtc(),
-        ),
-      );
-      await _recordAccessEvidence(access, result: 'saved_configuration');
-      await _recordAuthOnboardingState(
-        MemberAuthOnboardingStage.readyForSso,
-        access,
-      );
-    } catch (error) {
-      await _recordAccessEvidence(
-        access,
-        result: 'failed',
-        errorCode: supportSafeHandoffErrorCode(error),
-        phase: _supportSafeFailurePhase(error),
-      );
-      await _recordAuthOnboardingState(
-        MemberAuthOnboardingStage.recoverableError,
-        access,
-        errorCode: supportSafeHandoffErrorCode(error),
-      );
-      rethrow;
-    }
-    return access;
-  }
-
-  Future<void> _recordAuthOnboardingState(
-    MemberAuthOnboardingStage stage,
-    OrganizationAccess access, {
-    String? errorCode,
-  }) async {
-    final store = _evidenceStore;
-    if (store == null) {
-      return;
-    }
-    await MemberAuthOnboardingStateRecorder(
-      store: store,
-    ).record(stage, access: access, errorCode: errorCode);
-  }
-
-  Future<void> _recordAccessEvidence(
-    OrganizationAccess access, {
-    required String result,
-    String? errorCode,
-    String? phase,
-  }) async {
-    await _evidenceStore?.setString(
-      lastHandoffConsumedStorageKey,
-      jsonEncode(
-        _accessEvidence(
-          access,
-          result: result,
-          errorCode: errorCode,
-          phase: phase,
-        ),
+    final access = const OrganizationAccessParser().parse(uri);
+    final appStart = await _discoveryClient.fetch(access);
+    await _repository.saveConfiguration(
+      appStart.toServerConfiguration(
+        access.organizationOrigin,
+        validatedAt: DateTime.now().toUtc(),
       ),
     );
-  }
-
-  Future<void> _recordRawAccessFailure(Uri uri, Object error) async {
-    await _evidenceStore?.setString(
-      lastHandoffConsumedStorageKey,
-      jsonEncode(<String, Object>{
-        'schemaVersion': 'weave.client.last_handoff_consumed.v1',
-        'recordedAt': DateTime.now().toUtc().toIso8601String(),
-        'result': 'failed',
-        'phase': 'parse',
-        'accessScheme': uri.scheme,
-        'accessHost': uri.host,
-        'errorCode': supportSafeHandoffErrorCode(error),
-        'supportSafe': true,
-      }),
-    );
-  }
-
-  Map<String, Object> _accessEvidence(
-    OrganizationAccess access, {
-    required String result,
-    String? errorCode,
-    String? phase,
-  }) {
-    final handoff = access.handoff;
-    return <String, Object>{
-      'schemaVersion': 'weave.client.last_handoff_consumed.v1',
-      'recordedAt': DateTime.now().toUtc().toIso8601String(),
-      'accessKind': handoff == null ? 'server_uri' : 'handoff',
-      'organizationOriginHost': access.organizationOrigin.host,
-      'platformConfigHost': access.platformConfigUrl.host,
-      'platformConfigPath': access.platformConfigUrl.path,
-      if (handoff != null) ...{
-        'handoffRef': handoff.handoffRef,
-        'runId': handoff.runId,
-        'organizationSlug': handoff.organizationSlug,
-        'workspaceSlug': handoff.workspaceSlug,
-      },
-      'result': result,
-      if (errorCode != null) 'errorCode': errorCode,
-      if (phase != null) 'phase': phase,
-      'supportSafe': true,
-    };
-  }
-
-  String _supportSafeFailurePhase(Object error) {
-    final code = supportSafeHandoffErrorCode(error);
-    if (code.startsWith('WEAVE-APP-START-')) {
-      return 'app_start_discovery';
-    }
-    return 'save_configuration';
+    return access;
   }
 }
 
-const lastHandoffConsumedStorageKey = 'last_handoff_consumed_v1';
-
 String supportSafeHandoffErrorCode(Object error) {
-  if (error is AppFailure) {
-    final message = error.message;
-    final separator = message.indexOf(':');
-    return separator > 0 ? message.substring(0, separator) : message;
-  }
-  return error.runtimeType.toString();
+  final message = error is AppFailure ? error.message : '';
+  final code = message.split(':').first;
+  return RegExp(r'^WEAVE-[A-Z0-9-]+$').hasMatch(code)
+      ? code
+      : 'WEAVE-HANDOFF-FAILED';
 }
 
 class AppStartConfiguration {

@@ -29,9 +29,9 @@ Feature: Weave v0.1 dogfood production release
     And opens the same secret-free organization access through the email completion link, QR code, or server URI
     And the Organisation access screen offers Sign In
     And the member taps Sign In, completes OIDC Authorization Code with PKCE, and returns to Weave
-    Then Weave records support-safe handoff_ready, ready_for_sso, sso_in_progress, authenticated, workspace_bootstrap_loading, and workspace_ready evidence
-    And the same dogfood owner evidence proves Chat and Files are usable after login
-    And the authenticated session is restored after force-quit and reopen
+    Then external native UI and browser evidence proves the handoff, sign-in, and authenticated workspace without private app-state ledgers
+    And ordinary-member product interaction evidence proves Chat and Files are usable after login
+    And native product evidence proves that the authenticated session survives force-quit and reopen
     And trust-preserving app-state reset plus manual sign-in from the saved organization configuration reaches the workspace
     And Mailpit is reachable on the iPhone through the private HTTPS dogfood URL and captures identity mail without external delivery
     And a routine repeated dogfood deployment preserves the same active Keycloak subject without re-inviting or mutating it

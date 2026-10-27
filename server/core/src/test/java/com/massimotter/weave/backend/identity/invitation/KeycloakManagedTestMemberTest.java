@@ -5,6 +5,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.*;
 
 import com.massimotter.weave.backend.identity.keycloak.IdentityInvitationProperties;
+import com.massimotter.weave.backend.identity.keycloak.KeycloakAdminTestClient;
 import java.net.URI;
 import java.time.Instant;
 import java.util.Set;
@@ -47,7 +48,7 @@ class KeycloakManagedTestMemberTest {
       properties.keycloak().setOrganizationId("org");
       RestClient.Builder builder = RestClient.builder().baseUrl(properties.keycloak().baseUrl());
       http = MockRestServiceServer.bindTo(builder).ignoreExpectOrder(true).build();
-      adapter = KeycloakTestTransport.client(properties, json, builder.build());
+      adapter = new KeycloakIdentityAdminClient(properties, json, KeycloakAdminTestClient.create(builder, properties.keycloak().baseUrl()));
       user.set((ObjectNode) json.readTree("""
           {"id":"subject-A","username":"weave-smoke-%s-a@example.test","email":"weave-smoke-%s-a@example.test",
            "firstName":"Weave","lastName":"test member A 12345678","enabled":true,"emailVerified":true,

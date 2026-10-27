@@ -40,8 +40,9 @@ The retired unused file adapter was a test fixture, never a supported authority 
 
 Core Identity also owns invitation values/ports, transactional adapters and use cases, current
 member display-name queries and the shared identity/profile/invitation HTTP adapters. Human
-Keycloak administration uses the named HTTP
-interface, operation allowlist and invitation settings. The protected transport preserves
+Keycloak administration uses the named HTTP interface registered through Boot
+`@ImportHttpServices` and the `keycloak-admin` service group. Its group-scoped configurer
+retains the operation allowlist and invitation settings. The protected transport preserves
 private-key JWT, exact SecretRefs, timeouts, URL context paths, expected statuses and 401
 invalidation. Module-local servlet imports register it once; construction needs no mounted
 secret or live provider. Non-web operator tooling imports its required transport explicitly.

@@ -22,10 +22,7 @@ import 'package:weave/features/app/domain/entities/workspace_capability_snapshot
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/core/persistence/secure_store.dart';
-import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/widgets/success_state.dart';
-import 'package:weave/features/onboarding/domain/entities/member_auth_onboarding_state.dart';
-import 'package:weave/features/onboarding/domain/use_cases/discover_organization_access.dart';
 import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/data/dtos/auth_session_dto.dart';
@@ -43,6 +40,7 @@ import 'package:weave/features/calendar/domain/entities/calendar_write_result.da
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
 import 'package:weave/features/files/presentation/providers/files_provider.dart';
 import 'package:weave/features/files/presentation/files_screen.dart';
+import 'package:weave/features/files/presentation/files_locations_screen.dart';
 import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 import 'package:weave/features/onboarding/presentation/organization_access_screen.dart';
 import 'package:weave/features/server_config/presentation/providers/saved_server_configuration_provider.dart';
@@ -424,19 +422,11 @@ Finder nativeDualHandoffSignIn(String label) => find.descendant(
 
 String nativeDualOnboardingDiagnostic({
   required String role,
-  required String authState,
-  required String visibleState,
-  required String errorCode,
-  required Map<String, int> counts,
+  required Map<String, int> visibleWidgetCounts,
 }) {
-  String known(String value, Set<String> allowed) =>
-      allowed.contains(value) ? value : 'unavailable';
   return 'NATIVE_PRODUCT_STAGE phase=onboarding-failed '
-      'actor=${known(role, {'A', 'B'})} '
-      'authState=${known(authState, MemberAuthOnboardingStage.values.map((state) => state.serialized).toSet())} '
-      'visibleState=${known(visibleState, {'handoff_ready', 'handoff_error', 'authenticated_redirect'})} '
-      'errorCode=${known(errorCode, {'none', 'WEAVE-APP-START-DISCOVERY-INVALID', 'WEAVE-APP-START-DISCOVERY-FAILED', 'WEAVE-APP-START-TIMEOUT', 'WEAVE-APP-START-TLS-FAILED', 'WEAVE-APP-START-DNS-FAILED', 'WEAVE-APP-START-NETWORK-FAILED', 'WEAVE-LAN-UNREACHABLE', 'WEAVE-HANDOFF-INVALID', 'WEAVE-SSO-CANCELLED', 'WEAVE-SSO-CONFIGURATION-MISSING', 'WEAVE-SSO-NOT-COMPLETE', 'WEAVE-SESSION-STORAGE-FAILED', 'WEAVE-SSO-UNSUPPORTED-DEVICE', 'WEAVE-SSO-UNKNOWN', 'WEAVE-MOBILE-OFFLINE-SESSION-DENIED', 'WEAVE-WORKSPACE-BOOTSTRAP-NOT-READY', 'PlatformException', 'StateError', 'FormatException'})} '
-      '${['organization', 'handoff', 'ready', 'signIn', 'workspace'].map((name) => '${name}Count=${(counts[name] ?? 0).clamp(0, 999)}').join(' ')}';
+      "actor=${role == 'A' || role == 'B' ? role : 'unavailable'} "
+      '${['organization', 'handoff', 'ready', 'signIn', 'workspace'].map((name) => '${name}Count=${(visibleWidgetCounts[name] ?? 0).clamp(0, 999)}').join(' ')}';
 }
 
 Future<void> safelyReportDualOnboardingFailure({
@@ -464,32 +454,10 @@ Future<void> _reportOnboardingFailure(
   if (failure != null) {
     emitNativeAuthFailureDiagnostic(failure, simulatorDriver: true);
   }
-  final store = container.read(preferencesStoreProvider);
-  Future<Map<String, dynamic>> read(String key) async {
-    final raw = await store.getString(key);
-    if (raw == null || raw.length > 16384) return {};
-    return jsonDecode(raw) as Map<String, dynamic>;
-  }
-
-  final auth = await read(dogfoodAuthStateStorageKey);
-  final visible = await read(dogfoodVisibleStateStorageKey);
-  final consumed = await read(lastHandoffConsumedStorageKey);
   emitNativeProductDiagnostic(
     nativeDualOnboardingDiagnostic(
       role: role,
-      authState: auth['state'] is String
-          ? auth['state'] as String
-          : 'unavailable',
-      visibleState: visible['state'] is String
-          ? visible['state'] as String
-          : 'unavailable',
-      errorCode:
-          (visible['errorCode'] ??
-                  consumed['errorCode'] ??
-                  auth['errorCode'] ??
-                  'none')
-              .toString(),
-      counts: {
+      visibleWidgetCounts: {
         'organization': find.byType(OrganizationAccessScreen).evaluate().length,
         'handoff': find.byType(MemberHandoffScreen).evaluate().length,
         'ready': find
@@ -931,14 +899,6 @@ void main() {
           final onboardingContainer = ProviderScope.containerOf(
             tester.element(find.byType(WeaveApp)),
           );
-          final rawState = await onboardingContainer
-              .read(preferencesStoreProvider)
-              .getString(dogfoodAuthStateStorageKey);
-          expect(rawState, isNotNull);
-          expect(
-            (jsonDecode(rawState!) as Map<String, dynamic>)['state'],
-            'ready_for_sso',
-          );
           final selected = await onboardingContainer.read(
             savedServerConfigurationProvider.future,
           );
@@ -1025,6 +985,7 @@ void main() {
       final container = ProviderScope.containerOf(
         tester.element(find.byType(WeaveApp)),
       );
+      ProviderContainer filesContainer() => _nativeFilesContainer(tester);
       final configuration = await container.read(
         savedServerConfigurationProvider.future,
       );
@@ -1441,7 +1402,6 @@ void main() {
             expect(role, 'A');
             await _selectSharedFiles(
               tester,
-              container,
               fixture['sharedSpaceRef'] as String,
             );
             await writeNativeDualPrivateJson(
@@ -1456,11 +1416,11 @@ void main() {
               ),
             );
             await nativeDualFilesUploadProbe(
-              container,
+              filesContainer(),
               () => _wait(
                 tester,
                 () =>
-                    container
+                    filesContainer()
                         .read(filesProvider)
                         .asData
                         ?.value
@@ -1470,7 +1430,7 @@ void main() {
                 const Duration(seconds: 90),
               ),
             );
-            final uploaded = container
+            final uploaded = filesContainer()
                 .read(filesProvider)
                 .requireValue
                 .directoryListing!
@@ -1479,7 +1439,7 @@ void main() {
                 .single;
             fileId = uploaded.id;
             fileContext = NativeDualFilesContext.capture(
-              container,
+              filesContainer(),
               fileId,
               spaceRef: fixture['sharedSpaceRef'] as String,
             );
@@ -1497,13 +1457,12 @@ void main() {
             expect(role, 'B');
             await _selectSharedFiles(
               tester,
-              container,
               fixture['sharedSpaceRef'] as String,
             );
             await _wait(
               tester,
               () =>
-                  container
+                  filesContainer()
                       .read(filesProvider)
                       .asData
                       ?.value
@@ -1514,7 +1473,7 @@ void main() {
                   1,
               const Duration(seconds: 90),
             );
-            final shared = container
+            final shared = filesContainer()
                 .read(filesProvider)
                 .requireValue
                 .directoryListing!
@@ -1523,7 +1482,7 @@ void main() {
                 .single;
             fileId = shared.id;
             fileContext = NativeDualFilesContext.capture(
-              container,
+              filesContainer(),
               fileId,
               spaceRef: fixture['sharedSpaceRef'] as String,
             );
@@ -1540,7 +1499,7 @@ void main() {
             expect(fileId, isNotNull);
             await tapNativeDualFilesAction(
               tester,
-              container,
+              filesContainer(),
               fileContext!,
               NativeDualFilesAction.replace,
               deadline: actionDeadline,
@@ -1554,7 +1513,7 @@ void main() {
               ),
             );
             await _wait(tester, () {
-              final state = container.read(filesProvider).asData?.value;
+              final state = filesContainer().read(filesProvider).asData?.value;
               final entry = state?.directoryListing?.entries.where(
                 (entry) => entry.id == fileId,
               );
@@ -1563,7 +1522,7 @@ void main() {
                   entry?.length == 1 &&
                   entry!.single.revision != fileRevision;
             }, const Duration(seconds: 90));
-            final replaced = container
+            final replaced = filesContainer()
                 .read(filesProvider)
                 .requireValue
                 .directoryListing!
@@ -1585,13 +1544,12 @@ void main() {
             await navigateNativeDualDestination(tester, Icons.home_outlined);
             await _selectSharedFiles(
               tester,
-              container,
               fixture['sharedSpaceRef'] as String,
             );
             await _wait(
               tester,
               () =>
-                  container
+                  filesContainer()
                       .read(filesProvider)
                       .asData
                       ?.value
@@ -1606,7 +1564,7 @@ void main() {
                   1,
               const Duration(seconds: 90),
             );
-            fileRevision = container
+            fileRevision = filesContainer()
                 .read(filesProvider)
                 .requireValue
                 .directoryListing!
@@ -1637,7 +1595,7 @@ void main() {
             final beforeExport = await nativeDualExportSnapshot(documents);
             final cancelling = action == 'files-export-cancel';
             var exportingObserved = false;
-            final exportSubscription = container.listen(filesProvider, (
+            final exportSubscription = filesContainer().listen(filesProvider, (
               _,
               next,
             ) {
@@ -1651,7 +1609,7 @@ void main() {
             try {
               await tapNativeDualFilesAction(
                 tester,
-                container,
+                filesContainer(),
                 fileContext!,
                 NativeDualFilesAction.export,
                 deadline: actionDeadline,
@@ -1668,7 +1626,7 @@ void main() {
                 tester,
                 () =>
                     exportingObserved &&
-                    container
+                    filesContainer()
                             .read(filesProvider)
                             .asData
                             ?.value
@@ -1677,7 +1635,8 @@ void main() {
                         (cancelling
                             ? FilesEntryActionPhase.idle
                             : FilesEntryActionPhase.exportedEntry) &&
-                    container.read(filesProvider).asData?.value.isBusy == false,
+                    filesContainer().read(filesProvider).asData?.value.isBusy ==
+                        false,
                 const Duration(seconds: 90),
               );
               await requireNativeDualExportSentinelUnchanged(
@@ -1685,7 +1644,7 @@ void main() {
                 runId,
               );
               if (cancelling) {
-                final state = container.read(filesProvider).requireValue;
+                final state = filesContainer().read(filesProvider).requireValue;
                 expect(state.entryActionStatus.destination, isNull);
                 expect(state.directoryFailure, isNull);
                 expect(await nativeDualExportSnapshot(documents), beforeExport);
@@ -1694,7 +1653,7 @@ void main() {
               final output = await requireNativeDualExportDestination(
                 documents,
                 beforeExport,
-                container
+                filesContainer()
                     .read(filesProvider)
                     .requireValue
                     .entryActionStatus
@@ -1880,10 +1839,9 @@ void main() {
             await tapNativeDualBack(tester, deadline: actionDeadline);
             await _selectSharedFiles(
               tester,
-              container,
               fixture['sharedSpaceRef'] as String,
             );
-            final entry = container
+            final entry = filesContainer()
                 .read(filesProvider)
                 .requireValue
                 .directoryListing!
@@ -1919,10 +1877,9 @@ void main() {
             expect(grant['regrantRestored'], isTrue);
             await _selectSharedFiles(
               tester,
-              container,
               fixture['sharedSpaceRef'] as String,
             );
-            final entry = container
+            final entry = filesContainer()
                 .read(filesProvider)
                 .requireValue
                 .directoryListing!
@@ -1986,7 +1943,6 @@ void main() {
             // refresh; successful token exchange alone is not product evidence.
             await _selectSharedFiles(
               tester,
-              container,
               fixture['sharedSpaceRef'] as String,
             );
             await _filePreview(
@@ -2080,7 +2036,6 @@ void main() {
             );
             await _selectSharedFiles(
               tester,
-              container,
               fixture['sharedSpaceRef'] as String,
             );
             await _filePreview(
@@ -2188,15 +2143,19 @@ void main() {
   );
 }
 
-Future<void> _selectSharedFiles(
-  WidgetTester tester,
-  ProviderContainer container,
-  String spaceRef,
-) async {
+ProviderContainer _nativeFilesContainer(WidgetTester tester) {
+  final screen = find.byType(FilesScreen);
+  expect(screen, findsOneWidget);
+  return ProviderScope.containerOf(tester.element(screen));
+}
+
+Future<void> _selectSharedFiles(WidgetTester tester, String spaceRef) async {
   await navigateNativeDualDestination(tester, Icons.folder_outlined);
   await selectNativeDualFilesScope(tester, spaceRef);
   await _wait(tester, () {
-    final state = container.read(filesProvider).asData?.value;
+    final state = _nativeFilesContainer(
+      tester,
+    ).read(filesProvider).asData?.value;
     return state?.rootSpaceRef == spaceRef &&
         state?.directoryListing != null &&
         !state!.isBusy &&
@@ -2204,104 +2163,105 @@ Future<void> _selectSharedFiles(
   }, const Duration(seconds: 90));
 }
 
-/// Selects the real popup option by its stable ordinary accessibility identity.
+/// Opens a real folder location through native Back and ordinary folder rows.
+/// This helper observes the destination controller; it never changes its scope.
 Future<void> selectNativeDualFilesScope(
   WidgetTester tester,
   String? spaceRef,
 ) async {
-  final selector = find.byKey(const Key('files-space-selector'));
+  final overview = find.byType(FilesLocationsScreen);
   final screen = find.byType(FilesScreen);
-  bool canSelectScope() {
-    if (screen.evaluate().length != 1) return false;
-    final container = ProviderScope.containerOf(tester.element(screen));
-    if (container
-            .read(workspaceCapabilitySnapshotProvider)
-            .asData
-            ?.value
-            .files
-            .isReady !=
-        true) {
-      return false;
-    }
-    final files = container.read(filesProvider);
-    final value = files.asData?.value;
-    // Scope selection can recover a failed directory read; it still requires
-    // current workspace access and an idle connected view before any UI tap.
-    return !files.isLoading &&
-        !files.hasError &&
-        value?.connectionState.isConnected == true &&
-        value?.isBusy == false;
-  }
-
-  await _wait(tester, canSelectScope, const Duration(seconds: 90));
-  final vertical = find
-      .descendant(
-        of: find.descendant(
-          of: screen,
-          matching: find.byType(CustomScrollView),
-        ),
-        matching: find.byType(Scrollable),
-      )
-      .first;
+  await _wait(
+    tester,
+    () => overview.evaluate().length == 1 || screen.evaluate().length == 1,
+    const Duration(seconds: 90),
+  );
   var backActions = 0;
-  while (tester.widget<FilesScreen>(screen).isFolderRoute) {
-    if (backActions++ >= 8) {
-      throw TestFailure('The Files root was not reached through navigation.');
-    }
-    final previousScreen = tester.element(screen);
-    // A retained folder keeps its native history. Use the same root breadcrumb
-    // as a member before changing the private/shared scope.
-    final root = find.byWidgetPredicate(
-      (widget) =>
-          widget is Semantics &&
-          widget.properties.identifier == 'files-location-root',
-    );
-    if (root.hitTestable().evaluate().length != 1) {
-      await tester.scrollUntilVisible(
-        root,
-        -300,
-        maxScrolls: 30,
-        scrollable: vertical,
+  while (overview.evaluate().isEmpty) {
+    if (backActions++ >= 8 || screen.evaluate().length != 1) {
+      throw TestFailure(
+        'The Files overview was not reached through navigation.',
       );
     }
-    if (tester.widget<Semantics>(root).properties.enabled == true) {
-      await _tap(tester, root);
-    } else {
-      // A failed child has no listing path; its breadcrumb cannot name an
-      // ancestor. The native route still has a valid Back action.
-      await _tap(tester, find.byType(BackButton));
-    }
+    final previous = tester.element(screen);
+    await _tap(tester, find.byType(BackButton));
     await _wait(
       tester,
       () =>
-          screen.evaluate().length == 1 &&
-          tester.element(screen) != previousScreen &&
-          canSelectScope(),
+          overview.evaluate().length == 1 ||
+          (screen.evaluate().length == 1 && tester.element(screen) != previous),
       const Duration(seconds: 90),
     );
   }
-  if (selector.hitTestable().evaluate().length != 1) {
-    await tester.scrollUntilVisible(
-      selector,
-      -300,
-      maxScrolls: 30,
-      scrollable: vertical,
-    );
-  }
-  await _wait(
-    tester,
-    () => selector.evaluate().length == 1,
-    const Duration(seconds: 90),
-  );
-  await _tap(tester, selector);
+  expect(overview, findsOneWidget);
+  // An iOS pop can reveal the previous page before its transition finishes.
+  // Wait for its actual interactive route rather than tapping through a modal.
+  await _wait(tester, () {
+    final route = ModalRoute.of(tester.element(overview));
+    return route?.isCurrent == true &&
+        route?.animation?.isCompleted != false &&
+        route?.secondaryAnimation?.isDismissed != false;
+  }, const Duration(seconds: 15));
+  final owner = ProviderScope.containerOf(tester.element(overview));
+  await _wait(tester, () {
+    final capability = owner.read(workspaceCapabilitySnapshotProvider);
+    final spaces = owner.read(weaveApiMemberSpacesProvider);
+    return !capability.isLoading &&
+        !capability.hasError &&
+        capability.asData?.value.files.isReady == true &&
+        !spaces.isLoading &&
+        !spaces.hasError &&
+        spaces.asData?.value != null &&
+        (spaceRef == null ||
+            spaces.asData!.value!.visibleSpaceRefs.contains(spaceRef));
+  }, const Duration(seconds: 90));
   final choice = find.byWidgetPredicate(
     (widget) =>
         widget is Semantics &&
         widget.properties.identifier ==
-            'files-space-option-${spaceRef ?? 'private'}',
+            (spaceRef == null
+                ? 'files-location-private'
+                : 'files-location-space-$spaceRef'),
   );
+  if (choice.evaluate().isEmpty) {
+    final vertical = find.descendant(
+      of: overview,
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is Scrollable && widget.axisDirection == AxisDirection.down,
+      ),
+    );
+    expect(vertical, findsOneWidget);
+    await tester.drag(vertical, const Offset(0, 10000));
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.scrollUntilVisible(
+      choice,
+      300,
+      maxScrolls: 30,
+      scrollable: vertical,
+    );
+  }
   expect(choice, findsOneWidget);
-  await _tap(tester, choice);
+  expect(tester.widget<Semantics>(choice).properties.enabled, isTrue);
+  // Do not realign an already hittable row to the sliver's leading edge.
+  // If scrolling is needed, center the row and still require a real hit.
+  if (choice.hitTestable().evaluate().length != 1) {
+    await Scrollable.ensureVisible(tester.element(choice), alignment: 0.5);
+    await tester.pump(const Duration(milliseconds: 250));
+  }
+  expect(choice.hitTestable(), findsOneWidget);
+  await tester.tap(choice.hitTestable());
+  await tester.pump(const Duration(milliseconds: 250));
+  await _wait(tester, () {
+    if (screen.evaluate().length != 1) return false;
+    final value = _nativeFilesContainer(tester).read(filesProvider);
+    final state = value.asData?.value;
+    return !value.isLoading &&
+        !value.hasError &&
+        state?.rootSpaceRef == spaceRef &&
+        state?.isBusy == false &&
+        state?.hasSuccessfulCurrentRead == true;
+  }, const Duration(seconds: 90));
 }
 
 enum NativeDualFilesAction { open, replace, export }

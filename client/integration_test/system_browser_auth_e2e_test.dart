@@ -45,6 +45,7 @@ import 'package:weave/features/files/domain/entities/files_connection_state.dart
 import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/presentation/files_screen.dart';
+import 'package:weave/features/files/presentation/files_locations_screen.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
 import 'package:weave/integrations/rust_matrix_core/data/services/matrix_session_access.dart';
@@ -585,7 +586,29 @@ void main() {
           ),
         );
         await tester.pump(const Duration(seconds: 1));
+        expect(find.byType(FilesLocationsScreen), findsOneWidget);
+        final privateLocation = find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.identifier == 'files-location-private',
+        );
+        final locationDeadline = DateTime.now().add(
+          const Duration(seconds: 90),
+        );
+        while (privateLocation.hitTestable().evaluate().length != 1) {
+          if (!DateTime.now().isBefore(locationDeadline)) {
+            throw TestFailure(
+              'The current private Files location was not usable.',
+            );
+          }
+          await tester.pump(const Duration(milliseconds: 250));
+        }
+        await tester.tap(privateLocation);
+        await tester.pump(const Duration(seconds: 1));
         expect(find.byType(FilesScreen), findsOneWidget);
+        await tester.pageBack();
+        await tester.pump(const Duration(seconds: 1));
+        expect(find.byType(FilesLocationsScreen), findsOneWidget);
         await tester.tap(
           find.descendant(
             of: find.byType(NavigationBar),

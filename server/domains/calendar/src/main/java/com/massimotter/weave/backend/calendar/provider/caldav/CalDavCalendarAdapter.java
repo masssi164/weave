@@ -4,7 +4,6 @@ import com.massimotter.weave.backend.calendar.domain.CalendarAdapterException;
 import com.massimotter.weave.backend.calendar.domain.CalendarOccurrenceEngine;
 import com.massimotter.weave.backend.calendar.provider.icalendar.Ical4jRecurrenceEngine;
 import com.massimotter.weave.backend.calendar.provider.icalendar.IcalendarMapper;
-import com.massimotter.weave.backend.calendar.config.http.CalDavHttpConfig;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChange;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarChangeSet;
 import com.massimotter.weave.backend.calendar.domain.CalendarDomain.CalendarEvent;
@@ -63,7 +62,7 @@ public class CalDavCalendarAdapter implements CalendarProviderPort {
 
     public CalDavCalendarAdapter(CalendarCalDavProperties properties) {
         this(properties,
-                CalDavHttpConfig.client(properties),
+                HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(properties.requestTimeoutSeconds())).build(),
                 new IcalendarMapper(),
                 new CalendarOccurrenceEngine(new Ical4jRecurrenceEngine()));
     }

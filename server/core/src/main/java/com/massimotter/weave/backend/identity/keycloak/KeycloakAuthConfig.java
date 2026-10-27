@@ -13,8 +13,8 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.support.RestClientAdapter;
-import org.springframework.web.service.invoker.HttpServiceProxyFactory;
+import org.springframework.web.client.support.RestClientHttpServiceGroupConfigurer;
+import org.springframework.web.service.registry.ImportHttpServices;
 import org.springframework.web.util.DefaultUriBuilderFactory;
 
 /**
@@ -24,8 +24,9 @@ import org.springframework.web.util.DefaultUriBuilderFactory;
  * Server-owned SecretRef. The calling request's human principal and the private JWK never cross
  * this boundary.
  */
+@ImportHttpServices(group = KeycloakAuthConfig.KEYCLOAK_ADMIN_GROUP, types = KeycloakAdminClient.class)
 public class KeycloakAuthConfig {
-  public static final String KEYCLOAK_ADMIN_REST_CLIENT = "keycloakIdentityAdminRestClient";
+  static final String KEYCLOAK_ADMIN_GROUP = "keycloak-admin";
   public static final String KEYCLOAK_ADMIN_ACCESS_TOKENS =
       "keycloakIdentityAdminAccessTokenProvider";
 
@@ -33,7 +34,7 @@ public class KeycloakAuthConfig {
   KeycloakAdminAccessTokenProvider keycloakIdentityAdminAccessTokenProvider(
       IdentityInvitationProperties properties) {
     var keycloak = properties.keycloak();
-    ExactFileSecretRefAccess secrets =
+    var secrets =
         new ExactFileSecretRefAccess(
             keycloak.adminCredentialRef(), keycloak.adminPrivateJwkFile());
     return new SpringSecurityKeycloakAdminAccessTokenProvider(
@@ -47,20 +48,55 @@ public class KeycloakAuthConfig {
         secrets);
   }
 
-  @Bean(KEYCLOAK_ADMIN_REST_CLIENT)
-  RestClient keycloakIdentityAdminRestClient(
-      RestClient.Builder builder,
+  @Bean
+  RestClientHttpServiceGroupConfigurer keycloakAdminHttpServiceGroup(
       @Qualifier(KEYCLOAK_ADMIN_ACCESS_TOKENS) KeycloakAdminAccessTokenProvider accessTokens,
       IdentityInvitationProperties properties) {
     var keycloak = properties.keycloak();
+    return groups ->
+        groups
+            .filterByName(KEYCLOAK_ADMIN_GROUP)
+            .forEachClient(
+                (group, builder) -> {
+                  configurePolicy(builder, keycloak.baseUrl());
+                  configureTransport(builder, accessTokens, keycloak);
+                });
+  }
 
+  /** Group-local route and exact-status policy; kept separate so transport tests stay focused. */
+  static void configurePolicy(RestClient.Builder builder, URI baseUrl) {
+    var uriFactory = new DefaultUriBuilderFactory(baseUrl.toString());
+    uriFactory.setEncodingMode(DefaultUriBuilderFactory.EncodingMode.URI_COMPONENT);
+    builder
+        .uriBuilderFactory(uriFactory)
+        .requestInterceptor(
+            (request, body, execution) -> {
+              String path = relativePath(baseUrl, request.getURI());
+              boolean fixture =
+                  Boolean.TRUE.equals(
+                      request.getAttributes().get(KeycloakAdminClient.MANAGED_FIXTURE_ATTRIBUTE));
+              var allowed =
+                  KeycloakIdentityAdminOperationPolicy.admit(request.getMethod(), path, fixture);
+              var response = execution.execute(request, body);
+              int status = response.getStatusCode().value();
+              if (status != allowed.expectedStatus()) {
+                response.close();
+                throw new KeycloakAdminException(
+                    status, "Keycloak administration operation failed", allowed.operation());
+              }
+              return response;
+            });
+  }
+
+  /** Group-local timeout and service credential policy; no token is resolved during startup. */
+  static void configureTransport(
+      RestClient.Builder builder,
+      KeycloakAdminAccessTokenProvider accessTokens,
+      IdentityInvitationProperties.Keycloak keycloak) {
     HttpClient httpClient = HttpClient.newBuilder().connectTimeout(keycloak.timeout()).build();
-    JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
+    var requestFactory = new JdkClientHttpRequestFactory(httpClient);
     requestFactory.setReadTimeout(keycloak.timeout());
-
-    return builder
-        .clone()
-        .baseUrl(keycloak.baseUrl().toString())
+    builder
         .requestFactory(requestFactory)
         .requestInterceptor(
             (request, body, execution) -> {
@@ -71,49 +107,17 @@ public class KeycloakAuthConfig {
                 accessTokens.invalidate(token);
               }
               return response;
-            })
-        .build();
-  }
-
-  @Bean
-  KeycloakAdminClient keycloakAdminClient(
-      @Qualifier(KEYCLOAK_ADMIN_REST_CLIENT) RestClient restClient,
-      IdentityInvitationProperties properties) {
-    return proxy(restClient, properties.keycloak().baseUrl());
-  }
-
-  /** Preserves the configured context path and checks admission/status before body conversion. */
-  public static KeycloakAdminClient proxy(RestClient restClient, URI baseUrl) {
-    var uriFactory = new DefaultUriBuilderFactory(baseUrl.toString());
-    uriFactory.setEncodingMode(DefaultUriBuilderFactory.EncodingMode.URI_COMPONENT);
-    RestClient policyAwareClient = restClient.mutate()
-        .uriBuilderFactory(uriFactory)
-        .requestInterceptors(interceptors -> interceptors.add(0, (request, body, execution) -> {
-          String path = relativePath(baseUrl, request.getURI());
-          boolean fixture = Boolean.TRUE.equals(
-              request.getAttributes().get(KeycloakAdminClient.MANAGED_FIXTURE_ATTRIBUTE));
-          var allowed = KeycloakIdentityAdminOperationPolicy.admit(request.getMethod(), path, fixture);
-          var response = execution.execute(request, body);
-          int status = response.getStatusCode().value();
-          if (status != allowed.expectedStatus()) {
-            response.close();
-            throw new KeycloakAdminException(
-                status, "Keycloak administration operation failed", allowed.operation());
-          }
-          return response;
-        }))
-        .build();
-    return HttpServiceProxyFactory.builderFor(RestClientAdapter.create(policyAwareClient))
-        .build()
-        .createClient(KeycloakAdminClient.class);
+            });
   }
 
   private static String relativePath(URI baseUrl, URI target) {
-    String prefix = baseUrl.getRawPath() == null ? "" : baseUrl.getRawPath().replaceAll("/+$", "");
+    String prefix =
+        baseUrl.getRawPath() == null ? "" : baseUrl.getRawPath().replaceAll("/+$", "");
     if (!Objects.equals(baseUrl.getScheme(), target.getScheme())
         || !Objects.equals(baseUrl.getRawAuthority(), target.getRawAuthority())
         || !target.getRawPath().startsWith(prefix + "/")) {
-      throw new IllegalArgumentException("Keycloak identity administration target is outside its boundary");
+      throw new IllegalArgumentException(
+          "Keycloak identity administration target is outside its boundary");
     }
     return target.getRawPath().substring(prefix.length())
         + (target.getRawQuery() == null ? "" : "?" + target.getRawQuery());

@@ -35,6 +35,13 @@ qualified three-domain release candidate.
 
 ## Current review-fix execution
 
+The integration also includes Dev's accepted #1732/#1748/#1750/#1747 changes: Boot-managed
+Keycloak administration stays in Core, fixture preparation reuses the verified identity resolver,
+and the ordinary client retains central motion/accessibility and private/shared folder navigation.
+Removed production HTTP wrappers and the former manual Keycloak proxy remain removed. The
+protected HTTP test helper lives only in Core test sources. New executable qualification applies
+to the combined source; earlier branch checks do not qualify this integration.
+
 Continue from the fetched branch; review reference `f2aabb1c5f` is not a reset target.
 Scope is the four source findings in review 5647885198 and follow-ups 6423999001/6424005994.
 Prepare the coordinated pending #172 contract and executable implementation/tests without repinning

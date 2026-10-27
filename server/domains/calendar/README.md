@@ -49,8 +49,9 @@ The existing `weave.calendar.provider` native/CalDAV construction selector is re
 finite tracked startup-selection debt; this move does not claim a new provider-migration
 protocol. Organization routing and captured revisions remain in the persisted binding
 and existing readiness authority. CalDAV construction neither contacts a provider nor
-requires configured live credentials. The existing HTTP PR's `CalDavHttpConfig` remains
-provider-owned, preserving connection timeouts and specialized REPORT/PROPFIND behavior.
+requires configured live credentials. The adapter directly constructs its JDK HTTP client
+with the existing connection timeout; the one-constructor `CalDavHttpConfig` wrapper was
+removed by #1732. Specialized REPORT/PROPFIND behavior remains provider-owned.
 All configuration keys/defaults remain unchanged, and diagnostic properties output redacts
 provider addresses and credentials. Bootstrap business validation lives in the owning
 application runner; its configuration only binds settings and constructs the runner.
