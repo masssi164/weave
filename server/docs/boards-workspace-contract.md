@@ -25,7 +25,7 @@ OpenProject is the first real provider-backed workspace-sync engine. It is optio
 
 ## Executable evidence
 
-- `src/main/resources/contracts/boards-workspace.openapi.yaml` declares the provider-neutral workspace API.
-- `src/main/resources/contracts/task-board-event.schema.json` declares the normalized event envelope.
+- `server/domains/boards/src/main/resources/contracts/boards-workspace.openapi.yaml` declares the provider-neutral workspace API.
+- `server/domains/boards/src/main/resources/contracts/task-board-event.schema.json` declares the normalized event envelope.
 - `src/test/resources/features/openproject-boards-workspace.feature` binds OpenProject fail-closed, workspace-sync, Context/Space denial, support-safe metadata, and provider-write refusal scenarios.
 - Controller/service tests prove authenticated workspace access, local user task writes, audit publication, support-safe errors, and OpenProject provider refusals.

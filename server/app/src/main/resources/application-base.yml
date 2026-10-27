@@ -1,0 +1,100 @@
+server:
+  port: ${PORT:8080}
+
+spring:
+  application:
+    name: weave-backend
+  jackson:
+    deserialization:
+      # Missing optional primitive transport fields keep their fail-closed Java defaults.
+      # Required values remain explicit wrapper types with Bean Validation constraints.
+      fail-on-null-for-primitives: false
+  datasource:
+    url: ${WEAVE_PERSISTENCE_URL:}
+    username: ${WEAVE_PERSISTENCE_USERNAME:}
+    password: ${WEAVE_PERSISTENCE_PASSWORD:}
+    driver-class-name: ${WEAVE_PERSISTENCE_DRIVER:}
+  flyway:
+    # Only the explicit one-shot initializer owns schema migration.
+    enabled: false
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: ${WEAVE_JPA_DDL_AUTO:validate}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Required for a ready auth contract. Leave blank to start in blocked mode until
+          # the backend can validate JWT iss, exp, nbf, and signature against the public issuer.
+          # Canonical local/dev issuer: https://auth.weave.test/realms/weave
+          issuer-uri: ${WEAVE_OIDC_ISSUER_URI:}
+          # Optional. Use when the backend must fetch signing keys through an internal/private route
+          # while preserving the public issuer URI in token validation.
+          jwk-set-uri: ${WEAVE_OIDC_JWK_SET_URI:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # Infra binds the backend management port to loopback and blocks /actuator/*
+        # at Caddy. Metrics remain a local operator surface, not a product endpoint.
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+weave:
+  platform:
+    public-base-url: ${WEAVE_PUBLIC_BASE_URL:https://weave.test}
+    api-base-url: ${WEAVE_API_BASE_URL:https://api.weave.test/api}
+    auth-base-url: ${WEAVE_AUTH_BASE_URL:https://auth.weave.test}
+    matrix-homeserver-url: ${WEAVE_MATRIX_FACADE_BASE_URL:}
+    files-product-url: ${WEAVE_FILES_PRODUCT_URL:https://weave.test/files}
+    calendar-product-url: ${WEAVE_CALENDAR_PRODUCT_URL:https://weave.test/calendar}
+    nextcloud-base-url: ${WEAVE_NEXTCLOUD_PUBLIC_BASE_URL:${WEAVE_NEXTCLOUD_BASE_URL:https://files.weave.test}}
+    release-posture: ${WEAVE_RELEASE_POSTURE:dogfood}
+    targets:
+      mobile: ${WEAVE_TARGET_MOBILE:true}
+      desktop: ${WEAVE_TARGET_DESKTOP:true}
+      web: ${WEAVE_TARGET_WEB:false}
+  security:
+    # JWT aud names the backend resource; azp/client_id binds the direct first-party app.
+    required-audience: ${WEAVE_OIDC_REQUIRED_AUDIENCE:https://api.weave.test/api}
+    client-id: ${WEAVE_CLIENT_ID:weave-app}
+    primary-organization:
+      # Explicit native coordinate; missing configuration denies human product access.
+      keycloak-id: ${WEAVE_PRIMARY_ORGANIZATION_ID:}
+      keycloak-alias: ${WEAVE_PRIMARY_ORGANIZATION_ALIAS:}
+    device-credentials:
+      enabled: true
+  workspace:
+    shell-access:
+      enabled: ${WEAVE_WORKSPACE_SHELL_ACCESS_ENABLED:true}
+  identity:
+    invitations:
+      default-lifetime: ${WEAVE_IDENTITY_INVITATIONS_DEFAULT_LIFETIME:P7D}
+      bootstrap-owner:
+        enabled: ${WEAVE_IDENTITY_BOOTSTRAP_OWNER_ENABLED:false}
+        token-file: ${WEAVE_IDENTITY_BOOTSTRAP_OWNER_TOKEN_FILE:}
+        tenant-id: ${WEAVE_CONTEXT_AUTHORIZATION_DEFAULT_TENANT_ID:tenant-default}
+      keycloak:
+        base-url: ${WEAVE_IDENTITY_KEYCLOAK_BASE_URL:http://keycloak:8080}
+        realm: ${WEAVE_IDENTITY_KEYCLOAK_REALM:weave}
+        organization-id: ${WEAVE_IDENTITY_KEYCLOAK_ORGANIZATION_ID:}
+        organization-alias: ${WEAVE_IDENTITY_KEYCLOAK_ORGANIZATION_ALIAS:weave}
+        admin-client-id: ${WEAVE_IDENTITY_KEYCLOAK_CLIENT_ID:weave-identity-admin}
+        admin-credential-ref: ${WEAVE_IDENTITY_KEYCLOAK_CREDENTIAL_REF:credentialref://weave/keycloak/weave-identity-admin}
+        admin-private-jwk-file: ${WEAVE_IDENTITY_KEYCLOAK_PRIVATE_JWK_FILE:/run/secrets/identity-admin/weave-identity-admin-private-jwk.json}
+        private-key-jwt-audience: ${WEAVE_IDENTITY_KEYCLOAK_PRIVATE_KEY_JWT_AUDIENCE:${WEAVE_OIDC_ISSUER_URI:http://keycloak:8080/realms/weave}}
+        timeout: ${WEAVE_IDENTITY_KEYCLOAK_TIMEOUT:10s}
+        reference-hmac-secret-file: ${WEAVE_IDENTITY_REFERENCE_HMAC_SECRET_FILE:}
+  profile:
+    persistence: relational-jpa
+  provider:
+    selections:
+      persistence: relational-jpa
+  audit:
+    events:
+      persistence: relational-jpa

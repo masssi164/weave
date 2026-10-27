@@ -20,6 +20,11 @@ import urllib.parse
 import urllib.request
 import zipfile
 
+if __package__:
+    from . import domain_selection_resolver as domain_selection
+else:
+    import domain_selection_resolver as domain_selection
+
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG = "tools/build_artifacts.inputs.json"
 DEFAULT_COMPONENTS = ("runtime-linux-amd64", "ios-simulator", "ios-device")
@@ -97,7 +102,48 @@ def component_configuration(root: Path, component: str, candidate: str = "HEAD")
         raise ArtifactError("unknown-component") from None
 
 
-def input_digest(root: Path, component: str, candidate: str = "HEAD") -> str:
+def domain_catalog(root: Path, candidate: str = "HEAD") -> dict:
+    try:
+        return domain_selection.validate_catalog(json.loads(
+            git(root, "show", candidate + ":server/domains/catalog.json")))
+    except (domain_selection.DomainSelectionError, ValueError, subprocess.CalledProcessError) as failure:
+        raise ArtifactError("candidate-domain-catalog-invalid") from failure
+
+
+def runtime_identity(root: Path, domains: list[str], candidate: str = "HEAD") -> dict:
+    """Bind runtime receipts to an already resolved, canonical selection."""
+    if not isinstance(domains, list) or not domains or any(not isinstance(item, str) for item in domains):
+        raise ArtifactError("runtime-domain-selection-required")
+    try:
+        selected = domain_selection.resolve(domain_catalog(root, candidate), ",".join(domains), None)["domains"]
+    except domain_selection.DomainSelectionError as failure:
+        raise ArtifactError("runtime-domain-selection-invalid") from failure
+    if selected != domains:
+        raise ArtifactError("runtime-domain-selection-not-canonical")
+    return {"domains": selected, "flavor": "jvm"}
+
+
+def release_domains(root: Path, candidate: str = "HEAD") -> list[str]:
+    catalog = domain_catalog(root, candidate)
+    # This is an explicit release request, never a fabricated source-branch pin.
+    return domain_selection.resolve(catalog, domain_selection.release_request(catalog), None)["domains"]
+
+
+def manifest_runtime(root: Path, value: dict, candidate: str, domains: list[str] | None = None) -> dict:
+    observed = value.get("runtime")
+    if not isinstance(observed, dict):
+        raise ArtifactError("runtime-domain-selection-required")
+    expected = runtime_identity(root, domains if domains is not None else observed.get("domains"), candidate)
+    if observed != expected:
+        raise ArtifactError("runtime-domain-selection-mismatch")
+    return expected
+
+
+def is_runtime(component: str) -> bool:
+    return component.startswith("runtime-")
+
+
+def input_digest(root: Path, component: str, candidate: str = "HEAD", domains: list[str] | None = None) -> str:
     """Hash tracked dependency contents, paths and executable bits, never the whole commit.
 
     Corpus/profile revisions remain composition/test inputs unless they affect generated
@@ -120,8 +166,12 @@ def input_digest(root: Path, component: str, candidate: str = "HEAD") -> str:
             entries.append([path, mode, blob])
     if not entries:
         raise ArtifactError("empty-build-inputs")
-    return digest_bytes(canonical({"schema": config["schemaVersion"], "component": component,
-                                   "definition": definition, "files": sorted(entries)}))
+    identity = {"schema": config["schemaVersion"], "component": component,
+                "definition": definition, "files": sorted(entries)}
+    if is_runtime(component):
+        selected = domains if domains is not None else domain_selection.resolve(domain_catalog(root, candidate), None, None)["domains"]
+        identity["runtime"] = runtime_identity(root, selected, candidate)
+    return digest_bytes(canonical(identity))
 
 
 def artifact_name(component: str, input_hash: str) -> str:
@@ -220,10 +270,11 @@ def extract_payload(archive: Path, destination: Path) -> None:
                 (destination / item.name).chmod(item.mode & 0o777)
 
 
-def validate_manifest(root: Path, manifest: dict, component: str, candidate: str = "HEAD") -> dict:
+def validate_manifest(root: Path, manifest: dict, component: str, candidate: str = "HEAD", domains: list[str] | None = None) -> dict:
     definition = component_configuration(root, component, candidate)
+    runtime = manifest_runtime(root, manifest, candidate, domains) if is_runtime(component) else None
     expected = {"schemaVersion": "weave.build-artifact/v1", "component": component,
-                "inputDigest": input_digest(root, component, candidate), "target": definition["target"],
+                "inputDigest": input_digest(root, component, candidate, runtime["domains"] if runtime else None), "target": definition["target"],
                 "buildMode": definition["buildMode"], "toolchain": definition["toolchain"]}
     if any(manifest.get(key) != value for key, value in expected.items()):
         raise ArtifactError("artifact-input-or-target-mismatch")
@@ -238,7 +289,7 @@ def validate_manifest(root: Path, manifest: dict, component: str, candidate: str
     return manifest
 
 
-def verify_component(root: Path, directory: Path, candidate: str = "HEAD", component: str | None = None) -> dict:
+def verify_component(root: Path, directory: Path, candidate: str = "HEAD", component: str | None = None, domains: list[str] | None = None) -> dict:
     """Verify a previously authenticated, private extracted component against this candidate.
 
     Download/producer authentication is done by resolve/consume. This local check also
@@ -249,13 +300,13 @@ def verify_component(root: Path, directory: Path, candidate: str = "HEAD", compo
         raise ArtifactError("unsafe-component-directory")
     manifest = json.loads((directory / "manifest.json").read_text())
     component = component or manifest.get("component")
-    validate_manifest(root, manifest, component, candidate)
+    validate_manifest(root, manifest, component, candidate, domains)
     if tree_digest(directory / "payload") != manifest["payload"]["treeDigest"]:
         raise ArtifactError("extracted-payload-digest-mismatch")
     return manifest
 
 
-def publish_manifest(root: Path, component: str, payload: Path, output: Path) -> dict:
+def publish_manifest(root: Path, component: str, payload: Path, output: Path, domains: list[str] | None = None) -> dict:
     if os.environ.get("GITHUB_ACTIONS") != "true" or os.environ.get("RUNNER_ENVIRONMENT") != "github-hosted":
         raise ArtifactError("hosted-producer-required")
     ref = os.environ.get("GITHUB_REF", "")
@@ -274,7 +325,7 @@ def publish_manifest(root: Path, component: str, payload: Path, output: Path) ->
     archive = output / "payload.tar.gz"
     tree = package_payload(payload, archive)
     manifest = {"schemaVersion": "weave.build-artifact/v1", "component": component,
-                "inputDigest": input_digest(root, component), "sourceCommit": identity["candidateCommit"],
+                "inputDigest": input_digest(root, component, domains=domains), "sourceCommit": identity["candidateCommit"],
                 "sourceTree": identity["sourceTree"], "target": definition["target"],
                 "buildMode": definition["buildMode"], "toolchain": definition["toolchain"],
                 "buildNumber": os.environ["GITHUB_RUN_NUMBER"],
@@ -284,7 +335,9 @@ def publish_manifest(root: Path, component: str, payload: Path, output: Path) ->
                              "ref": ref, "event": event},
                 "payload": {"filename": archive.name, "sha256": digest_file(archive),
                             "bytes": archive.stat().st_size, "treeDigest": tree}}
-    validate_manifest(root, manifest, component)
+    if is_runtime(component):
+        manifest["runtime"] = runtime_identity(root, domains)
+    validate_manifest(root, manifest, component, domains=domains)
     (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     return manifest
 
@@ -375,10 +428,10 @@ class GitHub:
 
 
 def read_download(root: Path, github: GitHub, artifact: dict, component: str,
-                  destination: Path | None = None, candidate: str = "HEAD") -> dict:
+                  destination: Path | None = None, candidate: str = "HEAD", domains: list[str] | None = None) -> dict:
     definition = component_configuration(root, component, candidate)
     if (artifact.get("expired") is not False or type(artifact.get("id")) is not int
-            or artifact.get("name") != artifact_name(component, input_digest(root, component, candidate))
+            or artifact.get("name") != artifact_name(component, input_digest(root, component, candidate, domains))
             or not 0 < artifact.get("size_in_bytes", 0) <= MAX_ARCHIVE):
         raise ArtifactError("artifact-metadata-invalid")
     with tempfile.TemporaryDirectory(prefix="weave-build-download-") as name:
@@ -395,7 +448,7 @@ def read_download(root: Path, github: GitHub, artifact: dict, component: str,
                 raise ArtifactError("unexpected-github-artifact-files")
             if source.getinfo("manifest.json").file_size > 65536:
                 raise ArtifactError("manifest-size-limit")
-            manifest = validate_manifest(root, json.loads(source.read("manifest.json")), component, candidate)
+            manifest = validate_manifest(root, json.loads(source.read("manifest.json")), component, candidate, domains)
             github.trusted_producer(artifact, manifest, definition["runner"])
             with source.open("payload.tar.gz") as payload, (temporary / "payload.tar.gz").open("wb") as output:
                 shutil.copyfileobj(payload, output, 1024 * 1024)
@@ -405,7 +458,7 @@ def read_download(root: Path, github: GitHub, artifact: dict, component: str,
         if destination is not None:
             if destination.exists() or destination.is_symlink():
                 # Reuse is allowed only for the exact already-verified local payload.
-                existing = verify_component(root, destination, candidate, component)
+                existing = verify_component(root, destination, candidate, component, domains)
                 if existing != manifest:
                     raise ArtifactError("component-destination-conflict")
             else:
@@ -415,20 +468,20 @@ def read_download(root: Path, github: GitHub, artifact: dict, component: str,
                     directory.mkdir(mode=0o700)
                     extract_payload(payload, directory / "payload")
                     (directory / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
-                    verify_component(root, directory, candidate, component)
+                    verify_component(root, directory, candidate, component, domains)
                     directory.rename(destination)
         return manifest
 
 
 def find_artifact(root: Path, github: GitHub, component: str, candidate: str = "HEAD",
-                  destination: Path | None = None) -> tuple[dict, dict] | None:
-    name = artifact_name(component, input_digest(root, component, candidate))
+                  destination: Path | None = None, domains: list[str] | None = None) -> tuple[dict, dict] | None:
+    name = artifact_name(component, input_digest(root, component, candidate, domains))
     candidates = github.pages(github.prefix + "/actions/artifacts?name=" + urllib.parse.quote(name), "artifacts")
     for artifact in candidates:
         if artifact.get("name") != name or artifact.get("expired") is not False:
             continue
         try:
-            return artifact, read_download(root, github, artifact, component, destination, candidate)
+            return artifact, read_download(root, github, artifact, component, destination, candidate, domains)
         except (ArtifactError, ValueError, OSError, KeyError, TypeError, zipfile.BadZipFile, tarfile.TarError):
             # Missing/expired/untrusted/corrupt cache entries never become acceptance.
             # A trusted fresh build is the fallback, not a permissive cache restore.
@@ -437,7 +490,7 @@ def find_artifact(root: Path, github: GitHub, component: str, candidate: str = "
 
 
 def composition_entry(artifact: dict, manifest: dict) -> dict:
-    return {"artifactId": artifact["id"], "artifactName": artifact["name"],
+    return ({"runtime": manifest["runtime"]} if is_runtime(manifest["component"]) else {}) | {"artifactId": artifact["id"], "artifactName": artifact["name"],
             "producerRunId": manifest["producer"]["runId"], "producerRunAttempt": manifest["producer"]["runAttempt"],
             **{key: manifest[key] for key in ("inputDigest", "sourceCommit", "sourceTree", "target", "buildMode", "buildNumber")},
             "payloadSha256": manifest["payload"]["sha256"]}
@@ -459,7 +512,8 @@ def validate_composition(root: Path, composition: dict, candidate: str = "HEAD")
         raise ArtifactError("candidate-scenario-mismatch")
     for component, entry in composition["components"].items():
         definition = component_configuration(root, component, candidate)
-        input_hash = input_digest(root, component, candidate)
+        runtime = manifest_runtime(root, entry, candidate) if is_runtime(component) else None
+        input_hash = input_digest(root, component, candidate, runtime["domains"] if runtime else None)
         if (not isinstance(entry, dict) or type(entry.get("artifactId")) is not int or entry["artifactId"] < 1
                 or type(entry.get("producerRunId")) is not int or entry["producerRunId"] < 1
                 or type(entry.get("producerRunAttempt")) is not int or entry["producerRunAttempt"] < 1
@@ -474,7 +528,7 @@ def validate_composition(root: Path, composition: dict, candidate: str = "HEAD")
 
 
 def resolve(root: Path, github: GitHub, components: list[str], destination: Path | None,
-            candidate: str = "HEAD", scenario: Path | None = None) -> dict:
+            candidate: str = "HEAD", scenario: Path | None = None, domains: list[str] | None = None) -> dict:
     if scenario is not None and (scenario.resolve() != (root / SCENARIO).resolve()
             or digest_bytes(canonical(json.loads(scenario.read_text()))) != scenario_digest(root, candidate)):
         raise ArtifactError("candidate-scenario-source-mismatch")
@@ -482,7 +536,7 @@ def resolve(root: Path, github: GitHub, components: list[str], destination: Path
               "scenarioDigest": scenario_digest(root, candidate) if scenario else None, "components": {}}
     for component in components:
         found = find_artifact(root, github, component, candidate,
-                              destination / component if destination else None)
+                              destination / component if destination else None, domains)
         if found is None:
             raise ArtifactError("required-component-unavailable-" + component)
         result["components"][component] = composition_entry(*found)
@@ -500,7 +554,8 @@ def consume(root: Path, github: GitHub, composition: dict, destination: Path, ca
     for component in selected:
         entry = composition["components"][component]
         artifact = github.json(github.prefix + "/actions/artifacts/" + str(entry["artifactId"]))
-        manifest = read_download(root, github, artifact, component, destination / component, candidate)
+        manifest = read_download(root, github, artifact, component, destination / component, candidate,
+                                 entry["runtime"]["domains"] if is_runtime(component) else None)
         if composition_entry(artifact, manifest) != entry:
             raise ArtifactError("composition-component-mismatch")
 
@@ -516,16 +571,33 @@ def main() -> int:
     parser.add_argument("--directory", type=Path)
     parser.add_argument("--composition", type=Path)
     parser.add_argument("--scenario", type=Path)
+    parser.add_argument("--domains", help="Explicit domain selection; empty preserves source-branch pin precedence")
+    parser.add_argument("--source-branch")
+    parser.add_argument("--source-commit")
+    parser.add_argument("--release-selection", action="store_true", help="Explicitly request the catalog release pin")
     args = parser.parse_args()
     components = args.components.split(",") if args.components else list(DEFAULT_COMPONENTS)
     for component in components:
         component_configuration(args.root, component, args.candidate)
+    domains = None
+    selection_requested = any((args.domains is not None, args.release_selection, args.source_branch, args.source_commit))
+    if any(is_runtime(component) for component in components) and (args.operation not in {"consume", "verify"} or selection_requested):
+        if git(args.root, "rev-parse", args.candidate + "^{commit}") != git(args.root, "rev-parse", "HEAD"):
+            if args.source_branch or args.source_commit:
+                raise ArtifactError("source-identity-requires-candidate-checkout")
+            branch = None
+        else:
+            branch = domain_selection.source_branch(args.root, args.source_branch, args.source_commit)
+        requested = ",".join(release_domains(args.root, args.candidate)) if args.release_selection else args.domains
+        if args.release_selection and args.domains:
+            raise ArtifactError("release-selection-cannot-override-domains")
+        domains = domain_selection.resolve(domain_catalog(args.root, args.candidate), requested, branch)["domains"]
     if args.operation == "inputs":
-        result = {component: input_digest(args.root, component, args.candidate) for component in components}
+        result = {component: input_digest(args.root, component, args.candidate, domains) for component in components}
     elif args.operation == "verify":
         if not args.directory:
             parser.error("--directory is required")
-        result = {component: verify_component(args.root, args.directory / component, args.candidate, component)
+        result = {component: verify_component(args.root, args.directory / component, args.candidate, component, domains)
                   for component in components}
     else:
         github = GitHub(args.repository, os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN", ""))
@@ -533,24 +605,30 @@ def main() -> int:
             matrix = []
             reused = {}
             for component in components:
-                found = find_artifact(args.root, github, component, args.candidate)
+                found = find_artifact(args.root, github, component, args.candidate, domains=domains)
                 if found:
                     reused[component] = composition_entry(*found)
                 else:
                     definition = component_configuration(args.root, component, args.candidate)
                     matrix.append({"component": component, "runner": definition["runner"],
-                                   "name": artifact_name(component, input_digest(args.root, component, args.candidate))})
-            result = {"matrix": {"include": matrix}, "needsBuild": bool(matrix), "reused": reused}
+                                   "name": artifact_name(component, input_digest(args.root, component, args.candidate, domains))})
+            result = {"matrix": {"include": matrix}, "needsBuild": bool(matrix), "reused": reused, "domains": domains}
             if os.environ.get("GITHUB_OUTPUT"):
                 with open(os.environ["GITHUB_OUTPUT"], "a") as output:
                     output.write("matrix=" + json.dumps(result["matrix"], separators=(",", ":")) + "\n")
+                    output.write("domains=" + (",".join(domains) if domains else "") + "\n")
                     output.write("needs-build=" + str(bool(matrix)).lower() + "\n")
         elif args.operation == "resolve":
-            result = resolve(args.root, github, components, args.directory, args.candidate, args.scenario)
+            result = resolve(args.root, github, components, args.directory, args.candidate, args.scenario, domains)
         else:
             if not args.composition or not args.directory:
                 parser.error("--composition and --directory are required")
             result = json.loads(args.composition.read_text())
+            if domains is not None:
+                validate_composition(args.root, result, args.candidate)
+                for component, entry in result["components"].items():
+                    if is_runtime(component):
+                        manifest_runtime(args.root, entry, args.candidate, domains)
             consume(args.root, github, result, args.directory, args.candidate,
                     components if args.components else None)
     if args.output:
@@ -564,7 +642,7 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except (ArtifactError, ValueError, OSError, subprocess.CalledProcessError) as error:
+    except (ArtifactError, domain_selection.DomainSelectionError, ValueError, OSError, subprocess.CalledProcessError) as error:
         # urllib errors are normalized before this boundary; never print signed URLs.
-        print("WEAVE_BUILD_ARTIFACT_ERROR " + (str(error) if isinstance(error, ArtifactError) else type(error).__name__))
+        print("WEAVE_BUILD_ARTIFACT_ERROR " + (str(error) if isinstance(error, (ArtifactError, domain_selection.DomainSelectionError)) else type(error).__name__))
         raise SystemExit(2) from None

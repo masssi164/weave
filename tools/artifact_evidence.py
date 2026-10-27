@@ -21,6 +21,16 @@ def matches(pattern, value) -> bool:
     return isinstance(value, str) and pattern.fullmatch(value) is not None
 
 
+def runtime_shape(value: object) -> bool:
+    # Only receipt syntax belongs here; the authenticated consumer validates the candidate catalog.
+    if not isinstance(value, dict) or set(value) != {'domains', 'flavor'} or value['flavor'] != 'jvm':
+        return False
+    domains = value['domains']
+    return (isinstance(domains, list) and bool(domains)
+            and all(isinstance(name, str) and re.fullmatch(r'[a-z][a-z0-9-]*', name) for name in domains)
+            and domains == sorted(set(domains)))
+
+
 def composition_passed(value: object, sha: str, tree: str, spec: str, scenario: str | None = None) -> bool:
     if not isinstance(value, dict):
         return False
@@ -41,6 +51,10 @@ def composition_passed(value: object, sha: str, tree: str, spec: str, scenario: 
         return False
     for name, (target, mode) in COMPONENTS.items():
         entry = entries[name]
+        if name.startswith('runtime-'):
+            runtime = entry.get('runtime') if isinstance(entry, dict) else None
+            if not runtime_shape(runtime):
+                return False
         if (not isinstance(entry, dict) or entry.get('target') != target or entry.get('buildMode') != mode
                 or not matches(DIGEST, entry.get('inputDigest')) or not matches(DIGEST, entry.get('payloadSha256'))
                 or not matches(SHA, entry.get('sourceCommit')) or not matches(SHA, entry.get('sourceTree'))
@@ -55,5 +69,7 @@ def composition_passed(value: object, sha: str, tree: str, spec: str, scenario: 
 def component_matches(value: object, composition: dict, name: str) -> bool:
     entry = composition.get('components', {}).get(name)
     return (isinstance(value, dict) and isinstance(entry, dict) and value.get('component') == name
+            and (not name.startswith('runtime-') or (runtime_shape(entry.get('runtime'))
+                 and value.get('runtime') == entry['runtime']))
             and all(value.get(key) == entry.get(key) for key in (
                 'sourceCommit', 'sourceTree', 'inputDigest', 'target', 'buildMode', 'buildNumber', 'payloadSha256')))

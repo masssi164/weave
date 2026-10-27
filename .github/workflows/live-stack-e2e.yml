@@ -10,11 +10,30 @@ permissions:
   contents: read
 
 jobs:
+  release-selection:
+    name: Resolve explicit release composition
+    runs-on: ubuntu-24.04
+    outputs:
+      domains: ${{ steps.selection.outputs.domains }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - id: selection
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          domains="$(python3 tools/domain_selection_resolver.py --release-selection --format csv)"
+          printf 'domains=%s\n' "$domains" >> "$GITHUB_OUTPUT"
+
   hosted-artifacts:
     name: Hosted build artifacts
+    needs: release-selection
     uses: ./.github/workflows/build-artifacts.yml
     with:
       candidate: ${{ github.sha }}
+      domains: ${{ needs.release-selection.outputs.domains }}
 
   full-compose-e2e:
     name: Full Compose E2E

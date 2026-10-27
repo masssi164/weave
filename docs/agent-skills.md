@@ -24,7 +24,7 @@ No global installer, remote execution, symlink farm or duplicate `.github/skills
 ## Maintenance and evidence
 
 - Keep each `SKILL.md` short, with a specific description and links to shared policy and executable examples. Its `agents/openai.yaml` contains display/invocation metadata only.
-- Run `./gradlew javaAgentContractCheck :server:javaAgentReferenceTest` after modifying the contract or examples. The static guard validates skill structure/local links and rejects additions to the finite legacy startup-selector inventory. Its negative tests prove rejection; it is not a semantic proof that all provider logic is dynamic.
+- Run `./gradlew javaAgentContractCheck :server:app:javaAgentReferenceTest` after modifying the contract or examples. The static guard validates skill structure/local links and rejects additions to the finite legacy startup-selector inventory. Its negative tests prove rejection; it is not a semantic proof that all provider logic is dynamic.
 - Existing module ArchUnit tests enforce framework-free core and adapter dependencies. New HTTP/configuration examples are JVM tests. The same-instance Files resolver test uses a repository double and proves routing behavior only, not populated-data migration.
 - Forward-test skill behavior on a realistic bounded task and inspect the proposed changes; never confuse wording validation with reliable model compliance.
 - Remove legacy selector entries only when their runtime replacement is proven. Do not regenerate a baseline to approve new violations. Follow the linked migration and native lanes without claiming they are complete.

@@ -1,0 +1,1230 @@
+package com.massimotter.weave.backend.chat.persistence;
+
+import com.massimotter.weave.backend.chat.port.MatrixProtocolCodec;
+
+import tools.jackson.databind.ObjectMapper;
+import com.massimotter.weave.backend.chat.provider.matrix.MatrixProtocolCoreService;
+import com.massimotter.weave.backend.chat.domain.ChatInvitation;
+import com.massimotter.weave.backend.chat.domain.ChatAccessDeniedException;
+import com.massimotter.weave.backend.chat.domain.ChatActorRef;
+import com.massimotter.weave.backend.chat.domain.ChatCallbackRetryRequiredException;
+import com.massimotter.weave.backend.chat.domain.ChatConversation;
+import com.massimotter.weave.backend.chat.domain.ChatCursor;
+import com.massimotter.weave.backend.chat.domain.ChatEncryptedEnvelope;
+import com.massimotter.weave.backend.chat.domain.ChatEventContent;
+import com.massimotter.weave.backend.chat.domain.ChatEncryptionState;
+import com.massimotter.weave.backend.chat.domain.ChatRequestContext;
+import com.massimotter.weave.backend.chat.domain.ChatResolvedIdentity;
+import com.massimotter.weave.backend.chat.domain.ChatTransactionId;
+import com.massimotter.weave.backend.chat.domain.ChatTimelinePage;
+import com.massimotter.weave.backend.chat.domain.ConversationId;
+import com.massimotter.weave.backend.chat.port.CanonicalChatStore;
+import com.massimotter.weave.backend.chat.port.ChatSouthboundProvider;
+import com.massimotter.weave.backend.chat.provider.weave.NativeChatProviderAdapter;
+import com.massimotter.weave.backend.chat.provider.synapse.MatrixSynapseChatSouthboundAdapter;
+import com.massimotter.weave.backend.chat.provider.synapse.SynapseBackedCanonicalChatAdapter;
+import com.massimotter.weave.backend.chat.config.ChatRuntimeProperties;
+import com.massimotter.weave.backend.testing.JpaTestDatabase;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Test;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+class JpaCanonicalChatStoreTest {
+
+    private static final Clock FIXED = Clock.fixed(Instant.parse("2026-07-15T08:00:00Z"), ZoneOffset.UTC);
+    private static final String PROVIDER = "matrix-synapse";
+
+    @Test
+    void spaceReferenceWideningPreservesExistingChatAndPersistsMaximumLengthScope() {
+        DriverManagerDataSource dataSource = dataSource();
+        JpaCanonicalChatStore store = store(dataSource);
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        jdbc.execute("ALTER TABLE weave_chat_conversations ALTER COLUMN context_id TYPE character varying(160)");
+        jdbc.execute("ALTER TABLE weave_chat_operations ALTER COLUMN context_id TYPE character varying(160)");
+        NativeChatProviderAdapter adapter = new NativeChatProviderAdapter(store, FIXED);
+        ChatRequestContext existing = context("existing-author");
+        var existingRoom = adapter.createConversation(existing, new ChatTransactionId("existing-room"),
+                "Existing", "channel", List.of(), ChatEncryptionState.unencrypted());
+        adapter.sendEvent(existing, new ConversationId(existingRoom.conversationId()),
+                new ChatTransactionId("existing-message"), ChatEventContent.text("Preserved message"));
+
+        new org.springframework.jdbc.datasource.init.ResourceDatabasePopulator(
+                new org.springframework.core.io.ClassPathResource(
+                        "db/migration/V15__chat_canonical_space_reference_width.sql")).execute(dataSource);
+
+        String longestSpace = "space:" + "x".repeat(249);
+        ChatRequestContext selected = new ChatRequestContext(existing.tenantId(), longestSpace,
+                existing.identityIssuer(), existing.actorRef(), existing.authorizationPrincipalRef());
+        assertThat(store.joinedConversations(selected).conversations()).isEmpty();
+        var first = adapter.createConversation(selected, new ChatTransactionId("first-long-space-room"),
+                "Selected", "channel", List.of(), ChatEncryptionState.unencrypted());
+        adapter.sendEvent(selected, new ConversationId(first.conversationId()),
+                new ChatTransactionId("first-long-space-message"), ChatEventContent.text("First message"));
+        JpaCanonicalChatStore restarted = store(dataSource);
+        assertThat(restarted.conversation(existing, new ConversationId(existingRoom.conversationId())).title())
+                .isEqualTo("Existing");
+        assertThat(restarted.timelineEvents(existing, new ConversationId(existingRoom.conversationId()), null, 100).events())
+                .extracting(event -> event.content().body()).containsExactly("Preserved message");
+        assertThat(restarted.memberConversationContext(selected, new ConversationId(first.conversationId())))
+                .contains(longestSpace);
+        assertThat(restarted.timelineEvents(selected, new ConversationId(first.conversationId()), null, 100).events())
+                .extracting(event -> event.content().body()).containsExactly("First message");
+        assertThat(jdbc.queryForList("select distinct context_id from weave_chat_operations where context_id = ?",
+                String.class, longestSpace)).containsExactly(longestSpace);
+        assertThatThrownBy(() -> new ChatRequestContext(existing.tenantId(), longestSpace + "x",
+                existing.identityIssuer(), existing.actorRef(), existing.authorizationPrincipalRef()))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void canonicalHistoryBackfillsBeyondColdSyncWindowWithoutDuplicateOrGapAfterRestart() {
+        DriverManagerDataSource dataSource = dataSource();
+        JpaCanonicalChatStore store = store(dataSource);
+        NativeChatProviderAdapter adapter = new NativeChatProviderAdapter(store, FIXED);
+        ChatRequestContext author = context("history-backfill");
+        ConversationId room = new ConversationId(adapter.createConversation(author,
+                new ChatTransactionId("history-room"), "History", "channel", List.of(),
+                ChatEncryptionState.unencrypted()).conversationId());
+        for (int i = 0; i < 105; i++) {
+            adapter.sendEvent(author, room, new ChatTransactionId("history-event-" + i),
+                    ChatEventContent.text("history-" + i));
+        }
+
+        JpaCanonicalChatStore restarted = store(dataSource);
+        ChatTimelinePage recent = restarted.timelinePage(author, room, null, 100);
+        assertThat(recent.timeline().events()).hasSize(100);
+        assertThat(recent.timeline().events().getFirst().content().body()).isEqualTo("history-5");
+        assertThat(recent.hasEarlier()).isTrue();
+        ChatTimelinePage earlier = restarted.timelinePage(author, room,
+                new ChatCursor(recent.nextBackwardCursor()), 100);
+        assertThat(earlier.timeline().events()).hasSize(5);
+        assertThat(earlier.timeline().events().getFirst().content().body()).isEqualTo("history-0");
+        assertThat(earlier.timeline().events().getLast().content().body()).isEqualTo("history-4");
+        assertThat(earlier.hasEarlier()).isFalse();
+    }
+
+    @Test
+    void leavingMemberReceivesOnlyOwnDepartureChangeAndLosesHistoryAccess() {
+        DriverManagerDataSource dataSource = dataSource();
+        JpaCanonicalChatStore store = store(dataSource);
+        NativeChatProviderAdapter adapter = new NativeChatProviderAdapter(store, FIXED);
+        ChatRequestContext author = context("leave-actor");
+        ChatRequestContext outsider = context("leave-outsider");
+        ConversationId room = new ConversationId(adapter.createConversation(author,
+                new ChatTransactionId("leave-room"), "Leave", "channel", List.of(),
+                ChatEncryptionState.unencrypted()).conversationId());
+        String before = store.currentCursor(author).value();
+        adapter.leaveConversation(author, room);
+
+        assertThat(store.currentCursor(author).value()).isNotEqualTo(before);
+        assertThat(store.changes(author, new ChatCursor(before), 100).changes())
+                .singleElement().satisfies(change -> {
+                    assertThat(change.kind()).isEqualTo("membership.left");
+                    assertThat(change.conversationId()).isEqualTo(room);
+                    assertThat(change.messageId()).isEqualTo(author.actorRef().value());
+                });
+        assertThat(store.changes(outsider, new ChatCursor(before), 100).changes()).isEmpty();
+        assertThatThrownBy(() -> store.timelinePage(author, room, null, 100))
+                .isInstanceOf(ChatAccessDeniedException.class);
+    }
+
+    @Test
+    void committedJournalSequenceCannotPassAnEarlierOpenTransactionAcrossRooms() throws Exception {
+        DriverManagerDataSource dataSource = dataSource();
+        JpaCanonicalChatStore store = store(dataSource);
+        NativeChatProviderAdapter adapter = new NativeChatProviderAdapter(store, FIXED);
+        NativeChatProviderAdapter secondInstance = new NativeChatProviderAdapter(store(dataSource), FIXED);
+        ChatRequestContext author = context("sync-commit-order");
+        String firstRoom = adapter.createConversation(author, new ChatTransactionId("sync-first-room"),
+                "First", "channel", List.of(), ChatEncryptionState.unencrypted()).conversationId();
+        String secondRoom = adapter.createConversation(author, new ChatTransactionId("sync-second-room"),
+                "Second", "channel", List.of(), ChatEncryptionState.unencrypted()).conversationId();
+        long before = Long.parseLong(store.currentCursor(author).value().substring("chat-revision-".length()));
+        TransactionTemplate transaction = new TransactionTemplate(JpaTestDatabase.transactionManager(dataSource));
+        CountDownLatch firstInserted = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        CountDownLatch secondStarted = new CountDownLatch(1);
+        CountDownLatch secondFinished = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> transaction.execute(status -> {
+                var event = adapter.sendEvent(author, new ConversationId(firstRoom),
+                        new ChatTransactionId("sync-first-event"), ChatEventContent.text("first"));
+                firstInserted.countDown();
+                try {
+                    if (!releaseFirst.await(10, TimeUnit.SECONDS)) {
+                        throw new IllegalStateException("test transaction was not released");
+                    }
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(interrupted);
+                }
+                return event;
+            }));
+            assertThat(firstInserted.await(10, TimeUnit.SECONDS)).isTrue();
+            var second = executor.submit(() -> {
+                secondStarted.countDown();
+                try {
+                    return transaction.execute(status -> secondInstance.sendEvent(author,
+                            new ConversationId(secondRoom), new ChatTransactionId("sync-second-event"),
+                            ChatEventContent.text("second")));
+                } finally {
+                    secondFinished.countDown();
+                }
+            });
+            assertThat(secondStarted.await(10, TimeUnit.SECONDS)).isTrue();
+            assertThat(secondFinished.await(200, TimeUnit.MILLISECONDS)).isFalse();
+            releaseFirst.countDown();
+            var firstEvent = first.get();
+            var secondEvent = second.get();
+            var committed = store.changes(author, new ChatCursor("chat-revision-" + before), 10).changes();
+            assertThat(committed).hasSize(2);
+            assertThat(committed.get(0).messageId()).isEqualTo(firstEvent.eventId());
+            assertThat(committed.get(1).messageId()).isEqualTo(secondEvent.eventId());
+        } finally {
+            releaseFirst.countDown();
+        }
+    }
+
+    @Test
+    void concurrentSameTransactionAcrossInstancesCreatesOneNativeEvent() throws Exception {
+        DriverManagerDataSource dataSource = dataSource();
+        JpaCanonicalChatStore firstStore = store(dataSource);
+        NativeChatProviderAdapter firstAdapter = new NativeChatProviderAdapter(firstStore, FIXED);
+        NativeChatProviderAdapter secondAdapter = new NativeChatProviderAdapter(store(dataSource), FIXED);
+        ChatRequestContext author = context("native-idempotent-send");
+        ConversationId room = new ConversationId(firstAdapter.createConversation(author,
+                new ChatTransactionId("native-idempotent-room"), "Idempotent", "channel", List.of(),
+                ChatEncryptionState.unencrypted()).conversationId());
+        TransactionTemplate transaction = new TransactionTemplate(JpaTestDatabase.transactionManager(dataSource));
+        CountDownLatch firstStored = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        CountDownLatch secondStarted = new CountDownLatch(1);
+        CountDownLatch secondFinished = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> transaction.execute(status -> {
+                var event = firstAdapter.sendEvent(author, room, new ChatTransactionId("same-native-txn"),
+                        ChatEventContent.text("sent once"));
+                firstStored.countDown();
+                try {
+                    if (!releaseFirst.await(10, TimeUnit.SECONDS)) {
+                        throw new IllegalStateException("test transaction was not released");
+                    }
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(interrupted);
+                }
+                return event;
+            }));
+            assertThat(firstStored.await(10, TimeUnit.SECONDS)).isTrue();
+            var second = executor.submit(() -> {
+                secondStarted.countDown();
+                try {
+                    return secondAdapter.sendEvent(author, room, new ChatTransactionId("same-native-txn"),
+                            ChatEventContent.text("sent once"));
+                } finally {
+                    secondFinished.countDown();
+                }
+            });
+            assertThat(secondStarted.await(10, TimeUnit.SECONDS)).isTrue();
+            assertThat(secondFinished.await(200, TimeUnit.MILLISECONDS)).isFalse();
+            releaseFirst.countDown();
+            assertThat(second.get().eventId()).isEqualTo(first.get().eventId());
+            assertThat(firstStore.timelineEvents(author, room, null, 10).events())
+                    .singleElement().satisfies(event ->
+                            assertThat(event.content().body()).isEqualTo("sent once"));
+            assertThatThrownBy(() -> secondAdapter.sendEvent(author, room,
+                    new ChatTransactionId("same-native-txn"), ChatEventContent.text("different payload")))
+                    .isInstanceOf(IllegalArgumentException.class);
+        } finally {
+            releaseFirst.countDown();
+        }
+    }
+
+    @Test
+    void nativeAdapterCommitsCanonicalStateWithoutProviderMappingsOrBridgeLedger() {
+        DriverManagerDataSource dataSource = dataSource();
+        NativeChatProviderAdapter adapter = new NativeChatProviderAdapter(store(dataSource), FIXED);
+        ChatRequestContext author = context("native-author");
+        ChatRequestContext collaborator = context("native-collaborator");
+        ChatRequestContext outsider = context("native-outsider");
+
+        ChatTransactionId createTransaction = new ChatTransactionId("native-create");
+        ChatConversation created = adapter.createConversation(
+                author,
+                createTransaction,
+                "Native encrypted room",
+                "channel",
+                List.of(ChatResolvedIdentity.from(collaborator)),
+                ChatEncryptionState.unencrypted());
+        ChatConversation replayed = adapter.createConversation(
+                author,
+                createTransaction,
+                "Native encrypted room",
+                "channel",
+                List.of(ChatResolvedIdentity.from(collaborator)),
+                ChatEncryptionState.unencrypted());
+
+        assertThat(replayed.conversationId()).isEqualTo(created.conversationId());
+        assertThatThrownBy(() -> adapter.joinConversation(outsider, new ConversationId(created.conversationId())))
+                .isInstanceOf(ChatAccessDeniedException.class);
+        adapter.joinConversation(collaborator, new ConversationId(created.conversationId()));
+        adapter.enableEncryption(
+                author,
+                new ConversationId(created.conversationId()),
+                ChatEncryptedEnvelope.MEGOLM_V1);
+
+        Map<String, Object> envelope = Map.of(
+                "algorithm", ChatEncryptedEnvelope.MEGOLM_V1,
+                "ciphertext", "opaque-native-ciphertext",
+                "session_id", "opaque-native-session");
+        ChatTransactionId eventTransaction = new ChatTransactionId("native-encrypted-event");
+        var event = adapter.sendEvent(
+                author,
+                new ConversationId(created.conversationId()),
+                eventTransaction,
+                ChatEventContent.encrypted(envelope));
+        var replayedEvent = adapter.sendEvent(
+                author,
+                new ConversationId(created.conversationId()),
+                eventTransaction,
+                ChatEventContent.encrypted(envelope));
+        adapter.markRead(author, new ConversationId(created.conversationId()), event.eventId());
+
+        assertThat(replayedEvent.eventId()).isEqualTo(event.eventId());
+        assertThatThrownBy(() -> adapter.send(
+                author,
+                new ConversationId(created.conversationId()),
+                new ChatTransactionId("native-plaintext-rejected"),
+                "plaintext after encryption"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("plaintext Chat events are forbidden");
+
+        NativeChatProviderAdapter restarted = new NativeChatProviderAdapter(store(dataSource), FIXED);
+        assertThat(restarted.timelineEvents(
+                        author, new ConversationId(created.conversationId()), null, 100).events())
+                .singleElement()
+                .satisfies(persisted -> {
+                    assertThat(persisted.eventId()).isEqualTo(event.eventId());
+                    assertThat(persisted.content().body()).isNull();
+                    assertThat(persisted.content().encryptedEnvelope().content()).isEqualTo(envelope);
+                });
+        restarted.redactEvent(
+                author,
+                new ConversationId(created.conversationId()),
+                new ChatTransactionId("native-redaction"),
+                event.eventId());
+
+        NativeChatProviderAdapter afterRedactionRestart = new NativeChatProviderAdapter(store(dataSource), FIXED);
+        assertThat(afterRedactionRestart.timelineEvents(
+                        author, new ConversationId(created.conversationId()), null, 100).events())
+                .singleElement()
+                .satisfies(persisted -> assertThat(persisted.redacted()).isTrue());
+        assertThat(afterRedactionRestart.conversation(
+                        collaborator, new ConversationId(created.conversationId())).memberships())
+                .filteredOn(membership -> membership.memberRef().equals(collaborator.actorRef().value()))
+                .singleElement()
+                .satisfies(membership -> assertThat(membership.state()).isEqualTo("joined"));
+
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        assertThat(jdbc.queryForObject("select count(*) from weave_chat_provider_mappings", Long.class)).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from weave_chat_bridge_ledger", Long.class)).isZero();
+        assertThat(jdbc.queryForObject(
+                "select count(*) from weave_chat_outbox where outbox_state <> 'acknowledged'", Long.class)).isZero();
+        assertThat(afterRedactionRestart.changes(author, null, 100).changes())
+                .filteredOn(change -> change.messageId().equals(event.eventId()))
+                .extracting(change -> change.kind())
+                .containsExactly("message.created", "event.redacted");
+    }
+
+    @Test
+    void encryptedConversationTraversesTheCanonicalStoreAndSynapseAdapter() {
+        DriverManagerDataSource dataSource = dataSource();
+        JpaCanonicalChatStore store = store(dataSource);
+        MatrixSynapseChatSouthboundAdapter provider = mock(MatrixSynapseChatSouthboundAdapter.class);
+        when(provider.providerKey()).thenReturn(PROVIDER);
+        when(provider.ensureVirtualUser(anyString())).thenAnswer(invocation -> {
+            String providerActor = invocation.getArgument(0, String.class);
+            return new ChatSouthboundProvider.ProviderAck(providerActor, "registered");
+        });
+        when(provider.createRoom(
+                anyString(), anyString(), anyString(), anyList(), anyString()))
+                .thenReturn(new ChatSouthboundProvider.ProviderAck(
+                        "!isolated-room:matrix.internal",
+                        "!isolated-room:matrix.internal"));
+        SynapseBackedCanonicalChatAdapter adapter = new SynapseBackedCanonicalChatAdapter(
+                store,
+                provider,
+                new ChatRuntimeProperties.Matrix(
+                        "http://synapse:8008",
+                        "matrix.internal",
+                        "weave-chat-synapse",
+                        "_weave_",
+                        "",
+                        "",
+                        Duration.ofSeconds(5),
+                        Duration.ofSeconds(10),
+                        Duration.ofSeconds(60),
+                        1_048_576,
+                        100),
+                tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build(),
+                FIXED);
+        ChatRequestContext author = new ChatRequestContext(
+                "tenant-test-app",
+                "workspace-default",
+                "https://auth.weave.test/realms/weave",
+                new ChatActorRef("user:11111111-1111-1111-1111-111111111111"),
+                "11111111-1111-1111-1111-111111111111");
+        ChatRequestContext collaborator = new ChatRequestContext(
+                author.tenantId(),
+                author.contextId(),
+                author.identityIssuer(),
+                new ChatActorRef("user:22222222-2222-2222-2222-222222222222"),
+                "22222222-2222-2222-2222-222222222222");
+
+        var conversation = adapter.createConversation(
+                author,
+                new ChatTransactionId("create-" + "a".repeat(64)),
+                "Weave isolated collaboration",
+                "channel",
+                List.of(ChatResolvedIdentity.from(collaborator)),
+                ChatEncryptionState.matrixMegolm());
+
+        assertThat(conversation.encryptionState().encrypted()).isTrue();
+        assertThat(conversation.memberships()).hasSize(2);
+        assertThat(store.evidence(
+                author.tenantId(), new com.massimotter.weave.backend.chat.domain.ConversationId(
+                        conversation.conversationId()), PROVIDER)
+                .pendingOperationCount()).isZero();
+    }
+
+    @Test
+    void redactionPresentationContentIsNarrowlyBounded() {
+        assertThat(JpaCanonicalChatStore.supportedRedactionPresentationContent(Map.of())).isTrue();
+        assertThat(JpaCanonicalChatStore.supportedRedactionPresentationContent(
+                Map.of("reason", "isolated-e2e-cleanup"))).isTrue();
+        assertThat(JpaCanonicalChatStore.supportedRedactionPresentationContent(
+                Map.of("reason", "line\nbreak"))).isFalse();
+        assertThat(JpaCanonicalChatStore.supportedRedactionPresentationContent(
+                Map.of("unsupported", "private-value"))).isFalse();
+    }
+
+    @Test
+    void invitationMetadataFailsClosedWhenCommittedCreatorAuthorityIsMissing() {
+        DriverManagerDataSource dataSource = dataSource();
+        JpaCanonicalChatStore store = store(dataSource);
+        NativeChatProviderAdapter adapter = new NativeChatProviderAdapter(store, FIXED);
+        ChatRequestContext author = context("invite-authority-author");
+        ChatRequestContext peer = context("invite-authority-peer");
+        var created = adapter.createConversation(author, new ChatTransactionId("invite-authority-room"),
+                "Pending", "channel", List.of(ChatResolvedIdentity.from(peer)), ChatEncryptionState.unencrypted());
+        var authority = CanonicalChatJpaTestFactory.authority(dataSource);
+        var operations = authority.operations().findByIdPart1AndConversationIdAndOperationTypeInAndStateIn(
+                author.tenantId(), created.conversationId(), List.of("create-room"), List.of("committed"));
+        assertThat(operations).hasSize(1);
+        authority.operations().deleteById(new ChatPairId(author.tenantId(), operations.getFirst().operationId()));
+        assertThatThrownBy(() -> store.invitedConversations(peer, "", 100))
+                .isInstanceOf(com.massimotter.weave.backend.chat.domain.ChatProviderUnavailableException.class);
+        assertThat(adapter.joinedConversations(peer).conversations()).isEmpty();
+    }
+
+    @Test
+    void invitationPageContinuesAfterConcurrentAcceptanceRemovesItsFirstCandidate() throws Exception {
+        DriverManagerDataSource dataSource = dataSource();
+        JpaCanonicalChatStore store = store(dataSource);
+        NativeChatProviderAdapter adapter = new NativeChatProviderAdapter(store, FIXED);
+        ChatRequestContext author = context("invite-page-author");
+        ChatRequestContext peer = context("invite-page-peer");
+        for (int index = 0; index < 2; index++) adapter.createConversation(author,
+                new ChatTransactionId("invite-page-room-" + index), "Pending " + index, "channel",
+                List.of(ChatResolvedIdentity.from(peer)), ChatEncryptionState.unencrypted());
+        var real = CanonicalChatJpaTestFactory.authority(dataSource);
+        var conversations = org.mockito.Mockito.mock(ChatConversationJpaRepository.class,
+                org.mockito.AdditionalAnswers.delegatesTo(real.conversations()));
+        var changed = new java.util.concurrent.atomic.AtomicBoolean();
+        try (var executor = Executors.newSingleThreadExecutor()) {
+            org.mockito.Mockito.doAnswer(call -> {
+                List<ChatConversationJpaEntity> rows = real.conversations().findInvited(
+                        call.getArgument(0), call.getArgument(1), call.getArgument(2), call.getArgument(3), call.getArgument(4), call.getArgument(5));
+                if (!rows.isEmpty() && changed.compareAndSet(false, true)) {
+                    executor.submit(() -> adapter.joinConversation(peer, new ConversationId(rows.getFirst().conversationId())))
+                            .get(10, TimeUnit.SECONDS);
+                }
+                return rows;
+            }).when(conversations).findInvited(anyString(), anyString(), anyString(), anyString(), anyString(), org.mockito.ArgumentMatchers.any());
+            var observing = new CanonicalChatJpaAuthority(conversations, real.memberships(), real.events(), real.operations(),
+                    real.outbox(), real.mappings(), real.ledger(), real.callbacks(), real.quarantines(), real.receipts(),
+                    real.changes(), real.changeCommitFence(), real.transactionManager());
+            var paging = new JpaCanonicalChatStore(observing,
+                    tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build(), FIXED);
+            List<ChatInvitation> page = paging.invitedConversations(peer, "", 1);
+            assertThat(changed).isTrue();
+            assertThat(page).hasSize(1);
+            assertThat(page.getFirst().membership().state()).isEqualTo("invited");
+            assertThat(adapter.joinedConversations(peer).conversations()).hasSize(1);
+            assertThat(adapter.joinedConversations(peer).conversations().getFirst().conversationId()).isNotEqualTo(page.getFirst().conversationId());
+        }
+    }
+
+    @Test
+    void pendingInvitationAdvancesRecipientSyncCursorWithoutExposingHistory() {
+        DriverManagerDataSource dataSource = dataSource();
+        JpaCanonicalChatStore store = store(dataSource);
+        NativeChatProviderAdapter adapter = new NativeChatProviderAdapter(store, FIXED);
+        ChatRequestContext author = context("cursor-invite-author");
+        ChatRequestContext peer = context("cursor-invite-peer");
+        String before = store.currentCursor(peer).value();
+        ChatConversation room = adapter.createConversation(author,
+                new ChatTransactionId("cursor-invite-room"), "Invitation", "channel",
+                List.of(ChatResolvedIdentity.from(peer)), ChatEncryptionState.unencrypted());
+        assertThat(adapter.invitedConversations(peer, "", 100)).hasSize(1);
+        assertThat(adapter.joinedConversations(peer).conversations()).isEmpty();
+        assertThatThrownBy(() -> store.timelinePage(peer, new ConversationId(room.conversationId()), null, 100))
+                .isInstanceOf(ChatAccessDeniedException.class);
+        String invitedCursor = store.currentCursor(peer).value();
+        assertThat(invitedCursor).isNotEqualTo(before);
+        MatrixProtocolCoreService core = new MatrixProtocolCoreService(
+                tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build(),
+                "api.weave.test", peer.identityIssuer());
+        var initial = core.sync(peer.actorRef().value(), before, null, List.of());
+        ChatInvitation pending = adapter.invitedConversations(peer, "", 100).getFirst();
+        var projection = new MatrixProtocolCodec.CanonicalConversation(pending.conversationId(),
+                pending.title(), pending.updatedAt().toEpochMilli(), 0, null,
+                List.of(new MatrixProtocolCodec.CanonicalMembership(pending.membership().memberRef(), "invited", null)),
+                List.of(), false, null, pending.inviterRef().value());
+        var changed = core.sync(peer.actorRef().value(), invitedCursor, (String) initial.get("next_batch"), List.of(projection));
+        assertThat(changed.get("next_batch")).isNotEqualTo(initial.get("next_batch"));
+        assertThat((Map<?, ?>) ((Map<?, ?>) changed.get("rooms")).get("invite")).hasSize(1);
+        assertThat(store.changes(peer, new ChatCursor(before), 1).changes())
+                .singleElement().satisfies(change -> assertThat(change.kind()).isEqualTo("conversation.created"));
+        JdbcTemplate journal = new JdbcTemplate(dataSource);
+        for (String[] entry : List.of(
+                new String[] {"membership.invited", peer.actorRef().value()},
+                new String[] {"membership.invited", author.actorRef().value()},
+                new String[] {"encryption.enabled", room.conversationId()},
+                new String[] {"reaction.created", "private-reaction"},
+                new String[] {"event.redacted", "private-redaction"})) {
+            journal.update("insert into weave_chat_changes (tenant_id, conversation_id, change_kind, canonical_object_id, occurred_at_utc) values (?, ?, ?, ?, ?)",
+                    author.tenantId(), room.conversationId(), entry[0], entry[1], FIXED.instant().atOffset(ZoneOffset.UTC));
+        }
+        var metadata = store.changes(peer, new ChatCursor(invitedCursor), 1).changes();
+        assertThat(metadata).singleElement().satisfies(change -> {
+            assertThat(change.kind()).isEqualTo("membership.invited");
+            assertThat(change.messageId()).isEqualTo(peer.actorRef().value());
+        });
+        var remaining = store.changes(peer, new ChatCursor("chat-revision-" + metadata.getFirst().sequence()), 100).changes();
+        assertThat(remaining).extracting(change -> change.kind()).containsExactly("encryption.enabled");
+        invitedCursor = store.currentCursor(peer).value();
+        adapter.sendEvent(author, new ConversationId(room.conversationId()),
+                new ChatTransactionId("pending-private-message"), ChatEventContent.text("Private joined history"));
+        assertThat(store.currentCursor(peer).value()).isEqualTo(invitedCursor);
+        assertThat(store.changes(peer, new ChatCursor(invitedCursor), 100).changes()).isEmpty();
+        for (ChatRequestContext other : List.of(context("cursor-invite-outsider"),
+                new ChatRequestContext("tenant-other", peer.contextId(), peer.identityIssuer(), peer.actorRef()),
+                new ChatRequestContext(peer.tenantId(), "space-other", peer.identityIssuer(), peer.actorRef()),
+                new ChatRequestContext(peer.tenantId(), peer.contextId(), "https://other-issuer.example", peer.actorRef()))) {
+            assertThat(store.currentCursor(other).value()).isEqualTo(before);
+            assertThat(store.changes(other, new ChatCursor(before), 100).changes()).isEmpty();
+        }
+        adapter.joinConversation(peer, new ConversationId(room.conversationId()));
+        assertThat(store.currentCursor(peer).value()).isNotEqualTo(invitedCursor);
+        assertThat(adapter.invitedConversations(peer, "", 100)).isEmpty();
+        assertThat(store.changes(peer, new ChatCursor(invitedCursor), 100).changes())
+                .extracting(change -> change.kind()).contains("message.created", "membership.joined");
+    }
+
+    @Test
+    void persistedInvitationProjectsToNativeInviteWithoutJoinedHistoryBeforeAcceptance() {
+        JpaCanonicalChatStore store = store(dataSource());
+        NativeChatProviderAdapter adapter = new NativeChatProviderAdapter(store, FIXED);
+        ChatRequestContext author = context("native-invite-author");
+        ChatRequestContext collaborator = context("native-invite-peer");
+        ChatConversation created = adapter.createConversation(author,
+                new ChatTransactionId("native-invite-room"), "Invited collaboration", "channel",
+                List.of(ChatResolvedIdentity.from(collaborator)), ChatEncryptionState.unencrypted());
+        ConversationId room = new ConversationId(created.conversationId());
+        ChatConversation committed = store.conversation(author, room);
+        List<ChatInvitation> pending = adapter.invitedConversations(collaborator, "", 100);
+        assertThat(pending).hasSize(1);
+        ChatInvitation metadata = pending.getFirst();
+        assertThat(metadata.conversationId()).isEqualTo(created.conversationId());
+        assertThat(metadata.inviterRef()).isEqualTo(author.actorRef());
+        var ownInvitation = List.of(metadata.membership());
+        assertThat(adapter.invitedConversations(author, "", 100)).isEmpty();
+        assertThat(adapter.invitedConversations(context("native-invite-outsider"), "", 100)).isEmpty();
+        assertThat(adapter.invitedConversations(new ChatRequestContext("tenant-other", collaborator.contextId(),
+                collaborator.identityIssuer(), collaborator.actorRef()), "", 100)).isEmpty();
+        assertThat(adapter.invitedConversations(new ChatRequestContext(collaborator.tenantId(), "space-other",
+                collaborator.identityIssuer(), collaborator.actorRef()), "", 100)).isEmpty();
+        assertThat(adapter.invitedConversations(new ChatRequestContext(collaborator.tenantId(), collaborator.contextId(),
+                "https://other-issuer.example", collaborator.actorRef()), "", 100)).isEmpty();
+        assertThat(adapter.invitedConversations(collaborator, created.conversationId(), 100)).isEmpty();
+        assertThatThrownBy(() -> adapter.invitedConversations(collaborator, "", 101)).isInstanceOf(IllegalArgumentException.class);
+        assertThat(ownInvitation).singleElement().satisfies(member -> assertThat(member.state()).isEqualTo("invited"));
+        assertThat(adapter.joinedConversations(collaborator).conversations()).isEmpty();
+        assertThatThrownBy(() -> store.conversation(collaborator, room)).isInstanceOf(ChatAccessDeniedException.class);
+        assertThatThrownBy(() -> store.timelinePage(collaborator, room, null, 100)).isInstanceOf(ChatAccessDeniedException.class);
+        MatrixProtocolCoreService core = new MatrixProtocolCoreService(
+                tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build(),
+                "api.weave.test", collaborator.identityIssuer());
+        var projected = new MatrixProtocolCodec.CanonicalConversation(
+                committed.conversationId(), committed.title(), committed.updatedAt().toEpochMilli(), 0, null,
+                ownInvitation.stream().map(member -> new MatrixProtocolCodec.CanonicalMembership(member.memberRef(), member.state(), null)).toList(),
+                List.of(), false, null, metadata.inviterRef().value());
+        Map<String, Object> sync = core.sync(collaborator.actorRef().value(), "chat-revision-1", null, List.of(projected));
+        Map<?, ?> rooms = (Map<?, ?>) sync.get("rooms");
+        assertThat(rooms.get("invite")).isInstanceOf(Map.class);
+        assertThat(((Map<?, ?>) rooms.get("invite")).containsKey(core.roomId(created.conversationId()))).isTrue();
+        assertThat((Map<?, ?>) rooms.get("join")).isEmpty();
+        Map<?, ?> wire = (Map<?, ?>) ((Map<?, ?>) rooms.get("invite")).get(core.roomId(created.conversationId()));
+        assertThat(wire.keySet().toString()).isEqualTo("[invite_state]");
+        Map<?, ?> inviteState = (Map<?, ?>) wire.get("invite_state");
+        List<?> events = (List<?>) inviteState.get("events");
+        Map<?, ?> inviteEvent = (Map<?, ?>) events.get(1);
+        assertThat(inviteEvent.get("sender")).isEqualTo(core.userId(author.actorRef().value()));
+        assertThat(inviteEvent.get("state_key")).isEqualTo(core.userId(collaborator.actorRef().value()));
+        assertThat(inviteEvent.get("sender")).isNotEqualTo(inviteEvent.get("state_key"));
+        String inviteJson = tools.jackson.databind.json.JsonMapper.builder().build().writeValueAsString(wire);
+        assertThat(inviteJson).doesNotContain("timeline", "messages", author.actorRef().value());
+        adapter.joinConversation(collaborator, room);
+        assertThat(adapter.invitedConversations(collaborator, "", 100)).isEmpty();
+        assertThat(adapter.joinedConversations(collaborator).conversations()).hasSize(1);
+        assertThat(store.timelinePage(collaborator, room, null, 100).timeline().events()).isEmpty();
+    }
+
+    @Test
+    void internalDirectConversationAdmitsOnlyThePairAfterCommitWithoutAcceptance() {
+        JpaCanonicalChatStore store = store(dataSource());
+        NativeChatProviderAdapter adapter = new NativeChatProviderAdapter(store, FIXED);
+        ChatRequestContext author = context("direct-author");
+        ChatRequestContext peer = context("direct-peer");
+        ChatRequestContext outsider = context("direct-outsider");
+        var prepared = store.prepareConversation(author, new ChatTransactionId("direct-pair"),
+                "Internal direct", "direct", List.of(ChatResolvedIdentity.from(peer)),
+                NativeChatProviderAdapter.PROVIDER_KEY, null, ChatEncryptionState.unencrypted());
+        assertThat(store.joinedConversations(peer).conversations()).isEmpty();
+        assertThatThrownBy(() -> store.timelinePage(peer, prepared.conversationId(), null, 100))
+                .isInstanceOf(ChatAccessDeniedException.class);
+        assertThatThrownBy(() -> adapter.sendEvent(peer, prepared.conversationId(),
+                new ChatTransactionId("pending-direct-send"), ChatEventContent.text("Not admitted")))
+                .isInstanceOf(ChatAccessDeniedException.class);
+        var created = store.commitConversation(author, prepared);
+        assertThat(store.joinedConversations(peer).conversations()).hasSize(1);
+        assertThat(store.invitedConversations(peer, "", 100)).isEmpty();
+        assertThat(created.memberships()).hasSize(2).allSatisfy(member ->
+                assertThat(member.state()).isEqualTo("joined"));
+        var room = new ConversationId(created.conversationId());
+        adapter.sendEvent(author, room, new ChatTransactionId("direct-message"), ChatEventContent.text("Message"));
+        assertThat(store.timelinePage(peer, room, null, 100).timeline().events()).hasSize(1);
+        assertThatThrownBy(() -> store.timelinePage(outsider, room, null, 100))
+                .isInstanceOf(ChatAccessDeniedException.class);
+        assertThatThrownBy(() -> store.prepareMembership(outsider, room, "joined"))
+                .isInstanceOf(ChatAccessDeniedException.class);
+        assertThatThrownBy(() -> adapter.sendEvent(outsider, room,
+                new ChatTransactionId("outsider-direct-send"), ChatEventContent.text("Not admitted")))
+                .isInstanceOf(ChatAccessDeniedException.class);
+        assertThat(store.joinedConversations(outsider).conversations()).isEmpty();
+        assertThat(store.currentCursor(outsider).value()).isEqualTo("chat-revision-0");
+        assertThat(store.changes(outsider, null, 100).changes()).isEmpty();
+        var replay = store.prepareConversation(author, new ChatTransactionId("direct-pair"),
+                "Internal direct", "direct", List.of(ChatResolvedIdentity.from(peer)),
+                NativeChatProviderAdapter.PROVIDER_KEY, null, ChatEncryptionState.unencrypted());
+        assertThat(replay.committed()).isTrue();
+        assertThat(replay.conversationId()).isEqualTo(room);
+        assertThatThrownBy(() -> store.prepareConversation(author, new ChatTransactionId("direct-pair"),
+                "Internal direct", "channel", List.of(ChatResolvedIdentity.from(peer)),
+                NativeChatProviderAdapter.PROVIDER_KEY, null, ChatEncryptionState.unencrypted()))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> store.prepareConversation(author, new ChatTransactionId("direct-pair"),
+                "Internal direct", "direct", List.of(ChatResolvedIdentity.from(outsider)),
+                NativeChatProviderAdapter.PROVIDER_KEY, null, ChatEncryptionState.unencrypted()))
+                .isInstanceOf(IllegalArgumentException.class);
+        adapter.leaveConversation(peer, room);
+        assertThat(store.joinedConversations(peer).conversations()).isEmpty();
+        assertThatThrownBy(() -> store.timelinePage(peer, room, null, 100)).isInstanceOf(ChatAccessDeniedException.class);
+        adapter.createConversation(author, new ChatTransactionId("direct-pair"), "Internal direct", "direct",
+                List.of(ChatResolvedIdentity.from(peer)), ChatEncryptionState.unencrypted());
+        assertThat(store.joinedConversations(peer).conversations()).isEmpty();
+        assertThat(store.joinedConversations(author).conversations()).hasSize(1);
+    }
+
+    @Test
+    void invitedMembershipIsDistinctAndOutsiderCannotJoinOrRead() {
+        JpaCanonicalChatStore store = store(dataSource());
+        ChatRequestContext author = context("author");
+        ChatRequestContext collaborator = context("collaborator");
+        ChatRequestContext outsider = context("outsider");
+
+        CanonicalChatStore.PreparedConversation prepared = store.prepareConversation(
+                author,
+                new ChatTransactionId("create-1"),
+                "Encrypted collaboration",
+                "channel",
+                List.of(ChatResolvedIdentity.from(collaborator)),
+                PROVIDER,
+                "#_weave_opaque:matrix.internal",
+                ChatEncryptionState.unencrypted());
+        store.acknowledgeConversation(
+                author, prepared, PROVIDER, "!opaque-room:matrix.internal", "room-version-1");
+
+        assertThat(store.joinedConversations(author).conversations()).hasSize(1);
+        assertThat(store.joinedConversations(collaborator).conversations()).isEmpty();
+        assertThat(store.conversation(author, prepared.conversationId()).memberships())
+                .filteredOn(membership -> membership.memberRef().equals(collaborator.actorRef().value()))
+                .singleElement()
+                .satisfies(membership -> assertThat(membership.state()).isEqualTo("invited"));
+        assertThatThrownBy(() -> store.prepareMembership(outsider, prepared.conversationId(), "joined"))
+                .isInstanceOf(ChatAccessDeniedException.class);
+        assertThatThrownBy(() -> store.conversation(outsider, prepared.conversationId()))
+                .isInstanceOf(ChatAccessDeniedException.class);
+
+        CanonicalChatStore.PreparedMembership join = store.prepareMembership(
+                collaborator, prepared.conversationId(), "joined");
+        store.acknowledgeMembership(collaborator, join, PROVIDER, "membership-version-1");
+
+        assertThat(store.joinedConversations(collaborator).conversations()).hasSize(1);
+        assertThat(store.conversation(collaborator, prepared.conversationId()).memberships())
+                .filteredOn(membership -> membership.memberRef().equals(collaborator.actorRef().value()))
+                .singleElement()
+                .satisfies(membership -> assertThat(membership.state()).isEqualTo("joined"));
+    }
+
+    @Test
+    void joinedConversationFetchPlanUsesTwoQueriesRegardlessOfAggregateCount() {
+        DriverManagerDataSource dataSource = dataSource();
+        JpaCanonicalChatStore store = store(dataSource);
+        ChatRequestContext author = context("fetch-plan-author");
+
+        for (int index = 0; index < 5; index++) {
+            CanonicalChatStore.PreparedConversation prepared =
+                    store.prepareConversation(
+                            author,
+                            new ChatTransactionId("fetch-plan-" + index),
+                            "Fetch plan " + index,
+                            "channel",
+                            List.of(ChatResolvedIdentity.from(
+                                    context("fetch-plan-invite-" + index))),
+                            PROVIDER,
+                            "#_weave_fetch_plan_" + index + ":matrix.internal",
+                            ChatEncryptionState.unencrypted());
+            store.acknowledgeConversation(
+                    author,
+                    prepared,
+                    PROVIDER,
+                    "!fetch-plan-" + index + ":matrix.internal",
+                    "room-v1");
+        }
+
+        var statistics = JpaTestDatabase.statistics(dataSource);
+        statistics.clear();
+
+        assertThat(store.joinedConversations(author).conversations())
+                .hasSize(5)
+                .allSatisfy(conversation ->
+                        assertThat(conversation.memberships()).hasSize(2));
+        assertThat(statistics.getPrepareStatementCount())
+                .as("one aggregate query plus one batched membership query")
+                .isEqualTo(2);
+    }
+
+    @Test
+    void joinedRoomReferencePageIsBoundedByContextAndCurrentMembership() {
+        JpaCanonicalChatStore store = store(dataSource());
+        NativeChatProviderAdapter adapter = new NativeChatProviderAdapter(store, FIXED);
+        ChatRequestContext author = context("space-room-author");
+        ChatRequestContext outsider = context("space-room-outsider");
+        ChatRequestContext otherSpace = new ChatRequestContext(
+                author.tenantId(), "other-space", author.identityIssuer(), author.actorRef());
+        ChatRequestContext invited = new ChatRequestContext(otherSpace.tenantId(),
+                otherSpace.contextId(), otherSpace.identityIssuer(),
+                new ChatActorRef("user:space-room-invited"));
+        for (int index = 0; index < 3; index++) {
+            adapter.createConversation(author, new ChatTransactionId("space-room-" + index),
+                    "Space room " + index, "channel", List.of(), ChatEncryptionState.unencrypted());
+        }
+        ChatConversation other = adapter.createConversation(otherSpace, new ChatTransactionId("other-space-room"),
+                "Other Space room", "channel", List.of(ChatResolvedIdentity.from(invited)),
+                ChatEncryptionState.unencrypted());
+
+        List<String> first = store.joinedConversationRefs(author, "", 2);
+        List<String> second = store.joinedConversationRefs(author, first.getLast(), 2);
+        assertThat(first).hasSize(2).isSorted();
+        assertThat(second).hasSize(1);
+        assertThat(second.getFirst()).isGreaterThan(first.getLast());
+        assertThat(store.joinedConversationRefs(outsider, "", 100)).isEmpty();
+        assertThat(store.joinedConversationRefs(otherSpace, "", 100)).hasSize(1);
+        assertThat(store.memberConversationContext(author, new ConversationId(other.conversationId())))
+                .contains("other-space");
+        assertThat(store.memberConversationContext(outsider, new ConversationId(other.conversationId())))
+                .isEmpty();
+        assertThat(store.memberConversationContext(invited, new ConversationId(other.conversationId())))
+                .contains("other-space");
+        assertThat(store.joinedConversationRefs(invited, "", 100)).isEmpty();
+        assertThatThrownBy(() -> store.joinedConversationRefs(author, "", 101))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void queryInputsRemainBoundValuesForQuotesCommentsWildcardsAndUnicode() {
+        JpaCanonicalChatStore store = store(dataSource());
+        ChatRequestContext author = context("bound-value-author");
+        ChatRequestContext outsider = new ChatRequestContext(
+                author.tenantId(),
+                author.identityIssuer(),
+                new ChatActorRef("user:outsider' OR '1'='1' -- %_ Ω"));
+        String title = "Quarterly ' -- %_ Ω desc nulls first, (select 1)";
+        String providerKey = "matrix' /* %_ Ω */";
+        String providerRoomRef = "!room' -- %_ Ω:matrix.internal";
+
+        CanonicalChatStore.PreparedConversation prepared =
+                store.prepareConversation(
+                        author,
+                        new ChatTransactionId("bound-value-create"),
+                        title,
+                        "channel",
+                        List.of(),
+                        providerKey,
+                        "#_weave_bound_value:matrix.internal",
+                        ChatEncryptionState.unencrypted());
+        store.acknowledgeConversation(
+                author,
+                prepared,
+                providerKey,
+                providerRoomRef,
+                "room-v1");
+
+        assertThat(store.joinedConversations(author).conversations())
+                .singleElement()
+                .satisfies(conversation ->
+                        assertThat(conversation.title()).isEqualTo(title));
+        assertThat(store.joinedConversations(outsider).conversations()).isEmpty();
+        assertThat(store.mapping(
+                        author.tenantId(),
+                        providerKey,
+                        "conversation",
+                        prepared.conversationId().value()))
+                .hasValueSatisfying(mapping ->
+                        assertThat(mapping.providerRef()).isEqualTo(providerRoomRef));
+        assertThat(store.mapping(
+                        author.tenantId(),
+                        PROVIDER,
+                        "conversation",
+                        prepared.conversationId().value()))
+                .isEmpty();
+    }
+
+    @Test
+    void pendingEncryptedWriteIsInvisibleThenCommitsExactlyOnceAcrossRestartAndCallbackReplay() {
+        DriverManagerDataSource dataSource = dataSource();
+        JpaCanonicalChatStore store = store(dataSource);
+        ChatRequestContext author = context("author");
+        CanonicalChatStore.PreparedConversation room = store.prepareConversation(
+                author,
+                new ChatTransactionId("create-2"),
+                "Durable encrypted room",
+                "channel",
+                List.of(),
+                PROVIDER,
+                "#_weave_durable:matrix.internal",
+                ChatEncryptionState.unencrypted());
+        store.acknowledgeConversation(author, room, PROVIDER, "!durable-room:matrix.internal", "room-v1");
+        CanonicalChatStore.PreparedEncryption encryption = store.prepareEncryption(
+                author, room.conversationId(), ChatEncryptedEnvelope.MEGOLM_V1);
+        store.acknowledgeEncryption(
+                author, encryption, PROVIDER, "$encryption:matrix.internal", "encryption-v1");
+        acknowledgeActor(store, author, "@_weave_sender:matrix.internal");
+
+        Map<String, Object> envelope = Map.of(
+                "algorithm", ChatEncryptedEnvelope.MEGOLM_V1,
+                "ciphertext", "opaque-ciphertext",
+                "session_id", "opaque-session");
+        CanonicalChatStore.PreparedEvent pending = store.prepareEvent(
+                author,
+                room.conversationId(),
+                new ChatTransactionId("send-1"),
+                ChatEventContent.encrypted(envelope));
+
+        assertThat(store.timelineEvents(author, room.conversationId(), null, 100).events()).isEmpty();
+        store.failOperation(author.tenantId(), pending.operationId(), "chat-provider-unavailable", FIXED.instant().plusSeconds(60));
+        assertThat(store.activeRetryWindow(author.tenantId(), pending.operationId(), FIXED.instant()))
+                .hasValueSatisfying(window -> {
+                    assertThat(window.supportSafeCode()).isEqualTo("chat-provider-unavailable");
+                    assertThat(window.retryAt()).isEqualTo(FIXED.instant().plusSeconds(60));
+                });
+        CanonicalChatStore.PreparedEvent retry = store.prepareEvent(
+                author,
+                room.conversationId(),
+                new ChatTransactionId("send-1"),
+                ChatEventContent.encrypted(envelope));
+        assertThat(retry.operationId()).isEqualTo(pending.operationId());
+        assertThat(retry.providerTransactionId()).isEqualTo(pending.providerTransactionId());
+        store.acknowledgeEvent(author, retry, PROVIDER, "$opaque-event:matrix.internal", "event-v1");
+
+        JpaCanonicalChatStore restarted = store(dataSource);
+        assertThat(restarted.timelineEvents(author, room.conversationId(), null, 100).events())
+                .singleElement()
+                .satisfies(event -> {
+                    assertThat(event.content().body()).isNull();
+                    assertThat(event.content().encryptedEnvelope().content()).isEqualTo(envelope);
+                    assertThat(event.deliveryState()).isEqualTo("committed");
+                });
+        CanonicalChatStore.PreparedEvent replay = restarted.prepareEvent(
+                author,
+                room.conversationId(),
+                new ChatTransactionId("send-1"),
+                ChatEventContent.encrypted(envelope));
+        assertThat(replay.committed()).isTrue();
+
+        String callbackDigest = "a".repeat(64);
+        assertThat(restarted.beginCallback(PROVIDER, "hs-txn-1", callbackDigest, 1))
+                .isEqualTo(CanonicalChatStore.CallbackStart.NEW);
+        assertThat(restarted.beginCallback(PROVIDER, "hs-txn-1", callbackDigest, 1))
+                .as("a semantically identical homeserver retry resumes by transaction ID")
+                .isEqualTo(CanonicalChatStore.CallbackStart.RESUME);
+        CanonicalChatStore.CallbackEventResult callback = restarted.recordCallbackEvent(
+                PROVIDER,
+                new CanonicalChatStore.ProviderCallbackEvent(
+                        "hs-txn-1",
+                        pending.providerTransactionId(),
+                        "$opaque-event:matrix.internal",
+                        "!durable-room:matrix.internal",
+                        "@_weave_sender:matrix.internal",
+                        "m.room.encrypted",
+                        envelope,
+                        "event-v1"));
+        restarted.completeCallback(PROVIDER, "hs-txn-1", callback.state().contains("duplicate") ? 1 : 0);
+        assertThat(restarted.beginCallback(PROVIDER, "hs-txn-1", callbackDigest, 1))
+                .as("a completed homeserver transaction is acknowledged idempotently by transaction ID")
+                .isEqualTo(CanonicalChatStore.CallbackStart.DUPLICATE);
+
+        CanonicalChatStore.EvidenceSnapshot evidence = restarted.evidence(
+                author.tenantId(), room.conversationId(), PROVIDER);
+        assertThat(evidence.persistencePosture()).isEqualTo("durable-relational-jpa-code-first");
+        assertThat(evidence.canonicalCommittedEventCount()).isEqualTo(1);
+        assertThat(evidence.canonicalEncryptedEventCount()).isEqualTo(1);
+        assertThat(evidence.canonicalPlaintextEventCount()).isZero();
+        assertThat(evidence.committedOperationCount()).isGreaterThanOrEqualTo(3);
+        assertThat(evidence.callbackTransactionCount()).isEqualTo(1);
+        assertThat(evidence.callbackDuplicateCount()).isEqualTo(1);
+        assertThat(evidence.quarantineCount()).isZero();
+        assertThat(evidence.degradedMappingCount()).isZero();
+        assertThat(callback.state()).isEqualTo("acknowledged-echo");
+        assertThat(restarted.timelineEvents(author, room.conversationId(), null, 100).events()).hasSize(1);
+        assertThat(restarted.acknowledgedProviderEventRefs(
+                author.tenantId(), room.conversationId(), PROVIDER))
+                .containsExactly("$opaque-event:matrix.internal");
+
+        CanonicalChatStore.ProviderCallbackEvent redactedProjection =
+                new CanonicalChatStore.ProviderCallbackEvent(
+                        "hs-txn-redacted",
+                        null,
+                        "$opaque-event:matrix.internal",
+                        "!durable-room:matrix.internal",
+                        "@_weave_sender:matrix.internal",
+                        "m.room.encrypted",
+                        null,
+                        null,
+                        Map.of(),
+                        "event-v2",
+                        true);
+        assertThat(restarted.recordCallbackEvent(PROVIDER, redactedProjection).state())
+                .isEqualTo("acknowledged-redacted-projection");
+        assertThat(restarted.recordCallbackEvent(PROVIDER, redactedProjection).state())
+                .isEqualTo("deduplicated-redacted-projection");
+        assertThat(restarted.timelineEvents(author, room.conversationId(), null, 100).events())
+                .singleElement()
+                .satisfies(event -> assertThat(event.redacted()).isTrue());
+        assertThat(restarted.evidence(author.tenantId(), room.conversationId(), PROVIDER).degradedMappingCount())
+                .isZero();
+    }
+
+    @Test
+    void correlatedRedactionCallbackCommitsOnceWithoutDegradingTheRoom() {
+        JpaCanonicalChatStore store = store(dataSource());
+        ChatRequestContext author = context("redaction-author");
+        CanonicalChatStore.PreparedConversation room = store.prepareConversation(
+                author,
+                new ChatTransactionId("create-redaction-room"),
+                "Redaction callback",
+                "channel",
+                List.of(),
+                PROVIDER,
+                "#_weave_redaction:matrix.internal",
+                ChatEncryptionState.unencrypted());
+        store.acknowledgeConversation(
+                author, room, PROVIDER, "!redaction-room:matrix.internal", "room-v1");
+        acknowledgeActor(store, author, "@_weave_redactor:matrix.internal");
+        CanonicalChatStore.PreparedEvent message = store.prepareEvent(
+                author,
+                room.conversationId(),
+                new ChatTransactionId("send-before-redaction"),
+                ChatEventContent.text("remove me"));
+        store.acknowledgeEvent(
+                author, message, PROVIDER, "$target-event:matrix.internal", "event-v1");
+        CanonicalChatStore.PreparedRedaction redaction = store.prepareRedaction(
+                author,
+                room.conversationId(),
+                new ChatTransactionId("redact-once"),
+                message.event().eventId());
+
+        CanonicalChatStore.CallbackEventResult callback = store.recordCallbackEvent(
+                PROVIDER,
+                new CanonicalChatStore.ProviderCallbackEvent(
+                        "hs-redaction-1",
+                        null,
+                        "$redaction-event:matrix.internal",
+                        "!redaction-room:matrix.internal",
+                        "@_weave_redactor:matrix.internal",
+                        "m.room.redaction",
+                        null,
+                        "$target-event:matrix.internal",
+                        Map.of("reason", "isolated-e2e-cleanup"),
+                        "redaction-v1"));
+
+        assertThat(callback.state()).isEqualTo("acknowledged-redaction-echo");
+        assertThat(store.timelineEvents(author, room.conversationId(), null, 100).events())
+                .singleElement()
+                .satisfies(event -> assertThat(event.redacted()).isTrue());
+
+        // The normal southbound HTTP response may arrive after the Application Service echo.
+        var receipt = store.acknowledgeRedaction(
+                author,
+                redaction,
+                PROVIDER,
+                "$redaction-event:matrix.internal",
+                "redaction-v1");
+
+        assertThat(receipt.redactionEventId()).isNotEqualTo(receipt.targetEventId());
+        assertThat(receipt.targetEventId()).isEqualTo(message.event().eventId());
+        assertThat(store.mapping(
+                author.tenantId(), PROVIDER, "redaction", receipt.redactionEventId()))
+                .hasValueSatisfying(mapping ->
+                        assertThat(mapping.providerRef()).isEqualTo("$redaction-event:matrix.internal"));
+
+        assertThat(store.changes(author, null, 100).changes())
+                .filteredOn(change -> "event.redacted".equals(change.kind()))
+                .hasSize(1);
+        CanonicalChatStore.EvidenceSnapshot evidence = store.evidence(
+                author.tenantId(), room.conversationId(), PROVIDER);
+        assertThat(evidence.quarantineCount()).isZero();
+        assertThat(evidence.degradedMappingCount()).isZero();
+        assertThat(evidence.pendingOperationCount()).isZero();
+    }
+
+    @Test
+    void callbackWithoutUnsignedTransactionReconcilesPendingSendBeforeHttpAck() {
+        JpaCanonicalChatStore store = store(dataSource());
+        ChatRequestContext author = context("callback-before-ack");
+        CanonicalChatStore.PreparedConversation room = store.prepareConversation(
+                author,
+                new ChatTransactionId("create-before-ack-room"),
+                "Callback ordering",
+                "channel",
+                List.of(),
+                PROVIDER,
+                "#_weave_before_ack:matrix.internal",
+                ChatEncryptionState.unencrypted());
+        store.acknowledgeConversation(
+                author, room, PROVIDER, "!before-ack-room:matrix.internal", "room-v1");
+        acknowledgeActor(store, author, "@_weave_before_ack:matrix.internal");
+        CanonicalChatStore.PreparedEvent pending = store.prepareEvent(
+                author,
+                room.conversationId(),
+                new ChatTransactionId("send-before-http-ack"),
+                ChatEventContent.text("committed once"));
+
+        CanonicalChatStore.CallbackEventResult callback = store.recordCallbackEvent(
+                PROVIDER,
+                new CanonicalChatStore.ProviderCallbackEvent(
+                        "hs-before-ack",
+                        null,
+                        "$before-ack-event:matrix.internal",
+                        "!before-ack-room:matrix.internal",
+                        "@_weave_before_ack:matrix.internal",
+                        "m.room.message",
+                        Map.of("msgtype", "m.text", "body", "committed once"),
+                        "event-v1"));
+
+        assertThat(callback.state()).isEqualTo("acknowledged-echo");
+        store.acknowledgeEvent(
+                author, pending, PROVIDER, "$before-ack-event:matrix.internal", "event-v1");
+        assertThat(store.timelineEvents(author, room.conversationId(), null, 100).events()).hasSize(1);
+        CanonicalChatStore.EvidenceSnapshot evidence = store.evidence(
+                author.tenantId(), room.conversationId(), PROVIDER);
+        assertThat(evidence.canonicalCommittedEventCount()).isEqualTo(1);
+        assertThat(evidence.quarantineCount()).isZero();
+        assertThat(evidence.degradedMappingCount()).isZero();
+    }
+
+    @Test
+    void redactionCallbackAfterHttpAckWithoutUnsignedTransactionIsDeduplicated() {
+        JpaCanonicalChatStore store = store(dataSource());
+        ChatRequestContext author = context("redaction-ack-first");
+        CanonicalChatStore.PreparedConversation room = store.prepareConversation(
+                author,
+                new ChatTransactionId("create-redaction-ack-first"),
+                "Ack-first redaction",
+                "channel",
+                List.of(),
+                PROVIDER,
+                "#_weave_redaction_ack_first:matrix.internal",
+                ChatEncryptionState.unencrypted());
+        store.acknowledgeConversation(
+                author, room, PROVIDER, "!redaction-ack-first:matrix.internal", "room-v1");
+        acknowledgeActor(store, author, "@_weave_redaction_ack_first:matrix.internal");
+        CanonicalChatStore.PreparedEvent message = store.prepareEvent(
+                author,
+                room.conversationId(),
+                new ChatTransactionId("send-redaction-ack-first"),
+                ChatEventContent.text("redact after ack"));
+        store.acknowledgeEvent(
+                author, message, PROVIDER, "$redaction-target-ack-first:matrix.internal", "event-v1");
+        CanonicalChatStore.PreparedRedaction redaction = store.prepareRedaction(
+                author,
+                room.conversationId(),
+                new ChatTransactionId("redaction-ack-first"),
+                message.event().eventId());
+        var receipt = store.acknowledgeRedaction(
+                author, redaction, PROVIDER, "$redaction-ack-first:matrix.internal", "redaction-v1");
+        assertThat(receipt.redactionEventId()).isNotEqualTo(receipt.targetEventId());
+
+        CanonicalChatStore.CallbackEventResult callback = store.recordCallbackEvent(
+                PROVIDER,
+                new CanonicalChatStore.ProviderCallbackEvent(
+                        "hs-redaction-ack-first",
+                        null,
+                        "$redaction-ack-first:matrix.internal",
+                        "!redaction-ack-first:matrix.internal",
+                        "@_weave_redaction_ack_first:matrix.internal",
+                        "m.room.redaction",
+                        null,
+                        "$redaction-target-ack-first:matrix.internal",
+                        Map.of(),
+                        "redaction-v1"));
+
+        assertThat(callback.state()).isEqualTo("acknowledged-redaction-echo");
+        assertThat(store.changes(author, null, 100).changes())
+                .filteredOn(change -> "event.redacted".equals(change.kind()))
+                .hasSize(1);
+        CanonicalChatStore.EvidenceSnapshot evidence = store.evidence(
+                author.tenantId(), room.conversationId(), PROVIDER);
+        assertThat(evidence.quarantineCount()).isZero();
+        assertThat(evidence.degradedMappingCount()).isZero();
+    }
+
+    @Test
+    void newRoomStateCallbacksRetryUntilAckAndIgnoreTheProviderCanonicalAlias() {
+        JpaCanonicalChatStore store = store(dataSource());
+        ChatRequestContext author = context("create-race");
+        acknowledgeActor(store, author, "@_weave_create_race:matrix.internal");
+        CanonicalChatStore.PreparedConversation room = store.prepareConversation(
+                author,
+                new ChatTransactionId("create-race-room"),
+                "Create race",
+                "channel",
+                List.of(),
+                PROVIDER,
+                "#_weave_create_race:matrix.internal",
+                ChatEncryptionState.unencrypted());
+        CanonicalChatStore.ProviderCallbackEvent callback = new CanonicalChatStore.ProviderCallbackEvent(
+                "hs-create-race",
+                room.providerTransactionId(),
+                "$create-state:matrix.internal",
+                "!create-race-room:matrix.internal",
+                "@_weave_create_race:matrix.internal",
+                "m.room.member",
+                "",
+                null,
+                Map.of("membership", "join"),
+                "state-v1");
+
+        assertThatThrownBy(() -> store.recordCallbackEvent(PROVIDER, callback))
+                .isInstanceOf(ChatCallbackRetryRequiredException.class);
+        assertThat(store.evidence(author.tenantId(), room.conversationId(), PROVIDER).quarantineCount())
+                .isZero();
+
+        store.acknowledgeConversation(
+                author, room, PROVIDER, "!create-race-room:matrix.internal", "room-v1");
+        assertThat(store.recordCallbackEvent(PROVIDER, callback).state()).isEqualTo("ignored");
+        CanonicalChatStore.ProviderCallbackEvent canonicalAliasCallback =
+                new CanonicalChatStore.ProviderCallbackEvent(
+                        "hs-create-race-alias",
+                        room.providerTransactionId(),
+                        "$create-alias:matrix.internal",
+                        "!create-race-room:matrix.internal",
+                        "@_weave_create_race:matrix.internal",
+                        "m.room.canonical_alias",
+                        "",
+                        null,
+                        Map.of("alias", "#_weave_create_race:matrix.internal"),
+                        "state-v2");
+        assertThat(store.recordCallbackEvent(PROVIDER, canonicalAliasCallback).state()).isEqualTo("ignored");
+
+        CanonicalChatStore.PreparedMembership leave = store.prepareMembership(
+                author, room.conversationId(), "left");
+        store.acknowledgeMembership(author, leave, PROVIDER, "membership-left-v1");
+        CanonicalChatStore.ProviderCallbackEvent leaveCallback =
+                new CanonicalChatStore.ProviderCallbackEvent(
+                        "hs-create-race-leave",
+                        leave.providerTransactionId(),
+                        "$create-leave:matrix.internal",
+                        "!create-race-room:matrix.internal",
+                        "@_weave_create_race:matrix.internal",
+                        "m.room.member",
+                        "@_weave_create_race:matrix.internal",
+                        null,
+                        Map.of("membership", "leave"),
+                        "state-v3");
+        assertThat(store.recordCallbackEvent(PROVIDER, leaveCallback).state()).isEqualTo("ignored");
+        CanonicalChatStore.EvidenceSnapshot evidence = store.evidence(
+                author.tenantId(), room.conversationId(), PROVIDER);
+        assertThat(evidence.quarantineCount()).isZero();
+        assertThat(evidence.degradedMappingCount()).isZero();
+    }
+
+    private ChatRequestContext context(String subject) {
+        return new ChatRequestContext("tenant-a", "https://auth.example/realms/a", new ChatActorRef("user:" + subject));
+    }
+
+    private JpaCanonicalChatStore store(DriverManagerDataSource dataSource) {
+        JpaTestDatabase.initializeSchema(dataSource);
+        return new JpaCanonicalChatStore(
+                CanonicalChatJpaTestFactory.authority(dataSource),
+                tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build(),
+                FIXED);
+    }
+
+    private void acknowledgeActor(
+            JpaCanonicalChatStore store,
+            ChatRequestContext context,
+            String providerActorRef) {
+        String canonicalActor = "{\"issuer\":\"" + context.identityIssuer()
+                + "\",\"actorRef\":\"" + context.actorRef().value() + "\"}";
+        store.reserveMapping(
+                context.tenantId(), PROVIDER, "actor", canonicalActor, providerActorRef, null);
+        store.acknowledgeMapping(
+                context.tenantId(), PROVIDER, "actor", canonicalActor, providerActorRef, "actor-v1");
+    }
+
+    private DriverManagerDataSource dataSource() {
+        return com.massimotter.weave.backend.testing.JpaTestDatabase
+                .dataSource("canonical-chat");
+    }
+}

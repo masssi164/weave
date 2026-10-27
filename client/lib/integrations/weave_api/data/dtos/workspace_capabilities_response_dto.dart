@@ -9,30 +9,70 @@ extension WorkspaceCapabilitiesResponseMapper
       shellAccess: shellAccess.toCapabilityState(
         WorkspaceCapability.shellAccess,
       ),
-      chat: chat.toCapabilityState(WorkspaceCapability.chat),
-      files: files.toCapabilityState(WorkspaceCapability.files),
-      calendar: calendar.toCapabilityState(WorkspaceCapability.calendar),
-      boards: boards.toCapabilityState(WorkspaceCapability.boards),
-      meetingsCalls: meetingsCalls.toCapabilityState(
-        WorkspaceCapability.meetingsCalls,
-      ),
-      documentsCollaboration: documentsCollaboration.toCapabilityState(
-        WorkspaceCapability.documentsCollaboration,
-      ),
-      decisionsEvidence: decisionsEvidence.toCapabilityState(
-        WorkspaceCapability.decisionsEvidence,
-      ),
-      manualsHelp: manualsHelp.toCapabilityState(
-        WorkspaceCapability.manualsHelp,
-      ),
-      releaseEvidence: releaseEvidence.toCapabilityState(
-        WorkspaceCapability.releaseEvidence,
-      ),
+      chat:
+          domains['chat']?.toCapabilityState(WorkspaceCapability.chat) ??
+          const WorkspaceCapabilityState.notInstalled(WorkspaceCapability.chat),
+      files:
+          domains['files']?.toCapabilityState(WorkspaceCapability.files) ??
+          const WorkspaceCapabilityState.notInstalled(
+            WorkspaceCapability.files,
+          ),
+      calendar:
+          domains['calendar']?.toCapabilityState(
+            WorkspaceCapability.calendar,
+          ) ??
+          const WorkspaceCapabilityState.notInstalled(
+            WorkspaceCapability.calendar,
+          ),
+      boards:
+          domains['boards']?.toCapabilityState(WorkspaceCapability.boards) ??
+          const WorkspaceCapabilityState.notInstalled(
+            WorkspaceCapability.boards,
+          ),
+      meetingsCalls:
+          domains['meetings']?.toCapabilityState(
+            WorkspaceCapability.meetingsCalls,
+          ) ??
+          const WorkspaceCapabilityState.notInstalled(
+            WorkspaceCapability.meetingsCalls,
+          ),
+      documentsCollaboration:
+          domains['office']?.toCapabilityState(
+            WorkspaceCapability.documentsCollaboration,
+          ) ??
+          const WorkspaceCapabilityState.notInstalled(
+            WorkspaceCapability.documentsCollaboration,
+          ),
+      decisionsEvidence:
+          domains['decisions']?.toCapabilityState(
+            WorkspaceCapability.decisionsEvidence,
+          ) ??
+          const WorkspaceCapabilityState.notInstalled(
+            WorkspaceCapability.decisionsEvidence,
+          ),
+      manualsHelp:
+          domains['manuals']?.toCapabilityState(
+            WorkspaceCapability.manualsHelp,
+          ) ??
+          const WorkspaceCapabilityState.notInstalled(
+            WorkspaceCapability.manualsHelp,
+          ),
+      releaseEvidence:
+          domains['devops']?.toCapabilityState(
+            WorkspaceCapability.releaseEvidence,
+          ) ??
+          const WorkspaceCapabilityState.notInstalled(
+            WorkspaceCapability.releaseEvidence,
+          ),
+      agentRuntimeControl:
+          domains['agent-runtime']?.toCapabilityState(
+            WorkspaceCapability.agentRuntimeControl,
+          ) ??
+          const WorkspaceCapabilityState.notInstalled(
+            WorkspaceCapability.agentRuntimeControl,
+          ),
       adminControlPlane: adminControlPlane.toCapabilityState(
         WorkspaceCapability.adminControlPlane,
-      ),
-      agentRuntimeControl: agentRuntimeControl.toCapabilityState(
-        WorkspaceCapability.agentRuntimeControl,
       ),
     );
   }
@@ -48,12 +88,10 @@ extension WorkspaceCapabilityStatusResponseMapper
   WorkspaceCapabilityState toCapabilityState(WorkspaceCapability capability) {
     return WorkspaceCapabilityState(
       capability: capability,
-      readiness: (enabled ?? false)
-          ? _parseReadiness(_requiredReadiness(readiness?.value))
+      readiness: enabled
+          ? _parseReadiness(_requiredReadiness(readiness.value))
           : WorkspaceCapabilityReadiness.unavailable,
-      policyState: _parsePolicyState(
-        policyState?.value ?? ((enabled ?? false) ? 'allowed' : 'disabled'),
-      ),
+      policyState: _parsePolicyState(policyState.value),
       profileKey: profileKey,
       memberImpact: memberImpact,
       supportRef: supportRef,

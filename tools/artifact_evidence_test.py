@@ -19,12 +19,14 @@ def composition_fixture(sha='a' * 40, tree='b' * 40, spec='c' * 40):
             'sourceCommit': 'd' * 40, 'sourceTree': 'e' * 40,
             'inputDigest': 'sha256:' + digest, 'payloadSha256': 'sha256:' + str(number + 3) * 64,
             'target': target, 'buildMode': mode, 'buildNumber': '20'}
+    result['components']['runtime-linux-amd64']['runtime'] = {
+        'domains': ['calendar', 'chat', 'files'], 'flavor': 'jvm'}
     result['compositionDigest'] = composition_digest(result)
     return result
 
 
 def component_fixture(composition, name):
-    return {'component': name, **{key: composition['components'][name][key] for key in (
+    return ({'runtime': composition['components'][name]['runtime']} if name.startswith('runtime-') else {}) | {'component': name, **{key: composition['components'][name][key] for key in (
         'sourceCommit', 'sourceTree', 'inputDigest', 'target', 'buildMode', 'buildNumber', 'payloadSha256')}}
 
 
@@ -34,6 +36,25 @@ class ArtifactEvidenceTest(unittest.TestCase):
         self.assertTrue(composition_passed(value, 'a' * 40, 'b' * 40, 'c' * 40, scenario_sha256()))
         self.assertNotEqual(value['candidateCommit'], value['components']['ios-device']['sourceCommit'])
         self.assertTrue(component_matches(component_fixture(value, 'ios-device'), value, 'ios-device'))
+
+    def test_runtime_receipt_binding_is_required_and_compared(self):
+        value = composition_fixture()
+        name = 'runtime-linux-amd64'
+        receipt = component_fixture(value, name)
+        self.assertTrue(component_matches(receipt, value, name))
+        for runtime in (None, {'domains': ['files'], 'flavor': 'jvm'},
+                        {'domains': ['calendar', 'chat', 'files'], 'flavor': 'native'}):
+            changed = {**receipt, 'runtime': runtime}
+            self.assertFalse(component_matches(changed, value, name))
+        for runtime in (None, {}, {'domains': [], 'flavor': 'jvm'}, {'domains': ['files'], 'flavor': 'native'},
+                        {'domains': [12], 'flavor': 'jvm'}, {'domains': [' files'], 'flavor': 'jvm'},
+                        {'domains': ['Files'], 'flavor': 'jvm'}, {'domains': ['files', 'files'], 'flavor': 'jvm'},
+                        {'domains': ['files', 'chat'], 'flavor': 'jvm'},
+                        {'domains': ['files'], 'flavor': 'jvm', 'unexpected': True}):
+            changed = copy.deepcopy(value)
+            changed['components'][name]['runtime'] = runtime
+            changed['compositionDigest'] = composition_digest(changed)
+            self.assertFalse(composition_passed(changed, 'a' * 40, 'b' * 40, 'c' * 40))
 
     def test_substitution_and_incomplete_or_malformed_compositions_fail(self):
         value = composition_fixture()

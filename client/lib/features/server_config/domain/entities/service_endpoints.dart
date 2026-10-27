@@ -4,7 +4,7 @@ class ServiceEndpoints {
     required this.backendApiBaseUrl,
   });
 
-  final Uri matrixHomeserverUrl;
+  final Uri? matrixHomeserverUrl;
   final Uri backendApiBaseUrl;
 
   ServiceEndpoints copyWith({

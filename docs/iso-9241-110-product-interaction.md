@@ -1,7 +1,9 @@
 # ISO 9241-110:2020 Product Interaction Standard
 
-Status: implementation and review standard derived from the pinned Weave Specification Corpus.  
-Scope: all supported Weave member interactions, independent of deployment lane.  
+Status: implementation and review standard derived from the pinned Weave Specification Corpus.
+
+Scope: all supported Weave member interactions, independent of deployment lane.
+
 Related release issues: #1470, #1481, #1592, #1749.
 
 ## Authority and boundary

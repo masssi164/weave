@@ -885,6 +885,42 @@ void main() {
     expect(request.headers.containsKey('x-weave-matrix-device-proof'), isFalse);
   });
 
+  test(
+    'no-Chat logout does not restore a session, contact Matrix or erase crypto',
+    () async {
+      configuration.configuration = buildTestConfiguration(
+        matrixHomeserverUrl: null,
+        domains: const ['files'],
+      );
+      await store.write('retained-crypto-proof', 'local-private-state');
+      await coordinator().endSession();
+      expect(auth.restoredBindings, isEmpty);
+      expect(logoutRequests, isEmpty);
+      expect(bridge.memberActivations, isEmpty);
+      expect(store.rawValue('retained-crypto-proof'), 'local-private-state');
+    },
+  );
+
+  test(
+    'a retained Chat binding fails closed after switching to a no-Chat server',
+    () async {
+      final current = coordinator();
+      final session = await current.open(synchronize: false);
+      final proofKey = 'matrix_member_device_proof_v1_${session.profileKey}';
+      final proof = store.rawValue(proofKey);
+      configuration.configuration = buildTestConfiguration(
+        matrixHomeserverUrl: null,
+        domains: const ['files'],
+      );
+      await expectLater(current.endSession(), throwsA(isA<ChatFailure>()));
+      expect(logoutRequests, isEmpty);
+      expect(store.rawValue(proofKey), proof);
+      // The retained locator/proof are crypto recovery metadata, not an active bearer.
+      expect(store.rawValue(matrixOAuthCurrentBindingKey), isNotNull);
+      expect(bridge.disposedProfiles, contains(session.profileKey));
+    },
+  );
+
   test('logout without a member session makes no Matrix request', () async {
     auth.state = const AuthState.signedOut();
 

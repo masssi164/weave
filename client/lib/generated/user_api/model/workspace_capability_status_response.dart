@@ -13,23 +13,17 @@ part of weave_user_api;
 class WorkspaceCapabilityStatusResponse {
   /// Returns a new [WorkspaceCapabilityStatusResponse] instance.
   WorkspaceCapabilityStatusResponse({
-    this.enabled,
+    required this.enabled,
     this.grantedCapabilities = const [],
     this.memberImpact,
-    this.policyState,
+    required this.policyState,
     this.profileKey,
-    this.readiness,
+    required this.readiness,
     this.supportRef,
   });
 
   /// Whether the capability is enabled for this workspace.
-  ///
-  /// Please note: This property should have been non-nullable! Since the specification file
-  /// does not include a default value (using the "default:" property), however, the generated
-  /// source code must fall back to having a nullable type.
-  /// Consider adding a "default:" property in the specification file to hide this note.
-  ///
-  bool? enabled;
+  bool enabled;
 
   /// Category-level capability identifiers granted to the authenticated principal.
   List<String> grantedCapabilities;
@@ -44,7 +38,7 @@ class WorkspaceCapabilityStatusResponse {
   String? memberImpact;
 
   /// Support-safe effective policy state for the authenticated principal.
-  WorkspaceCapabilityStatusResponsePolicyStateEnum? policyState;
+  WorkspaceCapabilityStatusResponsePolicyStateEnum policyState;
 
   /// Policy profile key that decided this capability. Does not expose provider internals.
   ///
@@ -56,7 +50,7 @@ class WorkspaceCapabilityStatusResponse {
   String? profileKey;
 
   /// Current readiness state for this capability.
-  WorkspaceCapabilityStatusResponseReadinessEnum? readiness;
+  WorkspaceCapabilityStatusResponseReadinessEnum readiness;
 
   /// Support-safe reference for this capability state. Does not expose provider internals.
   ///
@@ -83,12 +77,12 @@ class WorkspaceCapabilityStatusResponse {
   @override
   int get hashCode =>
       // ignore: unnecessary_parenthesis
-      (enabled == null ? 0 : enabled!.hashCode) +
+      (enabled.hashCode) +
       (grantedCapabilities.hashCode) +
       (memberImpact == null ? 0 : memberImpact!.hashCode) +
-      (policyState == null ? 0 : policyState!.hashCode) +
+      (policyState.hashCode) +
       (profileKey == null ? 0 : profileKey!.hashCode) +
-      (readiness == null ? 0 : readiness!.hashCode) +
+      (readiness.hashCode) +
       (supportRef == null ? 0 : supportRef!.hashCode);
 
   @override
@@ -97,32 +91,20 @@ class WorkspaceCapabilityStatusResponse {
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
-    if (this.enabled != null) {
-      json[r'enabled'] = this.enabled;
-    } else {
-      json[r'enabled'] = null;
-    }
+    json[r'enabled'] = this.enabled;
     json[r'grantedCapabilities'] = this.grantedCapabilities;
     if (this.memberImpact != null) {
       json[r'memberImpact'] = this.memberImpact;
     } else {
       json[r'memberImpact'] = null;
     }
-    if (this.policyState != null) {
-      json[r'policyState'] = this.policyState;
-    } else {
-      json[r'policyState'] = null;
-    }
+    json[r'policyState'] = this.policyState;
     if (this.profileKey != null) {
       json[r'profileKey'] = this.profileKey;
     } else {
       json[r'profileKey'] = null;
     }
-    if (this.readiness != null) {
-      json[r'readiness'] = this.readiness;
-    } else {
-      json[r'readiness'] = null;
-    }
+    json[r'readiness'] = this.readiness;
     if (this.supportRef != null) {
       json[r'supportRef'] = this.supportRef;
     } else {
@@ -152,7 +134,7 @@ class WorkspaceCapabilityStatusResponse {
       }());
 
       return WorkspaceCapabilityStatusResponse(
-        enabled: mapValueOfType<bool>(json, r'enabled'),
+        enabled: mapValueOfType<bool>(json, r'enabled')!,
         grantedCapabilities: json[r'grantedCapabilities'] is Iterable
             ? (json[r'grantedCapabilities'] as Iterable)
                 .cast<String>()
@@ -160,10 +142,10 @@ class WorkspaceCapabilityStatusResponse {
             : const [],
         memberImpact: mapValueOfType<String>(json, r'memberImpact'),
         policyState: WorkspaceCapabilityStatusResponsePolicyStateEnum.fromJson(
-            json[r'policyState']),
+            json[r'policyState'])!,
         profileKey: mapValueOfType<String>(json, r'profileKey'),
         readiness: WorkspaceCapabilityStatusResponseReadinessEnum.fromJson(
-            json[r'readiness']),
+            json[r'readiness'])!,
         supportRef: mapValueOfType<String>(json, r'supportRef'),
       );
     }
@@ -221,7 +203,12 @@ class WorkspaceCapabilityStatusResponse {
   }
 
   /// The list of required keys that must be present in a JSON.
-  static const requiredKeys = <String>{};
+  static const requiredKeys = <String>{
+    'enabled',
+    'grantedCapabilities',
+    'policyState',
+    'readiness',
+  };
 }
 
 /// Support-safe effective policy state for the authenticated principal.
