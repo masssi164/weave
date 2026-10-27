@@ -1,0 +1,352 @@
+name: Finalize two image tags from cancelled run 38051476758
+
+on:
+  push:
+    branches: [diagnostic/finalize-cancelled-run-20261027]
+    paths: [.github/workflows/finalize-cancelled-run.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  finalize:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/finalize-cancelled-run-20261027'
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    timeout-minutes: 5
+    concurrency:
+      group: weave-live-mac-mini-exclusive
+      cancel-in-progress: false
+    steps:
+      - name: Revalidate and finalize only the two exact cancelled-run image tags
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PYTHON'
+          #!/usr/bin/env python3
+          """Finish only the two image tags left by one verified cancelled testApp run.
+
+          This is the image-only subset of finalize_test_app_ci.py's cleanup_images and
+          verify_empty_namespace. It never invokes cleanup_inputs or namespace teardown.
+          Publishing the paired workflow executes the bounded operation; review it first.
+          """
+          from contextlib import contextmanager
+          import fcntl
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import shutil
+          import stat
+          import subprocess
+
+          REPOSITORY = "masssi164/weave"
+          BRANCH = "refs/heads/diagnostic/finalize-cancelled-run-20261027"
+          HISTORICAL_RUN = 38051476758
+          HISTORICAL_ATTEMPT = 1
+          CANDIDATE = "794bd2fa79df0cac411698ef8ffc4dd3e2ed00aa"
+          NAMESPACE = "weave-e2e-395571af94d194c4"
+          SOURCE = "https://github.com/" + REPOSITORY
+          TARGETS = (
+              ("weave-backend:test-app-" + NAMESPACE,
+               "sha256:258e44593f2db26c10648625a513e42cecfef309e093a1c886cba7db83f0b0b2",
+               "Weave Server"),
+              ("weave-mcp-server:test-app-" + NAMESPACE,
+               "sha256:95ff3b932facd90e7d2a51a94f8a5b048e8781fabb73552ef047a57f737a04aa",
+               "Weave MCP Server"),
+          )
+          EXPECTED_IDS = {target[1] for target in TARGETS}
+          DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
+          SHA = re.compile(r"[0-9a-f]{40}\Z")
+          RESOURCE_ID = re.compile(r"[0-9a-f]{64}\Z")
+          COMPONENTS = {"backend", "mcp", "keycloak", "runtimeState"}
+          REGISTRIES = {"ghcr.io/masssi164/weave-ci-" + name for name in
+                        ("backend", "mcp", "keycloak", "runtime-state")}
+          REASONS = {
+              "execution-context-rejected", "docker-command-unavailable", "docker-context-rejected",
+              "resource-inventory-rejected", "ledger-rejected", "ledger-changed",
+              "namespace-not-empty", "exact-image-rejected", "image-protected-by-ledger",
+              "container-ancestor-present", "protected-resources-changed", "other-images-changed",
+              "image-removal-incomplete", "unexpected-failure",
+          }
+
+
+          class FinalizeFailure(Exception):
+              def __init__(self, reason):
+                  self.reason = reason if reason in REASONS else "unexpected-failure"
+
+
+          def require(condition, reason):
+              if not condition:
+                  raise FinalizeFailure(reason)
+
+
+          def command(arguments):
+              """Never print Docker stdout, stderr, arguments, or exception payloads."""
+              try:
+                  result = subprocess.run(arguments, capture_output=True, text=True, timeout=20)
+              except (OSError, subprocess.SubprocessError, UnicodeError):
+                  raise FinalizeFailure("docker-command-unavailable") from None
+              require(result.returncode == 0 and len(result.stdout.encode()) <= 2 * 1024 * 1024,
+                      "docker-command-unavailable")
+              return result.stdout
+
+
+          class Docker:
+              def __init__(self):
+                  self.context = command(["docker", "context", "show"]).strip()
+                  require(bool(self.context) and len(self.context) <= 256
+                          and not any(character in self.context for character in "\r\n\0"),
+                          "docker-context-rejected")
+                  self.endpoint = self.local_endpoint()
+
+              def __call__(self, *arguments):
+                  return command(["docker", "--context", self.context, *arguments])
+
+              def local_endpoint(self):
+                  endpoint = json.loads(self("context", "inspect", self.context,
+                                             "--format", "{{json .Endpoints.docker.Host}}"))
+                  require(isinstance(endpoint, str) and endpoint.startswith("unix:///")
+                          and not any(character in endpoint for character in "\r\n\0"),
+                          "docker-context-rejected")
+                  return endpoint
+
+
+          def identifiers(raw, pattern, limit=4096):
+              values = raw.split()
+              require(len(values) <= limit and all(pattern.fullmatch(value) for value in values),
+                      "resource-inventory-rejected")
+              return frozenset(values)
+
+
+          def snapshot(docker):
+              require(docker.local_endpoint() == docker.endpoint, "docker-context-rejected")
+              daemon = json.loads(docker("info", "--format", "{{json .ID}}"))
+              require(isinstance(daemon, str) and 1 <= len(daemon) <= 256,
+                      "docker-context-rejected")
+              containers = identifiers(docker("container", "ls", "--all", "--quiet", "--no-trunc"), RESOURCE_ID)
+              networks = identifiers(docker("network", "ls", "--quiet", "--no-trunc"), RESOURCE_ID)
+              volume_rows = docker("volume", "ls", "--format", "{{json .Name}}").splitlines()
+              require(len(volume_rows) <= 4096, "resource-inventory-rejected")
+              volumes = [json.loads(row) for row in volume_rows]
+              require(all(isinstance(name, str) and 1 <= len(name) <= 1024 for name in volumes)
+                      and len(volumes) == len(set(volumes)), "resource-inventory-rejected")
+              images = identifiers(docker("image", "ls", "--all", "--quiet", "--no-trunc"), DIGEST, 16384)
+              return {"daemon": daemon, "containers": containers, "networks": networks,
+                      "volumes": frozenset(volumes), "images": images}
+
+
+          def verify_preserved(before, after, permitted_missing):
+              require(all(before[key] == after[key] for key in ("daemon", "containers", "networks", "volumes")),
+                      "protected-resources-changed")
+              require(after["images"] <= before["images"]
+                      and before["images"] - after["images"] <= permitted_missing,
+                      "other-images-changed")
+
+
+          def safe_file(info):
+              require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid()
+                      and not info.st_mode & 0o077 and info.st_nlink == 1,
+                      "ledger-rejected")
+
+
+          def safe_path(path):
+              require(path.is_absolute() and not any(item.is_symlink() for item in (path, *path.parents)),
+                      "ledger-rejected")
+
+
+          @contextmanager
+          def locked_ledger():
+              path = Path.home() / ".weave/artifact-runtime-images/ledger.json"
+              lock = path.with_suffix(".json.lock")
+              safe_path(path)
+              safe_path(lock)
+              parent = path.parent.stat()
+              require(stat.S_ISDIR(parent.st_mode) and parent.st_uid == os.getuid()
+                      and not parent.st_mode & 0o077, "ledger-rejected")
+              descriptor = os.open(lock, os.O_RDONLY | os.O_NOFOLLOW)
+              try:
+                  held_lock = os.fstat(descriptor)
+                  safe_file(held_lock)
+                  fcntl.flock(descriptor, fcntl.LOCK_SH | fcntl.LOCK_NB)
+
+                  def read():
+                      safe_path(path)
+                      safe_path(lock)
+                      current_lock = lock.stat()
+                      safe_file(current_lock)
+                      require((current_lock.st_dev, current_lock.st_ino) == (held_lock.st_dev, held_lock.st_ino),
+                              "ledger-rejected")
+                      ledger_descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+                      with os.fdopen(ledger_descriptor, "rb") as stream:
+                          info = os.fstat(stream.fileno())
+                          safe_file(info)
+                          require(info.st_size <= 256 * 1024, "ledger-rejected")
+                          raw = stream.read(256 * 1024 + 1)
+                      require(len(raw) <= 256 * 1024, "ledger-rejected")
+                      return raw, validate_ledger(json.loads(raw))
+
+                  yield read
+              finally:
+                  os.close(descriptor)
+
+
+          def valid_digest(value):
+              return isinstance(value, str) and bool(DIGEST.fullmatch(value))
+
+
+          def validate_ledger(value):
+              require(isinstance(value, dict), "ledger-rejected")
+              version = value.get("schemaVersion")
+              keys = {"schemaVersion", "ownerUid", "retainedSets", "pendingImageIds"}
+              if version == "weave.runtime-image-ledger/v2":
+                  keys.add("ownedRegistryReferences")
+              require(version in {"weave.runtime-image-ledger/v1", "weave.runtime-image-ledger/v2"}
+                      and set(value) == keys and type(value["ownerUid"]) is int
+                      and value["ownerUid"] == os.getuid(), "ledger-rejected")
+              retained, pending = value["retainedSets"], value["pendingImageIds"]
+              require(isinstance(retained, list) and len(retained) <= 2
+                      and isinstance(pending, list) and len(pending) <= 2048
+                      and all(valid_digest(image) for image in pending)
+                      and len(pending) == len(set(pending)), "ledger-rejected")
+              protected = set(pending)
+              for item in retained:
+                  require(isinstance(item, dict) and set(item) == {"sourceCommit", "inputDigest", "payloadSha256", "images"}
+                          and isinstance(item["sourceCommit"], str) and SHA.fullmatch(item["sourceCommit"])
+                          and valid_digest(item["inputDigest"]) and valid_digest(item["payloadSha256"])
+                          and isinstance(item["images"], dict) and set(item["images"]) == COMPONENTS
+                          and all(valid_digest(image) for image in item["images"].values()), "ledger-rejected")
+                  protected.update(item["images"].values())
+              references = value.get("ownedRegistryReferences", {})
+              require(isinstance(references, dict) and set(references) <= protected, "ledger-rejected")
+              for owned in references.values():
+                  require(isinstance(owned, list) and 1 <= len(owned) <= 32
+                          and all(isinstance(reference, str) and any(
+                              reference.startswith(registry + "@") and valid_digest(reference[len(registry) + 1:])
+                              for registry in REGISTRIES) for reference in owned)
+                          and len(owned) == len(set(owned)), "ledger-rejected")
+              require(not EXPECTED_IDS & protected, "image-protected-by-ledger")
+              return protected
+
+
+          def verify_empty_namespace(docker):
+              for kind in ("container", "network", "volume"):
+                  for label in ("com.massimotter.weave.namespace", "com.docker.compose.project"):
+                      arguments = [kind, "ls"] + (["--all"] if kind == "container" else [])
+                      arguments += ["--filter", label_prefix(label), "--format",
+                                    "{{json .Name}}" if kind == "volume" else "{{json .ID}}"]
+                      require(not docker(*arguments).strip(), "namespace-not-empty")
+
+
+          def label_prefix(label):
+              return "label=" + label + "=" + NAMESPACE
+
+
+          def verify_target(docker, target, protected):
+              tag, identity, title = target
+              require(identity not in protected, "image-protected-by-ledger")
+              projection = '{"id":{{json .Id}},"tags":{{json .RepoTags}},"references":{{json .RepoDigests}},"source":{{json (index .Config.Labels "org.opencontainers.image.source")}},"revision":{{json (index .Config.Labels "org.opencontainers.image.revision")}},"title":{{json (index .Config.Labels "org.opencontainers.image.title")}},"provenance":{{json (index .Config.Labels "com.massimotter.weave.provenance-reference")}}}'
+              image = json.loads(docker("image", "inspect", "--format", projection, tag))
+              require(isinstance(image, dict) and image.get("id") == identity
+                      and image.get("tags") == [tag] and image.get("references") in (None, [])
+                      and image.get("source") == SOURCE and image.get("revision") == CANDIDATE
+                      and image.get("title") == title
+                      and image.get("provenance") == "local-test-app-not-published", "exact-image-rejected")
+              require(not docker("container", "ls", "--all", "--quiet", "--no-trunc",
+                                 "--filter", "ancestor=" + identity).strip(), "container-ancestor-present")
+
+
+          def emit(audit):
+              print(json.dumps(audit, sort_keys=True), flush=True)
+
+
+          def perform(audit):
+              require(os.environ.get("RUNNER_NAME") == "weave-live-mac-mini"
+                      and os.environ.get("GITHUB_REPOSITORY") == REPOSITORY
+                      and os.environ.get("GITHUB_REF") == BRANCH
+                      and os.environ.get("GITHUB_EVENT_NAME") == "push"
+                      and os.environ.get("GITHUB_RUN_ATTEMPT") == "1", "execution-context-rejected")
+              run_key = f"e2e-{HISTORICAL_RUN}-{HISTORICAL_ATTEMPT}"
+              require("weave-e2e-" + hashlib.sha256(run_key.encode("ascii")).hexdigest()[:16] == NAMESPACE,
+                      "execution-context-rejected")
+              workspace = Path(os.environ["GITHUB_WORKSPACE"])
+              require(workspace.is_absolute() and workspace.is_dir() and not workspace.is_symlink(),
+                      "execution-context-rejected")
+              audit["freeBytesBefore"] = shutil.disk_usage(workspace).free
+              audit["stage"] = "docker-preflight"
+              docker = Docker()
+              audit["stage"] = "ledger-preflight"
+              with locked_ledger() as read_ledger:
+                  ledger_before, protected = read_ledger()
+                  audit["stage"] = "resource-preflight"
+                  before = snapshot(docker)
+                  require(EXPECTED_IDS <= before["images"], "exact-image-rejected")
+                  for kind in ("containers", "networks", "volumes", "images"):
+                      audit[kind + "BeforeCount"] = len(before[kind])
+                  attempted, removed = set(), set()
+                  try:
+                      audit["stage"] = "target-preflight"
+                      verify_empty_namespace(docker)
+                      for target in TARGETS:
+                          verify_target(docker, target, protected)
+                      audit["status"] = "preflight-passed"
+                      emit(audit)
+                      for target in TARGETS:
+                          audit["stage"] = "revalidation"
+                          ledger_current, protected = read_ledger()
+                          require(ledger_current == ledger_before, "ledger-changed")
+                          current = snapshot(docker)
+                          verify_preserved(before, current, removed)
+                          require(current["images"] == before["images"] - removed, "other-images-changed")
+                          verify_empty_namespace(docker)
+                          verify_target(docker, target, protected)
+                          audit["stage"] = "remove-exact-tag"
+                          attempted.add(target[1])
+                          # No force and no implicit deletion of untagged parent images.
+                          docker("image", "rm", "--no-prune", target[0])
+                          removed.add(target[1])
+                          audit["removedTagCount"] = len(removed)
+                          require(not docker("image", "ls", "--all", "--quiet", "--no-trunc",
+                                             "--filter", "reference=" + target[0]).strip(), "image-removal-incomplete")
+                          audit["status"] = "tag-finalized"
+                          emit(audit)
+                  finally:
+                      prior_stage = audit["stage"]
+                      audit["stage"] = "preservation-check"
+                      after = snapshot(docker)
+                      for kind in ("containers", "networks", "volumes", "images"):
+                          audit[kind + "AfterCount"] = len(after[kind])
+                      audit["removedImageCount"] = len((before["images"] - after["images"]) & EXPECTED_IDS)
+                      verify_preserved(before, after, attempted)
+                      audit["resourceIdentityPreservation"] = "verified"
+                      require(read_ledger()[0] == ledger_before, "ledger-changed")
+                      audit["ledgerBytePreservation"] = "verified"
+                      audit["freeBytesAfter"] = shutil.disk_usage(workspace).free
+                      audit["stage"] = prior_stage
+                  require(removed == EXPECTED_IDS and not EXPECTED_IDS & after["images"], "image-removal-incomplete")
+              audit["stage"] = "complete"
+              audit["status"] = "complete"
+
+
+          def main():
+              audit = {"schemaVersion": "weave.cancelled-run-image-finalization/v1",
+                       "status": "pending", "stage": "execution-preflight",
+                       "historicalRunId": HISTORICAL_RUN, "historicalRunAttempt": HISTORICAL_ATTEMPT,
+                       "candidateCommit": CANDIDATE, "expectedTagCount": 2,
+                       "removedTagCount": 0, "removedImageCount": 0,
+                       "resourceIdentityPreservation": "unverified", "ledgerBytePreservation": "unverified",
+                       "supportSafe": True, "containsSecretValues": False,
+                       "capacitySufficiency": "not-asserted"}
+              try:
+                  perform(audit)
+              except FinalizeFailure as failure:
+                  audit.update(status="blocked", reason=failure.reason)
+              except Exception:
+                  audit.update(status="blocked", reason="unexpected-failure")
+              emit(audit)
+              return 0 if audit["status"] == "complete" else 1
+
+
+          if __name__ == "__main__":
+              raise SystemExit(main())
+          PYTHON
