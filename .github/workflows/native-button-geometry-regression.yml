@@ -1,0 +1,67 @@
+name: Verify native button geometry repair
+on:
+  push:
+    branches: [diagnostic/iphone-handoff-190799-20261028]
+    paths: [.github/workflows/native-button-geometry-regression.yml]
+permissions:
+  contents: write
+jobs:
+  geometry:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/iphone-handoff-190799-20261028'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      RUSTUP_TOOLCHAIN: '1.95.0'
+      REPAIR: d53608f2b86658ac759d6f8e7a8628e5f2f2925c
+      TARGET: fix/1773-native-button-semantics
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: d53608f2b86658ac759d6f8e7a8628e5f2f2925c
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: '3.41.6'
+          channel: stable
+      - name: Prepare the existing locked test toolchain
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$REPAIR"
+          rustup toolchain install 1.95.0 --profile minimal
+          cd client
+          flutter pub get --enforce-lockfile
+          flutter gen-l10n
+          dart format test/features/auth/sign_in_semantics_geometry_test.dart
+      - name: Demonstrate the original ancestor-geometry failure
+        working-directory: client
+        run: |
+          set -euo pipefail
+          git show 4f4366bdc8098b974e6d8c325b9ab6aa5bbefa28:client/lib/core/a11y/semantic_button.dart > lib/core/a11y/semantic_button.dart
+          set +e
+          flutter test test/features/auth/sign_in_semantics_geometry_test.dart --reporter expanded > "$RUNNER_TEMP/native-geometry-baseline.log" 2>&1
+          result=$?
+          set -e
+          cat "$RUNNER_TEMP/native-geometry-baseline.log"
+          test "$result" != 0
+          grep -F 'Native Sign In must not inherit ancestor geometry.' "$RUNNER_TEMP/native-geometry-baseline.log"
+          echo 'NATIVE_BUTTON_BASELINE expectedGeometryFailure=true'
+      - name: Verify the actual screen geometry and existing button/authentication contracts
+        working-directory: client
+        run: |
+          set -euo pipefail
+          git show "$REPAIR":client/lib/core/a11y/semantic_button.dart > lib/core/a11y/semantic_button.dart
+          flutter test test/features/auth/sign_in_semantics_geometry_test.dart test/core/a11y/semantic_button_test.dart test/features/auth/sign_in_screen_test.dart --reporter expanded
+          flutter analyze --fatal-infos lib/core/a11y/semantic_button.dart test/features/auth/sign_in_semantics_geometry_test.dart
+          git diff --check
+      - name: Preserve only Dart formatting on the scoped repair branch
+        run: |
+          set -euo pipefail
+          test "$(git ls-remote origin "refs/heads/$TARGET" | cut -f1)" = "$REPAIR"
+          if ! git diff --quiet -- client/test/features/auth/sign_in_semantics_geometry_test.dart; then
+            test "$(git diff --name-only)" = client/test/features/auth/sign_in_semantics_geometry_test.dart
+            git add client/test/features/auth/sign_in_semantics_geometry_test.dart
+            git -c user.name='masssi164' -c user.email='95998874+masssi164@users.noreply.github.com' commit -m 'test: format the verified native Sign In geometry regression'
+            git push origin "HEAD:refs/heads/$TARGET"
+          fi
+          printf 'VERIFIED_GEOMETRY_HEAD=%s\n' "$(git rev-parse HEAD)"
