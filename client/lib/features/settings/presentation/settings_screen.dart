@@ -56,7 +56,7 @@ class SettingsScreen extends ConsumerWidget {
               children: [
                 const _ProfileSettingsLinkCard(),
                 const SizedBox(height: 16),
-                Card(
+                Card.outlined(
                   child: Column(
                     children: [
                       _SettingsNavigationTile(
@@ -264,13 +264,7 @@ class _WorkspaceHealthLinkCard extends StatelessWidget {
 
     return Semantics(
       button: true,
-      child: Card(
-        elevation: 0,
-        color: theme.colorScheme.surfaceContainerLow,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-          side: BorderSide(color: theme.colorScheme.outlineVariant),
-        ),
+      child: Card.outlined(
         child: ListTile(
           leading: Icon(
             Icons.admin_panel_settings_outlined,
@@ -303,13 +297,7 @@ class _ProfileSettingsLinkCard extends ConsumerWidget {
 
     return Semantics(
       button: true,
-      child: Card(
-        elevation: 0,
-        color: theme.colorScheme.surfaceContainerLow,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-          side: BorderSide(color: theme.colorScheme.outlineVariant),
-        ),
+      child: Card.outlined(
         child: ListTile(
           leading: Icon(
             Icons.account_circle_outlined,
