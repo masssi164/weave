@@ -1,0 +1,63 @@
+name: Bounded native authentication timing diagnosis
+on:
+  push:
+    branches: [diagnostic/dual-ios-source-20261028]
+    paths: [.github/workflows/auth-sheet-timing-once.yml]
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/dual-ios-source-20261028'
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    concurrency:
+      group: weave-live-mac-mini-exclusive
+      cancel-in-progress: false
+    timeout-minutes: 5
+    steps:
+      - name: Read only exact retained failed-run logs and print bounded classifications
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, re, stat
+          from pathlib import Path
+          assert os.environ.get('RUNNER_NAME') == 'weave-live-mac-mini'
+          root = Path(os.environ['GITHUB_WORKSPACE']) / 'weave/client/build/private-ios-qualification'
+          assert root.is_absolute() and not any(p.is_symlink() for p in (root, *root.parents))
+          assert root.is_dir() and root.stat().st_uid == os.getuid()
+          assert stat.S_IMODE(root.stat().st_mode) == 0o700
+          files = {'failed-driver':'command-09tkeda9.log', 'failed-app':'command-_cgrkefo.log',
+                   'peer-driver':'command-3yllw08j.log', 'peer-app':'command-71a0fw8s.log'}
+          stage = re.compile(r'NATIVE_IOS_BROWSER_STAGE phase=(driver-started|app-wait-started|app-observed|sign-in-control-observed|issuer-observed|username-submitted|password-submitted|password-return-submitted|password-save-declined|auth-completion-observed)\b')
+          prompt = re.compile(r'NATIVE_IOS_PASSWORD_PROMPT_STATE appPrompts=(\d{1,3}) systemPrompts=(\d{1,3}) appDeclines=(\d{1,3}) systemDeclines=(\d{1,3}) readiness=(waiting|ready|ambiguous)\b')
+          location = re.compile(r'BrowserDriver\.swift:(\d{1,5})\b')
+          clock = re.compile(r'\bt\s*=\s*(\d+(?:\.\d+)?)s\b')
+          known = {'Find': 'find', 'Checking existence': 'exists', 'Checking hittability': 'hittable',
+                   'Get number': 'count', 'Requesting snapshot': 'snapshot', 'Wait for': 'wait',
+                   'Tap ': 'tap', 'Type ': 'type', 'Scroll ': 'scroll'}
+          for role, name in files.items():
+              path = root / name
+              assert not path.is_symlink() and path.is_file()
+              info = path.stat()
+              assert info.st_uid == os.getuid() and info.st_size <= 16*1024**2 and not info.st_mode & 0o077
+              text = path.read_text(errors='replace')
+              timeline, operations, current = [], [], None
+              for line in text.splitlines():
+                  tick = clock.search(line)
+                  if tick: current = round(float(tick.group(1)), 2)
+                  matched = stage.search(line)
+                  if matched: timeline.append({'atSeconds':current, 'stage':matched.group(1)})
+                  matched = prompt.search(line)
+                  if matched: timeline.append({'atSeconds':current, 'promptCounts':[int(x) for x in matched.groups()[:4]], 'readiness':matched.group(5)})
+                  matched = location.search(line)
+                  if matched and ('error:' in line or 'failed' in line):
+                      timeline.append({'atSeconds':current, 'failureLine':int(matched.group(1))})
+                  if tick:
+                      for token, category in known.items():
+                          if token in line:
+                              operations.append({'atSeconds':current,'operation':category}); break
+              print(json.dumps({'role':role, 'timeline':timeline[-40:], 'lastOperations':operations[-30:],
+                  'workspaceObserved':'NATIVE_PRODUCT_STAGE phase=workspace-ready' in text,
+                  'declineSettlingFailure':'Password-save alert must settle to one accessible exact decline control' in text,
+                  'supportSafe':True},sort_keys=True))
+          PY
