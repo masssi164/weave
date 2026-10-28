@@ -1,0 +1,68 @@
+name: Verify repaired existing iPhone identity checks
+on:
+  push:
+    branches: [diagnostic/dual-ui-failure-20261028]
+    paths: [.github/workflows/verify-repaired-iphone-identity.yml]
+permissions:
+  contents: read
+jobs:
+  verify:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/dual-ui-failure-20261028'
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    concurrency:
+      group: weave-live-mac-mini-exclusive
+      cancel-in-progress: false
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: 3c753db76f896713da5587f00525cccf06cc947f
+          path: iphone-certificate-source
+          persist-credentials: false
+      - name: Exercise the exact repaired checks read-only on the designated device profiles
+        working-directory: iphone-certificate-source
+        env:
+          WEAVE_IOS_DEVICE_ID: ${{ secrets.WEAVE_IOS_DEVICE_ID }}
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess, sys, tempfile
+          from datetime import datetime, timezone
+          from pathlib import Path
+          assert os.environ.get('RUNNER_NAME') == 'weave-live-mac-mini'
+          assert subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip() == '3c753db76f896713da5587f00525cccf06cc947f'
+          sys.path.insert(0, str(Path('tools').resolve()))
+          from sign_iphone_artifact import (select_identity, select_profile, verify_certificate_identity,
+              DEFAULT_DEVELOPMENT_TEAM_ID as TEAM, DEFAULT_DEVELOPMENT_CERTIFICATE_ID as CERTIFICATE_ID, SigningError)
+          from prepare_iphone_artifact import physical_udid
+          report = {'readOnly': True, 'identityChanged': False, 'profilesChanged': False,
+                    'signed': False, 'installed': False, 'status': 'blocked'}
+          try:
+              device = os.environ.get('WEAVE_IOS_DEVICE_ID', '')
+              if not device:
+                  raise RuntimeError('paired-device-required')
+              with tempfile.TemporaryDirectory(prefix='weave-identity-readback-') as directory:
+                  output = Path(directory) / 'device.json'
+                  subprocess.run(['xcrun', 'devicectl', 'device', 'info', 'details', '--device', device,
+                                  '--timeout', '30', '--json-output', str(output)],
+                                  capture_output=True, check=True, timeout=45)
+                  udid = physical_udid(json.loads(output.read_text()))
+                  profiles = [Path.home()/'Library/MobileDevice/Provisioning Profiles',
+                              Path.home()/'Library/Developer/Xcode/UserData/Provisioning Profiles']
+                  bundles = ['com.massimotter.weave', 'com.massimotter.weave.integration.browser.xctrunner']
+                  identity = select_identity(profiles, bundles, TEAM, udid)
+                  validity = []
+                  for bundle in bundles:
+                      _, profile = select_profile(profiles, bundle, TEAM, identity, udid)
+                      verify_certificate_identity(profile, identity, TEAM, CERTIFICATE_ID)
+                      validity.append((profile['ExpirationDate'].replace(tzinfo=timezone.utc)
+                                       - datetime.now(timezone.utc)).total_seconds())
+                  report.update(status='passed', existingCertificateVerified=True,
+                                profileCount=len(validity), minimumProfileValidityHours=round(min(validity)/3600, 2))
+          except SigningError as error:
+              report['reason'] = str(error)
+          except Exception:
+              report['reason'] = 'read-only-identity-check-unavailable'
+          print(json.dumps(report, sort_keys=True))
+          raise SystemExit(0 if report['status'] == 'passed' else 1)
+          PY
