@@ -28,7 +28,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 class DogfoodPreparationContextPostgresTest {
     @Container static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
 
-    @Test void installedMemberPolicyHonorsDisabledDomainsWithoutWebSchedulersOrProviderBootstraps(@TempDir Path directory) throws Exception {
+    @Test void exactMinimalCommandContextValidatesServingSchemaWithoutWebSchedulersOrProviderBootstraps(@TempDir Path directory) throws Exception {
         var r = request("invitations");
         var init = SchemaAuthorityTestSupport.withRuntimeRole(Map.of(
                 "WEAVE_PERSISTENCE_URL", POSTGRES.getJdbcUrl(), "WEAVE_PERSISTENCE_USERNAME", POSTGRES.getUsername(),
