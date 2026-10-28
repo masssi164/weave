@@ -16,11 +16,11 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           persist-credentials: false
-          fetch-depth: 0
       - name: Select exact failing regression source and preserve the bounded repair
         run: |
           set -euo pipefail
           cp .github/diagnostics/navigation-tap.patch "$RUNNER_TEMP/repair.patch"
+          git fetch --no-tags --depth=1 origin 4dc16728583ff2ad8b3f2faadc3f6348afee5110
           git checkout --detach 4dc16728583ff2ad8b3f2faadc3f6348afee5110
           test "$(git rev-parse HEAD)" = 4dc16728583ff2ad8b3f2faadc3f6348afee5110
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
@@ -32,9 +32,11 @@ jobs:
         run: |
           rustup toolchain install 1.95.0 --profile minimal
           rustup default 1.95.0
-      - name: Resolve existing Flutter dependencies
+      - name: Resolve dependencies and format only the new regression
         working-directory: client
-        run: flutter pub get
+        run: |
+          flutter pub get
+          dart format test/integration_harness/dual_navigation_tap_test.dart
       - name: Prove the unmodified tap fails at the observed framework ambiguity
         working-directory: client
         run: |
@@ -56,7 +58,7 @@ jobs:
           cd client
           dart format --output=none --set-exit-if-changed test/integration_harness/dual_navigation_tap_test.dart integration_test/dual_ios_collaboration_test.dart
           flutter test --reporter expanded test/integration_harness/dual_navigation_tap_test.dart test/integration_harness/dual_chat_readiness_test.dart test/features/shell/shell_destination_navigation_test.dart
-      - name: Materialize the exact verified repair blob without modifying any branch
+      - name: Materialize the tested repair and formatter output without changing branches
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
@@ -64,17 +66,24 @@ jobs:
           import json, os, subprocess
           from pathlib import Path
           from urllib.request import Request, urlopen
-          path = 'client/integration_test/dual_ios_collaboration_test.dart'
+          implementation = 'client/integration_test/dual_ios_collaboration_test.dart'
+          regression = 'client/test/integration_harness/dual_navigation_tap_test.dart'
           expected = '2f99b9cd1188ab26df7bef65cb57f199f24f517f'
-          assert subprocess.check_output(['git', 'diff', '--name-only'], text=True).splitlines() == [path]
-          assert subprocess.check_output(['git', 'hash-object', path], text=True).strip() == expected
-          request = Request('https://api.github.com/repos/masssi164/weave/git/blobs',
-              data=json.dumps({'content': Path(path).read_text(), 'encoding': 'utf-8'}).encode(),
-              headers={'Authorization': 'Bearer ' + os.environ['GITHUB_TOKEN'],
-                       'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json'}, method='POST')
-          with urlopen(request, timeout=30) as response:
-              value = json.load(response)
-          assert value['sha'] == expected
-          print(json.dumps({'path': path, 'sha': expected, 'branchChanged': False,
-                            'regression': 'red-before-green-after'}))
+          changed = subprocess.check_output(['git', 'diff', '--name-only'], text=True).splitlines()
+          assert set(changed) == {implementation, regression}
+          assert subprocess.check_output(['git', 'hash-object', implementation], text=True).strip() == expected
+          for path in (implementation, regression):
+              digest = subprocess.check_output(['git', 'hash-object', path], text=True).strip()
+              request = Request('https://api.github.com/repos/masssi164/weave/git/blobs',
+                  data=json.dumps({'content': Path(path).read_text(), 'encoding': 'utf-8'}).encode(),
+                  headers={'Authorization': 'Bearer ' + os.environ['GITHUB_TOKEN'],
+                           'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json'}, method='POST')
+              with urlopen(request, timeout=30) as response:
+                  value = json.load(response)
+              assert value['sha'] == digest
+              print(json.dumps({'path': path, 'sha': digest, 'branchChanged': False,
+                                'regression': 'red-before-green-after'}))
+          print('FORMATTED_REGRESSION_SOURCE_BEGIN')
+          print(Path(regression).read_text())
+          print('FORMATTED_REGRESSION_SOURCE_END')
           PY
