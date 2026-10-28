@@ -1,0 +1,92 @@
+name: Classify current read-only member verification envelope
+on:
+  push:
+    branches: [diagnostic/dual-ios-source-20261028]
+    paths: [.github/workflows/member-verification-envelope-once.yml]
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/dual-ios-source-20261028'
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    concurrency:
+      group: weave-live-mac-mini-exclusive
+      cancel-in-progress: false
+    timeout-minutes: 5
+    env:
+      WEAVE_CANDIDATE_COMMIT: 190799c721343a2f21e1b68181f39cb8c87bea6a
+      WEAVE_ENV_FILE: ${{ vars.WEAVE_DOGFOOD_REVIEWED_ENV_FILE }}
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Observe fixed response categories and failing validator line only
+        working-directory: weave
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, re, secrets, subprocess, sys, tempfile
+          from pathlib import Path
+          sys.path.insert(0, str(Path.cwd()/'tools'))
+          import dogfood_prepare as preparation
+          from compose_runtime import _dogfood_session_lock
+          def run(args, data=None, timeout=20):
+              result=subprocess.run(args,input=data,capture_output=True,text=True,timeout=timeout)
+              if result.returncode or len(result.stdout)>1024**2: raise ValueError('command-failed')
+              return result.stdout
+          report={'status':'blocked','stage':'preflight','readOnly':True,'supportSafe':True}
+          try:
+              assert os.environ.get('RUNNER_NAME')=='weave-live-mac-mini'
+              candidate=os.environ['WEAVE_CANDIDATE_COMMIT']
+              assert run(['git','rev-parse','HEAD']).strip()==candidate
+              assert run(['git','rev-parse','HEAD^{tree}']).strip()=='06379c5fb09b08c3b25b5377f953f1ea5d2c8960'
+              context=preparation.load_context('dogfood',Path.cwd()/'infra/weave-workspace',os.environ['WEAVE_ENV_FILE'])
+              identity={'candidateCommit':candidate,'sourceTree':'06379c5fb09b08c3b25b5377f953f1ea5d2c8960','specificationCommit':'cf249847c7f48ccc51507c6d06f5576e7a332f06'}
+              with _dogfood_session_lock(context):
+                  fixture=Path.home()/'.weave/dogfood/functional-smoke-identities.json'
+                  preparation.fixture_binding(context,fixture,preparation.private_read(fixture))
+                  ledger=preparation.private_read(preparation.ledger_for(fixture),65536)
+                  previous=preparation.operator_grant_evidence(ledger)['receipt']
+                  plan={**ledger['plan'],'nonce':secrets.token_hex(16)}
+                  request=preparation.operator_request(context,plan,identity,'verify-members',previous,None)
+                  ids=run(['docker','ps','--filter','label=com.docker.compose.project=weave-dogfood','--filter','label=com.docker.compose.service=backend','-q','--no-trunc']).splitlines()
+                  assert len(ids)==1 and re.fullmatch('[0-9a-f]{64}',ids[0])
+                  instance=json.loads(run(['docker','inspect',ids[0]]))[0]
+                  labels=instance['Config']['Labels']
+                  assert labels['com.massimotter.weave.candidate-commit']==candidate and labels['com.massimotter.weave.spec-commit']==identity['specificationCommit']
+                  assert 'WEAVE_RELEASE_POSTURE=dogfood' in instance['Config']['Env'] and instance['State']['Running']
+                  report['stage']='read-only-operator'
+                  response=subprocess.run(['docker','exec','-i',ids[0],'java','-jar','/app/app.jar','dogfood-prepare-members'],input=json.dumps(request),capture_output=True,text=True,timeout=210)
+                  assert len(response.stdout)<2*1024**2 and len(response.stderr)<2*1024**2
+                  prefix='WEAVE_DOGFOOD_OPERATOR_PREPARATION_RESULT '
+                  values=[line[len(prefix):] for line in response.stdout.splitlines() if line.startswith(prefix)]
+                  assert len(values)==1 and len(values[0])<16384
+                  envelope=preparation.strict_json(values[0])
+                  receipt=envelope['receipt']
+                  allowed={'operation':{'verify-members'},'status':{'passed','blocked','incomplete'},'boundary':preparation.OPERATOR_BOUNDARIES|{'none'},'stage':{'incomplete','verify-members-ready'},'outcome':{'VERIFIED','BLOCKED','PARTIAL','CREATED'}}
+                  for key,options in allowed.items():
+                      assert receipt[key] in options
+                      report[key]=receipt[key]
+                  report['exitCode']=response.returncode
+                  report['members']=[{'slot':entry['slot'],'accountPresent':entry['accountRef'] is not None,'memberHandlePresent':entry['memberHandle'] is not None,'grantPresent':entry['grantVersion'] is not None,'intentPresent':entry['intentRef'] is not None} for entry in receipt['members']]
+                  assert [m['slot'] for m in report['members']]==['A','B']
+                  report['privateMemberDataPresent']=envelope.get('privateData',{}).get('members') is not None
+                  known=('actorRef','planId','organizationId','intendedOwnerAccountRef','intendedOwnerMemberHandle','organizationOrigin','apiBaseUrl','issuerUrl','spaceRef')
+                  report['changedKnownBindingFields']=[key for key in known if previous.get(key) is not None and receipt.get(key)!=previous[key]]
+                  locations=[]
+                  def trace(frame,event,arg):
+                      if event=='exception' and frame.f_code.co_name=='validate_operator_envelope' and isinstance(arg[1],ValueError): locations.append(frame.f_lineno)
+                      return trace
+                  sys.settrace(trace)
+                  try:
+                      preparation.validate_operator_envelope(envelope,request,previous)
+                      report['validation']='passed'
+                  except preparation.ContractError:
+                      report['validation']='rejected'
+                  finally: sys.settrace(None)
+                  report['validatorLines']=sorted(set(locations))
+                  report['diagnosticCompleted']=True
+          except Exception:
+              report['diagnosticCompleted']=False
+          print(json.dumps(report,sort_keys=True),flush=True)
+          raise SystemExit(0 if report.get('diagnosticCompleted') else 1)
+          PY
