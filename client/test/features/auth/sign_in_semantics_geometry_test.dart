@@ -49,7 +49,6 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       addTearDown(tester.view.resetPhysicalSize);
       final semantics = tester.ensureSemantics();
-      addTearDown(semantics.dispose);
       final signIn = _ObservedSignIn();
       final container = ProviderContainer.test(
         overrides: [
@@ -100,6 +99,7 @@ void main() {
       current.owner!.performAction(current.id, ui.SemanticsAction.tap);
       await tester.pumpAndSettle();
       expect(signIn.calls, 2, reason: 'Screen-reader activation remains equivalent.');
+      semantics.dispose();
     });
   }
 }
