@@ -71,12 +71,40 @@ class SigningPrerequisites(unittest.TestCase):
                 self.assertRaisesRegex(signing.SigningError, "one-existing-compatible-signing-identity-required"):
             signing.select_identity([], [self.bundle, "test.runner"], self.team, self.device)
 
-    def test_certificate_team_can_differ_from_provisioning_team(self):
-        certificate_team = "CERTTEAM01"
-        with patch.object(signing, "run", return_value=("subject=\n OU=" + certificate_team + "\n").encode()):
-            signing.verify_certificate_team(self.profile, self.identity, certificate_team)
+    def test_certificate_common_name_identifier_is_not_the_team(self):
+        certificate_id = "MEMBER0001"
+        subject = f"subject=\n CN=Apple Development: Fixture ({certificate_id})\n OU={self.team}\n"
+        with patch.object(signing, "run", return_value=subject.encode()):
+            signing.verify_certificate_identity(self.profile, self.identity, self.team, certificate_id)
             with self.assertRaisesRegex(signing.SigningError, "developer-certificate-team-mismatch"):
-                signing.verify_certificate_team(self.profile, self.identity, self.team)
+                signing.verify_certificate_identity(self.profile, self.identity, certificate_id, certificate_id)
+            with self.assertRaisesRegex(signing.SigningError, "developer-certificate-id-mismatch"):
+                signing.verify_certificate_identity(self.profile, self.identity, self.team, self.team)
+
+    def test_missing_ambiguous_or_wrong_certificate_identifier_is_rejected(self):
+        team_line = f" OU={self.team}\n"
+        name_line = " CN=Apple Development: Fixture (MEMBER0001)\n"
+        for subject, reason in ((team_line, "id-mismatch"), (name_line, "team-mismatch"),
+                (team_line + name_line * 2, "id-mismatch"), (team_line * 2 + name_line, "team-mismatch"),
+                (team_line + " CN=Apple Development: Fixture (OTHER00001)\n", "id-mismatch")):
+            with self.subTest(subject=subject), patch.object(signing, "run", return_value=subject.encode()), \
+                    self.assertRaisesRegex(signing.SigningError, reason):
+                signing.verify_certificate_identity(self.profile, self.identity, self.team, "MEMBER0001")
+
+    def test_certificate_expectations_are_validated_before_any_command(self):
+        for team, certificate_id in (("not-a-team", "MEMBER0001"), (self.team, "not-an-id")):
+            with self.subTest(team=team, certificate_id=certificate_id), patch.object(signing, "run") as command, \
+                    self.assertRaisesRegex(signing.SigningError, "expected-developer-certificate-.*-invalid"):
+                signing.verify_certificate_identity(self.profile, self.identity, team, certificate_id)
+            command.assert_not_called()
+
+    def test_only_the_selected_profile_certificate_can_satisfy_identity(self):
+        for certificates in ([], [self.certificate, self.certificate]):
+            with self.subTest(certificates=certificates), patch.object(signing, "run") as command, \
+                    self.assertRaisesRegex(signing.SigningError, "existing-developer-certificate-ambiguous"):
+                signing.verify_certificate_identity({**self.profile, "DeveloperCertificates": certificates},
+                                                    self.identity, self.team, "MEMBER0001")
+            command.assert_not_called()
 
     def test_application_identifier_prefix_is_preserved_independently_from_team(self):
         profile = copy.deepcopy(self.profile)

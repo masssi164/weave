@@ -88,9 +88,12 @@ class PhysicalArtifactPreparation(unittest.TestCase):
         self.verify_member = patch.object(preparation, "verify_member_workspace", return_value=self.member).start()
         self.verify_routing = patch.object(preparation, "verify_discovered_routing", return_value="retained-workspace").start()
 
-    def sign(self, root, artifact, output, candidate, team, identity, device, profiles, certificate_team):
+    def sign(self, root, artifact, output, candidate, team, identity, device, profiles, certificate_team, certificate_id):
         self.assertEqual(candidate, self.candidate)
         self.assertEqual(device, self.device)
+        self.assertEqual(team, preparation.DEFAULT_DEVELOPMENT_TEAM_ID)
+        self.assertEqual(certificate_team, team)
+        self.assertEqual(certificate_id, preparation.DEFAULT_DEVELOPMENT_CERTIFICATE_ID)
         for relative, identifier in (("ordinary/Runner.app", preparation.BUNDLE),
                                      ("driver/Products/Debug-iphoneos/BrowserDriver-Runner.app", preparation.DRIVER)):
             directory = output / relative

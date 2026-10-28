@@ -24,7 +24,8 @@ sys.path.insert(0, str(ROOT / 'tools'))
 from artifact_consumers import candidate_composition, component_evidence, native_bundle, copy_driver_products, verify_runtime_container
 from build_artifacts import ArtifactError
 from dogfood_functional_smoke import Runner, SmokeError, verify_discovered_routing, verify_installed_build
-from sign_iphone_artifact import sign, verify_signed
+from sign_iphone_artifact import (sign, verify_signed, DEFAULT_DEVELOPMENT_TEAM_ID,
+                                  DEFAULT_DEVELOPMENT_CERTIFICATE_ID)
 from compose_env import load_context
 from compose_runtime import _dogfood_session_lock, _service_container, verify_dogfood_identity
 from dogfood_handoff_bundle import canonical_origin
@@ -103,10 +104,11 @@ def prepare(candidate: str, device: str, qualification_run: int, qualification_a
             signed = directory / 'signed'
             profiles = [Path.home() / 'Library/MobileDevice/Provisioning Profiles',
                         Path.home() / 'Library/Developer/Xcode/UserData/Provisioning Profiles']
-            sign(ROOT, unsigned, signed, candidate,
-                 os.environ.get('WEAVE_IOS_EXPECTED_TEAM_ID', 'KNDHGC2KV6'),
+            team = os.environ.get('WEAVE_IOS_EXPECTED_TEAM_ID', DEFAULT_DEVELOPMENT_TEAM_ID)
+            sign(ROOT, unsigned, signed, candidate, team,
                  os.environ.get('WEAVE_IOS_SIGNING_IDENTITY_SHA1') or None, udid, profiles,
-                 os.environ.get('WEAVE_IOS_EXPECTED_DEVELOPER_CERT_TEAM_ID', '6RUS2Z848X'))
+                 os.environ.get('WEAVE_IOS_EXPECTED_DEVELOPER_CERT_TEAM_ID', team),
+                 os.environ.get('WEAVE_IOS_EXPECTED_DEVELOPER_CERT_ID', DEFAULT_DEVELOPMENT_CERTIFICATE_ID))
             receipt['signing'] = verify_signed(ROOT, unsigned, signed, candidate)
             # XCTest needs mutable, private fixture inputs; keep signed payload
             # verification separate from that per-session driver plan.

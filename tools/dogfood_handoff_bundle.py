@@ -16,6 +16,7 @@ from urllib.parse import urlencode, urlparse
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "infra/weave-workspace/scripts"))
 from compose_env import load_context
+from sign_iphone_artifact import DEFAULT_DEVELOPMENT_TEAM_ID, DEFAULT_DEVELOPMENT_CERTIFICATE_ID
 
 
 def canonical_origin(value: str) -> str:
@@ -117,7 +118,8 @@ def write_markdown(path: Path, payload: dict[str, object]) -> None:
         f"- Debug builds valid for installed-client deeplink smoke: `{ios['debugBuildsAllowed']}`",
         f"- Bundle ID: `{ios['bundleId']}`",
         f"- Provisioning Team ID: `{ios['teamId']}`",
-        f"- Developer certificate Team ID: `{ios['developerCertificateTeamId']}`",
+        f"- Developer certificate Team ID (OU): `{ios['developerCertificateTeamId']}`",
+        f"- Development certificate identifier (Common Name): `{ios['developerCertificateId']}`",
         f"- Installation mode: `{ios['installMode']}`",
         f"- Destructive uninstall requires explicit opt-in: `{ios['destructiveUninstallRequiresOptIn']}`",
         f"- Wi-Fi install preferred: `{ios['wifiInstallPreferred']}`",
@@ -193,8 +195,9 @@ def main() -> int:
         },
         "iosClient": {
             "bundleId": "com.massimotter.weave",
-            "teamId": "KNDHGC2KV6",
-            "developerCertificateTeamId": "6RUS2Z848X",
+            "teamId": DEFAULT_DEVELOPMENT_TEAM_ID,
+            "developerCertificateTeamId": DEFAULT_DEVELOPMENT_TEAM_ID,
+            "developerCertificateId": DEFAULT_DEVELOPMENT_CERTIFICATE_ID,
             "requiredBuildMode": "profile-or-release",
             "debugBuildsAllowed": False,
             "installEvidenceRequired": True,
