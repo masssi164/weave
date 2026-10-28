@@ -1,0 +1,240 @@
+--- a/tools/sign_iphone_artifact.py
++++ b/tools/sign_iphone_artifact.py
+@@ -17,6 +17,10 @@
+ import tempfile
+ 
+ from build_artifacts import ArtifactError, ROOT, SHA, digest_file, tree_digest, verify_component
++
++
++DEFAULT_DEVELOPMENT_TEAM_ID = "KNDHGC2KV6"
++DEFAULT_DEVELOPMENT_CERTIFICATE_ID = "6RUS2Z848X"
+ 
+ 
+ class SigningError(ArtifactError):
+@@ -88,20 +92,31 @@
+     return matching[0]
+ 
+ 
+-def verify_certificate_team(profile: dict, identity: str, expected: str | None) -> None:
+-    if expected is None:
++def verify_certificate_identity(profile: dict, identity: str, expected_team: str | None,
++                                expected_certificate_id: str | None = None) -> None:
++    """Verify the existing certificate's OU team and distinct Common Name identifier."""
++    for value, field in ((expected_team, "team"), (expected_certificate_id, "id")):
++        if value is not None and not re.fullmatch(r"[A-Z0-9]{10}", value):
++            raise SigningError("expected-developer-certificate-" + field + "-invalid")
++    if expected_team is None and expected_certificate_id is None:
+         return
+-    if not re.fullmatch(r"[A-Z0-9]{10}", expected):
+-        raise SigningError("expected-developer-certificate-team-invalid")
+-    certificate, = [item for item in profile["DeveloperCertificates"]
++    certificates = [item for item in profile["DeveloperCertificates"]
+                     if hashlib.sha1(item).hexdigest().upper() == identity.upper()]
++    if len(certificates) != 1:
++        raise SigningError("existing-developer-certificate-ambiguous")
+     with tempfile.NamedTemporaryFile(suffix=".der") as temporary:
+-        Path(temporary.name).write_bytes(certificate)
++        Path(temporary.name).write_bytes(certificates[0])
+         subject = run(["openssl", "x509", "-inform", "DER", "-in", temporary.name,
+                        "-noout", "-subject", "-nameopt", "sep_multiline,sname,utf8"]).decode()
+-    observed = re.findall(r"^\s*OU\s*=\s*([A-Z0-9]{10})\s*$", subject, re.MULTILINE)
+-    if observed != [expected]:
+-        raise SigningError("developer-certificate-team-mismatch")
++    if expected_team is not None:
++        teams = re.findall(r"^\s*OU\s*=\s*([A-Z0-9]{10})\s*$", subject, re.MULTILINE)
++        if teams != [expected_team]:
++            raise SigningError("developer-certificate-team-mismatch")
++    if expected_certificate_id is not None:
++        identifiers = re.findall(r"^\s*CN\s*=\s*Apple Development: [^\r\n]+ \(([A-Z0-9]{10})\)\s*$",
++                                 subject, re.MULTILINE)
++        if identifiers != [expected_certificate_id]:
++            raise SigningError("developer-certificate-id-mismatch")
+ 
+ 
+ def signing_entitlements(profile: dict, bundle: str, requested: dict) -> dict:
+@@ -152,7 +167,8 @@
+ 
+ 
+ def sign(root: Path, artifact: Path, output: Path, candidate: str, team: str, identity: str | None,
+-         device: str, profiles: list[Path], certificate_team: str | None = None) -> dict:
++         device: str, profiles: list[Path], certificate_team: str | None = None,
++         certificate_id: str | None = None) -> dict:
+     if platform.system() != "Darwin":
+         raise SigningError("local-macos-signing-required")
+     if not re.fullmatch(r"[A-Z0-9]{10}", team) or (identity is not None and not re.fullmatch(r"[A-Fa-f0-9]{40}", identity)):
+@@ -175,7 +191,7 @@
+     selected = []
+     for app, bundle in zip(sources, bundles):
+         profile_path, profile = select_profile(profiles, bundle, team, identity, device)
+-        verify_certificate_team(profile, identity, certificate_team)
++        verify_certificate_identity(profile, identity, certificate_team, certificate_id)
+         selected.append((app, profile_path, profile))
+     output.parent.mkdir(parents=True, exist_ok=True)
+     with tempfile.TemporaryDirectory(prefix=".weave-signing-", dir=output.parent) as temporary:
+@@ -190,6 +206,7 @@
+             "sourceCommit": manifest["sourceCommit"], "inputDigest": manifest["inputDigest"],
+             "unsignedPayloadSha256": manifest["payload"]["sha256"], "teamId": team,
+             "signingIdentitySha1": identity.upper(), "certificateTeamId": certificate_team,
++            "certificateId": certificate_id,
+             "buildNumber": manifest["buildNumber"],
+             "signedPayloadTreeDigest": tree_digest(staged), "applications": bindings,
+             "status": "passed", "supportSafe": True, "containsSecretValues": False}
+@@ -225,13 +242,14 @@
+     parser.add_argument("--team", required=True)
+     parser.add_argument("--identity-sha1")
+     parser.add_argument("--certificate-team")
++    parser.add_argument("--certificate-id")
+     parser.add_argument("--device-udid", required=True)
+     parser.add_argument("--profiles", type=Path, action="append")
+     args = parser.parse_args()
+     profiles = args.profiles or [Path.home() / "Library/MobileDevice/Provisioning Profiles",
+                                 Path.home() / "Library/Developer/Xcode/UserData/Provisioning Profiles"]
+     result = sign(args.root, args.artifact_directory, args.output, args.candidate, args.team,
+-                  args.identity_sha1, args.device_udid, profiles, args.certificate_team)
++                  args.identity_sha1, args.device_udid, profiles, args.certificate_team, args.certificate_id)
+     print(json.dumps(result, indent=2))
+     return 0
+ 
+--- a/tools/sign_iphone_artifact_test.py
++++ b/tools/sign_iphone_artifact_test.py
+@@ -71,12 +71,40 @@
+                 self.assertRaisesRegex(signing.SigningError, "one-existing-compatible-signing-identity-required"):
+             signing.select_identity([], [self.bundle, "test.runner"], self.team, self.device)
+ 
+-    def test_certificate_team_can_differ_from_provisioning_team(self):
+-        certificate_team = "CERTTEAM01"
+-        with patch.object(signing, "run", return_value=("subject=\n OU=" + certificate_team + "\n").encode()):
+-            signing.verify_certificate_team(self.profile, self.identity, certificate_team)
++    def test_certificate_common_name_identifier_is_not_the_team(self):
++        certificate_id = "MEMBER0001"
++        subject = f"subject=\n CN=Apple Development: Fixture ({certificate_id})\n OU={self.team}\n"
++        with patch.object(signing, "run", return_value=subject.encode()):
++            signing.verify_certificate_identity(self.profile, self.identity, self.team, certificate_id)
+             with self.assertRaisesRegex(signing.SigningError, "developer-certificate-team-mismatch"):
+-                signing.verify_certificate_team(self.profile, self.identity, self.team)
++                signing.verify_certificate_identity(self.profile, self.identity, certificate_id, certificate_id)
++            with self.assertRaisesRegex(signing.SigningError, "developer-certificate-id-mismatch"):
++                signing.verify_certificate_identity(self.profile, self.identity, self.team, self.team)
++
++    def test_missing_ambiguous_or_wrong_certificate_identifier_is_rejected(self):
++        team_line = f" OU={self.team}\n"
++        name_line = " CN=Apple Development: Fixture (MEMBER0001)\n"
++        for subject, reason in ((team_line, "id-mismatch"), (name_line, "team-mismatch"),
++                (team_line + name_line * 2, "id-mismatch"), (team_line * 2 + name_line, "team-mismatch"),
++                (team_line + " CN=Apple Development: Fixture (OTHER00001)\n", "id-mismatch")):
++            with self.subTest(subject=subject), patch.object(signing, "run", return_value=subject.encode()), \
++                    self.assertRaisesRegex(signing.SigningError, reason):
++                signing.verify_certificate_identity(self.profile, self.identity, self.team, "MEMBER0001")
++
++    def test_certificate_expectations_are_validated_before_any_command(self):
++        for team, certificate_id in (("not-a-team", "MEMBER0001"), (self.team, "not-an-id")):
++            with self.subTest(team=team, certificate_id=certificate_id), patch.object(signing, "run") as command, \
++                    self.assertRaisesRegex(signing.SigningError, "expected-developer-certificate-.*-invalid"):
++                signing.verify_certificate_identity(self.profile, self.identity, team, certificate_id)
++            command.assert_not_called()
++
++    def test_only_the_selected_profile_certificate_can_satisfy_identity(self):
++        for certificates in ([], [self.certificate, self.certificate]):
++            with self.subTest(certificates=certificates), patch.object(signing, "run") as command, \
++                    self.assertRaisesRegex(signing.SigningError, "existing-developer-certificate-ambiguous"):
++                signing.verify_certificate_identity({**self.profile, "DeveloperCertificates": certificates},
++                                                    self.identity, self.team, "MEMBER0001")
++            command.assert_not_called()
+ 
+     def test_application_identifier_prefix_is_preserved_independently_from_team(self):
+         profile = copy.deepcopy(self.profile)
+--- a/tools/prepare_iphone_artifact.py
++++ b/tools/prepare_iphone_artifact.py
+@@ -24,7 +24,8 @@
+ from artifact_consumers import candidate_composition, component_evidence, native_bundle, copy_driver_products, verify_runtime_container
+ from build_artifacts import ArtifactError
+ from dogfood_functional_smoke import Runner, SmokeError, verify_discovered_routing, verify_installed_build
+-from sign_iphone_artifact import sign, verify_signed
++from sign_iphone_artifact import (sign, verify_signed, DEFAULT_DEVELOPMENT_TEAM_ID,
++                                  DEFAULT_DEVELOPMENT_CERTIFICATE_ID)
+ from compose_env import load_context
+ from compose_runtime import _dogfood_session_lock, _service_container, verify_dogfood_identity
+ from dogfood_handoff_bundle import canonical_origin
+@@ -103,10 +104,11 @@
+             signed = directory / 'signed'
+             profiles = [Path.home() / 'Library/MobileDevice/Provisioning Profiles',
+                         Path.home() / 'Library/Developer/Xcode/UserData/Provisioning Profiles']
+-            sign(ROOT, unsigned, signed, candidate,
+-                 os.environ.get('WEAVE_IOS_EXPECTED_TEAM_ID', 'KNDHGC2KV6'),
++            team = os.environ.get('WEAVE_IOS_EXPECTED_TEAM_ID', DEFAULT_DEVELOPMENT_TEAM_ID)
++            sign(ROOT, unsigned, signed, candidate, team,
+                  os.environ.get('WEAVE_IOS_SIGNING_IDENTITY_SHA1') or None, udid, profiles,
+-                 os.environ.get('WEAVE_IOS_EXPECTED_DEVELOPER_CERT_TEAM_ID', '6RUS2Z848X'))
++                 os.environ.get('WEAVE_IOS_EXPECTED_DEVELOPER_CERT_TEAM_ID', team),
++                 os.environ.get('WEAVE_IOS_EXPECTED_DEVELOPER_CERT_ID', DEFAULT_DEVELOPMENT_CERTIFICATE_ID))
+             receipt['signing'] = verify_signed(ROOT, unsigned, signed, candidate)
+             # XCTest needs mutable, private fixture inputs; keep signed payload
+             # verification separate from that per-session driver plan.
+--- a/tools/prepare_iphone_artifact_test.py
++++ b/tools/prepare_iphone_artifact_test.py
+@@ -88,9 +88,12 @@
+         self.verify_member = patch.object(preparation, "verify_member_workspace", return_value=self.member).start()
+         self.verify_routing = patch.object(preparation, "verify_discovered_routing", return_value="retained-workspace").start()
+ 
+-    def sign(self, root, artifact, output, candidate, team, identity, device, profiles, certificate_team):
++    def sign(self, root, artifact, output, candidate, team, identity, device, profiles, certificate_team, certificate_id):
+         self.assertEqual(candidate, self.candidate)
+         self.assertEqual(device, self.device)
++        self.assertEqual(team, preparation.DEFAULT_DEVELOPMENT_TEAM_ID)
++        self.assertEqual(certificate_team, team)
++        self.assertEqual(certificate_id, preparation.DEFAULT_DEVELOPMENT_CERTIFICATE_ID)
+         for relative, identifier in (("ordinary/Runner.app", preparation.BUNDLE),
+                                      ("driver/Products/Debug-iphoneos/BrowserDriver-Runner.app", preparation.DRIVER)):
+             directory = output / relative
+--- a/tools/dogfood_handoff_bundle.py
++++ b/tools/dogfood_handoff_bundle.py
+@@ -16,6 +16,7 @@
+ ROOT = Path(__file__).resolve().parents[1]
+ sys.path.insert(0, str(ROOT / "infra/weave-workspace/scripts"))
+ from compose_env import load_context
++from sign_iphone_artifact import DEFAULT_DEVELOPMENT_TEAM_ID, DEFAULT_DEVELOPMENT_CERTIFICATE_ID
+ 
+ 
+ def canonical_origin(value: str) -> str:
+@@ -117,7 +118,8 @@
+         f"- Debug builds valid for installed-client deeplink smoke: `{ios['debugBuildsAllowed']}`",
+         f"- Bundle ID: `{ios['bundleId']}`",
+         f"- Provisioning Team ID: `{ios['teamId']}`",
+-        f"- Developer certificate Team ID: `{ios['developerCertificateTeamId']}`",
++        f"- Developer certificate Team ID (OU): `{ios['developerCertificateTeamId']}`",
++        f"- Development certificate identifier (Common Name): `{ios['developerCertificateId']}`",
+         f"- Installation mode: `{ios['installMode']}`",
+         f"- Destructive uninstall requires explicit opt-in: `{ios['destructiveUninstallRequiresOptIn']}`",
+         f"- Wi-Fi install preferred: `{ios['wifiInstallPreferred']}`",
+@@ -193,8 +195,9 @@
+         },
+         "iosClient": {
+             "bundleId": "com.massimotter.weave",
+-            "teamId": "KNDHGC2KV6",
+-            "developerCertificateTeamId": "6RUS2Z848X",
++            "teamId": DEFAULT_DEVELOPMENT_TEAM_ID,
++            "developerCertificateTeamId": DEFAULT_DEVELOPMENT_TEAM_ID,
++            "developerCertificateId": DEFAULT_DEVELOPMENT_CERTIFICATE_ID,
+             "requiredBuildMode": "profile-or-release",
+             "debugBuildsAllowed": False,
+             "installEvidenceRequired": True,
+--- a/docs/ios-dogfood-distribution.md
++++ b/docs/ios-dogfood-distribution.md
+@@ -107,9 +107,16 @@
+ 
+ - bundle identifier `com.massimotter.weave`;
+ - Apple team `KNDHGC2KV6`;
+-- Apple Development certificate team `6RUS2Z848X`;
++- Apple Development certificate Team ID (subject `OU`) `KNDHGC2KV6`;
++- existing development certificate identifier (parenthesized `CN` suffix) `6RUS2Z848X`;
+ - the development Keychain application identity;
+ - the existing app container and Developer App trust.
++
++The certificate name identifier is not a Team ID. Preparation checks both fields against the
++same existing profile-bound certificate and records them separately; it never creates or selects
++another identity to hide a mismatch. Apple's [certificate anatomy](https://developer.apple.com/documentation/technotes/tn3161-inside-code-signing-certificates)
++defines the Team ID in `OU`. Existing provisioning, certificate hash, device, expiry and
++capability checks remain required.
+ 
+ The human-test workflow uses `update_in_place`; it never selects `destructive_uninstall` recovery.
+ Reused artifacts retain their original compiled build/source identity, while the qualified
