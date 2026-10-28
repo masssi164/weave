@@ -107,9 +107,16 @@ Every normal iteration is an update in place. Signing and installation preserve:
 
 - bundle identifier `com.massimotter.weave`;
 - Apple team `KNDHGC2KV6`;
-- Apple Development certificate team `6RUS2Z848X`;
+- Apple Development certificate Team ID (subject `OU`) `KNDHGC2KV6`;
+- existing development certificate identifier (parenthesized `CN` suffix) `6RUS2Z848X`;
 - the development Keychain application identity;
 - the existing app container and Developer App trust.
+
+The certificate name identifier is not a Team ID. Preparation checks both fields against the
+same existing profile-bound certificate and records them separately; it never creates or selects
+another identity to hide a mismatch. Apple's [certificate anatomy](https://developer.apple.com/documentation/technotes/tn3161-inside-code-signing-certificates)
+defines the Team ID in `OU`. Existing provisioning, certificate hash, device, expiry and
+capability checks remain required.
 
 The human-test workflow uses `update_in_place`; it never selects `destructive_uninstall` recovery.
 Reused artifacts retain their original compiled build/source identity, while the qualified

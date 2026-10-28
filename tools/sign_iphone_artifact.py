@@ -19,6 +19,10 @@ import tempfile
 from build_artifacts import ArtifactError, ROOT, SHA, digest_file, tree_digest, verify_component
 
 
+DEFAULT_DEVELOPMENT_TEAM_ID = "KNDHGC2KV6"
+DEFAULT_DEVELOPMENT_CERTIFICATE_ID = "6RUS2Z848X"
+
+
 class SigningError(ArtifactError):
     """An actionable local preparation boundary, not permission to rebuild or re-enroll."""
 
@@ -88,20 +92,31 @@ def select_identity(directories: list[Path], bundles: list[str], team: str, devi
     return matching[0]
 
 
-def verify_certificate_team(profile: dict, identity: str, expected: str | None) -> None:
-    if expected is None:
+def verify_certificate_identity(profile: dict, identity: str, expected_team: str | None,
+                                expected_certificate_id: str | None = None) -> None:
+    """Verify the existing certificate's OU team and distinct Common Name identifier."""
+    for value, field in ((expected_team, "team"), (expected_certificate_id, "id")):
+        if value is not None and not re.fullmatch(r"[A-Z0-9]{10}", value):
+            raise SigningError("expected-developer-certificate-" + field + "-invalid")
+    if expected_team is None and expected_certificate_id is None:
         return
-    if not re.fullmatch(r"[A-Z0-9]{10}", expected):
-        raise SigningError("expected-developer-certificate-team-invalid")
-    certificate, = [item for item in profile["DeveloperCertificates"]
+    certificates = [item for item in profile["DeveloperCertificates"]
                     if hashlib.sha1(item).hexdigest().upper() == identity.upper()]
+    if len(certificates) != 1:
+        raise SigningError("existing-developer-certificate-ambiguous")
     with tempfile.NamedTemporaryFile(suffix=".der") as temporary:
-        Path(temporary.name).write_bytes(certificate)
+        Path(temporary.name).write_bytes(certificates[0])
         subject = run(["openssl", "x509", "-inform", "DER", "-in", temporary.name,
                        "-noout", "-subject", "-nameopt", "sep_multiline,sname,utf8"]).decode()
-    observed = re.findall(r"^\s*OU\s*=\s*([A-Z0-9]{10})\s*$", subject, re.MULTILINE)
-    if observed != [expected]:
-        raise SigningError("developer-certificate-team-mismatch")
+    if expected_team is not None:
+        teams = re.findall(r"^\s*OU\s*=\s*([A-Z0-9]{10})\s*$", subject, re.MULTILINE)
+        if teams != [expected_team]:
+            raise SigningError("developer-certificate-team-mismatch")
+    if expected_certificate_id is not None:
+        identifiers = re.findall(r"^\s*CN\s*=\s*Apple Development: [^\r\n]+ \(([A-Z0-9]{10})\)\s*$",
+                                 subject, re.MULTILINE)
+        if identifiers != [expected_certificate_id]:
+            raise SigningError("developer-certificate-id-mismatch")
 
 
 def signing_entitlements(profile: dict, bundle: str, requested: dict) -> dict:
@@ -152,7 +167,8 @@ def sign_bundle(app: Path, profile_path: Path, profile: dict, identity: str, req
 
 
 def sign(root: Path, artifact: Path, output: Path, candidate: str, team: str, identity: str | None,
-         device: str, profiles: list[Path], certificate_team: str | None = None) -> dict:
+         device: str, profiles: list[Path], certificate_team: str | None = None,
+         certificate_id: str | None = None) -> dict:
     if platform.system() != "Darwin":
         raise SigningError("local-macos-signing-required")
     if not re.fullmatch(r"[A-Z0-9]{10}", team) or (identity is not None and not re.fullmatch(r"[A-Fa-f0-9]{40}", identity)):
@@ -175,7 +191,7 @@ def sign(root: Path, artifact: Path, output: Path, candidate: str, team: str, id
     selected = []
     for app, bundle in zip(sources, bundles):
         profile_path, profile = select_profile(profiles, bundle, team, identity, device)
-        verify_certificate_team(profile, identity, certificate_team)
+        verify_certificate_identity(profile, identity, certificate_team, certificate_id)
         selected.append((app, profile_path, profile))
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=".weave-signing-", dir=output.parent) as temporary:
@@ -190,6 +206,7 @@ def sign(root: Path, artifact: Path, output: Path, candidate: str, team: str, id
             "sourceCommit": manifest["sourceCommit"], "inputDigest": manifest["inputDigest"],
             "unsignedPayloadSha256": manifest["payload"]["sha256"], "teamId": team,
             "signingIdentitySha1": identity.upper(), "certificateTeamId": certificate_team,
+            "certificateId": certificate_id,
             "buildNumber": manifest["buildNumber"],
             "signedPayloadTreeDigest": tree_digest(staged), "applications": bindings,
             "status": "passed", "supportSafe": True, "containsSecretValues": False}
@@ -225,13 +242,14 @@ def main() -> int:
     parser.add_argument("--team", required=True)
     parser.add_argument("--identity-sha1")
     parser.add_argument("--certificate-team")
+    parser.add_argument("--certificate-id")
     parser.add_argument("--device-udid", required=True)
     parser.add_argument("--profiles", type=Path, action="append")
     args = parser.parse_args()
     profiles = args.profiles or [Path.home() / "Library/MobileDevice/Provisioning Profiles",
                                 Path.home() / "Library/Developer/Xcode/UserData/Provisioning Profiles"]
     result = sign(args.root, args.artifact_directory, args.output, args.candidate, args.team,
-                  args.identity_sha1, args.device_udid, profiles, args.certificate_team)
+                  args.identity_sha1, args.device_udid, profiles, args.certificate_team, args.certificate_id)
     print(json.dumps(result, indent=2))
     return 0
 
