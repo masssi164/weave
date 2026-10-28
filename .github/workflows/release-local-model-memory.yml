@@ -1,0 +1,57 @@
+name: Release reloadable local model memory
+on:
+  push:
+    branches: [diagnostic/cache-prune-preflight-20261028]
+    paths: [.github/workflows/release-local-model-memory.yml]
+permissions:
+  contents: read
+jobs:
+  memory:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/cache-prune-preflight-20261028'
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    concurrency:
+      group: weave-live-mac-mini-exclusive
+      cancel-in-progress: false
+    timeout-minutes: 5
+    steps:
+      - name: Unload local LM Studio models without deleting model files or stopping applications
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, shutil, subprocess, time
+          from pathlib import Path
+          if os.environ.get('RUNNER_NAME') != 'weave-live-mac-mini':
+              raise SystemExit('Wrong runner')
+          workspace = Path(os.environ['GITHUB_WORKSPACE'])
+          cli = Path.home()/'.lmstudio/bin/lms'
+          report = {'operation': 'unload-reloadable-local-models', 'filesDeleted': False,
+                    'applicationsStopped': False, 'freeBytesBefore': shutil.disk_usage(workspace).free,
+                    'status': 'not-available'}
+          environment = dict(os.environ)
+          for key in ('LMSTUDIO_HOST', 'LMS_HOST', 'LMSTUDIO_API_BASE', 'LMSTUDIO_BASE_URL'):
+              environment.pop(key, None)
+          def loaded():
+              result = subprocess.run([str(cli), 'ps', '--json'], env=environment,
+                                      capture_output=True, text=True, timeout=30)
+              if result.returncode or len(result.stdout) > 1024*1024:
+                  raise RuntimeError('Local model inventory unavailable')
+              data = json.loads(result.stdout)
+              if not isinstance(data, list) or len(data) > 20 or not all(isinstance(item, dict) for item in data):
+                  raise RuntimeError('Unexpected local model inventory')
+              return data
+          if cli.is_file() and os.access(cli, os.X_OK):
+              before = loaded()
+              report['loadedModelCountBefore'] = len(before)
+              if before:
+                  result = subprocess.run([str(cli), 'unload', '--all'], env=environment,
+                                          capture_output=True, text=True, timeout=90)
+                  if result.returncode:
+                      raise RuntimeError('Local model unload failed')
+              report['loadedModelCountAfter'] = len(loaded())
+              report['status'] = 'completed' if report['loadedModelCountAfter'] == 0 else 'models-still-loaded'
+              time.sleep(20)
+          report['freeBytesAfter'] = shutil.disk_usage(workspace).free
+          report['swapUsage'] = subprocess.check_output(['sysctl','-n','vm.swapusage'], text=True).strip()
+          print(json.dumps(report, sort_keys=True), flush=True)
+          PY
