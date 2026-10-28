@@ -141,17 +141,16 @@ List<String> artifactPathsForGate(String gateName) {
             return ['README.md', 'tools/fixtures/release_notes_unreleased.expected.md',
                     'tools/verify_main_promotion_evidence.py', 'tools/test_verify_main_promotion_evidence.py',
                     'tools/test_project_delivery_projection.py', 'client/tool/native_qualification_test.py',
-                    'tools/physical_iphone_human_evidence_test.py', 'release/accessibility-gate.json']
+                    'tools/physical_iphone_human_evidence_test.py', 'tools/dogfood_functional_smoke.py',
+                    'tools/dogfood_functional_smoke_test.py', 'tools/ios_dogfood_distribution_check.py', 'release/accessibility-gate.json']
         case 'sprint31LanDogfoodCheck':
             return ['tools/weavectl', 'tools/sprint31_lan_dogfood_check.py', 'release/sprint-31-physical-iphone-lan-dogfood', 'docs/sprint-31-iphone-lan-dogfood-runbook.md']
         case 'dogfoodActivationMailCheckTest':
-            return ['tools/dogfood_activation_mail_check.py', 'tools/dogfood_activation_mail_check_test.py',
-                    'tools/dogfood_member_onboarding_gate.sh', 'tools/dogfood_onboarding_evidence_check.py',
-                    'tools/dogfood_onboarding_evidence_check_test.py', 'tools/dogfood_functional_smoke.py']
-        case 'dogfoodIosSessionContinuityCheckTest':
-            return ['tools/dogfood_ios_session_restore_smoke.sh', 'tools/dogfood_ios_session_continuity_check.py', 'tools/dogfood_ios_session_continuity_check_test.py']
+            return ['tools/dogfood_activation_mail_check.py', 'tools/dogfood_activation_mail_check_test.py']
         case 'iosDogfoodDistributionCheck':
-            return ['.github/workflows/ios-dogfood.yml', 'client/ios/Runner/Runner.entitlements', 'docs/ios-dogfood-distribution.md', 'tools/ios_dogfood_distribution_check.py']
+            return ['.github/workflows/ios-dogfood.yml', 'client/ios/Runner/Runner.entitlements', 'docs/ios-dogfood-distribution.md', 'tools/ios_dogfood_distribution_check.py',
+                    'tools/dogfood_functional_smoke.py', 'tools/prepare_iphone_artifact.py',
+                    'client/tool/ios_browser_driver/OrdinaryProductSmoke.swift']
         case 'bootstrapFoundationCheck':
             return ['docs/bootstrap-foundation-contract.md', 'release/bootstrap-foundation', 'tools/bootstrap_foundation_check.py']
         case 'sprint29HumanValidationCheck':

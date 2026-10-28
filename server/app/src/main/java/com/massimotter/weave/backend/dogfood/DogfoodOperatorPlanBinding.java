@@ -25,7 +25,16 @@ public class DogfoodOperatorPlanBinding {
                 "organizationOrigin", request.plan().organizationOrigin(), "apiBaseUrl", request.apiBaseUrl(),
                 "issuerUrl", request.plan().issuerUrl(), "intendedOwnerAccountRef", ownerAccountRef,
                 "intendedOwnerMemberHandle", ownerMemberHandle);
-        observe(request, organizationId, AuditAction.DOGFOOD_PREPARATION_AUTHORIZED, key, payload);
+        if ("verify-members".equals(request.operation())) {
+            var event = events.findByTenantIdAndIdempotencyKey(organizationId, key)
+                    .orElseThrow(() -> new Blocked("operator-reference-conflict"));
+            require(actor(request).equals(event.actorRef()) && "dogfood-prepare-members".equals(event.sourceRef())
+                    && "workspace-default".equals(event.contextId())
+                    && AuditAction.DOGFOOD_PREPARATION_AUTHORIZED.name().equals(event.action())
+                    && JSON.valueToTree(payload).equals(JSON.readTree(event.payloadJson())), "operator-reference-conflict");
+        } else {
+            observe(request, organizationId, AuditAction.DOGFOOD_PREPARATION_AUTHORIZED, key, payload);
+        }
     }
 
     /** Private setup resumes from audited account/phase bindings; provider profile attributes are not authority. */

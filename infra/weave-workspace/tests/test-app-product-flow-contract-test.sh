@@ -121,8 +121,8 @@ contains "${LIFECYCLE}" '.nativeCollaborationPassed == true'
 contains "${LIFECYCLE}" 'WEAVE_TEST_APP_SERVER_IMAGE must be digest-pinned'
 contains "${LIFECYCLE}" 'WEAVE_TEST_APP_MCP_IMAGE must be digest-pinned'
 contains "${LIFECYCLE}" 'WEAVE_OPENDAL_CLASSIFIER=linux-x86_64'
-[[ "$(grep -Fc -- '--platform linux/amd64' "${LIFECYCLE}")" == 2 ]] ||
-  fail "manual testApp fallback must build both JVM runtime images for the pinned Linux/AMD64 target"
+[[ "$(grep -Fc -- '--platform linux/amd64' "${LIFECYCLE}")" == 4 ]] ||
+  fail "manual testApp must explicitly select AMD64 for Server MCP Keycloak and runtime-state builds"
 contains "${LIFECYCLE}" 'testApp requires a clean worktree'
 contains "${LIFECYCLE}" 'tools/runner_capacity_preflight.py'
 contains "${LIFECYCLE}" '--minimum-free-gib 8'

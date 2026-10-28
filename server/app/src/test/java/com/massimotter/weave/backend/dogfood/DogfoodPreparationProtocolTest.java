@@ -45,6 +45,32 @@ class DogfoodPreparationProtocolTest {
                     new InitialCredential("A", "private-initial-member-A-credential"),
                     new InitialCredential("B", "private-initial-member-B-credential")));
     }
+    static Request verificationRequest(Receipt previous) {
+        var r = request("invitations");
+        return new Request("weave.dogfood-operator-preparation-request/v3", "verify-members", r.environment(),
+                r.nonce(), r.candidateCommit(), r.sourceTree(), r.specificationCommit(), r.apiBaseUrl(), r.plan(), previous, null);
+    }
+
+    @Test void readOnlyVerificationRequiresCompleteManagedAuthorityAndCannotAcceptCredentials() throws Exception {
+        var node = (tools.jackson.databind.node.ObjectNode) JSON.valueToTree(priorReceipt());
+        node.put("operation", "provision-members").put("stage", "provision-members-ready");
+        for (int i = 0; i < 2; i++) {
+            var member = (tools.jackson.databind.node.ObjectNode) node.path("members").get(i);
+            member.putNull("invitationHandle").put("intentState", "APPLIED").put("grantOutcome", "VERIFIED")
+                    .put("memberHandle", "mem_" + (i == 0 ? "a" : "b").repeat(32))
+                    .put("accountRef", "acct_" + (i == 0 ? "a" : "b").repeat(32)).put("grantVersion", "\"sm-3\"");
+        }
+        var request = verificationRequest(JSON.treeToValue(node, Receipt.class));
+        String json = JSON.writeValueAsString(request);
+        assertThat(parse(json)).isEqualTo(request);
+        assertThat(json).doesNotContain("initialCredentials");
+        for (String invalid : List.of(JSON.writeValueAsString(verificationRequest(null)),
+                JSON.writeValueAsString(verificationRequest(priorReceipt())), json.replace("/v3", "/v1"),
+                json.replaceFirst("\\{", "{\"initialCredentials\":null,"),
+                json.replace("\\\"sm-3\\\"", "\\\"stale\\\""))) {
+            assertThatThrownBy(() -> parse(invalid)).isInstanceOf(Exception.class);
+        }
+    }
     @Test void onlyExplicitV2ManagedOperationAdmitsTwoDistinctPrivateInitialCredentials() throws Exception {
         var request = managedRequest();
         assertThat(parse(JSON.writeValueAsString(request))).isEqualTo(request);

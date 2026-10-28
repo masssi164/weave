@@ -46,6 +46,8 @@ def main() -> None:
     parser.add_argument("--evidence", type=Path, required=True)
     parser.add_argument("--candidate-commit", required=True)
     parser.add_argument("--specification-commit", required=True)
+    parser.add_argument("--platform", choices=tuple(build_contract.STOCK_KEYCLOAK_MANIFESTS),
+                        default=build_contract.DEFAULT_PLATFORM)
     args = parser.parse_args()
 
     if not COMMIT.fullmatch(args.candidate_commit):
@@ -87,9 +89,9 @@ def main() -> None:
         or projection.get("stockReference")
         != build_contract.STOCK_KEYCLOAK_REFERENCE
         or projection.get("stockPlatform")
-        != build_contract.STOCK_KEYCLOAK_PLATFORM
+        != args.platform
         or projection.get("stockPlatformManifestDigest")
-        != build_contract.STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST
+        != build_contract.stock_platform_manifest(args.platform)
         or projection.get("stockServicesJarSha256")
         != build_contract.STOCK_SERVICES_SHA256
         or projection.get("patchSha256") != build_contract.PATCH_SHA256

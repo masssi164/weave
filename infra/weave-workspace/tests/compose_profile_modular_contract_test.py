@@ -10,12 +10,14 @@ import subprocess
 import sys
 import tempfile
 import time
+from unittest.mock import patch
 from dataclasses import replace
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY_ROOT = ROOT.parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(REPOSITORY_ROOT / "tools"))
 
 from compose_env import ContractError, load_context  # noqa: E402
 import compose_runtime as compose_runtime_module  # noqa: E402
@@ -74,14 +76,38 @@ def assert_spring_profile_contract(profile: str) -> None:
 
 
 def assert_dogfood_application_image_platform_contract() -> None:
+    from artifact_consumers import runtime_definition
+    from build_artifacts import ArtifactError
+    from runtime_image_registry import NAMES
+
     lifecycle = (ROOT / "scripts/dogfood_lifecycle.py").read_text(encoding="utf-8")
-    consumers = (REPOSITORY_ROOT / "tools/artifact_consumers.py").read_text(encoding="utf-8")
     tasks = (
         REPOSITORY_ROOT / "gradle/tasks/architecture-lifecycle.gradle"
     ).read_text(encoding="utf-8")
     assert "from artifact_consumers import load_runtime_images" in lifecycle
     assert "os.environ.update(load_runtime_images(commit))" in lifecycle
-    assert 'value.get("platform") != "linux/amd64"' in consumers
+    runtime = {"domains": ["calendar", "chat", "files"], "flavor": "jvm"}
+    spec = "sha256:" + "b" * 64
+    manifest = {"sourceCommit": "a" * 40, "target": "linux/arm64", "runtime": runtime}
+    receipt = {"schemaVersion": "weave.runtime-images/v2", "sourceCommit": manifest["sourceCommit"],
+               "specDigest": spec, "platform": "linux/arm64", "runtime": runtime,
+               "images": {name: {"imageId": "sha256:" + str(index) * 64,
+                                 "reference": registry + "@sha256:" + str(index) * 64}
+                          for index, (name, registry) in enumerate(NAMES.items(), 1)}}
+    with tempfile.TemporaryDirectory() as directory:
+        payload = Path(directory)
+        (payload / "images.json").write_text(json.dumps(receipt))
+        with patch("artifact_consumers.component", return_value=(manifest, payload)), \
+                patch("artifact_consumers.digest_file", return_value=spec):
+            assert runtime_definition()[1] == receipt
+            receipt["platform"] = "linux/amd64"
+            (payload / "images.json").write_text(json.dumps(receipt))
+            try:
+                runtime_definition()
+            except ArtifactError:
+                pass
+            else:
+                raise AssertionError("Dogfood accepted the wrong runtime image platform")
     assert 'native_bundle' not in lifecycle
     assert "_build_application_images" not in lifecycle
     assert "_resolve_keycloak" not in lifecycle

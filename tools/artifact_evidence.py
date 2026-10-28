@@ -12,7 +12,7 @@ import re
 
 SHA = re.compile(r'[0-9a-f]{40}')
 DIGEST = re.compile(r'sha256:[0-9a-f]{64}')
-COMPONENTS = {'runtime-linux-amd64': ('linux/amd64', 'release'),
+COMPONENTS = {'runtime-linux-arm64': ('linux/arm64', 'release'),
               'ios-simulator': ('aarch64-apple-ios-sim', 'debug'),
               'ios-device': ('aarch64-apple-ios', 'profile')}
 

@@ -19,7 +19,7 @@ def composition_fixture(sha='a' * 40, tree='b' * 40, spec='c' * 40):
             'sourceCommit': 'd' * 40, 'sourceTree': 'e' * 40,
             'inputDigest': 'sha256:' + digest, 'payloadSha256': 'sha256:' + str(number + 3) * 64,
             'target': target, 'buildMode': mode, 'buildNumber': '20'}
-    result['components']['runtime-linux-amd64']['runtime'] = {
+    result['components']['runtime-linux-arm64']['runtime'] = {
         'domains': ['calendar', 'chat', 'files'], 'flavor': 'jvm'}
     result['compositionDigest'] = composition_digest(result)
     return result
@@ -31,6 +31,15 @@ def component_fixture(composition, name):
 
 
 class ArtifactEvidenceTest(unittest.TestCase):
+    def test_manual_amd64_composition_cannot_claim_automatic_release_evidence(self):
+        value = composition_fixture()
+        entry = value['components'].pop('runtime-linux-arm64')
+        entry['target'] = 'linux/amd64'
+        entry['artifactName'] = entry['artifactName'].replace('runtime-linux-arm64', 'runtime-linux-amd64')
+        value['components']['runtime-linux-amd64'] = entry
+        value['compositionDigest'] = composition_digest(value)
+        self.assertFalse(composition_passed(value, 'a' * 40, 'b' * 40, 'c' * 40))
+
     def test_reused_binary_keeps_producer_identity_while_candidate_changes(self):
         value = composition_fixture()
         self.assertTrue(composition_passed(value, 'a' * 40, 'b' * 40, 'c' * 40, scenario_sha256()))
@@ -39,7 +48,7 @@ class ArtifactEvidenceTest(unittest.TestCase):
 
     def test_runtime_receipt_binding_is_required_and_compared(self):
         value = composition_fixture()
-        name = 'runtime-linux-amd64'
+        name = 'runtime-linux-arm64'
         receipt = component_fixture(value, name)
         self.assertTrue(component_matches(receipt, value, name))
         for runtime in (None, {'domains': ['files'], 'flavor': 'jvm'},

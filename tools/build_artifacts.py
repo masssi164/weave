@@ -27,7 +27,9 @@ else:
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG = "tools/build_artifacts.inputs.json"
-DEFAULT_COMPONENTS = ("runtime-linux-amd64", "ios-simulator", "ios-device")
+DEFAULT_RUNTIME_COMPONENT = "runtime-linux-arm64"
+DEFAULT_COMPONENTS = (DEFAULT_RUNTIME_COMPONENT, "ios-simulator", "ios-device")
+RUNTIME_PLATFORMS = {"runtime-linux-arm64": "linux/arm64", "runtime-linux-amd64": "linux/amd64"}
 SCENARIO = "fixtures/member-client-baseline/v1.json"
 SHA = re.compile(r"^[0-9a-f]{40}$")
 DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -97,9 +99,13 @@ def configuration(root: Path, candidate: str = "HEAD") -> dict:
 
 def component_configuration(root: Path, component: str, candidate: str = "HEAD") -> dict:
     try:
-        return configuration(root, candidate)["components"][component]
+        definition = configuration(root, candidate)["components"][component]
     except KeyError:
         raise ArtifactError("unknown-component") from None
+    if is_runtime(component) and (component not in RUNTIME_PLATFORMS
+            or definition.get("target") != RUNTIME_PLATFORMS[component]):
+        raise ArtifactError("runtime-component-platform-mismatch")
+    return definition
 
 
 def domain_catalog(root: Path, candidate: str = "HEAD") -> dict:

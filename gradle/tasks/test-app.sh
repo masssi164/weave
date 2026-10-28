@@ -263,6 +263,7 @@ elif [[ -z "${KEYCLOAK_IMAGE}" ]]; then
   KEYCLOAK_IMAGE="$(
     python3 "${WORKSPACE_ROOT}/scripts/build_keycloak_image.py" \
       --root "${REPOSITORY_ROOT}" \
+      --platform linux/amd64 \
       --candidate-commit "${image_source_commit}"
   )"
 else
@@ -281,7 +282,7 @@ validate_runtime_image \
 # any persistent dogfood deployment or publish a runtime image.
 export WEAVE_RUNTIME_STATE_IMAGE
 if [[ -z "${WEAVE_BUILD_ARTIFACT_ROOT:-}" ]]; then
-  WEAVE_RUNTIME_STATE_IMAGE="$(bash "${WORKSPACE_ROOT}/scripts/build_runtime_state_image.sh")"
+  WEAVE_RUNTIME_STATE_IMAGE="$(bash "${WORKSPACE_ROOT}/scripts/build_runtime_state_image.sh" --platform linux/amd64)"
 fi
 
 if [[ -n "${candidate_manifest_path}" ]]; then

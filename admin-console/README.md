@@ -1,6 +1,6 @@
 # Weave Organization/Admin Console
 
-Separate React + MUI admin surface for organization owners, admins, and operators.
+Separate React + MUI admin surface for authorized organization owners and admins.
 
 ## Contract
 
@@ -9,7 +9,7 @@ Separate React + MUI admin surface for organization owners, admins, and operator
 - Uses generated Admin operations for authorized `/api/admin/...` calls and the separately generated User client for credential-free `/api/platform/config` discovery before sign-in.
 - Uses browser OIDC Authorization Code + PKCE S256 through the public `weave-admin-console` client. Browser code may use the issuer authorization/token/session endpoints, but never Keycloak Admin REST.
 - Shows organization overview, effective policy explanation, provider category readiness, replacement dry-run results, provider detail/readiness actions, deny-by-default whitelist policy, and redacted audit events.
-- Renders owner/admin, operator, and member boundaries distinctly: owners/admins configure, operators inspect support-safe readiness, and members see only usable/disabled/degraded/policy-blocked capability states.
+- Admin admission requires the selected organization's `owner` or `admin` role and the Console token contract. Technical lifecycle/operator authority belongs to bounded deployment tooling. Ordinary members use the native app and generated User API; they cannot gain Admin API admission by presenting a Console token. Both surfaces share the same Keycloak organization identity and role authority, while Space/resource grants remain domain permissions.
 - Never calls raw providers directly and never renders raw provider secrets.
 - Shows support-safe bootstrap evidence refs and readiness summaries; it must not become a raw CI log viewer or deploy the Flutter/member client.
 - New user-visible Admin Console copy is kept in `src/copy.ts` so localization entries stay reviewable even before additional locales are enabled.

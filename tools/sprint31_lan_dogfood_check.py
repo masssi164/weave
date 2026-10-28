@@ -177,25 +177,12 @@ def main() -> None:
     android_manifest = read("client/android/app/src/main/AndroidManifest.xml")
     if "weave_member_handoff" not in android_manifest or "android:scheme=\"weave\"" not in android_manifest:
         fail("Android must register a separate Weave member handoff scheme on MainActivity")
-    ios_smoke = read("tools/dogfood_ios_deeplink_smoke.sh")
-    for phrase in [
-        "WEAVE_IOS_LOCAL_CA_TRUST_STATUS",
-        "ios-local-tls-preflight.json",
-        "PHYSICAL_DEVICE_TLS_PENDING",
-    ]:
-        if phrase not in ios_smoke:
-            fail(f"iOS physical smoke missing local TLS preflight guard: {phrase}")
-    # The retired developer iPhone entry no longer configures product routing;
-    # organization discovery belongs to the member handoff contract above.
     ios_entitlements = read("client/ios/Runner/Runner.entitlements")
     if "$(AppIdentifierPrefix)com.massimotter.weave" not in ios_entitlements:
         fail("iOS Keychain application identity must remain stable across dogfood updates")
-    session_restore = read("tools/dogfood_ios_session_restore_smoke.sh")
-    for phrase in ["--terminate-existing", "dogfood_ios_session_continuity_check.py"]:
-        if phrase not in session_restore:
-            fail(f"iOS session restore smoke missing {phrase}")
+    # The archived sprint fixture delegates current delivery boundaries to the
+    # existing protected-artifact/external-UI checker, never private app state.
     run(["python3", "tools/ios_dogfood_distribution_check.py"])
-    run(["python3", "tools/dogfood_ios_session_continuity_check_test.py"])
     handoff_bundle = read("tools/dogfood_handoff_bundle.py")
     for phrase in [
         "dogfoodRoute",
@@ -248,11 +235,10 @@ def main() -> None:
         assert_no_forbidden(rel)
     runbook = read("docs/sprint-31-iphone-lan-dogfood-runbook.md")
     for phrase in [
-        "WEAVE-APP-START-TLS-FAILED",
-        "PHYSICAL_DEVICE_TLS_PENDING",
+        "Historical reference",
+        "ios-dogfood-distribution.md",
         "simulator CA injection is not physical dogfood proof",
         "public HTTPS route with a publicly trusted certificate",
-        "publicly trusted dogfood endpoint",
         "simulator handoff evidence is not physical-device E2E",
     ]:
         if phrase not in runbook:

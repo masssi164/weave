@@ -1,51 +1,43 @@
 # Sprint 31 physical iPhone LAN dogfood checklist
 
-Use this checklist after `weavectl profile apply` emits the run id. Do not paste screenshots or logs that contain tokens, credential URLs, provider payloads, Matrix homeserver internals, member private content, or raw downstream errors.
+Status: **Historical observation template.** Current delivery and human acceptance follow
+[iOS Dogfood distribution](../../ios-dogfood-distribution.md). The former local installer,
+private-plist probes and trust-stability script are retired; their output is not current
+qualification evidence. Record only support-safe observations, never activation links,
+credentials, raw provider errors or private member content.
 
-## Operator preflight
+## Preparation reference
 
-- Run id:
-- Command: `tools/weavectl profile apply --profile local-lan-dogfood --lan-host <Mac LAN IP> --emit-handoff --emit-evidence --preflight-mode tcp`
-- Evidence directory:
-- Handoff artifact:
-- Readiness artifact:
-- Dogfood route mode: public trusted HTTPS preferred / local stable CA fallback.
-- Public route acceptance: stable base URL / publicly trusted certificate / support-safe invite links / no secrets in links / no raw provider payloads / Mailpit dogfood mail remains local-safe.
-- LAN assumption: iPhone and Mac are on the same LAN, with client isolation disabled.
-- Preflight result: pass / fail with stable code only.
-- Local TLS trust result: `DOGFOOD_TRUST_STABILITY_RESULT` / `DOGFOOD_TRUST_STABILITY_BLOCKED`.
-- Physical iPhone local CA preflight: `WEAVE_IOS_LOCAL_CA_TRUST_STATUS=trusted` / `PHYSICAL_DEVICE_TLS_PENDING`.
-- Platform config fetch boundary: physical iPhone can fetch `/api/platform/config` over trusted TLS / `WEAVE-APP-START-TLS-FAILED`.
-- iOS signing trust result: stable bundle ID / stable provisioning Team ID `KNDHGC2KV6` / stable developer certificate `6RUS2Z848X` / blocked by device policy / not verified.
-- Install transport: Wi-Fi preferred / USB fallback.
-- Install reset mode: update-in-place / trust-preserving app-state reset / explicit destructive uninstall.
-- Developer Mode status: enabled / not verified.
-- Developer App trust status for `Apple Development: massimo164@me.com (6RUS2Z848X)`: trusted once / repeated prompt / not verified.
+- Exact candidate and qualified artifact/build:
+- Successful protected Full Compose E2E and Dogfood deployment runs:
+- Prepare Human Test run and selected ordinary member slot:
+- Device reachability and install transport:
+- TLS certificate continuity: `tools/dogfood_cert_persistence_smoke.py` result from protected preparation.
+- iOS signature/build identity: `tools/sign_iphone_artifact.py` and `tools/prepare_iphone_artifact.py` validation.
+- Installation mode: update in place, retaining the app container and session.
+- Developer Mode: enabled / not verified.
+- Developer App trust: trusted / repeated prompt / not verified.
+- Physical TLS trust and ordinary origin discovery: observed / blocked / not available.
 
-## Tester script for Massimo
+## Human observations
 
-1. Install or update Weave on the physical iPhone over Wi-Fi when reachable; use USB only as fallback.
-2. Confirm the install keeps bundle ID `com.massimotter.weave`, provisioning Team ID `KNDHGC2KV6`, developer certificate label `Apple Development: massimo164@me.com (6RUS2Z848X)`, and the same signing/provisioning trust assumptions. A normal update or trust-preserving app-state reset must not require trusting the Developer App again.
-3. For public-route dogfood, confirm the generated links use the stable public HTTPS base URL and publicly trusted certificate. For local-route dogfood, confirm the Weave Local Development CA and leaf certificate match the latest handoff fingerprint baseline unless explicit rotation was requested, and the iPhone has installed the CA profile and enabled full trust before Weave is launched.
-4. Scan the QR or open the handoff link from the emitted handoff artifact.
-5. Confirm the handoff opens Weave sign-in without asking for OIDC issuer, OIDC client ID, Matrix URL, Nextcloud URL, provider hostname, TLS certificate, provider diagnostics, SecretRef, or credential URL.
-6. Complete SSO.
-7. Confirm Weave workspace/home appears.
-8. If it fails, record only the stable next-action code, for example `PHYSICAL_DEVICE_TLS_PENDING`, `WEAVE-APP-START-TLS-FAILED`, `WEAVE-LAN-UNREACHABLE`, `WEAVE-HANDOFF-INVALID`, `WEAVE-IOS-DEVELOPER-TRUST-NOT-VERIFIED`, or `WEAVE-SSO-NOT-COMPLETE`.
+1. Open the qualified app on the physical iPhone.
+2. Confirm the intended organization and selected ordinary member identity. Complete normal SSO if sign-in is shown.
+3. Confirm workspace/home and ordinary Chat, Files, Calendar and Settings navigation.
+4. Exercise the required shared content and current-access journeys with the intended peer.
+5. Check relaunch continuity and the required VoiceOver labels, order, focus and error actions.
+6. Record the actual result using the current protected human-test format and exact candidate/build.
 
 ## Result
 
-- Device: physical iPhone, model/iOS version optional.
-- Handoff type: QR / link / deep link / organization URL.
-- Route type: public trusted HTTPS / local stable CA.
-- SSO result: pass / fail.
-- Workspace/home result: pass / fail.
-- Local TLS trust: stable / rotated by explicit request / blocked.
-- Physical platform-config TLS fetch: pass / `WEAVE-APP-START-TLS-FAILED` / pending manual CA trust.
-- Apple Developer Mode: enabled / not verified.
-- iOS Developer App trust: trusted once / repeated trust prompt / blocked by Apple device policy.
-- iOS app signing/provisioning stability: stable / bundle ID changed / Team ID changed / developer certificate changed / profile hash changed.
-- Physical reset behavior: update-in-place / app-state reset / destructive uninstall.
-- AppAuth/OIDC trust/session: pass / fail / pending.
-- Accessibility note: QR/link prompt was readable by screen reader and did not rely on color alone.
-- Redaction confirmation: no secrets, tokens, credential-bearing URLs, raw provider payloads, raw provider diagnostics, homeserver internals, or member content captured.
+- Actual account role: member.
+- SSO and current identity: passed / failed / not available.
+- Workspace/home: passed / failed / not available.
+- Shared content and access: passed / failed / not available.
+- Relaunch continuity: passed / failed / not available.
+- VoiceOver: passed / failed / not available.
+- Developer App trust after the update: stable / repeated prompt / not verified.
+- TLS trust: established / blocked / not verified.
+- Support-safe explanation of any blocked or unavailable outcome:
+
+Preparation and automated readback leave this human result pending until the tester reports it.

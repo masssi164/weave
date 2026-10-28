@@ -62,22 +62,21 @@ iPhone and the runner's development signing key are available. The workflow:
 2. consumes the qualified hosted runtime and unsigned device artifacts, preserving each
    component's original producer identity;
 3. starts Dogfood twice and proves unchanged CA and leaf certificate fingerprints;
-4. optionally performs the explicit first-owner invitation setup, if requested;
-5. establishes or verifies the activated owner's durable default Space and current access;
-6. signs the already built device artifact locally, installs it in place and observes the
+4. selects stable ordinary Dogfood member `A` or `B` and revalidates the existing
+   audited account, organization role and exact current shared-Space grant without writes;
+5. signs the already built device artifact locally, installs it in place and observes the
    installed app's ordinary startup through the prebuilt native driver.
 
 The protected path does not compile missing applications on the Mac. A missing, incompatible
 or mismatched artifact fails preparation. The Mac provides native execution, local signing,
 pairing and installation; hosted builders provide compilation.
 
-The Space prerequisite uses `compose.sh dogfood bootstrap-space --evidence-file <private-path>`
-with the verified runtime composition. Server selects the configured organization's unique
-enabled owner from live identity authority, applies current policy, and creates only a
-never-existing `workspace-default`. Existing Spaces and grants are verified without modification.
-Missing or revoked owner access, suspended Space state, ambiguous owners or unavailable readiness
-fail closed. Temporary setup authority is removed on success and failure; preparation must not
-silently regrant access.
+The read-only `verify-members` operation uses the existing managed Dogfood fixture and its
+immutable operator-plan/account binding. It verifies enabled, activated ordinary membership and
+the exact existing `workspace-default` grant version under the Space lock. It does not create
+accounts, reset passwords, issue invitations or repair grants. Missing, revoked, elevated or
+rebound identities, stale grants and unavailable authority fail preparation. The fixture owner
+is selected by its recorded account binding, rather than assuming a globally unique owner.
 
 First-owner invitation and activation are separate setup operations for an empty installation.
 An invitation alone cannot prove owner Space access. Once that account exists, routine
@@ -87,14 +86,18 @@ Dogfood example uses `https://mail.weave.test`.
 
 ## What successful preparation proves
 
-The support-safe `weave.hil-preparation/v4` receipt binds the current candidate, source tree,
+The support-safe `weave.hil-preparation/v5` receipt binds the current candidate, source tree,
 specification pin, successful qualification run/attempt and verified artifact composition.
-It records installed-binary and endpoint verification, current owner Space access, preserved
-owner state, cleanup of the temporary driver, and a fresh nonce-bound ordinary-startup result.
-The observed screen is either the retained workspace or normal sign-in.
+Its `memberWorkspace` contains a `weave.member-workspace-preparation/v1` proof with selected
+slot, ordinary role, issuer-bound account/organization digests and current grant version. It
+records installed-binary and public OrgManifest/UI routing verification, preserved device state,
+driver cleanup and a fresh nonce-bound ordinary-startup result. A retained workspace must match
+the designated member. Otherwise the app must show normal sign-in for the reviewed origin;
+preparation never silently switches the person's account.
 
-`ownerHIL` remains `pending`. Personal sign-in, passkeys or MFA are the human's next normal app
-action when needed. Preparation does not automate another owner login or infer authenticated
+`humanAcceptance` remains `pending`, and the member proof explicitly keeps
+`authenticationEvidence` and `humanAcceptance` false. Personal sign-in, passkeys or MFA are the
+human's next normal app action when needed. Preparation does not automate login or infer authenticated
 Chat, Files, Calendar or accessibility acceptance from a launch. Broken startup, stale readback,
 invalid trust or missing required access still block preparation.
 
@@ -135,7 +138,7 @@ OrgManifest, not provider URLs or manual endpoint overrides.
 Dispatch from the protected `dogfood` ref with its current full commit:
 
 ```sh
-gh workflow run ios-dogfood.yml --ref dogfood -f candidate_sha=<full-dogfood-sha>
+gh workflow run ios-dogfood.yml --ref dogfood -f candidate_sha=<full-dogfood-sha> -f tester_slot=A
 ```
 
 The preparation workflow itself must run at that exact protected commit. A matching title or
@@ -147,16 +150,17 @@ copied receipt cannot substitute for the trusted producer.
 - The Weave Local Development CA is trusted, and LAN DNS resolves the configured organization
   origin and its authentication host to the Dogfood installation.
 - `WEAVE_IOS_DEVICE_ID` identifies the paired physical phone.
-- `bootstrap_owner` defaults to `false`; enable it only for the explicit first-owner setup.
+- `tester_slot` selects existing ordinary Dogfood member `A` or `B`; the default is `A`.
+  The selected private fixture must already exist from the persistent Dogfood scenario setup.
 
-The first-owner path additionally uses the existing Dogfood member email secret and display-name
-variable. App Store Connect and distribution secrets are unnecessary for development Dogfood.
+First-owner initialization remains a separate deployment/setup operation. App Store Connect and
+distribution secrets are unnecessary for development Dogfood.
 
 ## What the human verifies
 
-Use the prepared app normally, retaining an existing session or signing in when shown. Report
-the actual account role (`owner`, `admin` or `member`) together with the exact candidate and
-installed artifact/build. A member test must not be recorded as an owner test.
+Use the designated ordinary member account, retaining its existing session or signing in when
+shown. Report `actor-role: member` together with the exact candidate and installed artifact/build.
+Owner or admin journeys remain separate and cannot satisfy this member acceptance.
 
 - Sign-in, session refresh, logout and sign-in again.
 - Home, Chat, Files, Calendar, Settings and Profile navigation.
@@ -170,8 +174,39 @@ installation and startup do not manufacture a human pass. Use the `Weave human t
 in [the protected promotion workflow](gitflow-pr-workflow.md); its `actor-role` is mandatory.
 Optional Weaver/MCP and broader admin journeys retain their separate acceptance scope.
 
-Manual developer build and diagnostic scripts remain available for scoped investigation. Their
-local output is not the protected hosted-artifact preparation receipt and cannot be substituted
-for the qualified composition or human result.
-
 Contract marker: `HUMAN_TESTING_HAS_NO_MANIFEST_GATE`.
+
+
+## External qualification owners
+
+This document is the operational source for iOS qualification. The pinned
+[delivery contract](gitflow-pr-workflow.md) governs the required lanes; this table
+maps them to their existing implementation owners. Qualification stays outside the
+production app and uses normal member controls and public APIs.
+
+| Behavior or boundary | Existing evidence owner | What the result establishes |
+| --- | --- | --- |
+| Isolated invitation activation and first-owner setup | `FreshProductFlow` in `weave-product-e2e`, explicitly selected `full` mode, with `OidcBrowserJourney` and `MailpitActivationInbox` | Real browser activation, PKCE and current identity/authority readback in a disposable environment. Its full-mode success result is collected under `test-app-full`; a member-collaboration run cannot qualify this scenario. |
+| Two independent ordinary members, native browser login, authorization, Chat/Files/Calendar and actual bytes | `client/tool/run_ios_simulator_product_acceptance.py`, existing dual-iOS Flutter suite and XCTest `BrowserDriver` | Protected Full Compose qualification of the exact artifact composition and scenario. Native cancellation/retry and denial checks remain in the existing suite. |
+| Deployed ordinary-app readback, private Files isolation, restart and in-place update | `tools/dogfood_functional_smoke.py` and XCTest `OrdinaryProductSmoke.swift` | Two ordinary members use the installed `lib/main.dart` app against the reviewed direct Dogfood context. Current identity, independent content readback and exported bytes must agree. Only `--stage deployment` is accepted. |
+| Physical artifact preparation and current application context | `tools/prepare_iphone_artifact.py`, signing/consumption validators and the same XCTest driver | The qualified artifact is installed in place. Public OrgManifest discovery is checked with the reviewed CA and no proxy/redirect; the normal UI must show the exact origin at sign-in or the expected issuer-bound account and organization references in Settings → Help. |
+| Real physical product and VoiceOver acceptance | The designated tester's protected human result | The actual candidate/build, member role and observed outcomes. Automatic startup leaves this human acceptance pending. |
+
+The first-owner Gherkin scenario keeps its stable tag but now describes only the
+existing isolated full-mode onboarding proof. Deployment, native collaboration and
+physical human scenarios keep their separate mappings. When collecting a full-mode
+TestApp log with `client/tool/acceptance_contract.dart`, use `--source test-app-full`;
+its marker includes `activation=browser pkce=S256`. The prepared two-member delivery
+path continues to use `test-app` and cannot supply first-owner activation evidence.
+
+`tools/ios_dogfood_distribution_check.py` prevents retired private-plist tools,
+app-only ledgers and their former success markers from returning to active callers.
+The release-evidence aggregate runs the normal UI receipt/routing negative tests
+and existing native qualification tests. Those offline checks validate the evidence
+boundary; fresh protected execution is still required for a live pass.
+
+The URL/certificate output from `tools/dogfood_handoff_bundle.py` is informational.
+The old local iPhone installer, simulator onboarding gate, private preference
+validators and owner-plus-member physical diagnostic branch have been removed.
+No app preference, Keychain inspection, synthetic success marker or test-only reset
+screen can establish qualification.
