@@ -1,0 +1,55 @@
+name: Regenerable development storage inventory
+on:
+  push:
+    branches: [diagnostic/cache-prune-preflight-20261028]
+    paths: [.github/workflows/regenerable-storage-inventory.yml]
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    concurrency:
+      group: weave-live-mac-mini-exclusive
+      cancel-in-progress: false
+    timeout-minutes: 5
+    steps:
+      - name: Measure only known recreatable caches and Weave simulator storage
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, shutil, subprocess
+          from pathlib import Path
+          if os.environ.get('RUNNER_NAME') != 'weave-live-mac-mini':
+              raise SystemExit('Unexpected runner')
+          home = Path.home()
+          def size(path):
+              if not path.exists() or any(part.is_symlink() for part in (path, *path.parents)):
+                  return None
+              result = subprocess.run(['du', '-sk', str(path)], capture_output=True, text=True, timeout=45)
+              return int(result.stdout.split()[0])*1024 if result.returncode == 0 else None
+          relative = ['Library/Caches/Homebrew', 'Library/Caches/CocoaPods', 'Library/Caches/pip',
+                      '.cache/uv', '.npm/_cacache', '.cargo/registry', '.cargo/git', '.gradle/caches',
+                      '.pub-cache', 'Library/Developer/CoreSimulator/Devices']
+          report = {'readOnly': True, 'freeBytes': shutil.disk_usage(Path(os.environ['GITHUB_WORKSPACE'])).free,
+                    'caches': {item: size(home/item) for item in relative}}
+          commands = subprocess.check_output(['ps', '-axo', 'command='], text=True)
+          report['activeBuildOrPackageProcess'] = any(term in commands for term in
+              ('GradleDaemon', 'GradleWrapperMain', '/xcodebuild ', '/flutter_tools.snapshot build',
+               '/cargo build', '/cargo test', '/brew install', '/brew upgrade', 'npm install', 'npm ci'))
+          runtime_data = json.loads(subprocess.check_output(['xcrun', 'simctl', 'list', 'runtimes', '-j'], text=True, timeout=30))
+          report['simulatorRuntimes'] = [{'identifier': item.get('identifier'), 'version': item.get('version'),
+                                         'isAvailable': item.get('isAvailable')} for item in runtime_data.get('runtimes', [])]
+          devices = json.loads(subprocess.check_output(['xcrun', 'simctl', 'list', 'devices', '-j'], text=True, timeout=30))
+          owned = []
+          for runtime, values in devices.get('devices', {}).items():
+              for item in values:
+                  if not item.get('name', '').lower().startswith('weave'):
+                      continue
+                  identifier = item.get('udid', '')
+                  directory = home/'Library/Developer/CoreSimulator/Devices'/identifier
+                  owned.append({'id': identifier, 'name': item.get('name'), 'runtime': runtime,
+                                'state': item.get('state'), 'isAvailable': item.get('isAvailable'), 'bytes': size(directory)})
+          report['weaveSimulators'] = owned
+          print(json.dumps(report, sort_keys=True))
+          PY
