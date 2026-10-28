@@ -1,0 +1,32 @@
+name: Live shell navigation reproduction
+on:
+  push:
+    branches: [diagnostic/verify-first-ghcr-publication-20261028]
+    paths: [.github/workflows/navigation-reproduction.yml]
+permissions:
+  contents: read
+jobs:
+  reproduce:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: 0ead11a49a23bbf928bfcd292408105009b81a0a
+          persist-credentials: false
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: '3.41.6'
+          channel: stable
+          cache: true
+      - name: Prepare pinned native compiler
+        run: rustup toolchain install 1.95.0 --profile minimal
+      - name: Prepare generated client inputs
+        working-directory: client
+        run: |
+          flutter pub get
+          flutter gen-l10n
+          dart run build_runner build --force-aot --delete-conflicting-outputs
+      - name: Reproduce actual navigation through the live test binding
+        working-directory: client
+        run: flutter test --no-pub --reporter expanded test/integration_harness/dual_navigation_handoff_test.dart
