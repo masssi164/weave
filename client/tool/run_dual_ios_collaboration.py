@@ -455,6 +455,30 @@ def emit_actor_phase_stages(role: str, phase: str, flutter_output: str, browser_
     patterns = [r'(?:flutter: )?' + location,
                 r'(?:flutter: )?#(?:0|[1-9][0-9]{0,3})[ \t]+'
                 r'[^\x00-\x20\x7f()][^\x00-\x1f\x7f()]{0,255}[ \t]+\(' + location + r'\)']
+    # Only framework source identities and line numbers leave the current run.
+    # Error messages, assertion operands and actor data remain private.
+    framework_sources = {
+        'flutter_test/src/controller.dart', 'flutter_test/src/test_pointer.dart',
+        'flutter_test/src/test_async_utils.dart', 'flutter_test/src/binding.dart',
+        'flutter/src/gestures/binding.dart', 'flutter/src/gestures/converter.dart',
+        'flutter/src/gestures/arena.dart', 'flutter/src/widgets/navigator.dart',
+        'flutter/src/rendering/box.dart', 'flutter/src/semantics/semantics.dart',
+    }
+    framework_locations = set()
+    for line in lines:
+        if len(line) > 2048:
+            continue
+        frame = re.fullmatch(
+            r'(?:flutter: )?#[0-9]{1,4}[ \t]+[^\x00-\x1f\x7f()]{1,256}'
+            r'[ \t]+\(package:([A-Za-z0-9_/.]+):([1-9][0-9]{0,5}):[1-9][0-9]{0,5}\)', line)
+        if frame is not None and frame[1] in framework_sources:
+            location = (frame[1], frame[2])
+            if location not in framework_locations:
+                framework_locations.add(location)
+                print(f'IOS_FLUTTER_DIAGNOSTIC journey={phase} actor={role} '
+                      f'frameworkSource={frame[1]} line={frame[2]} supportSafe=true', flush=True)
+        if len(framework_locations) >= 8:
+            break
     locations = set()
     for line in lines:
         if len(line) > 2048:

@@ -36,6 +36,35 @@ def with_member_scenario(data):
 
 
 class DualIosCollaborationTest(unittest.TestCase):
+    def test_framework_failure_frames_expose_only_allowlisted_sources_and_lines(self):
+        header = 'EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK\n'
+        frames = [
+            '#0      privateFunction (package:flutter_test/src/controller.dart:1059:7)',
+            'flutter: #1      anotherPrivateFunction (package:flutter/src/gestures/binding.dart:439:7)',
+            '#2      duplicate (package:flutter_test/src/controller.dart:1059:7)',
+            '#3      forbidden (package:private_account/src/private_token.dart:123:4)',
+            '#4      forbidden (package:flutter/src/gestures/../private_token.dart:123:4)',
+            '#5      forbidden (package:flutter_test/src/controller.dart:0:7)',
+            '#6      forbidden (package:flutter_test/src/controller.dart:1000000:7)',
+            '#7      forbidden (https://private.invalid/flutter_test/src/controller.dart:1059:7)',
+            'Actual: private-account private-token https://private.invalid',
+        ]
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            dual.emit_actor_phase_stages('A', 'initial', header + '\n'.join(frames), '')
+        result = output.getvalue()
+        self.assertEqual(result.count('frameworkSource='), 2)
+        self.assertIn('frameworkSource=flutter_test/src/controller.dart line=1059', result)
+        self.assertIn('frameworkSource=flutter/src/gestures/binding.dart line=439', result)
+        for private in ('privateFunction', 'anotherPrivateFunction', 'private_account',
+                        'private-token', 'private-account', 'private.invalid', 'private_token'):
+            self.assertNotIn(private, result)
+        for flutter in ('\n'.join(frames), 'Expected: ' + header + '\n'.join(frames)):
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                dual.emit_actor_phase_stages('A', 'initial', flutter, '')
+            self.assertNotIn('frameworkSource=', output.getvalue())
+
     def test_actor_assertion_frames_preserve_legacy_diagnostics_without_private_values(self):
         flutter = ('NATIVE_PRODUCT_STAGE phase=workspace-ready\n'
                    'flutter: ══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════\n'
