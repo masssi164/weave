@@ -1,0 +1,407 @@
+name: Temporary Weave project storage inventory
+
+on:
+  push:
+    branches: [diagnostic/project-storage-20261027]
+    paths: [.github/workflows/project-storage-inventory.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/project-storage-20261027'
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    timeout-minutes: 5
+    concurrency:
+      group: weave-live-mac-mini-exclusive
+      cancel-in-progress: false
+    steps:
+      - name: Read bounded project and isolated volume provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PYTHON'
+          #!/usr/bin/env python3
+          """Bounded read-only attribution of project DerivedData and isolated E2E volumes."""
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import plistlib
+          import re
+          import shutil
+          import stat
+          import subprocess
+          import time
+          
+          GIB = 1024 ** 3
+          DEADLINE = time.monotonic() + 220
+          VERIFIED_DOCKER_ENDPOINT = None
+          SHA = re.compile(r"[0-9a-f]{40}\Z")
+          DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
+          CONTAINER = re.compile(r"[0-9a-f]{64}\Z")
+          NAMESPACE = re.compile(r"weave-e2e-[0-9a-f]{16}\Z")
+          VOLUME = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9_.-]{0,255}\Z")
+          SOURCE = "https://github.com/masssi164/weave"
+          REPOSITORIES = {SOURCE, SOURCE + ".git", "git@github.com:masssi164/weave", "git@github.com:masssi164/weave.git"}
+          WORKSPACES = {
+              "client/ios/Runner.xcworkspace": ("ios-runner", "contents.xcworkspacedata"),
+              "client/macos/Runner.xcworkspace": ("macos-runner", "contents.xcworkspacedata"),
+              "client/ios/Runner.xcodeproj": ("ios-runner-project", "project.pbxproj"),
+              "client/ios/Runner.xcodeproj/project.xcworkspace": ("ios-runner-project", "contents.xcworkspacedata"),
+              "client/macos/Runner.xcodeproj": ("macos-runner-project", "project.pbxproj"),
+              "client/tool/ios_browser_driver/BrowserDriver.xcodeproj": ("browser-driver", "project.pbxproj"),
+          }
+          VOLUME_COMPONENTS = {
+              "caddy_data": ("gateway", "tls-sensitive"),
+              "caddy_config": ("gateway", "configuration-sensitive"),
+              "db_data": ("postgres", "database-sensitive"),
+              "keycloak_data": ("identity", "identity-sensitive"),
+              "mailpit_data": ("mail", "activation-sensitive"),
+              "nextcloud_data": ("files-calendar", "collaboration-sensitive"),
+              "synapse_data": ("chat", "collaboration-sensitive"),
+              "matrix_chat_appservice_runtime": ("chat-appservice", "credential-sensitive"),
+              "runtime_state": ("runtime-state", "runtime-state-sensitive"),
+              "native_files_data": ("files-native", "collaboration-sensitive"),
+          }
+          STAGES = {"derived-data", "derived-root", "derived-entries", "volumes", "docker-context", "container-list", "container-inspect", "volume-list", "volume-inspect", "reference-recheck"}
+          REASONS = {"unsafe-root", "entry-limit", "local-engine-unproven", "container-list-unavailable", "container-shape-rejected", "container-identities-incomplete", "volume-list-unavailable", "volume-shape-rejected", "volume-identities-incomplete", "inventory-changed", "command-or-json-unavailable", "unexpected-shape"}
+          
+          
+          class InventoryFailure(ValueError):
+              def __init__(self, reason):
+                  self.reason = reason if reason in REASONS else "unexpected-shape"
+          
+          
+          def collect_section(name, collector):
+              progress = {"status": "pending", "stage": name}
+              try:
+                  result = collector(progress)
+                  result.pop("stage", None)
+                  return result
+              except Exception as error:
+                  progress["status"] = "unavailable"
+                  progress["stage"] = progress.get("stage") if progress.get("stage") in STAGES else name
+                  progress["reason"] = error.reason if isinstance(error, InventoryFailure) else "unexpected-shape"
+                  return progress
+          
+          
+          def run_private(arguments, timeout=8):
+              """Keep command output, error details, paths and endpoint names in memory."""
+              remaining = DEADLINE - time.monotonic()
+              if remaining <= 0:
+                  return None
+              environment = dict(os.environ, GIT_OPTIONAL_LOCKS="0", GIT_TERMINAL_PROMPT="0")
+              if arguments[0] == "docker" and VERIFIED_DOCKER_ENDPOINT is not None:
+                  arguments = ["docker", "--host", VERIFIED_DOCKER_ENDPOINT, *arguments[1:]]
+                  environment.pop("DOCKER_CONTEXT", None)
+              try:
+                  value = subprocess.run(arguments, capture_output=True, text=True,
+                                         timeout=min(timeout, remaining), env=environment)
+              except (OSError, subprocess.SubprocessError, UnicodeError):
+                  return None
+              if len(value.stdout.encode()) + len(value.stderr.encode()) > 2 * 1024 * 1024:
+                  return None
+              return value.returncode, value.stdout, not value.stderr.strip()
+          
+          
+          def command(arguments, timeout=8):
+              value = run_private(arguments, timeout)
+              return value[1] if value is not None and value[0] == 0 else None
+          
+          
+          def objects(value):
+              if value is None:
+                  return None
+              try:
+                  parsed = json.loads(value)
+                  return parsed if isinstance(parsed, list) else [parsed]
+              except ValueError:
+                  try:
+                      return [json.loads(line) for line in value.splitlines() if line.strip()]
+                  except ValueError:
+                      return None
+          
+          
+          def digest(value):
+              return hashlib.sha256(os.fsencode(value)).hexdigest()
+          
+          
+          def no_symlinks(path):
+              return not any(item.is_symlink() for item in (path, *path.parents))
+          
+          
+          def owned_directory(path):
+              try:
+                  info = path.lstat()
+                  return stat.S_ISDIR(info.st_mode) and info.st_uid == os.getuid() and no_symlinks(path)
+              except OSError:
+                  return False
+          
+          
+          def allocated_bytes(path):
+              value = command(["du", "-sk", str(path)])
+              token = value.split("\t", 1)[0].strip() if value is not None and len(value.splitlines()) == 1 else ""
+              return int(token) * 1024 if re.fullmatch(r"[0-9]{1,20}", token) else None
+          
+          
+          def private_plist(path):
+              if not no_symlinks(path):
+                  return None
+              try:
+                  descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+                  with os.fdopen(descriptor, "rb") as stream:
+                      info = os.fstat(stream.fileno())
+                      if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_nlink != 1 or info.st_size > 65536:
+                          return None
+                      value = plistlib.loads(stream.read(65537))
+                  return value if isinstance(value, dict) else None
+              except (OSError, ValueError, plistlib.InvalidFileException):
+                  return None
+          
+          
+          def workspace_identity(value):
+              result = {"projectAssociation": "unknown", "associationReason": "unsupported-workspace", "workspaceKind": "unknown", "currentCheckoutCommit": None}
+              if not isinstance(value, str) or len(value) > 2048 or any(ord(character) < 32 for character in value):
+                  return result
+              workspace = Path(value)
+              if not workspace.is_absolute() or ".." in workspace.parts:
+                  return result
+              matches = [(relative, details) for relative, details in WORKSPACES.items() if value.endswith("/" + relative)]
+              if len(matches) != 1:
+                  return result
+              result["associationReason"] = "workspace-unavailable"
+              if not owned_directory(workspace):
+                  return result
+              relative, (kind, metadata) = matches[0]
+              root = workspace.parents[len(Path(relative).parts) - 1]
+              result["associationReason"] = "checkout-unavailable"
+              if not owned_directory(root):
+                  return result
+              git = ["git", "-c", "core.fsmonitor=false", "-C", str(root)]
+              top = command([*git, "rev-parse", "--show-toplevel"])
+              remote = command([*git, "config", "--local", "--get-all", "remote.origin.url"])
+              result["associationReason"] = "git-root-unproven"
+              if top is None or len(top.splitlines()) != 1 or Path(top.strip()) != root:
+                  return result
+              result["associationReason"] = "remote-unproven"
+              if remote is None or remote.strip() not in REPOSITORIES:
+                  return result
+              tracked = relative + "/" + metadata
+              tracked_path = root / tracked
+              result["associationReason"] = "tracked-workspace-unproven"
+              if not tracked_path.is_file() or not no_symlinks(tracked_path):
+                  return result
+              listed = command([*git, "ls-files", "--error-unmatch", "--", tracked])
+              head = command([*git, "rev-parse", "HEAD"])
+              if listed is None or listed.strip() != tracked:
+                  return result
+              result["associationReason"] = "checkout-commit-unproven"
+              if head is None or not SHA.fullmatch(head.strip()):
+                  return result
+              result.update(projectAssociation="verified-weave-workspace", associationReason="verified", workspaceKind=kind, currentCheckoutCommit=head.strip())
+              return result
+          
+          
+          def open_file_state(path):
+              value = run_private(["lsof", "-nP", "-F", "p", "+D", str(path)], timeout=5)
+              if value is None or not value[2]:
+                  return "unknown"
+              if value[0] == 1 and not value[1].strip():
+                  return "clear"
+              if value[0] == 0 and value[1].strip() and all(re.fullmatch(r"p[1-9][0-9]*", line) for line in value[1].splitlines()):
+                  return "in-use"
+              return "unknown"
+          
+          
+          def derived_inventory(progress, root=None):
+              progress["stage"] = "derived-root"
+              root = root or Path.home() / "Library/Developer/Xcode/DerivedData"
+              if not root.exists() and not root.is_symlink():
+                  return {"status": "complete", "rootState": "absent", "entries": [], "hostBytesReclaimable": None}
+              if not owned_directory(root):
+                  raise InventoryFailure("unsafe-root")
+              progress.update(rootState="present", allocatedBytes=allocated_bytes(root), hostBytesReclaimable=None)
+              progress["stage"] = "derived-entries"
+              entries = []
+              progress["entries"] = entries
+              with os.scandir(root) as iterator:
+                  children = []
+                  for item in iterator:
+                      children.append(Path(item.path))
+                      if len(children) > 40:
+                          raise InventoryFailure("entry-limit")
+              for path in sorted(children):
+                  row = {"identityHash": digest(str(path)), "allocatedBytes": None, "projectAssociation": "unknown", "associationReason": "entry-unavailable",
+                         "workspaceKind": "unknown", "currentCheckoutCommit": None, "openFileState": "not-checked",
+                         "exclusiveProjectUseVerified": False}
+                  entries.append(row)
+                  if not owned_directory(path):
+                      row["entryState"] = "unattributed-entry"
+                      continue
+                  row["entryState"] = "owned-directory"
+                  row["associationReason"] = "metadata-unavailable"
+                  row["allocatedBytes"] = allocated_bytes(path)
+                  metadata = private_plist(path / "info.plist")
+                  if metadata is None:
+                      continue
+                  row.update(workspace_identity(metadata.get("WorkspacePath")))
+                  if row["projectAssociation"] == "verified-weave-workspace":
+                      row["openFileState"] = open_file_state(path)
+              progress["entryCount"] = len(entries)
+              progress["associatedEntryCount"] = sum(row["projectAssociation"] == "verified-weave-workspace" for row in entries)
+              progress["sumOfKnownAssociatedAllocatedBytes"] = sum(row["allocatedBytes"] for row in entries if row["projectAssociation"] == "verified-weave-workspace" and row["allocatedBytes"] is not None)
+              progress["status"] = "complete"
+              return progress
+          
+          
+          def container_ids():
+              value = command(["docker", "container", "ls", "--all", "--quiet", "--no-trunc"])
+              identities = value.split() if value is not None else None
+              if identities is None or len(identities) > 1000 or len(set(identities)) != len(identities) or any(not CONTAINER.fullmatch(item) for item in identities):
+                  raise InventoryFailure("container-list-unavailable")
+              return set(identities)
+          
+          
+          def volume_names():
+              names = set()
+              projection = '{"name":{{json .Name}},"namespace":{{json (.Label "com.massimotter.weave.namespace")}},"project":{{json (.Label "com.docker.compose.project")}}}'
+              for label in ("com.massimotter.weave.namespace", "com.docker.compose.project"):
+                  records = objects(command(["docker", "volume", "ls", "--filter", "label=" + label, "--format", projection]))
+                  if records is None or len(records) > 1000:
+                      raise InventoryFailure("volume-list-unavailable")
+                  for row in records:
+                      if not isinstance(row, dict) or not isinstance(row.get("name"), str) or not VOLUME.fullmatch(row["name"]):
+                          raise InventoryFailure("volume-list-unavailable")
+                      if any(isinstance(row.get(key), str) and NAMESPACE.fullmatch(row[key]) for key in ("namespace", "project")):
+                          names.add(row["name"])
+                  if len(names) > 1000:
+                      raise InventoryFailure("volume-list-unavailable")
+              return names
+          
+          
+          def volume_inventory(progress):
+              global VERIFIED_DOCKER_ENDPOINT
+              VERIFIED_DOCKER_ENDPOINT = None
+              progress["stage"] = "docker-context"
+              if any(os.environ.get(key) for key in ("DOCKER_HOST", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH")):
+                  raise InventoryFailure("local-engine-unproven")
+              endpoint = objects(command(["docker", "context", "inspect", "--format", "{{json .Endpoints.docker.Host}}"] ))
+              if endpoint is None or len(endpoint) != 1 or not isinstance(endpoint[0], str) or not endpoint[0].startswith("unix:///"):
+                  raise InventoryFailure("local-engine-unproven")
+              try:
+                  socket = Path(endpoint[0][7:]).stat()
+                  if not stat.S_ISSOCK(socket.st_mode) or socket.st_uid != os.getuid():
+                      raise InventoryFailure("local-engine-unproven")
+              except OSError:
+                  raise InventoryFailure("local-engine-unproven") from None
+              VERIFIED_DOCKER_ENDPOINT = endpoint[0]
+              progress["localUnixEndpointVerified"] = True
+              progress["stage"] = "container-list"
+              identities = container_ids()
+              progress.update(containerCount=len(identities), containerInventoryComplete=False, containerSetStable=False)
+              references, isolated_containers = {}, []
+              progress["isolatedContainers"] = isolated_containers
+              progress["stage"] = "container-inspect"
+              projection = '{"id":{{json .Id}},"namespace":{{json (index .Config.Labels "com.massimotter.weave.namespace")}},"project":{{json (index .Config.Labels "com.docker.compose.project")}},"mounts":[{{range $i,$mount := .Mounts}}{{if $i}},{{end}}{"type":{{json $mount.Type}},"name":{{json $mount.Name}}}{{end}}]}'
+              sorted_ids = sorted(identities)
+              for offset in range(0, len(sorted_ids), 40):
+                  batch = sorted_ids[offset:offset + 40]
+                  records = objects(command(["docker", "container", "inspect", "--format", projection, *batch]))
+                  if records is None or len(records) != len(batch) or any(not isinstance(row, dict) for row in records) or {row.get("id") for row in records} != set(batch):
+                      raise InventoryFailure("container-identities-incomplete")
+                  for row in records:
+                      mounts = row.get("mounts")
+                      if not isinstance(mounts, list) or len(mounts) > 128 or any(not isinstance(mount, dict) or not isinstance(mount.get("type"), str) for mount in mounts):
+                          raise InventoryFailure("container-shape-rejected")
+                      for mount in mounts:
+                          if mount["type"] == "volume":
+                              name = mount.get("name")
+                              if not isinstance(name, str) or not VOLUME.fullmatch(name):
+                                  raise InventoryFailure("container-shape-rejected")
+                              references.setdefault(name, set()).add(row["id"])
+                      namespace, project = row.get("namespace"), row.get("project")
+                      namespace = namespace if isinstance(namespace, str) and NAMESPACE.fullmatch(namespace) else None
+                      project = project if isinstance(project, str) and NAMESPACE.fullmatch(project) else None
+                      if namespace or project:
+                          isolated_containers.append({"id": row["id"], "isolatedNamespace": namespace, "isolatedComposeProject": project})
+              progress["containerInventoryComplete"] = True
+              progress["stage"] = "volume-list"
+              names = volume_names()
+              progress.update(candidateVolumeCount=len(names), discoveryScope="isolated-namespace-or-project-label", networkInventoryIncluded=False, volumeInventoryComplete=False, volumeSetStable=False, hostBytesReclaimable=None)
+              rows, names_by_hash = [], {}
+              progress["volumes"] = rows
+              progress["stage"] = "volume-inspect"
+              keys = {"managed": "managed", "environment": "environment", "scopeLabel": "scope", "namespace": "namespace", "candidate": "candidate-commit", "manifest": "candidate-manifest-digest", "component": "component", "dataClass": "data-class"}
+              fields = ['"name":{{json .Name}}', '"driver":{{json .Driver}}', '"scope":{{json .Scope}}', '"optionsEmpty":{{if .Options}}false{{else}}true{{end}}', '"project":{{json (index .Labels "com.docker.compose.project")}}']
+              fields.extend('"' + name + '":{{json (index .Labels "com.massimotter.weave.' + key + '")}}' for name, key in keys.items())
+              projection = "{" + ",".join(fields) + "}"
+              sorted_names = sorted(names)
+              for offset in range(0, len(sorted_names), 40):
+                  batch = sorted_names[offset:offset + 40]
+                  records = objects(command(["docker", "volume", "inspect", "--format", projection, *batch]))
+                  if records is None or len(records) != len(batch) or any(not isinstance(item, dict) for item in records) or {item.get("name") for item in records} != set(batch):
+                      raise InventoryFailure("volume-identities-incomplete")
+                  for item in records:
+                      namespace = item.get("namespace")
+                      namespace = namespace if isinstance(namespace, str) and NAMESPACE.fullmatch(namespace) else None
+                      project = item.get("project")
+                      project = project if isinstance(project, str) and NAMESPACE.fullmatch(project) else None
+                      if namespace is None and project is None:
+                          raise InventoryFailure("inventory-changed")
+                      selected_namespace = namespace or project
+                      if namespace and project and namespace != project:
+                          selected_namespace = None
+                      expected = {selected_namespace.replace("-", "_") + "_" + suffix: values for suffix, values in VOLUME_COMPONENTS.items()} if selected_namespace else {}
+                      metadata = expected.get(item["name"])
+                      candidate, manifest = item.get("candidate"), item.get("manifest")
+                      candidate = candidate if isinstance(candidate, str) and SHA.fullmatch(candidate) else None
+                      manifest = manifest if isinstance(manifest, str) and DIGEST.fullmatch(manifest) else None
+                      exact = bool(metadata) and namespace is not None and item.get("managed") == "true" and item.get("environment") == "e2e" and item.get("scopeLabel") == "isolated" and candidate is not None and manifest is not None and item.get("component") == metadata[0] and item.get("dataClass") == metadata[1]
+                      identity = digest(item["name"])
+                      names_by_hash[identity] = item["name"]
+                      rows.append({"identityHash": identity, "isolatedNamespace": namespace, "isolatedComposeProject": project,
+                                   "isolatedVolumeName": item["name"] if metadata else None,
+                                   "component": metadata[0] if metadata else "unknown",
+                                   "candidateCommit": candidate, "candidateManifestDigest": manifest,
+                                   "provenance": "labels-and-name-match" if exact else "incomplete",
+                                   "localDriverWithoutOptions": item.get("driver") == "local" and item.get("scope") == "local" and item.get("optionsEmpty") is True,
+                                   "referencedByContainerCount": None, "runAssociationVerified": False})
+              progress["volumeInventoryComplete"] = True
+              progress["stage"] = "reference-recheck"
+              progress["containerSetStable"] = container_ids() == identities
+              progress["volumeSetStable"] = volume_names() == names
+              if not progress["containerSetStable"] or not progress["volumeSetStable"]:
+                  raise InventoryFailure("inventory-changed")
+              for row in rows:
+                  row["referencedByContainerCount"] = len(references.get(names_by_hash[row["identityHash"]], set()))
+              progress["status"] = "complete"
+              return progress
+          
+          
+          def main():
+              if os.environ.get("RUNNER_NAME") != "weave-live-mac-mini":
+                  raise ValueError("runner identity rejected")
+              workspace = Path(os.environ["GITHUB_WORKSPACE"])
+              if not workspace.is_absolute() or not workspace.is_dir() or workspace.is_symlink():
+                  raise ValueError("workspace rejected")
+              result = {"schemaVersion": "weave.project-storage-provenance/v1", "mode": "read-only",
+                        "supportSafe": True, "containsSecretValues": False, "deleteAuthority": "none",
+                        "minimumFreeBytes": 20 * GIB, "freeBytesBefore": shutil.disk_usage(workspace).free}
+              result["volumes"] = collect_section("volumes", volume_inventory)
+              result["derivedData"] = collect_section("derived-data", derived_inventory)
+              result["status"] = "complete" if all(result[name].get("status") == "complete" for name in ("volumes", "derivedData")) else "partial"
+              result["freeBytesAfter"] = shutil.disk_usage(workspace).free
+              print(json.dumps(result, sort_keys=True))
+          
+          
+          if __name__ == "__main__":
+              try:
+                  main()
+              except Exception:
+                  print(json.dumps({"schemaVersion": "weave.project-storage-provenance/v1", "status": "unavailable",
+                                    "stage": "runner-preflight", "reason": "invalid-context", "mode": "read-only",
+                                    "deleteAuthority": "none", "supportSafe": True, "containsSecretValues": False}, sort_keys=True))
+                  raise SystemExit(1) from None
+          PYTHON
