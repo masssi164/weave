@@ -1,0 +1,9 @@
+def catalogFile = rootProject.file('server/domains/catalog.json')
+ext.weaveDomainCatalog = new groovy.json.JsonSlurper().parse(catalogFile)
+def selectionJson = providers.exec {
+    workingDir rootProject.projectDir
+    commandLine 'python3', 'tools/domain_selection_resolver.py',
+            '--root', rootProject.projectDir.absolutePath,
+            '--domains', providers.gradleProperty('domains').getOrElse('')
+}.standardOutput.asText
+ext.weaveDomainSelection = new groovy.json.JsonSlurper().parseText(selectionJson.get())

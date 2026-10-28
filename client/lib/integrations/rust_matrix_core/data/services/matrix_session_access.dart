@@ -53,7 +53,7 @@ class GeneratedMatrixSessionAccess implements MatrixSessionAccessPort {
       ).capabilities().timeout(const Duration(seconds: 8));
       final organizationId = identity?.organizationId?.trim();
       final subject = identity?.subject?.trim();
-      final chat = capabilities?.chat;
+      final chat = capabilities?.domains['chat'];
       if (organizationId == null ||
           organizationId.isEmpty ||
           subject == null ||

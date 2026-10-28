@@ -1,0 +1,29 @@
+package com.massimotter.weave.backend.discovery.provider;
+
+import com.fasterxml.jackson.annotation.JsonValue;
+
+public enum ProviderModule {
+    MATRIX("matrix"),
+    FILES("files"),
+    OFFICE("office"),
+    CALENDAR("calendar"),
+    CONTACTS("contacts"),
+    FORMS("forms"),
+    BOARDS("boards"),
+    MEETINGS("meetings"),
+    SOURCE_CONTROL("source-control"),
+    CI("ci"),
+    ISSUE_TRACKER("issue-tracker"),
+    RELEASE("release");
+
+    private final String contractName;
+
+    ProviderModule(String contractName) {
+        this.contractName = contractName;
+    }
+
+    @JsonValue
+    public String contractName() {
+        return contractName;
+    }
+}

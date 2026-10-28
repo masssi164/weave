@@ -31,10 +31,11 @@ class Repository(unittest.TestCase):
         self.command("init", "-q")
         self.command("config", "user.name", "Artifact test")
         self.command("config", "user.email", "artifact@example.invalid")
+        self.write("server/domains/catalog.json", (artifacts.ROOT / "server/domains/catalog.json").read_text())
         self.write(artifacts.CONFIG, (artifacts.ROOT / artifacts.CONFIG).read_text())
         self.write("specs/weave-specs.lock.json", json.dumps({"specCorpus": {"gitCommit": "a" * 40}}))
         self.write("client/lib/main.dart", "void main() {}\n")
-        self.write("server/src/main/java/Server.java", "class Server {}\n")
+        self.write("server/app/src/main/java/Server.java", "class Server {}\n")
         self.write("contracts/openapi/weave-user-openapi.json", "{}\n")
         self.write("rust/matrix-client/src/lib.rs", "pub fn run() {}\n")
         self.write(artifacts.SCENARIO, json.dumps({"schemaVersion": "fixture/v1", "members": ["a", "b"]}))
@@ -78,28 +79,330 @@ class Repository(unittest.TestCase):
                 "jobName": "Build component (ios-simulator)"}}
         return manifest, archive
 
-    def test_docs_and_corpus_revision_do_not_rebuild_unchanged_binaries(self):
+    def test_docs_do_not_rebuild_but_spec_lock_rebuilds_runtime_with_embedded_digest(self):
         before = self.inputs()
         self.write("docs/example.md", "Changed explanatory prose\n")
-        self.write("specs/weave-specs.lock.json", json.dumps({"specCorpus": {"gitCommit": "b" * 40}}))
         self.commit()
         self.assertEqual(before, self.inputs())
+        self.write("specs/weave-specs.lock.json", json.dumps({"specCorpus": {"gitCommit": "b" * 40}}))
+        self.commit()
+        after = self.inputs()
+        self.assertNotEqual(before["runtime-linux-arm64"], after["runtime-linux-arm64"])
+        self.assertEqual(before["ios-simulator"], after["ios-simulator"])
+        self.assertEqual(before["ios-device"], after["ios-device"])
+
+    def test_plan_asserts_actual_source_identity_and_forwards_one_selection(self):
+        commit = self.command("rev-parse", "HEAD")
+        self.command("checkout", "--detach", "-q")
+        arguments = ["build_artifacts.py", "plan", "--root", str(self.root),
+                     "--components", "runtime-linux-arm64", "--source-branch", "dev", "--source-commit", commit]
+        with patch("sys.argv", arguments), patch.dict(os.environ, {"GH_TOKEN": "fixture"}, clear=True), \
+                patch.object(artifacts, "find_artifact", return_value=None) as lookup, \
+                patch("sys.stdout", new_callable=io.StringIO) as output:
+            self.assertEqual(artifacts.main(), 0)
+        plan = json.loads(output.getvalue())
+        self.assertEqual(plan["domains"], ["calendar", "chat", "files"])
+        self.assertEqual(lookup.call_args.kwargs["domains"], plan["domains"])
+        self.assertEqual(plan["matrix"]["include"][0]["name"], artifacts.artifact_name(
+            "runtime-linux-arm64", artifacts.input_digest(self.root, "runtime-linux-arm64", domains=plan["domains"])))
+        for flags in (["--domains", "all"], ["--source-commit", "0" * 40]):
+            changed = arguments + flags if flags[0] == "--domains" else arguments[:-1] + [flags[1]]
+            with patch("sys.argv", changed), patch.dict(os.environ, {"GH_TOKEN": "fixture"}, clear=True), \
+                    patch.object(artifacts, "find_artifact", return_value=None), \
+                    patch("sys.stdout", new_callable=io.StringIO) as output:
+                if flags[0] == "--domains":
+                    self.assertEqual(artifacts.main(), 0)
+                    self.assertGreater(len(json.loads(output.getvalue())["domains"]), 3)
+                else:
+                    with self.assertRaises(artifacts.domain_selection.DomainSelectionError):
+                        artifacts.main()
+
+    def test_runtime_recipe_forwards_selection_platform_and_binds_registry_images(self):
+        payload = self.root / "runtime-payload"
+        payload.mkdir()
+        commands = []
+        def run(root, arguments, **kwargs):
+            commands.append(arguments)
+            if arguments[:3] == ["docker", "image", "inspect"]:
+                return "sha256:" + "1" * 64
+            if "infra/weave-workspace/scripts/build_keycloak_image.py" in arguments:
+                (payload / "keycloak-build-evidence.json").write_text(json.dumps(
+                    {"supportSafe": True, "containsSecretValues": False}))
+                return "sha256:" + "2" * 64
+            if arguments[:2] == ["bash", "infra/weave-workspace/scripts/build_runtime_state_image.sh"]:
+                return "sha256:" + "3" * 64
+            return ""
+        with patch.object(hosted.platform, "system", return_value="Linux"), \
+                patch.object(hosted.platform, "machine", return_value="aarch64"), \
+                patch.object(hosted, "run", side_effect=run), patch.object(hosted, "copy_bundle"), \
+                patch.object(hosted, "backend_build_arguments", return_value=["--target", "runtime-without-chat"]), \
+                patch.object(hosted, "verify_backend_image") as verify, \
+                patch.object(hosted, "publish_runtime_images", return_value={"runtime": {"domains": ["files"], "flavor": "jvm"}}) as publish:
+            hosted.runtime(self.root, payload, self.command("rev-parse", "HEAD"), ["files"], "runtime-linux-arm64")
+        self.assertIn("-Pdomains=files", commands[0])
+        self.assertIn(":server:app:verifySelectedArtifact", commands[0])
+        self.assertIn("runtime-without-chat", next(command for command in commands if command[:2] == ["docker", "build"]))
+        self.assertEqual(json.loads((payload / "images.json").read_text())["runtime"],
+                         {"domains": ["files"], "flavor": "jvm"})
+        self.assertEqual(publish.call_args.kwargs, {"platform": "linux/arm64", "runtime": {"domains": ["files"], "flavor": "jvm"}})
+        self.assertFalse(any(command[:2] == ["docker", "save"] for command in commands))
+        for command in commands:
+            if command[:2] == ["docker", "build"] or any("build_keycloak_image.py" in part or "build_runtime_state_image.sh" in part for part in command):
+                self.assertEqual(command[command.index("--platform") + 1], "linux/arm64")
+        verify.assert_called_once_with(self.root, "sha256:" + "1" * 64, ["files"])
+
+    def test_hosted_runtime_refuses_cross_architecture_and_automatic_amd64(self):
+        for component, machine, event in (("runtime-linux-arm64", "x86_64", "push"),
+                                          ("runtime-linux-amd64", "aarch64", "workflow_dispatch"),
+                                          ("runtime-linux-amd64", "x86_64", "push")):
+            with self.subTest(component=component, machine=machine, event=event), \
+                    patch.object(hosted.platform, "system", return_value="Linux"), \
+                    patch.object(hosted.platform, "machine", return_value=machine), \
+                    patch.dict(os.environ, {"GITHUB_EVENT_NAME": event}), \
+                    patch.object(hosted, "run") as run, self.assertRaises(artifacts.ArtifactError):
+                hosted.runtime(self.root, self.root, self.command("rev-parse", "HEAD"), ["files"], component)
+            run.assert_not_called()
+
+    def test_runtime_architectures_have_distinct_manifests_and_input_identity(self):
+        arm = artifacts.component_configuration(self.root, "runtime-linux-arm64")
+        amd = artifacts.component_configuration(self.root, "runtime-linux-amd64")
+        self.assertEqual((arm["runner"], arm["target"]), ("ubuntu-24.04-arm", "linux/arm64"))
+        self.assertEqual((amd["runner"], amd["target"]), ("ubuntu-24.04", "linux/amd64"))
+        self.assertNotEqual(artifacts.input_digest(self.root, "runtime-linux-arm64", domains=["files"]),
+                            artifacts.input_digest(self.root, "runtime-linux-amd64", domains=["files"]))
+        config = json.loads((self.root / artifacts.CONFIG).read_text())
+        config["components"]["runtime-linux-arm64"]["target"] = "linux/amd64"
+        self.write(artifacts.CONFIG, json.dumps(config))
+        self.commit()
+        with self.assertRaisesRegex(artifacts.ArtifactError, "component-platform-mismatch"):
+            artifacts.component_configuration(self.root, "runtime-linux-arm64")
+
+    def test_verify_explicit_selection_is_not_ignored(self):
+        arguments = ["build_artifacts.py", "verify", "--root", str(self.root),
+                     "--components", "runtime-linux-arm64", "--directory", str(self.root / "download"),
+                     "--domains", "files"]
+        with patch("sys.argv", arguments), patch.object(artifacts, "verify_component", return_value={}) as verify, \
+                patch("sys.stdout", new_callable=io.StringIO):
+            self.assertEqual(artifacts.main(), 0)
+        self.assertEqual(verify.call_args.args[-1], ["files"])
+
+    def test_bound_runtime_manifest_and_composition_cannot_reuse_other_selection(self):
+        manifest, _ = self.bundle()
+        component = "runtime-linux-arm64"
+        definition = artifacts.component_configuration(self.root, component)
+        manifest.update(component=component, target=definition["target"], buildMode=definition["buildMode"],
+                        toolchain=definition["toolchain"], runtime={"domains": ["files"], "flavor": "jvm"},
+                        inputDigest=artifacts.input_digest(self.root, component, domains=["files"]))
+        self.assertIs(artifacts.validate_manifest(self.root, manifest, component, domains=["files"]), manifest)
+        with self.assertRaises(artifacts.ArtifactError):
+            artifacts.validate_manifest(self.root, manifest, component, domains=["chat"])
+        entry = artifacts.composition_entry({"id": 12, "name": artifacts.artifact_name(component, manifest["inputDigest"])}, manifest)
+        self.assertEqual(entry["runtime"], manifest["runtime"])
+        composition = {"schemaVersion": "weave.candidate-artifacts/v1", **artifacts.candidate_identity(self.root),
+                       "scenarioDigest": None, "components": {component: entry}}
+        composition["compositionDigest"] = artifacts.composition_digest(composition)
+        self.assertIs(artifacts.validate_composition(self.root, composition), composition)
+        entry["runtime"] = {"domains": ["chat"], "flavor": "jvm"}
+        composition["compositionDigest"] = artifacts.composition_digest(composition)
+        with self.assertRaisesRegex(artifacts.ArtifactError, "component-metadata-mismatch"):
+            artifacts.validate_composition(self.root, composition)
+        del manifest["runtime"]
+        with self.assertRaisesRegex(artifacts.ArtifactError, "selection-required"):
+            artifacts.validate_manifest(self.root, manifest, component)
+
+    def test_image_verification_checks_selection_environment_and_files_without_starting_app(self):
+        for domains in (["files"], ["chat"]):
+            config = {"Labels": {"com.massimotter.weave.domains": ",".join(domains),
+                                 "com.massimotter.weave.runtime-flavor": "jvm"},
+                      "Env": ["PATH=/bin"] + (["WEAVE_MATRIX_PROTOCOL_LIBRARY_PATH=/app/lib/libweave_matrix_protocol.so"]
+                                              if "chat" in domains else [])}
+            with self.subTest(domains=domains), patch.object(hosted, "run", return_value=json.dumps(config)) as run:
+                hosted.verify_backend_image(self.root, "image-id", domains)
+                command = run.call_args.args[1]
+                self.assertIn("--read-only", command)
+                self.assertIn("/bin/sh", command)
+                self.assertIn("test -f" if "chat" in domains else "test ! -e", command[-1])
+            config["Env"] = [] if "chat" in domains else ["WEAVE_MATRIX_PROTOCOL_LIBRARY_PATH=/unexpected"]
+            with patch.object(hosted, "run", return_value=json.dumps(config)), \
+                    self.assertRaisesRegex(artifacts.ArtifactError, "image-selection-mismatch"):
+                hosted.verify_backend_image(self.root, "image-id", domains)
+
+    def test_hosted_workflow_preserves_trust_and_selection_forwarding(self):
+        workflow = (artifacts.ROOT / ".github/workflows/build-artifacts.yml").read_text()
+        self.assertIn('test "$(git rev-parse HEAD)" = "$GITHUB_SHA"', workflow)
+        self.assertIn('--source-branch "${SOURCE_REF#refs/heads/}" --source-commit "$GITHUB_SHA"', workflow)
+        self.assertIn('"${selection_args[@]}"', workflow)
+        self.assertEqual(workflow.count('--domains "$RESOLVED_DOMAINS"'), 2)
+        self.assertIn('packages: write', workflow)
+        self.assertIn("GHCR_TOKEN: ${{ startsWith(matrix.component, 'runtime-') && github.token || '' }}", workflow)
+        self.assertIn('default: runtime-linux-arm64,ios-simulator,ios-device', workflow)
+        self.assertIn('          - runtime-linux-amd64', workflow)
+        self.assertNotIn('default: all', workflow)
+        live = (artifacts.ROOT / ".github/workflows/live-stack-e2e.yml").read_text()
+        self.assertIn('--release-selection --format csv', live)
+        self.assertIn('domains: ${{ needs.release-selection.outputs.domains }}', live)
+        self.assertNotIn('--source-branch dev', live)
+        self.assertIn('DOCKER_DEFAULT_PLATFORM: linux/arm64', live)
+
+    def test_runtime_selection_changes_only_runtime_component_identity(self):
+        component = "runtime-linux-arm64"
+        files = artifacts.input_digest(self.root, component, domains=["files"])
+        release = artifacts.input_digest(self.root, component, domains=["calendar", "chat", "files"])
+        wider = artifacts.input_digest(self.root, component, domains=sorted(json.loads(
+            (self.root / "server/domains/catalog.json").read_text())["domains"]))
+        self.assertEqual(len({files, release, wider}), 3)
+        for apple in ("ios-simulator", "ios-device", "macos-desktop"):
+            self.assertEqual(artifacts.input_digest(self.root, apple, domains=["files"]),
+                             artifacts.input_digest(self.root, apple, domains=["calendar", "chat", "files"]))
+
+    def test_runtime_receipts_require_canonical_bound_selection(self):
+        for value in (None, {}, {"domains": ["files"], "flavor": "native"},
+                      {"domains": ["files", "calendar"], "flavor": "jvm"},
+                      {"domains": ["decisions"], "flavor": "jvm"}):
+            with self.subTest(value=value), self.assertRaises(artifacts.ArtifactError):
+                artifacts.manifest_runtime(self.root, {"runtime": value}, "HEAD")
+        with self.assertRaisesRegex(artifacts.ArtifactError, "mismatch"):
+            artifacts.manifest_runtime(self.root, {"runtime": {"domains": ["files"], "flavor": "jvm"}},
+                                       "HEAD", ["calendar", "chat", "files"])
+
+    def test_backend_build_requires_exact_manifest_and_selects_native_target(self):
+        directory = self.root / "server/app/build/libs"
+        directory.mkdir(parents=True)
+        jar = directory / "app.jar"
+        def write_manifest(domains):
+            with zipfile.ZipFile(jar, "w") as archive:
+                archive.writestr("META-INF/MANIFEST.MF", "Manifest-Version: 1.0\r\n"
+                    "Main-Class: org.springframework.boot.loader.launch.JarLauncher\r\n"
+                    "Weave-Domains: " + domains + "\r\n\r\n")
+        write_manifest("files")
+        arguments = hosted.backend_build_arguments(self.root, ["files"])
+        self.assertEqual(arguments[:2], ["--target", "runtime-without-chat"])
+        self.assertIn("JAR_FILE=server/app/build/libs/app.jar", arguments)
+        self.assertIn("WEAVE_DOMAINS=files", arguments)
+        with self.assertRaisesRegex(artifacts.ArtifactError, "selection-mismatch"):
+            hosted.backend_build_arguments(self.root, ["chat"])
+        write_manifest("chat")
+        self.assertEqual(hosted.backend_build_arguments(self.root, ["chat"])[:2],
+                         ["--target", "runtime-with-chat"])
+        (directory / "old.jar").write_bytes(jar.read_bytes())
+        self.assertEqual(hosted.selected_backend_jar(self.root, ["chat"], Path("server/app/build/libs/app.jar")),
+                         "server/app/build/libs/app.jar")
+        with self.assertRaisesRegex(artifacts.ArtifactError, "inside-build-context"):
+            hosted.selected_backend_jar(self.root, ["chat"], Path("../outside.jar"))
+        with self.assertRaisesRegex(artifacts.ArtifactError, "one-selected-backend-jar"):
+            hosted.backend_build_arguments(self.root, ["chat"])
+
+    def test_local_image_mode_has_no_receipt_and_cannot_override_selection_arguments(self):
+        arguments = ["build_artifacts_hosted.py", "--root", str(self.root), "--component", "runtime-linux-arm64",
+                     "--local-backend-image", "weave:experiment", "--domains", "files"]
+        with patch("sys.argv", arguments + ["--build-arg", "WEAVE_DOMAINS=chat"]), \
+                patch.object(hosted, "run") as run, \
+                self.assertRaisesRegex(artifacts.ArtifactError, "provenance-arguments-invalid"):
+            hosted.main()
+        run.assert_not_called()
+        with patch("sys.argv", arguments + ["--build-arg", "WEAVE_IMAGE_REVISION=" + "a" * 40]), \
+                patch.object(hosted, "backend_build_arguments", return_value=["--target", "runtime-without-chat"]), \
+                patch.object(hosted, "verify_backend_image") as verify, patch.object(hosted, "run") as run, \
+                patch.object(hosted, "publish_manifest") as publish, patch("sys.stdout", new_callable=io.StringIO):
+            self.assertEqual(hosted.main(), 0)
+        self.assertIn("WEAVE_IMAGE_REVISION=" + "a" * 40, run.call_args.args[1])
+        verify.assert_called_once_with(self.root, "weave:experiment", ["files"])
+        publish.assert_not_called()
+
+    def test_local_test_app_reuses_validated_helper_and_explicit_release_selection(self):
+        script = (artifacts.ROOT / "gradle/tasks/test-app.sh").read_text()
+        self.assertIn('--release-selection --format csv', script)
+        self.assertIn('"-Pdomains=${resolved_domains}"', script)
+        self.assertIn('--domains "${resolved_domains}"', script)
+        self.assertIn('--local-backend-image "${SERVER_IMAGE}"', script)
+        self.assertIn('"${common_build_args[@]}"', script)
+        self.assertNotIn('--file "${REPOSITORY_ROOT}/server/Dockerfile"', script)
+
+    def test_no_chat_docker_target_has_no_dependency_on_rust_or_native_environment(self):
+        dockerfile = (artifacts.ROOT / "server/Dockerfile").read_text()
+        base, targets = dockerfile.split("FROM runtime-base AS runtime-without-chat", 1)
+        without, with_chat = targets.split("FROM runtime-base AS runtime-with-chat", 1)
+        self.assertNotIn("matrix-protocol", base.split("AS runtime-base", 1)[1])
+        self.assertNotIn("WEAVE_MATRIX_PROTOCOL_LIBRARY_PATH", base)
+        self.assertNotIn("matrix-protocol", without)
+        self.assertNotIn("WEAVE_MATRIX_PROTOCOL_LIBRARY_PATH", without)
+        self.assertIn("--from=matrix-protocol", with_chat)
+        self.assertIn("ENV WEAVE_MATRIX_PROTOCOL_LIBRARY_PATH=", with_chat)
+        self.assertNotIn("ARG JAR_FILE=", dockerfile)
+        context = (artifacts.ROOT / ".dockerignore").read_text()
+        for path in ("rust/matrix-protocol/src/**", "rust/matrix-protocol/rust-toolchain.toml",
+                     "rust/matrix-client/src/**", "rust/vendor/**"):
+            self.assertIn("!" + path, context)
+        self.assertNotIn("matrix-core", context)
+
+    def test_runtime_specification_labels_invalidate_only_the_runtime(self):
+        before = self.inputs()
+        self.write("specs/weave-specs.lock.json", json.dumps({"specCorpus": {"gitCommit": "b" * 40}}))
+        self.commit()
+        after = self.inputs()
+        self.assertNotEqual(before["runtime-linux-arm64"], after["runtime-linux-arm64"])
+        self.assertEqual(before["ios-simulator"], after["ios-simulator"])
+        self.assertEqual(before["ios-device"], after["ios-device"])
+
+    def test_actual_domain_composition_inputs_invalidate_the_runtime(self):
+        before = self.inputs()
+        for name in ("server/domains/catalog.json", "tools/domain_selection_resolver.py"):
+            if name.endswith("catalog.json"):
+                catalog = json.loads((self.root / name).read_text())
+                catalog["testInputRevision"] = 2
+                self.write(name, json.dumps(catalog))
+            else:
+                self.write(name, "changed composition input\n")
+            self.commit()
+            after = self.inputs()
+            self.assertNotEqual(before["runtime-linux-arm64"], after["runtime-linux-arm64"])
+            self.assertEqual(before["ios-simulator"], after["ios-simulator"])
+            self.assertEqual(before["ios-device"], after["ios-device"])
+            before = after
+
+    def test_extracted_runtime_sources_resources_and_builds_invalidate_the_runtime(self):
+        before = self.inputs()
+        for name in ("server/domains/chat/src/main/java/Chat.java",
+                     "server/domains/chat/src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports",
+                     "server/domains/chat/build.gradle", "server/domains/chat/gradle/native-runtime.gradle",
+                     "server/domains/decisions/src/main/java/Decisions.java", "server/domains/decisions/build.gradle",
+                     "server/domains/meetings/src/main/java/Meetings.java", "server/domains/meetings/build.gradle",
+                     "server/domains/boards/src/main/java/Boards.java", "server/domains/boards/build.gradle",
+                     "server/domains/office/src/main/java/Office.java", "server/domains/office/build.gradle",
+                     "server/domains/devops/src/main/java/Devops.java", "server/domains/devops/build.gradle",
+                     "server/domains/integrations/src/main/java/Integrations.java", "server/domains/integrations/build.gradle",
+                     "server/domains/guest/src/main/java/Guest.java", "server/domains/guest/build.gradle",
+                     "server/domains/portability/src/main/java/Portability.java", "server/domains/portability/build.gradle",
+                     "server/domains/agent-runtime/src/main/java/AgentRuntime.java", "server/domains/agent-runtime/build.gradle"):
+            self.write(name, "changed runtime input\n")
+            self.commit()
+            after = self.inputs()
+            self.assertNotEqual(before["runtime-linux-arm64"], after["runtime-linux-arm64"], name)
+            self.assertEqual(before["ios-simulator"], after["ios-simulator"], name)
+            self.assertEqual(before["ios-device"], after["ios-device"], name)
+            before = after
+
+    def test_shared_rust_client_toolchain_rebuilds_all_consumers(self):
+        before = self.inputs()
+        self.write("rust/matrix-client/rust-toolchain.toml", "changed declared toolchain\n")
+        self.commit()
+        self.assertTrue(all(before[name] != self.inputs()[name] for name in before))
 
     def test_client_change_does_not_rebuild_server(self):
         before = self.inputs()
         self.write("client/lib/main.dart", "void main() { print('changed'); }\n")
         self.commit()
         after = self.inputs()
-        self.assertEqual(before["runtime-linux-amd64"], after["runtime-linux-amd64"])
+        self.assertEqual(before["runtime-linux-arm64"], after["runtime-linux-arm64"])
         self.assertNotEqual(before["ios-simulator"], after["ios-simulator"])
         self.assertNotEqual(before["ios-device"], after["ios-device"])
 
     def test_server_change_does_not_rebuild_ios(self):
         before = self.inputs()
-        self.write("server/src/main/java/Server.java", "class Server { int version = 2; }\n")
+        self.write("server/app/src/main/java/Server.java", "class Server { int version = 2; }\n")
         self.commit()
         after = self.inputs()
-        self.assertNotEqual(before["runtime-linux-amd64"], after["runtime-linux-amd64"])
+        self.assertNotEqual(before["runtime-linux-arm64"], after["runtime-linux-arm64"])
         self.assertEqual(before["ios-simulator"], after["ios-simulator"])
         self.assertEqual(before["ios-device"], after["ios-device"])
 
@@ -109,7 +412,7 @@ class Repository(unittest.TestCase):
             self.write(path, "changed build input\n")
             self.commit()
             after = self.inputs()
-            self.assertNotEqual(before["runtime-linux-amd64"], after["runtime-linux-amd64"])
+            self.assertNotEqual(before["runtime-linux-arm64"], after["runtime-linux-arm64"])
             self.assertEqual(before["ios-simulator"], after["ios-simulator"])
             self.assertEqual(before["ios-device"], after["ios-device"])
             before = after
@@ -129,7 +432,7 @@ class Repository(unittest.TestCase):
         after = self.inputs()
         self.assertNotEqual(before["ios-device"], after["ios-device"])
         self.assertEqual(before["ios-simulator"], after["ios-simulator"])
-        self.assertEqual(before["runtime-linux-amd64"], after["runtime-linux-amd64"])
+        self.assertEqual(before["runtime-linux-arm64"], after["runtime-linux-arm64"])
 
     def test_mode_rename_and_deletion_change_input_identity(self):
         values = [artifacts.input_digest(self.root, "ios-device")]
@@ -346,7 +649,7 @@ class Repository(unittest.TestCase):
         self.assertNotIn("WEAVE_HOSTED_BUILD_RESULT", stdout.getvalue())
 
     def test_configuration_only_rejects_runtime_component(self):
-        arguments = ["build_artifacts_hosted.py", "--root", str(self.root), "--component", "runtime-linux-amd64",
+        arguments = ["build_artifacts_hosted.py", "--root", str(self.root), "--component", "runtime-linux-arm64",
                      "--output", str(self.root / "unused"), "--configuration-only"]
         with patch("sys.argv", arguments), \
                 patch.dict(os.environ, {"GITHUB_ACTIONS": "true", "RUNNER_ENVIRONMENT": "github-hosted"}, clear=True), \
@@ -541,7 +844,7 @@ class SimulatorSigning(unittest.TestCase):
                 raise subprocess.CalledProcessError(1, arguments)
             return ""
         if "-showBuildSettings" in arguments:
-            self.assertIn("BUILD_DIR=" + str(self.client / "build/ios"), arguments)
+            self.assertIn("BUILD_DIR=" + str((self.client / "build/ios").resolve()), arguments)
             return json.dumps([{"target": "Runner", "buildSettings": self.settings}])
         pins = self.definitions["ios-simulator"]["toolchain"]
         if arguments == ["xcodebuild", "-version"]:

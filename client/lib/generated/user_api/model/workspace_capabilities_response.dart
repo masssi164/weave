@@ -14,40 +14,13 @@ class WorkspaceCapabilitiesResponse {
   /// Returns a new [WorkspaceCapabilitiesResponse] instance.
   WorkspaceCapabilitiesResponse({
     required this.adminControlPlane,
-    required this.agentRuntimeControl,
-    required this.boards,
-    required this.calendar,
-    required this.chat,
-    required this.decisionsEvidence,
-    required this.documentsCollaboration,
-    required this.files,
-    required this.manualsHelp,
-    required this.meetingsCalls,
-    required this.releaseEvidence,
+    this.domains = const {},
     required this.shellAccess,
   });
 
   WorkspaceCapabilityStatusResponse adminControlPlane;
 
-  WorkspaceCapabilityStatusResponse agentRuntimeControl;
-
-  WorkspaceCapabilityStatusResponse boards;
-
-  WorkspaceCapabilityStatusResponse calendar;
-
-  WorkspaceCapabilityStatusResponse chat;
-
-  WorkspaceCapabilityStatusResponse decisionsEvidence;
-
-  WorkspaceCapabilityStatusResponse documentsCollaboration;
-
-  WorkspaceCapabilityStatusResponse files;
-
-  WorkspaceCapabilityStatusResponse manualsHelp;
-
-  WorkspaceCapabilityStatusResponse meetingsCalls;
-
-  WorkspaceCapabilityStatusResponse releaseEvidence;
+  Map<String, WorkspaceCapabilityStatusResponse> domains;
 
   WorkspaceCapabilityStatusResponse shellAccess;
 
@@ -56,51 +29,24 @@ class WorkspaceCapabilitiesResponse {
       identical(this, other) ||
       other is WorkspaceCapabilitiesResponse &&
           other.adminControlPlane == adminControlPlane &&
-          other.agentRuntimeControl == agentRuntimeControl &&
-          other.boards == boards &&
-          other.calendar == calendar &&
-          other.chat == chat &&
-          other.decisionsEvidence == decisionsEvidence &&
-          other.documentsCollaboration == documentsCollaboration &&
-          other.files == files &&
-          other.manualsHelp == manualsHelp &&
-          other.meetingsCalls == meetingsCalls &&
-          other.releaseEvidence == releaseEvidence &&
+          _deepEquality.equals(other.domains, domains) &&
           other.shellAccess == shellAccess;
 
   @override
   int get hashCode =>
       // ignore: unnecessary_parenthesis
       (adminControlPlane.hashCode) +
-      (agentRuntimeControl.hashCode) +
-      (boards.hashCode) +
-      (calendar.hashCode) +
-      (chat.hashCode) +
-      (decisionsEvidence.hashCode) +
-      (documentsCollaboration.hashCode) +
-      (files.hashCode) +
-      (manualsHelp.hashCode) +
-      (meetingsCalls.hashCode) +
-      (releaseEvidence.hashCode) +
+      (domains.hashCode) +
       (shellAccess.hashCode);
 
   @override
   String toString() =>
-      'WorkspaceCapabilitiesResponse[adminControlPlane=$adminControlPlane, agentRuntimeControl=$agentRuntimeControl, boards=$boards, calendar=$calendar, chat=$chat, decisionsEvidence=$decisionsEvidence, documentsCollaboration=$documentsCollaboration, files=$files, manualsHelp=$manualsHelp, meetingsCalls=$meetingsCalls, releaseEvidence=$releaseEvidence, shellAccess=$shellAccess]';
+      'WorkspaceCapabilitiesResponse[adminControlPlane=$adminControlPlane, domains=$domains, shellAccess=$shellAccess]';
 
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{};
     json[r'adminControlPlane'] = this.adminControlPlane;
-    json[r'agentRuntimeControl'] = this.agentRuntimeControl;
-    json[r'boards'] = this.boards;
-    json[r'calendar'] = this.calendar;
-    json[r'chat'] = this.chat;
-    json[r'decisionsEvidence'] = this.decisionsEvidence;
-    json[r'documentsCollaboration'] = this.documentsCollaboration;
-    json[r'files'] = this.files;
-    json[r'manualsHelp'] = this.manualsHelp;
-    json[r'meetingsCalls'] = this.meetingsCalls;
-    json[r'releaseEvidence'] = this.releaseEvidence;
+    json[r'domains'] = this.domains;
     json[r'shellAccess'] = this.shellAccess;
     return json;
   }
@@ -111,6 +57,14 @@ class WorkspaceCapabilitiesResponse {
   static WorkspaceCapabilitiesResponse? fromJson(dynamic value) {
     if (value is Map) {
       final json = value.cast<String, dynamic>();
+      final domains = json['domains'];
+      if (domains is! Map ||
+          domains.entries.any((entry) =>
+              entry.key is! String ||
+              !RegExp(r'^[a-z][a-z0-9-]*$').hasMatch(entry.key as String) ||
+              entry.value is! Map)) {
+        throw const FormatException('Invalid workspace installed-domain map');
+      }
 
       // Ensure that the map contains the required keys.
       // Note 1: the values aren't checked for validity beyond being non-null.
@@ -128,23 +82,8 @@ class WorkspaceCapabilitiesResponse {
       return WorkspaceCapabilitiesResponse(
         adminControlPlane: WorkspaceCapabilityStatusResponse.fromJson(
             json[r'adminControlPlane'])!,
-        agentRuntimeControl: WorkspaceCapabilityStatusResponse.fromJson(
-            json[r'agentRuntimeControl'])!,
-        boards: WorkspaceCapabilityStatusResponse.fromJson(json[r'boards'])!,
-        calendar:
-            WorkspaceCapabilityStatusResponse.fromJson(json[r'calendar'])!,
-        chat: WorkspaceCapabilityStatusResponse.fromJson(json[r'chat'])!,
-        decisionsEvidence: WorkspaceCapabilityStatusResponse.fromJson(
-            json[r'decisionsEvidence'])!,
-        documentsCollaboration: WorkspaceCapabilityStatusResponse.fromJson(
-            json[r'documentsCollaboration'])!,
-        files: WorkspaceCapabilityStatusResponse.fromJson(json[r'files'])!,
-        manualsHelp:
-            WorkspaceCapabilityStatusResponse.fromJson(json[r'manualsHelp'])!,
-        meetingsCalls:
-            WorkspaceCapabilityStatusResponse.fromJson(json[r'meetingsCalls'])!,
-        releaseEvidence: WorkspaceCapabilityStatusResponse.fromJson(
-            json[r'releaseEvidence'])!,
+        domains:
+            WorkspaceCapabilityStatusResponse.mapFromJson(json[r'domains']),
         shellAccess:
             WorkspaceCapabilityStatusResponse.fromJson(json[r'shellAccess'])!,
       );
@@ -204,16 +143,7 @@ class WorkspaceCapabilitiesResponse {
   /// The list of required keys that must be present in a JSON.
   static const requiredKeys = <String>{
     'adminControlPlane',
-    'agentRuntimeControl',
-    'boards',
-    'calendar',
-    'chat',
-    'decisionsEvidence',
-    'documentsCollaboration',
-    'files',
-    'manualsHelp',
-    'meetingsCalls',
-    'releaseEvidence',
+    'domains',
     'shellAccess',
   };
 }

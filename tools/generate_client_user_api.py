@@ -67,7 +67,32 @@ def generate(destination: Path) -> None:
     propagate_binary_upload_errors(destination)
     avoid_implicit_text_body_for_empty_operations(destination)
     preserve_calendar_date_fields(destination)
+    require_workspace_installation_map(destination)
     subprocess.run(["dart", "format", str(destination)], check=True, stdout=subprocess.DEVNULL)
+
+
+def require_workspace_installation_map(destination: Path) -> None:
+    """Generator 7.17 defaults missing required maps to empty, even in release.
+
+    Installation must never be inferred from a malformed response. Validate the
+    required map and its typed entries before the generated decoder can drop a
+    null/non-object entry or turn a missing container into an empty installation.
+    """
+    model = destination / "model/workspace_capabilities_response.dart"
+    source = model.read_text()
+    before = "      final json = value.cast<String, dynamic>();"
+    after = before + """
+      final domains = json['domains'];
+      if (domains is! Map || domains.entries.any((entry) =>
+          entry.key is! String ||
+          !RegExp(r'^[a-z][a-z0-9-]*$').hasMatch(entry.key as String) ||
+          entry.value is! Map)) {
+        throw const FormatException('Invalid workspace installed-domain map');
+      }
+"""
+    if source.count(before) != 1:
+        raise RuntimeError("OpenAPI Generator workspace decoding changed")
+    model.write_text(source.replace(before, after, 1))
 
 
 def preserve_partial_profile_update(destination: Path) -> None:

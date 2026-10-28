@@ -24,13 +24,13 @@ export interface WorkspaceCapabilityStatusResponse {
      * @type {boolean}
      * @memberof WorkspaceCapabilityStatusResponse
      */
-    enabled?: boolean;
+    enabled: boolean;
     /**
      * Category-level capability identifiers granted to the authenticated principal.
      * @type {Array<string>}
      * @memberof WorkspaceCapabilityStatusResponse
      */
-    grantedCapabilities?: Array<string>;
+    grantedCapabilities: Array<string>;
     /**
      * Member-safe impact or fallback copy for this capability.
      * @type {string}
@@ -42,7 +42,7 @@ export interface WorkspaceCapabilityStatusResponse {
      * @type {string}
      * @memberof WorkspaceCapabilityStatusResponse
      */
-    policyState?: WorkspaceCapabilityStatusResponsePolicyStateEnum;
+    policyState: WorkspaceCapabilityStatusResponsePolicyStateEnum;
     /**
      * Policy profile key that decided this capability. Does not expose provider internals.
      * @type {string}
@@ -54,7 +54,7 @@ export interface WorkspaceCapabilityStatusResponse {
      * @type {string}
      * @memberof WorkspaceCapabilityStatusResponse
      */
-    readiness?: WorkspaceCapabilityStatusResponseReadinessEnum;
+    readiness: WorkspaceCapabilityStatusResponseReadinessEnum;
     /**
      * Support-safe reference for this capability state. Does not expose provider internals.
      * @type {string}
@@ -91,6 +91,10 @@ export type WorkspaceCapabilityStatusResponseReadinessEnum = typeof WorkspaceCap
  * Check if a given object implements the WorkspaceCapabilityStatusResponse interface.
  */
 export function instanceOfWorkspaceCapabilityStatusResponse(value: object): value is WorkspaceCapabilityStatusResponse {
+    if (!('enabled' in value) || value['enabled'] === undefined) return false;
+    if (!('grantedCapabilities' in value) || value['grantedCapabilities'] === undefined) return false;
+    if (!('policyState' in value) || value['policyState'] === undefined) return false;
+    if (!('readiness' in value) || value['readiness'] === undefined) return false;
     return true;
 }
 
@@ -104,12 +108,12 @@ export function WorkspaceCapabilityStatusResponseFromJSONTyped(json: any, ignore
     }
     return {
 
-        'enabled': json['enabled'] == null ? undefined : json['enabled'],
-        'grantedCapabilities': json['grantedCapabilities'] == null ? undefined : json['grantedCapabilities'],
+        'enabled': json['enabled'],
+        'grantedCapabilities': json['grantedCapabilities'],
         'memberImpact': json['memberImpact'] == null ? undefined : json['memberImpact'],
-        'policyState': json['policyState'] == null ? undefined : json['policyState'],
+        'policyState': json['policyState'],
         'profileKey': json['profileKey'] == null ? undefined : json['profileKey'],
-        'readiness': json['readiness'] == null ? undefined : json['readiness'],
+        'readiness': json['readiness'],
         'supportRef': json['supportRef'] == null ? undefined : json['supportRef'],
     };
 }

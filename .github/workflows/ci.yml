@@ -34,7 +34,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - run: ./gradlew --no-daemon --stacktrace coreArchitectureCi canonicalDataCi mcpFoundationCi testAppContract
+      # Full deterministic contracts must not inherit Dev's selected release profile.
+      - run: ./gradlew --no-daemon --stacktrace -Pdomains=all coreArchitectureCi canonicalDataCi mcpFoundationCi testAppContract
 
   postgres_persistence:
     name: PostgreSQL persistence
@@ -48,7 +49,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - run: ./gradlew --no-daemon --stacktrace postgresPersistenceCi
+      - run: ./gradlew --no-daemon --stacktrace -Pdomains=all postgresPersistenceCi
 
   protocol_foundation:
     name: Server protocol foundation
@@ -66,10 +67,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          image_id="$(infra/weave-workspace/scripts/build_runtime_state_image.sh)"
+          image_id="$(infra/weave-workspace/scripts/build_runtime_state_image.sh --platform linux/amd64)"
           docker tag "$image_id" weave-runtime-state:ci-s3
           echo 'WEAVE_MINIO_TEST_IMAGE=weave-runtime-state:ci-s3' >> "$GITHUB_ENV"
-      - run: ./gradlew --no-daemon --stacktrace protocolFacadeFoundationCi
+      - run: ./gradlew --no-daemon --stacktrace -Pdomains=all protocolFacadeFoundationCi
 
   core_docs:
     name: Core documentation
@@ -92,6 +93,8 @@ jobs:
       - run: python3 tools/readme_release_notes_test.py
       - run: python3 -m unittest tools.test_verify_main_promotion_evidence -v
       - run: python3 client/tool/native_qualification_test.py -v
+      - name: Domain selection and workflow argument contracts
+        run: python3 -m unittest tools.domain_selection_resolver_test tools.domain_unit_workflow_test -v
 
   api_contract:
     name: API contract freshness
@@ -104,7 +107,7 @@ jobs:
           distribution: temurin
           java-version: '21'
       - name: Verify code-first API exports
-        run: ./gradlew --no-daemon --stacktrace generatedApiContractCi
+        run: ./gradlew --no-daemon --stacktrace -Pdomains=all generatedApiContractCi
       - name: Preserve schema/export diagnostics
         if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
@@ -112,7 +115,7 @@ jobs:
           name: api-contract-diagnostics-${{ github.sha }}
           path: |
             build/openapi/
-            server/build/reports/tests/openApiContractExport/
+            server/app/build/reports/tests/openApiContractExport/
           if-no-files-found: ignore
           retention-days: 7
 
@@ -172,7 +175,7 @@ jobs:
           cd client
           flutter pub get --enforce-lockfile
           cd ..
-          ./gradlew --no-daemon --stacktrace generatedUserApiConsumerCi
+          ./gradlew --no-daemon --stacktrace -Pdomains=all generatedUserApiConsumerCi
 
   generated_admin_api:
     name: Generated Admin API consumers
@@ -186,7 +189,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - run: ./gradlew --no-daemon --stacktrace generatedAdminApiConsumerCi
+      - run: ./gradlew --no-daemon --stacktrace -Pdomains=all generatedAdminApiConsumerCi
 
   client_deterministic:
     name: Flutter deterministic verification

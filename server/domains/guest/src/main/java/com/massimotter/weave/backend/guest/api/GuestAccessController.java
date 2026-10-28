@@ -1,0 +1,56 @@
+package com.massimotter.weave.backend.guest.api;
+
+import com.massimotter.weave.backend.api.error.ApiErrorResponse;
+import com.massimotter.weave.backend.guest.api.GuestAccessContractResponse;
+import com.massimotter.weave.backend.guest.api.GuestInvitationRequest;
+import com.massimotter.weave.backend.guest.api.GuestInvitationResponse;
+import com.massimotter.weave.backend.guest.application.GuestAccessService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@Tag(name = "Guest Access", description = "Guest identity and explicit access policy contracts.")
+@SecurityRequirement(name = "bearer-jwt")
+@ApiResponses({
+        @ApiResponse(responseCode = "401", description = "Missing or invalid User bearer token.",
+                content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class))),
+        @ApiResponse(responseCode = "403", description = "User token lacks workspace or organization authority.",
+                content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class)))
+})
+public class GuestAccessController {
+
+    private final GuestAccessService guestAccessService;
+
+    public GuestAccessController(GuestAccessService guestAccessService) {
+        this.guestAccessService = guestAccessService;
+    }
+
+    @GetMapping("/api/guest/access-contract")
+    @Operation(operationId = "contract", summary = "Get guest identity and policy contract")
+    @ApiResponse(responseCode = "200", description = "Guest identity and access policy contract.",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = GuestAccessContractResponse.class)))
+    public GuestAccessContractResponse contract() {
+        return guestAccessService.contract();
+    }
+
+    @PostMapping("/api/guest/invitations")
+    @Operation(operationId = "invite", summary = "Create a guest invitation when guest access is enabled")
+    @ApiResponse(responseCode = "200", description = "Created guest invitation.",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = GuestInvitationResponse.class)))
+    @ApiResponse(responseCode = "503", description = "Guest access is disabled by default.",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ApiErrorResponse.class)))
+    public GuestInvitationResponse invite(@Valid @RequestBody GuestInvitationRequest request) {
+        return guestAccessService.invite(request);
+    }
+}

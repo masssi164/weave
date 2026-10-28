@@ -14,7 +14,8 @@ ServerConfiguration buildTestConfiguration({
   OidcProviderType providerType = OidcProviderType.oidc,
   String issuerUrl = 'https://auth.home.internal',
   String clientId = 'weave-app',
-  String matrixHomeserverUrl = 'https://matrix.home.internal',
+  String? matrixHomeserverUrl = 'https://matrix.home.internal',
+  List<String> domains = const ['chat', 'files', 'calendar'],
   String backendApiBaseUrl = 'https://api.home.internal/api',
   bool withManifest = true,
 }) {
@@ -28,10 +29,13 @@ ServerConfiguration buildTestConfiguration({
             'organizationOrigin': 'https://weave.home.internal',
             'userApiBaseUrl': backendApiBaseUrl,
             'oidc': {'issuer': issuerUrl, 'clientId': clientId.trim()},
-            'protocols': {'matrixClientServerBaseUrl': matrixHomeserverUrl},
+            'protocols': {
+              if (matrixHomeserverUrl != null)
+                'matrixClientServerBaseUrl': matrixHomeserverUrl,
+            },
             'releasePosture': 'development',
             'domains': [
-              for (final domain in ['identity', 'chat', 'files', 'calendar'])
+              for (final domain in ['identity', ...domains])
                 {
                   'domain': domain,
                   'state': 'available',
@@ -46,7 +50,9 @@ ServerConfiguration buildTestConfiguration({
     oidcIssuerUrl: Uri.parse(issuerUrl),
     oidcClientRegistration: OidcClientRegistration.manual(clientId: clientId),
     serviceEndpoints: ServiceEndpoints(
-      matrixHomeserverUrl: Uri.parse(matrixHomeserverUrl),
+      matrixHomeserverUrl: matrixHomeserverUrl == null
+          ? null
+          : Uri.parse(matrixHomeserverUrl),
       backendApiBaseUrl: Uri.parse(backendApiBaseUrl),
     ),
   );

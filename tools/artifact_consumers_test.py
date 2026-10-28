@@ -14,13 +14,14 @@ from unittest.mock import patch
 
 import artifact_consumers as consumers
 from build_artifacts import ArtifactError
+from runtime_image_registry import NAMES
 
 
 class ArtifactConsumers(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
+        self.root = Path(self.temporary.name).resolve()
         self.manifest = {"component": "ios-simulator", "sourceCommit": "a" * 40, "sourceTree": "b" * 40,
             "inputDigest": "sha256:" + "c" * 64, "target": "aarch64-apple-ios-sim", "buildMode": "debug",
             "buildNumber": "77", "producer": {"runId": 123, "runAttempt": 1},
@@ -90,36 +91,116 @@ class ArtifactConsumers(unittest.TestCase):
             consumers.copy_driver_products(products, self.root / "rejected")
 
     def runtime(self):
-        manifest = {**self.manifest, "component": "runtime-linux-amd64", "target": "linux/amd64", "buildMode": "release"}
-        definition = {"schemaVersion": "weave.runtime-images/v1", "sourceCommit": manifest["sourceCommit"],
-                      "specDigest": "sha256:" + "e" * 64, "platform": "linux/amd64",
-                      "images": {key: "sha256:" + str(index) * 64 for index, key in enumerate(("backend", "mcp", "keycloak", "runtimeState"), 1)}}
+        manifest = {**self.manifest, "component": "runtime-linux-arm64", "target": "linux/arm64", "buildMode": "release",
+                    "runtime": {"domains": ["calendar", "chat", "files"], "flavor": "jvm"}}
+        definition = {"schemaVersion": "weave.runtime-images/v2", "sourceCommit": manifest["sourceCommit"],
+                      "specDigest": "sha256:" + "e" * 64, "platform": "linux/arm64", "runtime": manifest["runtime"],
+                      "images": {key: {"imageId": "sha256:" + str(index) * 64,
+                                       "reference": name + "@sha256:" + str(index) * 64}
+                                 for index, (key, name) in enumerate(NAMES.items(), 1)}}
         return manifest, definition, self.root
 
-    def image(self, reference, manifest, definition):
-        return {"Id": reference, "Os": "linux", "Architecture": "amd64", "Config": {"Labels": {
+    def image(self, reference, manifest, definition, *, component="backend"):
+        return {"Id": definition["images"][component]["imageId"], "RepoDigests": [reference],
+            "Os": "linux", "Architecture": "arm64", "Config": {"Labels": {
             "org.opencontainers.image.revision": manifest["sourceCommit"],
-            "com.massimotter.weave.spec-digest": definition["specDigest"], "com.massimotter.weave.module": "server"}}}
+            "com.massimotter.weave.spec-digest": definition["specDigest"], "com.massimotter.weave.module": "server",
+            "com.massimotter.weave.domains": ",".join(manifest["runtime"]["domains"]),
+            "com.massimotter.weave.runtime-flavor": manifest["runtime"]["flavor"]}}}
+
+    def test_native_entrypoints_also_reject_wider_runtime_composition(self):
+        manifest, _, _ = self.runtime()
+        value = {"components": {"runtime-linux-arm64": {"target": "linux/arm64", "runtime": manifest["runtime"]}}}
+        with patch.object(consumers, "release_domains", return_value=["calendar", "chat", "files"]):
+            consumers.require_release_runtime(value, "HEAD")
+            value["components"]["runtime-linux-arm64"]["runtime"] = {"domains": ["files"], "flavor": "jvm"}
+            with self.assertRaisesRegex(ArtifactError, "release-runtime-domain-selection-required"):
+                consumers.require_release_runtime(value, "HEAD")
+        consumers.require_release_runtime(self.composition, "HEAD")
+
+    def test_manual_amd64_receipt_cannot_enter_automatic_release(self):
+        manifest, _, _ = self.runtime()
+        value = {"components": {"runtime-linux-amd64": {"target": "linux/amd64", "runtime": manifest["runtime"]}}}
+        with self.assertRaisesRegex(ArtifactError, "release-runtime-arm64-required"):
+            consumers.require_release_runtime(value, "HEAD")
+        value["components"] = {"runtime-linux-arm64": {"target": "linux/amd64", "runtime": manifest["runtime"]}}
+        with self.assertRaisesRegex(ArtifactError, "release-runtime-arm64-required"):
+            consumers.require_release_runtime(value, "HEAD")
+
+    def test_experimental_runtime_cannot_be_consumed_as_release(self):
+        manifest, _, _ = self.runtime()
+        entry = {"runtime": {"domains": ["files"], "flavor": "jvm"}}
+        with patch.object(consumers, "candidate_composition", return_value={"components": {"runtime-linux-arm64": entry}}), \
+                patch.object(consumers, "release_domains", return_value=["calendar", "chat", "files"]), \
+                patch.object(consumers, "verify_component") as verifier, \
+                self.assertRaisesRegex(ArtifactError, "release-runtime-domain-selection-required"):
+            consumers.component("runtime-linux-arm64")
+        verifier.assert_not_called()
+
+    def test_runtime_payload_and_image_labels_must_match_selection(self):
+        manifest, definition, payload = self.runtime()
+        (payload / "images.json").write_text(json.dumps({**definition,
+            "runtime": {"domains": ["files"], "flavor": "jvm"}}))
+        with patch.object(consumers, "component", return_value=(manifest, payload)), \
+                self.assertRaisesRegex(ArtifactError, "receipt-invalid"):
+            consumers.runtime_definition()
+        image = self.image(definition["images"]["backend"], manifest, definition)
+        image["Config"]["Labels"]["com.massimotter.weave.domains"] = "files"
+        with patch.object(consumers, "runtime_definition", return_value=(manifest, definition, payload)), \
+                patch.object(consumers.subprocess, "check_output", return_value=json.dumps([image]).encode()), \
+                self.assertRaisesRegex(ArtifactError, "running-server-artifact-mismatch"):
+            consumers.verify_runtime_container({"Image": image["Id"]})
 
     def test_runtime_loads_verified_images_and_never_builds(self):
         manifest, definition, payload = self.runtime()
         def inspect(command, **_):
-            return json.dumps([self.image(command[-1], manifest, definition)]).encode()
+            component = next(component for component, entry in definition["images"].items()
+                             if entry["reference"] == command[-1])
+            return json.dumps([self.image(command[-1], manifest, definition, component=component)]).encode()
+        config = self.root / "docker-config"
+        config.mkdir(mode=0o700)
+        (config / "config.json").write_text("{}")
+        (config / "config.json").chmod(0o600)
         with patch.object(consumers, "runtime_definition", return_value=(manifest, definition, payload)), \
-                patch.object(consumers.subprocess, "run", return_value=SimpleNamespace(returncode=1)) as command, \
+                patch.dict(os.environ, {"WEAVE_RUNTIME_DOCKER_CONFIG": str(config)}), \
+                patch.object(consumers.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as command, \
                 patch.object(consumers.subprocess, "check_output", side_effect=inspect), \
                 patch.object(consumers, "record_verified_runtime") as storage:
             environment = consumers.load_runtime_images()
-        storage.assert_called_once_with(manifest, definition["images"])
-        self.assertEqual(environment["WEAVE_TEST_APP_SERVER_IMAGE"], definition["images"]["backend"])
+        storage.assert_called_once_with(manifest, {key: value["imageId"] for key, value in definition["images"].items()},
+                                        registry_references={key: value["reference"] for key, value in definition["images"].items()})
+        self.assertEqual(environment["WEAVE_TEST_APP_SERVER_IMAGE"], definition["images"]["backend"]["imageId"])
         self.assertEqual(environment["WEAVE_IMAGE_SOURCE_COMMIT"], manifest["sourceCommit"])
         invocations = [call.args[0] for call in command.call_args_list]
-        self.assertIn(["docker", "load", "--input", str(payload / "images.tar")], invocations)
+        self.assertIn(["docker", "--config", str(config), "pull", "--platform", "linux/arm64",
+                       definition["images"]["backend"]["reference"]], invocations)
+        self.assertFalse(any("load" in invocation for invocation in invocations))
         self.assertFalse(any("build" in invocation for invocation in invocations))
+
+    def test_runtime_without_scoped_registry_auth_fails_closed(self):
+        manifest, definition, payload = self.runtime()
+        with patch.object(consumers, "runtime_definition", return_value=(manifest, definition, payload)), \
+                patch.dict(os.environ, {"WEAVE_RUNTIME_DOCKER_CONFIG": ""}), \
+                self.assertRaisesRegex(ArtifactError, "run-scoped-registry-auth-required"):
+            consumers.load_runtime_images()
+
+    def test_pulled_wrong_architecture_never_acquires_storage_ownership(self):
+        manifest, definition, payload = self.runtime()
+        entry = definition["images"]["backend"]
+        image = self.image(entry["reference"], manifest, definition)
+        image["Architecture"] = "amd64"
+        with patch.object(consumers, "runtime_definition", return_value=(manifest, definition, payload)), \
+                patch.object(consumers, "_registry_docker_config", return_value=self.root), \
+                patch.object(consumers.subprocess, "run"), \
+                patch.object(consumers.subprocess, "check_output", return_value=json.dumps([image]).encode()), \
+                patch.object(consumers, "record_verified_runtime") as storage, \
+                self.assertRaisesRegex(ArtifactError, "pulled-runtime-image-mismatch"):
+            consumers.load_runtime_images()
+        storage.assert_not_called()
 
     def test_running_server_must_match_image_id_and_original_producer_labels(self):
         manifest, definition, payload = self.runtime()
-        reference = definition["images"]["backend"]
+        reference = definition["images"]["backend"]["imageId"]
         value = self.image(reference, manifest, definition)
         with patch.object(consumers, "runtime_definition", return_value=(manifest, definition, payload)), \
                 patch.object(consumers.subprocess, "check_output", return_value=json.dumps([value]).encode()):
