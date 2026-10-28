@@ -131,6 +131,37 @@ class DualIosCollaborationTest(unittest.TestCase):
             dual.emit_actor_phase_stages('A', 'initial', 'EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK\n' + '\n'.join(lines), '')
         self.assertEqual(output.getvalue(), 'IOS_FLUTTER_DIAGNOSTIC journey=initial category=flutter-test-assertion supportSafe=true\n')
 
+    def test_framework_assertion_locations_export_only_allowlisted_sources_and_lines(self):
+        header = 'flutter: ══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════\n'
+        frames = [
+            'flutter: #0 privateMethod (package:flutter_test/src/controller.dart:2110:7)',
+            '#1 privateMethod (package:flutter_test/src/controller.dart:2110:7)',
+            '#2 privateMethod (package:flutter/src/gestures/binding.dart:500:9)',
+            '#3 privateMethod (package:weave/private_account.dart:42:9)',
+            '#4 privateMethod (package:flutter_test/src/private_account.dart:42:9)',
+            '#5 privateMethod (file:///private/account/controller.dart:42:9)',
+            '#6 privateMethod (package:flutter_test/src/controller.dart:0:9)',
+            '#7 privateMethod (package:flutter_test/src/controller.dart:42:9) private-token',
+            'Expected: private-account Actual: private-token',
+        ]
+        with contextlib.redirect_stdout(io.StringIO()) as output:
+            dual.emit_actor_phase_stages('A', 'initial', header + '\n'.join(frames), '')
+        records = [line for line in output.getvalue().splitlines() if 'FRAMEWORK_DIAGNOSTIC' in line]
+        self.assertEqual(records, [
+            'IOS_FLUTTER_FRAMEWORK_DIAGNOSTIC journey=initial actor=A package=flutter_test file=src/controller.dart line=2110 supportSafe=true',
+            'IOS_FLUTTER_FRAMEWORK_DIAGNOSTIC journey=initial actor=A package=flutter file=src/gestures/binding.dart line=500 supportSafe=true',
+        ])
+        for private in ('privateMethod', 'private-account', 'private-token', '/private/', 'private_account'):
+            self.assertNotIn(private, output.getvalue())
+
+    def test_framework_assertion_locations_require_header_and_bound_output(self):
+        frames = '\n'.join(f'#1 method (package:flutter_test/src/controller.dart:{line}:1)' for line in range(1, 30))
+        for header, expected in [('', 0), ('Expected: EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK\n', 0),
+                                 ('EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK\n', 12)]:
+            with self.subTest(header=header), contextlib.redirect_stdout(io.StringIO()) as output:
+                dual.emit_actor_phase_stages('B', 'restore', header + frames, '')
+            self.assertEqual(output.getvalue().count('FRAMEWORK_DIAGNOSTIC'), expected)
+
     def test_initial_actor_browser_selects_only_the_production_journey(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
