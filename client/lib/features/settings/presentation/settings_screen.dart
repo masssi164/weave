@@ -63,21 +63,24 @@ class SettingsScreen extends ConsumerWidget {
                         title: l10n.settingsThemeTitle,
                         description: l10n.settingsThemeDescription,
                         icon: Icons.tune,
-                        route: "${AppRoutes.settingsPreferences}?section=appearance",
+                        route:
+                            "${AppRoutes.settingsPreferences}?section=appearance",
                       ),
                       const Divider(height: 1),
                       _SettingsNavigationTile(
                         title: l10n.settingsLanguageTitle,
                         description: l10n.settingsLanguageDescription,
                         icon: Icons.language,
-                        route: "${AppRoutes.settingsPreferences}?section=language",
+                        route:
+                            "${AppRoutes.settingsPreferences}?section=language",
                       ),
                       const Divider(height: 1),
                       _SettingsNavigationTile(
                         title: l10n.settingsShellModulesTitle,
                         description: l10n.settingsShellModulesDescription,
                         icon: Icons.home_outlined,
-                        route: "${AppRoutes.settingsPreferences}?section=modules",
+                        route:
+                            "${AppRoutes.settingsPreferences}?section=modules",
                       ),
                       const Divider(height: 1),
                       _SettingsNavigationTile(
@@ -504,8 +507,8 @@ class _ShellModulePreferenceTile extends ConsumerWidget {
             onPressed: isFirst
                 ? null
                 : () => ref
-                    .read(shellModulePreferencesProvider.notifier)
-                    .moveModule(module: module, delta: -1),
+                      .read(shellModulePreferencesProvider.notifier)
+                      .moveModule(module: module, delta: -1),
             icon: const Icon(Icons.arrow_upward),
           ),
           IconButton(
@@ -513,8 +516,8 @@ class _ShellModulePreferenceTile extends ConsumerWidget {
             onPressed: isLast
                 ? null
                 : () => ref
-                    .read(shellModulePreferencesProvider.notifier)
-                    .moveModule(module: module, delta: 1),
+                      .read(shellModulePreferencesProvider.notifier)
+                      .moveModule(module: module, delta: 1),
             icon: const Icon(Icons.arrow_downward),
           ),
         ],
