@@ -1,0 +1,63 @@
+name: Existing signing identifier regression
+on:
+  push:
+    branches: [diagnostic/dual-ui-failure-20261028]
+    paths: [.github/workflows/signing-identifiers-regression.yml]
+permissions:
+  contents: read
+jobs:
+  regression:
+    if: github.repository == 'masssi164/weave'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    permissions:
+      contents: write
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTHONPATH: tools:infra/weave-workspace/scripts
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+      - name: Apply the reviewed repair to its exact source
+        run: |
+          set -euo pipefail
+          cp .github/diagnostics/signing-identifiers.patch "$RUNNER_TEMP/repair.patch"
+          git fetch --no-tags --depth=1 origin 20e1791ce32ea100c5d519a547bb2559876b847b
+          git checkout --detach 20e1791ce32ea100c5d519a547bb2559876b847b
+          git apply --check "$RUNNER_TEMP/repair.patch"
+          git apply "$RUNNER_TEMP/repair.patch"
+          git diff --check
+      - name: Verify identity and in-place preparation regressions
+        run: |
+          python3 -m unittest sign_iphone_artifact_test prepare_iphone_artifact_test -v
+          python3 tools/ios_dogfood_distribution_check.py
+      - name: Materialize only the tested public source files without changing branches
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          from urllib.request import Request, urlopen
+          expected = {
+              'tools/sign_iphone_artifact.py': 'a10dbf8c576016b852ae242ce690bdb1935e35f0',
+              'tools/sign_iphone_artifact_test.py': '3bc0118b4324c82b802e109dc3dede977d674289',
+              'tools/prepare_iphone_artifact.py': 'b01578d767a5d5b90617a3b5090260ba9ee30110',
+              'tools/prepare_iphone_artifact_test.py': '1de0a16a7a6d4ab3557332c04ff7899e83af682c',
+              'tools/dogfood_handoff_bundle.py': '32c62f74eed667aa55024f1fa4b756b71ab026c9',
+              'docs/ios-dogfood-distribution.md': 'e2f35c4cbf4ebb0e2b9ba17ac69b33c54ccdc422',
+          }
+          assert set(subprocess.check_output(['git', 'diff', '--name-only'], text=True).splitlines()) == set(expected)
+          for path, digest in expected.items():
+              assert subprocess.check_output(['git', 'hash-object', path], text=True).strip() == digest
+          for path, digest in expected.items():
+              request = Request('https://api.github.com/repos/masssi164/weave/git/blobs',
+                  data=json.dumps({'content': Path(path).read_text(), 'encoding': 'utf-8'}).encode(),
+                  headers={'Authorization': 'Bearer ' + os.environ['GITHUB_TOKEN'],
+                           'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json'}, method='POST')
+              with urlopen(request, timeout=30) as response:
+                  value = json.load(response)
+              assert value['sha'] == digest
+              print(json.dumps({'path': path, 'sha': digest, 'branchChanged': False}))
+          PY
