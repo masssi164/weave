@@ -702,6 +702,12 @@ services:
       - -euc
     command:
       - |
+        packaged_domains="$$(cat /app/weave-domains)"
+        [[ "$${packaged_domains}" =~ ^[a-z][a-z0-9-]*(,[a-z][a-z0-9-]*)*$$ ]] || exit 2
+        case ",$${packaged_domains}," in
+          *,agent-runtime,*) ;;
+          *) printf '%s\n' 'Agent Runtime is not packaged; key initialization is not required.'; exit 0 ;;
+        esac
         if test -s /run/secrets/agent-runtime/profile-signing/runtime-profile-signing-keys.json; then
           java -jar /app/app.jar runtime-profile-signing-keys --action=status --root=/run/secrets/agent-runtime/profile-signing >/dev/null
         else
