@@ -1,13 +1,10 @@
-name: Private registry repair focused tests
-
+name: Registry policy focused tests
 on:
   push:
     branches: [diagnostic/verify-first-ghcr-publication-20261028]
     paths: [.github/workflows/private-registry-focused-tests.yml]
-
 permissions:
   contents: read
-
 jobs:
   contracts:
     if: github.repository == 'masssi164/weave'
@@ -16,12 +13,65 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
-          ref: 0f6761c40bbc2b4db8b6786dd6d1563b3829897f
+          ref: 403787278df765c7febf7b11ae2840b77e3cc70d
+          path: candidate
           persist-credentials: false
-      - name: Verify exact repair source
-        run: test "$(git rev-parse HEAD)" = 0f6761c40bbc2b4db8b6786dd6d1563b3829897f
-      - name: Exercise registry, consumer and storage contracts without publication
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: da139af38973383d2c3710cc05101ef6565147bc
+          path: diagnostic
+          persist-credentials: false
+      - name: Verify exact sources and existing transport contracts
+        working-directory: candidate
         env:
           PYTHONPATH: tools
           PYTHONDONTWRITEBYTECODE: '1'
-        run: python3 -m unittest runtime_image_registry_test artifact_consumers_test artifact_runtime_storage_test -v
+        run: |
+          test "$(git rev-parse HEAD)" = 403787278df765c7febf7b11ae2840b77e3cc70d
+          python3 -m unittest runtime_image_registry_test artifact_consumers_test artifact_runtime_storage_test -v
+      - name: Verify public/private observations never substitute for integrity
+        env:
+          PYTHONPATH: diagnostic/tools
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import unittest
+          from unittest.mock import patch
+          import diagnostic_registry_visibility_20261028 as verification
+          class Observations(unittest.TestCase):
+              payload = b'{"schemaVersion":2}'
+              package = 'weave-private-ci-backend'
+              digest = 'sha256:' + hashlib.sha256(payload).hexdigest()
+              challenge = 'Bearer realm="https://ghcr.io/token",service="ghcr.io",scope="repository:masssi164/weave-private-ci-backend:pull"'
+              denial = {'errors': [{'code': 'DENIED'}]}
+              def test_public_manifest_requires_exact_bytes(self):
+                  with patch.object(verification, 'request_json', return_value=(200, '', self.payload, {})):
+                      self.assertEqual(verification.anonymous_access(self.package, self.digest), ('allowed', 200))
+                      with self.assertRaisesRegex(verification.VerificationFailure, 'digest-mismatch'):
+                          verification.anonymous_access(self.package, 'sha256:' + 'f'*64)
+              def test_initial_challenge_is_not_a_private_access_proof(self):
+                  replies = [(401, self.challenge, b'', {}), (200, '', b'', {'token': 'anonymous-fixture'}), (200, '', self.payload, {})]
+                  with patch.object(verification, 'request_json', side_effect=replies) as http:
+                      self.assertEqual(verification.anonymous_access(self.package, self.digest), ('allowed', 200))
+                      self.assertEqual(len(http.call_args_list[1].args), 1)
+                      self.assertEqual(http.call_args_list[2].args[1]['Authorization'], 'Bearer anonymous-fixture')
+              def test_explicit_anonymous_token_denial_is_private_access_evidence(self):
+                  with patch.object(verification, 'request_json', side_effect=[(401, self.challenge, b'', {}), (403, '', b'', self.denial)]):
+                      self.assertEqual(verification.anonymous_access(self.package, self.digest), ('denied', 403))
+              def test_missing_package_is_not_denial_evidence(self):
+                  with patch.object(verification, 'request_json', return_value=(404, '', b'', {})), self.assertRaises(verification.VerificationFailure):
+                      verification.anonymous_access(self.package, self.digest)
+              def test_external_token_endpoint_is_rejected(self):
+                  with patch.object(verification, 'request_json', return_value=(401, self.challenge.replace('https://ghcr.io/token', 'https://example.invalid/token'), b'', {})) as http, self.assertRaises(verification.VerificationFailure):
+                      verification.anonymous_access(self.package, self.digest)
+                  self.assertEqual(http.call_count, 1)
+              def test_metadata_preserves_actual_public_visibility(self):
+                  item = {'name': self.package, 'visibility': 'public', 'package_type': 'container', 'owner': {'login': 'masssi164'}}
+                  with patch.object(verification, 'request_json', return_value=(200, '', b'', [item])):
+                      self.assertEqual(verification.package_visibility('fixture', {self.package}), {self.package: 'public'})
+              def test_missing_metadata_is_not_private(self):
+                  with patch.object(verification, 'request_json', return_value=(200, '', b'', [])), self.assertRaises(verification.VerificationFailure):
+                      verification.package_visibility('fixture', {self.package})
+          unittest.main()
+          PY
