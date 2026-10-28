@@ -1,0 +1,62 @@
+name: Host build residue inventory
+on:
+  push:
+    branches: [diagnostic/cache-prune-preflight-20261028]
+    paths: [.github/workflows/host-build-residue-inventory.yml]
+permissions:
+  contents: read
+jobs:
+  inventory:
+    if: github.repository == 'masssi164/weave'
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    timeout-minutes: 8
+    concurrency:
+      group: weave-live-mac-mini-exclusive
+      cancel-in-progress: false
+    steps:
+      - name: Measure only regenerable build caches and runner outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, re, shutil, subprocess, time
+          from pathlib import Path
+          assert os.environ.get('RUNNER_NAME') == 'weave-live-mac-mini'
+          home = Path.home()
+          workspace = Path(os.environ['GITHUB_WORKSPACE'])
+          temporary = Path(os.environ['RUNNER_TEMP'])
+          assert workspace.is_absolute() and temporary.is_absolute()
+          def size(path):
+              if path.is_symlink() or not path.exists():
+                  return None
+              value = subprocess.run(['du', '-sk', str(path)], capture_output=True, text=True, timeout=60)
+              if value.returncode:
+                  return None
+              return int(value.stdout.split()[0]) * 1024
+          roots = {
+              'gradle-caches': home / '.gradle/caches',
+              'gradle-distributions': home / '.gradle/wrapper/dists',
+              'xcode-derived-data': home / 'Library/Developer/Xcode/DerivedData',
+              'pub-cache': home / '.pub-cache',
+              'runner-temporary': temporary,
+              'workspace': workspace,
+          }
+          report = {'freeBytes': shutil.disk_usage(workspace).free, 'roots': {}, 'entries': [], 'readOnly': True}
+          for label, path in roots.items():
+              report['roots'][label] = size(path)
+              if path.is_dir() and not path.is_symlink() and label != 'pub-cache':
+                  for child in list(path.iterdir())[:150]:
+                      if child.is_symlink() or not child.is_dir():
+                          continue
+                      if label == 'runner-temporary' and not child.name.startswith('weave-'):
+                          continue
+                      if label == 'xcode-derived-data' and not child.name.startswith(('Runner-', 'Weave-', 'weave-', 'ModuleCache.noindex', 'CompilationCache.noindex')):
+                          continue
+                      amount = size(child)
+                      if amount is not None and amount > 50 * 1024**2:
+                          report['entries'].append({'category': label, 'name': child.name,
+                              'bytes': amount, 'ageHours': round((time.time()-child.stat().st_mtime)/3600, 1)})
+          commands = subprocess.check_output(['ps', '-axo', 'command='], text=True)
+          report['activeBuildProcesses'] = any(word in commands for word in ('GradleDaemon', 'GradleWrapperMain', '/xcodebuild ', '/flutter_tools.snapshot build'))
+          print(json.dumps(report, sort_keys=True), flush=True)
+          PY
