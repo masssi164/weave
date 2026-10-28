@@ -1,0 +1,103 @@
+name: Prepare navigation diagnostic repair
+on:
+  push:
+    branches: [diagnostic/verify-first-ghcr-publication-20261028]
+    paths: [.github/workflows/navigation-diagnostic-patch.yml]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/verify-first-ghcr-publication-20261028'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: fix/1764-dual-ios-navigation
+      - name: Apply only the reviewed public-source diagnostic delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 61984a19b826f5542c9055834414d96f29100d7e
+          cat > "$RUNNER_TEMP/navigation-diagnostics.patch" <<'PATCH'
+          --- a/client/tool/run_dual_ios_collaboration.py
+          +++ b/client/tool/run_dual_ios_collaboration.py
+          @@ -455,6 +455,30 @@
+               patterns = [r'(?:flutter: )?' + location,
+                           r'(?:flutter: )?#(?:0|[1-9][0-9]{0,3})[ \t]+'
+                           r'[^\x00-\x20\x7f()][^\x00-\x1f\x7f()]{0,255}[ \t]+\(' + location + r'\)']
+          +    # Only framework source identities and line numbers leave the current run.
+          +    # Error messages, assertion operands and actor data remain private.
+          +    framework_sources = {
+          +        'flutter_test/src/controller.dart', 'flutter_test/src/test_pointer.dart',
+          +        'flutter_test/src/test_async_utils.dart', 'flutter_test/src/binding.dart',
+          +        'flutter/src/gestures/binding.dart', 'flutter/src/gestures/converter.dart',
+          +        'flutter/src/gestures/arena.dart', 'flutter/src/widgets/navigator.dart',
+          +        'flutter/src/rendering/box.dart', 'flutter/src/semantics/semantics.dart',
+          +    }
+          +    framework_locations = set()
+          +    for line in lines:
+          +        if len(line) > 2048:
+          +            continue
+          +        frame = re.fullmatch(
+          +            r'(?:flutter: )?#[0-9]{1,4}[ \t]+[^\x00-\x1f\x7f()]{1,256}'
+          +            r'[ \t]+\(package:([A-Za-z0-9_/.]+):([1-9][0-9]{0,5}):[1-9][0-9]{0,5}\)', line)
+          +        if frame is not None and frame[1] in framework_sources:
+          +            location = (frame[1], frame[2])
+          +            if location not in framework_locations:
+          +                framework_locations.add(location)
+          +                print(f'IOS_FLUTTER_DIAGNOSTIC journey={phase} actor={role} '
+          +                      f'frameworkSource={frame[1]} line={frame[2]} supportSafe=true', flush=True)
+          +        if len(framework_locations) >= 8:
+          +            break
+               locations = set()
+               for line in lines:
+                   if len(line) > 2048:
+          --- a/client/tool/dual_ios_collaboration_test.py
+          +++ b/client/tool/dual_ios_collaboration_test.py
+          @@ -36,6 +36,35 @@
+           
+           
+           class DualIosCollaborationTest(unittest.TestCase):
+          +    def test_framework_failure_frames_expose_only_allowlisted_sources_and_lines(self):
+          +        header = 'EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK\n'
+          +        frames = [
+          +            '#0      privateFunction (package:flutter_test/src/controller.dart:1059:7)',
+          +            'flutter: #1      anotherPrivateFunction (package:flutter/src/gestures/binding.dart:439:7)',
+          +            '#2      duplicate (package:flutter_test/src/controller.dart:1059:7)',
+          +            '#3      forbidden (package:private_account/src/private_token.dart:123:4)',
+          +            '#4      forbidden (package:flutter/src/gestures/../private_token.dart:123:4)',
+          +            '#5      forbidden (package:flutter_test/src/controller.dart:0:7)',
+          +            '#6      forbidden (package:flutter_test/src/controller.dart:1000000:7)',
+          +            '#7      forbidden (https://private.invalid/flutter_test/src/controller.dart:1059:7)',
+          +            'Actual: private-account private-token https://private.invalid',
+          +        ]
+          +        output = io.StringIO()
+          +        with contextlib.redirect_stdout(output):
+          +            dual.emit_actor_phase_stages('A', 'initial', header + '\n'.join(frames), '')
+          +        result = output.getvalue()
+          +        self.assertEqual(result.count('frameworkSource='), 2)
+          +        self.assertIn('frameworkSource=flutter_test/src/controller.dart line=1059', result)
+          +        self.assertIn('frameworkSource=flutter/src/gestures/binding.dart line=439', result)
+          +        for private in ('privateFunction', 'anotherPrivateFunction', 'private_account',
+          +                        'private-token', 'private-account', 'private.invalid', 'private_token'):
+          +            self.assertNotIn(private, result)
+          +        for flutter in ('\n'.join(frames), 'Expected: ' + header + '\n'.join(frames)):
+          +            output = io.StringIO()
+          +            with contextlib.redirect_stdout(output):
+          +                dual.emit_actor_phase_stages('A', 'initial', flutter, '')
+          +            self.assertNotIn('frameworkSource=', output.getvalue())
+          +
+               def test_actor_assertion_frames_preserve_legacy_diagnostics_without_private_values(self):
+                   flutter = ('NATIVE_PRODUCT_STAGE phase=workspace-ready\n'
+                              'flutter: ══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════\n'
+          PATCH
+          git apply --check "$RUNNER_TEMP/navigation-diagnostics.patch"
+          git apply "$RUNNER_TEMP/navigation-diagnostics.patch"
+          python3 -m unittest discover -s client/tool -p dual_ios_collaboration_test.py -q
+          git diff --check
+          git add client/tool/run_dual_ios_collaboration.py client/tool/dual_ios_collaboration_test.py
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m "test: retain bounded framework failure locations in fresh native runs"
+          git push origin HEAD:refs/heads/fix/1764-dual-ios-navigation
