@@ -11,14 +11,30 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = 'weave-orchestration'
-include 'weave-application-core',
-        'weave-files-core',
-        'weave-persistence-jpa',
-        'weave-runtime-provider-adapters',
-        'weave-runtime-security-adapters',
+include 'server:app',
+        'server:core',
+        'server:core:model',
+        'server:domains:agent-runtime',
+        'server:domains:agent-runtime:model',
+        'server:domains:agent-runtime:persistence',
+        'server:domains:agent-runtime:provider',
+        'server:domains:agent-runtime:security',
+        'server:domains:portability',
+        'server:domains:portability:model',
+        'server:domains:portability:persistence',
+        'server:domains:chat:persistence',
+        'server:domains:files:model',
+        'server:domains:files:persistence',
+        'server:domains:calendar:model',
+        'server:domains:calendar:persistence',
         'infra',
         'server',
         'weave-user-api-client',
         'weave-admin-api-client',
         'weave-mcp-server',
         'weave-product-e2e'
+
+// The canonical catalog makes each selectable owning domain project IDE-visible.
+def domainCatalog = new groovy.json.JsonSlurper().parse(file('server/domains/catalog.json'))
+include 'server:domains'
+domainCatalog.domains.keySet().sort().each { domain -> include "server:domains:${domain}" }

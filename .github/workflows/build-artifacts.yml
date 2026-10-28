@@ -5,22 +5,30 @@ on:
     branches: [dev]
   workflow_dispatch:
     inputs:
+      domains:
+        description: Optional domain selection; empty uses the actual source branch pin, then all
+        type: string
+        default: ''
       components:
         description: Component set to build or reuse
         type: choice
         required: true
-        default: runtime-linux-amd64,ios-simulator,ios-device
+        default: runtime-linux-arm64,ios-simulator,ios-device
         options:
-          - runtime-linux-amd64,ios-simulator,ios-device
+          - runtime-linux-arm64,ios-simulator,ios-device
+          - runtime-linux-amd64
           - macos-desktop
   workflow_call:
     inputs:
       candidate:
         type: string
         required: true
+      domains:
+        type: string
+        default: ''
       components:
         type: string
-        default: runtime-linux-amd64,ios-simulator,ios-device
+        default: runtime-linux-arm64,ios-simulator,ios-device
     outputs:
       composition-artifact:
         description: Immutable candidate composition containing verified component artifact identities
@@ -39,6 +47,7 @@ jobs:
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
       needs-build: ${{ steps.plan.outputs.needs-build }}
+      domains: ${{ steps.plan.outputs.domains }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -52,13 +61,26 @@ jobs:
         id: plan
         env:
           GH_TOKEN: ${{ github.token }}
-          BUILD_COMPONENTS: ${{ inputs.components || 'runtime-linux-amd64,ios-simulator,ios-device' }}
-        run: python3 tools/build_artifacts.py plan --components "$BUILD_COMPONENTS" --output build/artifact-plan.json
+          BUILD_COMPONENTS: ${{ inputs.components || 'runtime-linux-arm64,ios-simulator,ios-device' }}
+          REQUESTED_DOMAINS: ${{ inputs.domains }}
+          SOURCE_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          selection_args=(--domains "$REQUESTED_DOMAINS")
+          if [[ "$SOURCE_REF" == refs/heads/* ]]; then
+            selection_args+=(--source-branch "${SOURCE_REF#refs/heads/}" --source-commit "$GITHUB_SHA")
+          fi
+          python3 tools/build_artifacts.py plan --components "$BUILD_COMPONENTS" "${selection_args[@]}" --output build/artifact-plan.json
 
   build:
     name: Build component (${{ matrix.component }})
     needs: plan
     if: needs.plan.outputs.needs-build == 'true'
+    permissions:
+      contents: read
+      actions: read
+      packages: write # Candidate-only GHCR publication; no production tags or releases.
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
@@ -70,27 +92,27 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
-        if: matrix.component == 'runtime-linux-amd64'
+        if: startsWith(matrix.component, 'runtime-')
         with:
           node-version: '24.22.1'
       - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
-        if: matrix.component == 'runtime-linux-amd64'
+        if: startsWith(matrix.component, 'runtime-')
         with:
           distribution: temurin
           java-version: '21.0.12'
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
-        if: matrix.component == 'runtime-linux-amd64'
+        if: startsWith(matrix.component, 'runtime-')
       - name: Install pinned Linux Rust compiler
-        if: matrix.component == 'runtime-linux-amd64'
+        if: startsWith(matrix.component, 'runtime-')
         run: rustup toolchain install 1.95.0 --profile minimal
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
-        if: matrix.component != 'runtime-linux-amd64'
+        if: ${{ !startsWith(matrix.component, 'runtime-') }}
         with:
           flutter-version: '3.41.6'
           channel: stable
           cache: true
       - name: Select supported hosted Apple toolchain
-        if: matrix.component != 'runtime-linux-amd64'
+        if: ${{ !startsWith(matrix.component, 'runtime-') }}
         run: |
           test "$(uname -m)" = arm64
           sudo xcode-select --switch /Applications/Xcode_26.5.app/Contents/Developer
@@ -100,7 +122,9 @@ jobs:
       - name: Build portable component
         env:
           COMPONENT: ${{ matrix.component }}
-        run: python3 tools/build_artifacts_hosted.py --component "$COMPONENT" --output build/hosted-component
+          GHCR_TOKEN: ${{ startsWith(matrix.component, 'runtime-') && github.token || '' }}
+          RESOLVED_DOMAINS: ${{ needs.plan.outputs.domains }}
+        run: python3 tools/build_artifacts_hosted.py --component "$COMPONENT" --domains "$RESOLVED_DOMAINS" --output build/hosted-component
       - name: Publish immutable component artifact
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
@@ -127,11 +151,13 @@ jobs:
           persist-credentials: false
       - name: Verify producers and compose candidate
         env:
+          RESOLVED_DOMAINS: ${{ needs.plan.outputs.domains }}
           GH_TOKEN: ${{ github.token }}
-          BUILD_COMPONENTS: ${{ inputs.components || 'runtime-linux-amd64,ios-simulator,ios-device' }}
+          BUILD_COMPONENTS: ${{ inputs.components || 'runtime-linux-arm64,ios-simulator,ios-device' }}
         run: >-
           python3 tools/build_artifacts.py resolve
           --components "$BUILD_COMPONENTS"
+          --domains "$RESOLVED_DOMAINS"
           --scenario fixtures/member-client-baseline/v1.json
           --output build/candidate-artifacts.json
       - name: Record composition artifact identity

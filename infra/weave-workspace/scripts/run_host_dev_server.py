@@ -49,7 +49,7 @@ def load_environment(path: Path) -> dict[str, str]:
 
 
 def server_command(repository: Path) -> list[str]:
-    return [str(repository / "gradlew"), ":server:bootRun", "--console=plain"]
+    return [str(repository / "gradlew"), ":server:app:bootRun", "--console=plain"]
 
 
 def ready() -> bool:

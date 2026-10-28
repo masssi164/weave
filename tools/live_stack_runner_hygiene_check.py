@@ -56,10 +56,10 @@ def check(e2e: str, prepare: str, owner: str, test_app: str, native: str) -> Non
             and 'WEAVE_TEST_APP_RELEASE_MCP: "false"' in e2e,
             "ordinary member collaboration must be independently selected")
     for workflow, job, prefix, components in (
-            (e2e, "full-compose-e2e", "qualification", "runtime-linux-amd64,ios-simulator"),
-            (e2e, "deploy-dogfood", "deployment", "runtime-linux-amd64,ios-simulator"),
-            (prepare, "prepare-human-test", "physical", "runtime-linux-amd64,ios-device"),
-            (owner, "invite-owner", "owner-bootstrap", "runtime-linux-amd64")):
+            (e2e, "full-compose-e2e", "qualification", "runtime-linux-arm64,ios-simulator"),
+            (e2e, "deploy-dogfood", "deployment", "runtime-linux-arm64,ios-simulator"),
+            (prepare, "prepare-human-test", "physical", "runtime-linux-arm64,ios-device"),
+            (owner, "invite-owner", "owner-bootstrap", "runtime-linux-arm64")):
         check_artifact_paths(workflow, job, prefix, components)
     for workflow in (e2e, prepare):
         for forbidden in ("flutter build", "build-for-testing", ":bootJar", "buildx build"):
@@ -95,7 +95,7 @@ def main() -> int:
     variants = [
         (e2e.replace("needs: hosted-artifacts", "needs: []"), prepare, test_app, native),
         (e2e.replace("WEAVE_TEST_APP_MODE: member-collaboration", "WEAVE_TEST_APP_MODE: full"), prepare, test_app, native),
-        (e2e.replace("--components runtime-linux-amd64,ios-simulator", "--components runtime-linux-amd64"), prepare, test_app, native),
+        (e2e.replace("--components runtime-linux-arm64,ios-simulator", "--components runtime-linux-arm64"), prepare, test_app, native),
         (e2e.replace("name: Initialize hosted artifact paths", "name: Missing initialization"), prepare, test_app, native),
         (e2e.replace('>> "$GITHUB_ENV"', '>> "$GITHUB_OUTPUT"'), prepare, test_app, native),
         (e2e.replace('&& ! -L "$RUNNER_TEMP"', ''), prepare, test_app, native),

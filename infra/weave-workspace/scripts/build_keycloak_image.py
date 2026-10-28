@@ -36,13 +36,11 @@ STOCK_KEYCLOAK_INDEX_DIGEST = (
 STOCK_KEYCLOAK_REFERENCE = (
     f"quay.io/keycloak/keycloak@{STOCK_KEYCLOAK_INDEX_DIGEST}"
 )
-STOCK_KEYCLOAK_PLATFORM = "linux/amd64"
-STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST = (
-    "sha256:7523ccfbd950f59783504cdf5a0138dae48746dfe36075bbfccdb5a9ee245ee2"
-)
-STOCK_KEYCLOAK_PLATFORM_REFERENCE = (
-    f"quay.io/keycloak/keycloak@{STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST}"
-)
+DEFAULT_PLATFORM = "linux/arm64"
+STOCK_KEYCLOAK_MANIFESTS = {
+    "linux/arm64": "sha256:89d56312ace1d9b0bf8168f1a92ea135ba185d2844285f7651cb50774e47c1d8",
+    "linux/amd64": "sha256:7523ccfbd950f59783504cdf5a0138dae48746dfe36075bbfccdb5a9ee245ee2",
+}
 ARCHIVE_URL = f"https://github.com/keycloak/keycloak/archive/{UPSTREAM_COMMIT}.tar.gz"
 PATCH_RELATIVE = Path(
     "infra/weave-workspace/keycloak-runtime/patches/"
@@ -235,7 +233,26 @@ def extract_archive(archive: Path, target: Path) -> Path:
     return source
 
 
-def parse_stock_platform_manifest(raw_index: str) -> str:
+def stock_platform_manifest(platform: str) -> str:
+    if platform not in STOCK_KEYCLOAK_MANIFESTS:
+        raise SystemExit("WEAVE_KEYCLOAK_BUILD_ERROR unsupported target platform")
+    return STOCK_KEYCLOAK_MANIFESTS[platform]
+
+
+def stock_platform_reference(platform: str) -> str:
+    return f"quay.io/keycloak/keycloak@{stock_platform_manifest(platform)}"
+
+
+def require_native_platform(platform: str) -> None:
+    stock_platform_manifest(platform)
+    observed = run("docker", "info", "--format", "{{.OSType}}/{{.Architecture}}", capture=True)
+    normalized = {"linux/aarch64": "linux/arm64", "linux/x86_64": "linux/amd64"}.get(observed, observed)
+    if normalized != platform:
+        raise SystemExit("WEAVE_KEYCLOAK_BUILD_ERROR native target platform is required")
+
+
+def parse_stock_platform_manifest(raw_index: str, target_platform: str) -> str:
+    expected = stock_platform_manifest(target_platform)
     try:
         document = json.loads(raw_index)
     except json.JSONDecodeError as failure:
@@ -260,17 +277,18 @@ def parse_stock_platform_manifest(raw_index: str) -> str:
             continue
         if (
             platform.get("os") == "linux"
-            and platform.get("architecture") == "amd64"
+            and platform.get("architecture") == target_platform.split("/")[1]
         ):
             matches.append(manifest.get("digest"))
-    if matches != [STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST]:
+    if matches != [expected]:
         raise SystemExit(
-            "WEAVE_KEYCLOAK_BUILD_ERROR stock Linux/AMD64 manifest digest mismatch"
+            "WEAVE_KEYCLOAK_BUILD_ERROR stock target platform manifest digest mismatch"
         )
-    return STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST
+    return expected
 
 
-def verify_stock_services() -> None:
+def verify_stock_services(platform: str) -> None:
+    reference = stock_platform_reference(platform)
     raw_index = run(
         "docker",
         "buildx",
@@ -280,23 +298,23 @@ def verify_stock_services() -> None:
         STOCK_KEYCLOAK_REFERENCE,
         capture=True,
     )
-    parse_stock_platform_manifest(raw_index)
+    parse_stock_platform_manifest(raw_index, platform)
     run(
         "docker",
         "pull",
         "--platform",
-        STOCK_KEYCLOAK_PLATFORM,
-        STOCK_KEYCLOAK_PLATFORM_REFERENCE,
+        platform,
+        reference,
     )
     observed = run(
         "docker",
         "run",
         "--rm",
         "--platform",
-        STOCK_KEYCLOAK_PLATFORM,
+        platform,
         "--entrypoint",
         "/usr/bin/sha256sum",
-        STOCK_KEYCLOAK_PLATFORM_REFERENCE,
+        reference,
         STOCK_SERVICES_PATH,
         capture=True,
     ).split()[0]
@@ -499,6 +517,7 @@ def build_image(
     patched_digest: str,
     build_evidence_digest: str,
     temporary: Path,
+    platform: str,
 ) -> tuple[str, str]:
     context = temporary / "image"
     context.mkdir(mode=0o700)
@@ -506,13 +525,12 @@ def build_image(
     created = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace(
         "+00:00", "Z"
     )
-    tag = f"weave-keycloak-runtime:{candidate[:12]}"
+    tag = f"weave-keycloak-runtime:{candidate[:12]}-{platform.split('/')[1]}"
     build_arguments = {
         # Build from the exact platform manifest, not the multi-platform index
-        # name. Docker Desktop/OrbStack can then keep the native ARM64 dogfood
-        # image and the AMD64 E2E image side by side without overwriting one
-        # digest reference with another platform.
-        "WEAVE_KEYCLOAK_BASE": STOCK_KEYCLOAK_PLATFORM_REFERENCE,
+        # name. Separate target references and tags prevent one architecture
+        # from overwriting another architecture's cached image.
+        "WEAVE_KEYCLOAK_BASE": stock_platform_reference(platform),
         "WEAVE_IMAGE_CREATED": created,
         "WEAVE_IMAGE_REVISION": candidate,
         "WEAVE_IMAGE_VERSION": f"{UPSTREAM_TAG}-weave.{candidate[:12]}",
@@ -521,10 +539,8 @@ def build_image(
         "WEAVE_KEYCLOAK_UPSTREAM_COMMIT": UPSTREAM_COMMIT,
         "WEAVE_KEYCLOAK_ARCHIVE_SHA256": ARCHIVE_SHA256,
         "WEAVE_KEYCLOAK_STOCK_INDEX_DIGEST": STOCK_KEYCLOAK_INDEX_DIGEST,
-        "WEAVE_KEYCLOAK_STOCK_PLATFORM": STOCK_KEYCLOAK_PLATFORM,
-        "WEAVE_KEYCLOAK_STOCK_PLATFORM_MANIFEST_DIGEST": (
-            STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST
-        ),
+        "WEAVE_KEYCLOAK_STOCK_PLATFORM": platform,
+        "WEAVE_KEYCLOAK_STOCK_PLATFORM_MANIFEST_DIGEST": stock_platform_manifest(platform),
         "WEAVE_KEYCLOAK_STOCK_SERVICES_SHA256": STOCK_SERVICES_SHA256,
         "WEAVE_KEYCLOAK_PATCH_SHA256": patch_digest,
         "WEAVE_PATCHED_SERVICES_SHA256": patched_digest,
@@ -535,7 +551,7 @@ def build_image(
         "build",
         "--pull=false",
         "--platform",
-        STOCK_KEYCLOAK_PLATFORM,
+        platform,
         "--tag",
         tag,
         "--file",
@@ -545,6 +561,11 @@ def build_image(
         command.extend(["--build-arg", f"{name}={value}"])
     command.append(str(context))
     run(*command)
+    observed_platform = run(
+        "docker", "image", "inspect", tag, "--format", "{{.Os}}/{{.Architecture}}", capture=True
+    )
+    if observed_platform != platform:
+        raise SystemExit("WEAVE_KEYCLOAK_BUILD_ERROR built image platform mismatch")
     image_id = run(
         "docker", "image", "inspect", tag, "--format", "{{.Id}}", capture=True
     )
@@ -575,12 +596,14 @@ def main() -> int:
     parser.add_argument("--candidate-commit")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--prepare-context", type=Path)
+    parser.add_argument("--platform", choices=tuple(STOCK_KEYCLOAK_MANIFESTS), default=DEFAULT_PLATFORM)
     args = parser.parse_args()
     repository = args.root.resolve()
     candidate = resolve_candidate(repository, args.candidate_commit)
     specification_commit, spec_digest = specification_pin(repository)
+    require_native_platform(args.platform)
     tag_commit = resolve_upstream_tag()
-    verify_stock_services()
+    verify_stock_services(args.platform)
     with tempfile.TemporaryDirectory(prefix="weave-keycloak-build-") as directory:
         temporary = Path(directory)
         (
@@ -600,10 +623,8 @@ def main() -> int:
             "upstreamCommit": UPSTREAM_COMMIT,
             "upstreamArchiveSha256": ARCHIVE_SHA256,
             "stockReference": STOCK_KEYCLOAK_REFERENCE,
-            "stockPlatform": STOCK_KEYCLOAK_PLATFORM,
-            "stockPlatformManifestDigest": (
-                STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST
-            ),
+            "stockPlatform": args.platform,
+            "stockPlatformManifestDigest": stock_platform_manifest(args.platform),
             "stockServicesJarSha256": STOCK_SERVICES_SHA256,
             "patchSha256": patch_digest,
             "patchedPaths": list(changed_paths),
@@ -641,6 +662,7 @@ def main() -> int:
                 patched_digest,
                 build_evidence_digest,
                 temporary,
+                args.platform,
             )
     evidence = {
         "schemaVersion": "weave.downstream-keycloak-image.v1",
@@ -652,8 +674,8 @@ def main() -> int:
         "upstreamCommit": UPSTREAM_COMMIT,
         "upstreamArchiveSha256": ARCHIVE_SHA256,
         "stockReference": STOCK_KEYCLOAK_REFERENCE,
-        "stockPlatform": STOCK_KEYCLOAK_PLATFORM,
-        "stockPlatformManifestDigest": STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST,
+        "stockPlatform": args.platform,
+        "stockPlatformManifestDigest": stock_platform_manifest(args.platform),
         "stockServicesJarSha256": STOCK_SERVICES_SHA256,
         "patchSha256": patch_digest,
         "patchedPaths": list(changed_paths),

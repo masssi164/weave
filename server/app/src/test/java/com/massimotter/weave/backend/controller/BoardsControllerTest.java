@@ -1,0 +1,237 @@
+package com.massimotter.weave.backend.controller;
+
+import com.massimotter.weave.backend.boards.api.BoardsController;
+
+import com.massimotter.weave.backend.support.HumanJwtTestSupport;
+import com.massimotter.weave.backend.audit.AuditEventPublisher;
+import com.massimotter.weave.backend.security.http.ApiAccessDeniedHandler;
+import com.massimotter.weave.backend.security.http.ApiAuthenticationEntryPoint;
+import com.massimotter.weave.backend.api.error.ApiErrorResponseWriter;
+import com.massimotter.weave.backend.boards.config.BoardsRuntimeConfiguration;
+import com.massimotter.weave.backend.security.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.config.SecurityConfig;
+import com.massimotter.weave.backend.security.config.WeaveSecurityProperties;
+import com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation.Settings;
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationDecision;
+import com.massimotter.weave.backend.spaces.authorization.ContextAuthorizationPort;
+import com.massimotter.weave.backend.spaces.authorization.ContextPermission;
+import com.massimotter.weave.backend.api.error.ApiExceptionHandler;
+import com.massimotter.weave.backend.boards.application.BoardsFacadeService;
+import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerAutoConfiguration;
+import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
+import org.springframework.boot.restclient.autoconfigure.RestClientAutoConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.web.servlet.MockMvc;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@WebMvcTest(
+        controllers = BoardsController.class,
+        excludeAutoConfiguration = OAuth2ResourceServerAutoConfiguration.class)
+@ImportAutoConfiguration(RestClientAutoConfiguration.class)
+@Import({
+        BoardsController.class,
+        com.massimotter.weave.backend.testing.WorkspaceCapabilityTestInstallation.Configuration.class,
+        OrganizationIdentityContextResolver.class,
+        SecurityConfig.class,
+        ApiAuthenticationEntryPoint.class,
+        ApiAccessDeniedHandler.class,
+        ApiErrorResponseWriter.class,
+        ApiExceptionHandler.class,
+        BoardsRuntimeConfiguration.class,
+        BoardsFacadeService.class,
+        WorkspaceCapabilityService.class
+})
+@TestPropertySource(properties = {
+        "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.invalid/realms/weave",
+        "weave.boards.workspace.runtime-enabled=true",
+        "weave.workspace.boards.enabled=true",
+        "weave.context.authorization.principal-claim=preferred_username"
+})
+@EnableConfigurationProperties({
+        ContextAuthorizationProperties.class,
+        Settings.class,
+        WeaveSecurityProperties.class,
+        OAuth2ResourceServerProperties.class
+})
+class BoardsControllerTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockitoBean
+    private JwtDecoder jwtDecoder;
+
+    @MockitoBean
+    private ContextAuthorizationPort contextAuthorizationPort;
+
+    @MockitoBean
+    private AuditEventPublisher auditEventPublisher;
+
+    @Test
+    void boardsWorkspaceRequiresAuthenticatedWorkspaceScope() throws Exception {
+        mockMvc.perform(get("/api/boards/workspace"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("unauthorized"));
+    }
+
+    @Test
+    void boardsWorkspaceReturnsProviderNeutralLocalFacadeSnapshot() throws Exception {
+        allowBoardsPermission(ContextPermission.VIEW);
+
+        mockMvc.perform(get("/api/boards/workspace")
+                        .with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.workspace").value(true))
+                .andExpect(jsonPath("$.releaseStatus").value("active-dogfood-production"))
+                .andExpect(jsonPath("$.source").value("local-workspace-backend-facade"))
+                .andExpect(jsonPath("$.capabilities.enabled").value(true))
+                .andExpect(jsonPath("$.syncMetadata.provider").value("in-memory"))
+                .andExpect(jsonPath("$.syncMetadata.mode").value("local-workspace-backend-facade"))
+                .andExpect(jsonPath("$.syncMetadata.userWriteAudited").value(true))
+                .andExpect(jsonPath("$.syncMetadata.contextScoped").value(true))
+                .andExpect(jsonPath("$.syncMetadata.supportSafe").value(true))
+                .andExpect(jsonPath("$.syncMetadata.nextCursors").isMap())
+                .andExpect(jsonPath("$.syncMetadata.lastSyncedAt").value("2026-05-14T18:00:00Z"))
+                .andExpect(jsonPath("$.projects[0].id").value("local-project-1"))
+                .andExpect(jsonPath("$.boards[0].id").value("local-board-1"))
+                .andExpect(jsonPath("$.boards[0].columns[0].semanticStatus").value("not_started"))
+                .andExpect(jsonPath("$.tasks.length()").value(greaterThanOrEqualTo(4)))
+                .andExpect(jsonPath("$.tasks[0].providerRefs[0].provider").value("in-memory"));
+    }
+
+    @Test
+    void boardsWorkspaceSupportsCreateMoveAndCompleteWithoutDragOnlyFlow() throws Exception {
+        allowBoardsPermission(ContextPermission.EDIT);
+        String createPayload = """
+                {
+                  "columnId": "local-column-todo",
+                  "title": "Write acceptance evidence",
+                  "description": "Created through the backend Boards workspace facade.",
+                  "assigneeRefs": ["workspace:member"],
+                  "labelRefs": ["evidence"]
+                }
+                """;
+
+        String response = mockMvc.perform(post("/api/boards/local-board-1/tasks")
+                        .with(workspaceJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createPayload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.boardId").value("local-board-1"))
+                .andExpect(jsonPath("$.columnId").value("local-column-todo"))
+                .andExpect(jsonPath("$.title").value("Write acceptance evidence"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String taskId = com.jayway.jsonpath.JsonPath.read(response, "$.id");
+
+        mockMvc.perform(post("/api/boards/tasks/{taskId}/move", taskId)
+                        .with(workspaceJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"targetColumnId\":\"local-column-active\",\"targetPosition\":0}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(taskId))
+                .andExpect(jsonPath("$.columnId").value("local-column-active"));
+
+        mockMvc.perform(post("/api/boards/tasks/{taskId}/status", taskId)
+                        .with(workspaceJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"blocked\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(taskId))
+                .andExpect(jsonPath("$.columnId").value("local-column-blocked"))
+                .andExpect(jsonPath("$.status").value("blocked"));
+
+        mockMvc.perform(post("/api/boards/tasks/{taskId}/decision-links", taskId)
+                        .with(workspaceJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"decisionRef\":\"decision:release-v0.1\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(taskId))
+                .andExpect(jsonPath("$.decisionRefs[0]").value("decision:release-v0.1"));
+
+        mockMvc.perform(post("/api/boards/tasks/{taskId}/complete", taskId)
+                        .with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(taskId))
+                .andExpect(jsonPath("$.columnId").value("local-column-done"))
+                .andExpect(jsonPath("$.status").value("completed"))
+                .andExpect(jsonPath("$.completedAt").exists());
+    }
+
+    @Test
+    void boardsWorkspaceUsesSupportSafeErrorsForUnknownTasks() throws Exception {
+        allowBoardsPermission(ContextPermission.EDIT);
+
+        mockMvc.perform(post("/api/boards/tasks/missing-task/complete")
+                        .with(workspaceJwt()))
+                .andExpect(status().isNotFound())
+                .andExpect(header().exists("X-Request-Id"))
+                .andExpect(jsonPath("$.code").value("boards-not_found"))
+                .andExpect(jsonPath("$.details.module").value("boards"))
+                .andExpect(jsonPath("$.details.workspace").value(true))
+                .andExpect(jsonPath("$.details.resource").value("task"));
+    }
+
+    @Test
+    void boardsWorkspaceFailsClosedWhenContextAuthorizationDeniesAccess() throws Exception {
+        when(contextAuthorizationPort.check(argThat(request ->
+                request != null
+                        && "tenant-default".equals(request.tenantId())
+                        && "workspace-default".equals(request.contextId())
+                        && "user:test".equals(request.principalRef())
+                        && request.permission() == ContextPermission.VIEW)))
+                .thenReturn(ContextAuthorizationDecision.deny("no matching context membership"));
+
+        mockMvc.perform(get("/api/boards/workspace")
+                        .with(workspaceJwt()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("boards-forbidden"))
+                .andExpect(jsonPath("$.details.module").value("boards"))
+                .andExpect(jsonPath("$.details.workspace").value(true))
+                .andExpect(jsonPath("$.details.contextId").value("workspace-default"))
+                .andExpect(jsonPath("$.details.permission").value("view"));
+    }
+
+    private void allowBoardsPermission(ContextPermission permission) {
+        when(contextAuthorizationPort.check(argThat(request ->
+                request != null
+                        && "tenant-default".equals(request.tenantId())
+                        && "workspace-default".equals(request.contextId())
+                        && "user:test".equals(request.principalRef())
+                        && request.permission() == permission)))
+                .thenReturn(ContextAuthorizationDecision.allow("test allow"));
+    }
+
+    private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwt() {
+        return jwt().jwt(jwt -> jwt
+                        .subject("user-123")
+                        .claim("iss", "https://auth.example.invalid/realms/weave")
+                        .claim("preferred_username", "test")
+                        .claim("weave_tenant_id", "tenant-default")
+                        .claim("aud", java.util.List.of("weave-app"))
+                        .claim("organization", HumanJwtTestSupport.organizationWithRole("admin")))
+                .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
+    }
+}

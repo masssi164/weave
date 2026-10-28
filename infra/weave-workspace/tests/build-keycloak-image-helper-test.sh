@@ -23,6 +23,7 @@ import stat
 import subprocess
 import sys
 from pathlib import Path
+from unittest.mock import patch as mock_patch
 
 repository = Path(os.environ["REPOSITORY_ROOT"])
 temporary = Path(os.environ["TEMP_ROOT"])
@@ -42,16 +43,15 @@ assert module.STOCK_KEYCLOAK_REFERENCE == (
     "quay.io/keycloak/keycloak@"
     "sha256:f1f1f01e472c8a78df40d8f2a49a925274eda4d3d80d5f6edbb5c880ee3c01c6"
 )
-assert module.STOCK_KEYCLOAK_PLATFORM == "linux/amd64"
-assert module.STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST == (
-    "sha256:7523ccfbd950f59783504cdf5a0138dae48746dfe36075bbfccdb5a9ee245ee2"
-)
-assert module.STOCK_KEYCLOAK_PLATFORM_REFERENCE == (
-    "quay.io/keycloak/keycloak@"
-    "sha256:7523ccfbd950f59783504cdf5a0138dae48746dfe36075bbfccdb5a9ee245ee2"
-)
+assert module.DEFAULT_PLATFORM == "linux/arm64"
+assert module.STOCK_KEYCLOAK_MANIFESTS == {
+    "linux/arm64": "sha256:89d56312ace1d9b0bf8168f1a92ea135ba185d2844285f7651cb50774e47c1d8",
+    "linux/amd64": "sha256:7523ccfbd950f59783504cdf5a0138dae48746dfe36075bbfccdb5a9ee245ee2",
+}
+for platform, digest in module.STOCK_KEYCLOAK_MANIFESTS.items():
+    assert module.stock_platform_reference(platform) == "quay.io/keycloak/keycloak@" + digest
 source = script.read_text(encoding="utf-8")
-assert '"WEAVE_KEYCLOAK_BASE": STOCK_KEYCLOAK_PLATFORM_REFERENCE' in source
+assert '"WEAVE_KEYCLOAK_BASE": stock_platform_reference(platform)' in source
 patch_source = (repository / module.PATCH_RELATIVE).read_text(encoding="utf-8")
 assert hashlib.sha256((repository / module.PATCH_RELATIVE).read_bytes()).hexdigest() == module.PATCH_SHA256
 assert '+        URI frontendUri = context.getUri(UrlType.FRONTEND).getBaseUri();' in patch_source
@@ -107,59 +107,42 @@ for invalid_resolution in (
     else:
         raise AssertionError("Keycloak builder accepted an invalid upstream tag resolution")
 
-valid_index = json.dumps(
-    {
-        "schemaVersion": 2,
-        "manifests": [
-            {
-                "digest": "sha256:" + "8" * 64,
-                "platform": {"os": "linux", "architecture": "arm64"},
-            },
-            {
-                "digest": module.STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST,
-                "platform": {"os": "linux", "architecture": "amd64"},
-            },
-        ],
-    }
-)
-assert module.parse_stock_platform_manifest(valid_index) == (
-    module.STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST
-)
-for invalid_index in (
-    "not-json",
-    "[]",
-    json.dumps({"schemaVersion": 2}),
-    json.dumps(
-        {
-            "manifests": [
-                {
-                    "digest": "sha256:" + "9" * 64,
-                    "platform": {"os": "linux", "architecture": "amd64"},
-                }
-            ]
-        }
-    ),
-    json.dumps(
-        {
-            "manifests": [
-                {
-                    "digest": module.STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST,
-                    "platform": {"os": "linux", "architecture": "amd64"},
-                },
-                {
-                    "digest": module.STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST,
-                    "platform": {"os": "linux", "architecture": "amd64"},
-                },
-            ]
-        }
-    ),
-):
-    try:
-        module.parse_stock_platform_manifest(invalid_index)
-    except SystemExit:
-        pass
-    else:
-        raise AssertionError("Keycloak builder accepted an invalid platform manifest")
+valid_index = json.dumps({"schemaVersion": 2, "manifests": [
+    {"digest": digest, "platform": {"os": "linux", "architecture": platform.split("/")[1]}}
+    for platform, digest in module.STOCK_KEYCLOAK_MANIFESTS.items()
+]})
+for platform, digest in module.STOCK_KEYCLOAK_MANIFESTS.items():
+    assert module.parse_stock_platform_manifest(valid_index, platform) == digest
+    entry = {"digest": digest, "platform": {"os": "linux", "architecture": platform.split("/")[1]}}
+    for invalid_index in (
+        "not-json", "[]", json.dumps({"schemaVersion": 2}),
+        json.dumps({"manifests": [{**entry, "digest": "sha256:" + "9" * 64}]}),
+        json.dumps({"manifests": [entry, entry]}),
+        json.dumps({"manifests": []}),
+    ):
+        try:
+            module.parse_stock_platform_manifest(invalid_index, platform)
+        except SystemExit:
+            pass
+        else:
+            raise AssertionError("Keycloak builder accepted an invalid platform manifest")
+    for native in (platform, {"linux/arm64": "linux/aarch64", "linux/amd64": "linux/x86_64"}[platform]):
+        with mock_patch.object(module, "run", return_value=native):
+            module.require_native_platform(platform)
+    other = "linux/amd64" if platform == "linux/arm64" else "linux/arm64"
+    with mock_patch.object(module, "run", return_value=other):
+        try:
+            module.require_native_platform(platform)
+        except SystemExit:
+            pass
+        else:
+            raise AssertionError("Keycloak builder allowed an emulated target")
+try:
+    module.stock_platform_manifest("linux/ppc64le")
+except SystemExit:
+    pass
+else:
+    raise AssertionError("Keycloak builder allowed an unsupported target")
 try:
     module.resolve_candidate(repository, "1" * 40)
 except SystemExit as failure:
@@ -181,8 +164,8 @@ projection = {
     "upstreamCommit": module.UPSTREAM_COMMIT,
     "upstreamArchiveSha256": module.ARCHIVE_SHA256,
     "stockReference": module.STOCK_KEYCLOAK_REFERENCE,
-    "stockPlatform": module.STOCK_KEYCLOAK_PLATFORM,
-    "stockPlatformManifestDigest": module.STOCK_KEYCLOAK_PLATFORM_MANIFEST_DIGEST,
+    "stockPlatform": module.DEFAULT_PLATFORM,
+    "stockPlatformManifestDigest": module.stock_platform_manifest(module.DEFAULT_PLATFORM),
     "stockServicesJarSha256": module.STOCK_SERVICES_SHA256,
     "patchSha256": module.PATCH_SHA256,
     "patchedPaths": list(module.PATCHED_PATHS),
@@ -249,6 +232,23 @@ subprocess.run(
     stdout=subprocess.PIPE,
     text=True,
 )
+valid_evidence = json.loads(evidence.read_text(encoding="utf-8"))
+for platform, digest in module.STOCK_KEYCLOAK_MANIFESTS.items():
+    selected = json.loads(json.dumps(valid_evidence))
+    selected["stockPlatform"] = selected["canonicalBuildEvidence"]["stockPlatform"] = platform
+    selected["stockPlatformManifestDigest"] = selected["canonicalBuildEvidence"]["stockPlatformManifestDigest"] = digest
+    canonical = json.dumps(selected["canonicalBuildEvidence"], ensure_ascii=False,
+                           separators=(",", ":"), sort_keys=True).encode("utf-8")
+    selected["canonicalBuildEvidenceDigest"] = "sha256:" + hashlib.sha256(canonical).hexdigest()
+    module.atomic_write(evidence, selected)
+    command = [sys.executable, str(verifier), "--evidence", str(evidence),
+               "--candidate-commit", candidate, "--specification-commit", specification_commit]
+    subprocess.run([*command, "--platform", platform], check=True, capture_output=True, text=True)
+    other = "linux/amd64" if platform == "linux/arm64" else "linux/arm64"
+    rejected = subprocess.run([*command, "--platform", other], capture_output=True, text=True)
+    assert rejected.returncode != 0
+    assert "evidence identity is inconsistent" in rejected.stderr
+module.atomic_write(evidence, valid_evidence)
 tampered = json.loads(evidence.read_text(encoding="utf-8"))
 tampered["canonicalBuildEvidence"]["specificationLockDigest"] = (
     "sha256:" + "5" * 64
@@ -369,6 +369,41 @@ except SystemExit as failure:
     assert "already exists" in str(failure)
 else:
     raise AssertionError("Keycloak builder overwrote a prepared build context")
+
+for platform in module.STOCK_KEYCLOAK_MANIFESTS:
+    calls = []
+    image_root = temporary / (platform.split("/")[1] + "-image")
+    image_root.mkdir()
+    def fake_run(*command, **kwargs):
+        calls.append(command)
+        if command[:2] == ("docker", "build"):
+            return ""
+        if command[:3] == ("docker", "image", "inspect"):
+            return platform if command[-1] == "{{.Os}}/{{.Architecture}}" else "sha256:" + "7" * 64
+        raise AssertionError(command)
+    with mock_patch.object(module, "run", side_effect=fake_run):
+        tag, image_id = module.build_image(repository, candidate, specification_commit,
+            "sha256:" + "1" * 64, services, module.PATCH_SHA256, module.PATCHED_SERVICES_SHA256,
+            "sha256:" + "2" * 64, image_root, platform)
+    assert tag.endswith("-" + platform.split("/")[1])
+    assert image_id == "sha256:" + "7" * 64
+    build = calls[0]
+    assert build[build.index("--platform") + 1] == platform
+    assert "WEAVE_KEYCLOAK_BASE=" + module.stock_platform_reference(platform) in build
+    assert "WEAVE_KEYCLOAK_STOCK_PLATFORM=" + platform in build
+    assert "WEAVE_KEYCLOAK_STOCK_PLATFORM_MANIFEST_DIGEST=" + module.stock_platform_manifest(platform) in build
+
+wrong_root = temporary / "wrong-platform-image"
+wrong_root.mkdir()
+with mock_patch.object(module, "run", side_effect=["", "linux/amd64"]):
+    try:
+        module.build_image(repository, candidate, specification_commit,
+            "sha256:" + "1" * 64, services, module.PATCH_SHA256, module.PATCHED_SERVICES_SHA256,
+            "sha256:" + "2" * 64, wrong_root, "linux/arm64")
+    except SystemExit as failure:
+        assert "built image platform mismatch" in str(failure)
+    else:
+        raise AssertionError("Keycloak builder accepted the wrong resulting architecture")
 PY
 
 printf 'build-keycloak-image-helper-test: ok\n'

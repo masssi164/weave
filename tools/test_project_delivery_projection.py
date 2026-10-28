@@ -107,7 +107,7 @@ class ProjectionTest(unittest.TestCase):
         self.mocks[3].side_effect = prepared
         self.assertEqual(self.verify()['ownerHIL'], 'pending')
         self.mocks[4].assert_not_called()
-        for field, value in [('ownerHIL', 'passed'), ('schemaVersion', 'weave.hil-preparation/v3')]:
+        for field, value in [('humanAcceptance', 'passed'), ('schemaVersion', 'weave.hil-preparation/v3')]:
             previous = receipt[field]; receipt[field] = value
             with self.assertRaisesRegex(ValueError, 'Incomplete physical startup'): self.verify()
             receipt[field] = previous
@@ -170,10 +170,10 @@ class ProjectionTest(unittest.TestCase):
         self.patches[4].stop()
         comment = {'id': 100, 'user': {'login': 'masssi164'}, 'author_association': 'OWNER',
                    'created_at': '2026-10-11T12:00:00Z', 'updated_at': '2026-10-11T12:00:00Z'}
-        for role in ('owner', 'admin', 'member'):
-            self.mocks[5].return_value = [{**comment, 'body': HUMAN.replace('actor-role: owner', 'actor-role: ' + role)}]
-            self.assertEqual(self.verify('Main')['ownerHIL'], 'passed')
-        for body in (HUMAN.replace('actor-role: owner\n', ''), HUMAN.replace('actor-role: owner', 'actor-role: guest'),
+        self.mocks[5].return_value = [{**comment, 'body': HUMAN}]
+        self.assertEqual(self.verify('Main')['ownerHIL'], 'passed')
+        for body in (HUMAN.replace('actor-role: member\n', ''), HUMAN.replace('actor-role: member', 'actor-role: guest'),
+                     HUMAN.replace('actor-role: member', 'actor-role: owner'), HUMAN.replace('actor-role: member', 'actor-role: admin'),
                      HUMAN.replace('Weave human test v2', 'Weave human test v1')):
             self.mocks[5].return_value = [{**comment, 'body': body}]
             with self.assertRaisesRegex(ValueError, 'human acceptance'): self.verify('Main')
