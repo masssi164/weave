@@ -1,0 +1,27 @@
+name: Navigation source snapshot
+on:
+  push:
+    branches: [diagnostic/verify-first-ghcr-publication-20261028]
+    paths: [.github/workflows/navigation-source-snapshot.yml]
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: 20e1791ce32ea100c5d519a547bb2559876b847b
+          persist-credentials: false
+      - name: Archive only committed public source
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 20e1791ce32ea100c5d519a547bb2559876b847b
+          git archive --format=zip --output="$RUNNER_TEMP/navigation-source.zip" HEAD
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: navigation-source-20e1791
+          path: ${{ runner.temp }}/navigation-source.zip
+          retention-days: 1
+          if-no-files-found: error
