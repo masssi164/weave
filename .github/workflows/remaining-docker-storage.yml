@@ -1,0 +1,59 @@
+name: Remaining Docker storage inventory
+on:
+  push:
+    branches: [diagnostic/cache-prune-preflight-20261028]
+    paths: [.github/workflows/remaining-docker-storage.yml]
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    concurrency:
+      group: weave-live-mac-mini-exclusive
+      cancel-in-progress: false
+    timeout-minutes: 5
+    steps:
+      - name: Read bounded cache and isolated-volume metadata without opening volume contents
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, re, shutil, subprocess
+          from pathlib import Path
+          if os.environ.get('RUNNER_NAME') != 'weave-live-mac-mini':
+              raise SystemExit('Wrong runner')
+          def run(command):
+              return subprocess.check_output(command, text=True, timeout=60)
+          def docker(*args):
+              return run(['docker', *args])
+          context = docker('context', 'show').strip()
+          endpoint = json.loads(docker('context', 'inspect', context))[0]['Endpoints']['docker']['Host']
+          if not endpoint.startswith('unix:///') or any(os.environ.get(k) for k in ('DOCKER_HOST','DOCKER_CONTEXT')):
+              raise SystemExit('Unexpected Docker endpoint')
+          fmt = '{"id":{{json .ID}},"shared":{{json .Shared}},"reclaimable":{{json .Reclaimable}},"size":{{json .Size}}}'
+          cache = [json.loads(line) for line in docker('buildx', 'du', '--format', fmt).splitlines() if line.strip()]
+          used = set()
+          for identifier in docker('ps', '-aq').split():
+              for mount in json.loads(docker('inspect', identifier))[0].get('Mounts', []):
+                  if mount.get('Type') == 'volume':
+                      used.add(mount['Name'])
+          volumes = []
+          for name in docker('volume', 'ls', '-q', '--filter', 'label=com.massimotter.weave.namespace').split():
+              value = json.loads(docker('volume', 'inspect', name))[0]
+              labels = value.get('Labels') or {}
+              namespace = labels.get('com.massimotter.weave.namespace', '')
+              if not re.fullmatch(r'weave-e2e-[0-9a-f]{16}', namespace):
+                  continue
+              volumes.append({'name': name, 'namespace': namespace, 'referenced': name in used,
+                  'driver': value.get('Driver'), 'scope': value.get('Scope'), 'options': bool(value.get('Options')),
+                  'labels': {key.removeprefix('com.massimotter.weave.'): val for key,val in labels.items()
+                             if key in {'com.massimotter.weave.managed','com.massimotter.weave.environment',
+                                        'com.massimotter.weave.scope','com.massimotter.weave.candidate-commit',
+                                        'com.massimotter.weave.candidate-manifest-digest','com.massimotter.weave.component'}}})
+          report = {'readOnly': True, 'freeBytes': shutil.disk_usage(Path(os.environ['GITHUB_WORKSPACE'])).free,
+                    'buildCache': cache, 'isolatedVolumes': volumes,
+                    'swapUsage': run(['sysctl', '-n', 'vm.swapusage']).strip()}
+          print(json.dumps(report, sort_keys=True))
+          # Docker's summary contains only resource counts and byte totals.
+          print(docker('system', 'df'), flush=True)
+          PY
