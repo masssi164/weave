@@ -99,26 +99,26 @@ def anonymous_access(package, digest):
     return "denied", status
 
 
-def package_visibility(token, packages):
-    headers = {"Authorization": "Bearer " + token, "Accept": "application/vnd.github+json",
-               "X-GitHub-Api-Version": "2022-11-28"}
+def package_visibility(packages):
+    """Read known public packages, not the token-scoped user package collection.
+
+    GitHub documents GET /users/{username}/packages/{package_type}/{package_name}
+    for public package metadata. No credential or account-wide listing is needed.
+    This bounded fallback verifier does not infer privacy from a failed response.
+    """
+    headers = {"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2026-03-10"}
     result = {}
-    for page in range(1, 11):
-        query = urlencode({"package_type": "container", "per_page": 100, "page": page})
-        status, _, _, values = request_json("https://api.github.com/users/masssi164/packages?" + query, headers)
-        require(status == 200 and isinstance(values, list), "package-metadata-unavailable")
-        for item in values:
-            if not isinstance(item, dict) or item.get("name") not in packages:
-                continue
-            require(item["name"] not in result and item.get("package_type") == "container"
-                    and item.get("visibility") in {"private", "public"}
-                    and item.get("owner", {}).get("login") == "masssi164", "package-metadata-rejected")
-            result[item["name"]] = item["visibility"]
-        if set(result) == packages:
-            return result
-        if len(values) < 100:
-            break
-    raise VerificationFailure("package-metadata-incomplete")
+    for package in sorted(packages):
+        require(re.fullmatch(r"weave-private-ci-[a-z-]+", package), "package-target-rejected")
+        status, _, _, item = request_json(
+            "https://api.github.com/users/masssi164/packages/container/" + package, headers)
+        require(status == 200, f"public-package-metadata-http-{status}")
+        require(isinstance(item, dict) and item.get("name") == package
+                and item.get("package_type") == "container" and item.get("visibility") == "public"
+                and isinstance(item.get("owner"), dict) and item["owner"].get("login") == "masssi164",
+                "public-package-metadata-rejected")
+        result[package] = item["visibility"]
+    return result
 
 
 def verify(audit):
@@ -227,7 +227,7 @@ def verify(audit):
             access, status = anonymous_access(package, reference[len(prefix):])
             audit["images"][component] = {"reference": reference, "anonymousAccess": access,
                                           "anonymousHttpStatus": status, "visibility": "unproved"}
-        visibility = package_visibility(token, set(packages.values()))
+        visibility = package_visibility(set(packages.values()))
         for component, package in packages.items():
             image = audit["images"][component]
             image["visibility"] = visibility[package]
