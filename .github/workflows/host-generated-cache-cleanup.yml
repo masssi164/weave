@@ -1,0 +1,83 @@
+name: Clean regenerable host build residues
+on:
+  push:
+    branches: [diagnostic/cache-prune-preflight-20261028]
+    paths: [.github/workflows/host-generated-cache-cleanup.yml]
+permissions:
+  contents: read
+jobs:
+  cleanup:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/cache-prune-preflight-20261028'
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    timeout-minutes: 8
+    concurrency:
+      group: weave-live-mac-mini-exclusive
+      cancel-in-progress: false
+    steps:
+      - name: Remove only measured regenerable caches while no build is active
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, shutil, subprocess, time
+          from pathlib import Path
+          def require(value, reason):
+              if not value:
+                  raise RuntimeError(reason)
+          require(os.environ.get('RUNNER_NAME') == 'weave-live-mac-mini', 'unexpected-runner')
+          home = Path.home().resolve(strict=True)
+          workspace = Path(os.environ['GITHUB_WORKSPACE'])
+          require(workspace.is_dir() and not workspace.is_symlink(), 'invalid-workspace')
+          def idle():
+              commands = subprocess.check_output(['ps', '-axo', 'command='], text=True)
+              require(not any(word in commands for word in ('GradleDaemon', 'GradleWrapperMain',
+                  '/xcodebuild ', '/flutter_tools.snapshot build', '/Xcode.app/Contents/MacOS/Xcode')),
+                  'build-or-xcode-process-active')
+          def verified(relative):
+              path = home / relative
+              for parent in (path, *path.parents):
+                  if parent == home:
+                      break
+                  require(not parent.is_symlink(), 'symlink-in-cache-path')
+              require(path.resolve().is_relative_to(home), 'cache-outside-home')
+              return path
+          def amount(path):
+              result = subprocess.run(['du', '-sk', str(path)], capture_output=True, text=True, timeout=60)
+              require(result.returncode == 0, 'cache-measurement-failed')
+              return int(result.stdout.split()[0]) * 1024
+          before = shutil.disk_usage(workspace).free
+          report = {'freeBytesBefore': before, 'removed': [], 'preservedCurrentGradle': '8.14.3',
+                    'dockerMutations': False, 'simulatorDevicesDeleted': False}
+          # The actual pinned wrapper uses 8.14.3. Keep its distribution and dependencies.
+          targets = [('obsolete-gradle-8.7', '.gradle/wrapper/dists/gradle-8.7-all', 512*1024**2),
+                     ('xcode-derived-data', 'Library/Developer/Xcode/DerivedData', 2*1024**3)]
+          for label, relative, limit in targets:
+              idle()
+              path = verified(relative)
+              if not path.exists():
+                  continue
+              require(path.is_dir(), 'cache-is-not-directory')
+              size = amount(path)
+              require(size <= limit, 'cache-grew-outside-observed-bound')
+              if label == 'xcode-derived-data':
+                  # DerivedData holds rebuildable products/indexes. Never touch Archives,
+                  # CoreSimulator device data, provisioning profiles, or source checkouts.
+                  for child in path.iterdir():
+                      require(not child.is_symlink(), 'unexpected-derived-data-symlink')
+                  for child in list(path.iterdir()):
+                      if child.is_dir():
+                          shutil.rmtree(child)
+                      elif child.is_file():
+                          child.unlink()
+                      else:
+                          raise RuntimeError('unexpected-derived-data-entry')
+              else:
+                  shutil.rmtree(path)
+              report['removed'].append({'category': label, 'measuredBytes': size})
+              print(json.dumps({'stage': 'cleaned', 'category': label, 'freeBytes': shutil.disk_usage(workspace).free}), flush=True)
+          time.sleep(5)
+          after = shutil.disk_usage(workspace).free
+          report.update(freeBytesAfter=after, freedHostBytes=after-before,
+                        meets20GiB=after >= 20*1024**3, status='completed')
+          print(json.dumps(report, sort_keys=True), flush=True)
+          PY
