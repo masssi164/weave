@@ -18,13 +18,8 @@ jobs:
       WEAVE_ENV_FILE: ${{ vars.WEAVE_DOGFOOD_REVIEWED_ENV_FILE }}
       PYTHONDONTWRITEBYTECODE: '1'
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
-        with:
-          ref: 190799c721343a2f21e1b68181f39cb8c87bea6a
-          path: member-conflict-source
-          persist-credentials: false
       - name: Classify only the existing two-slot plan and matching intent history
-        working-directory: member-conflict-source
+        working-directory: weave
         shell: bash
         run: |
           set -euo pipefail
@@ -43,14 +38,17 @@ jobs:
           def quote(value):
               require(isinstance(value, str) and len(value)<1000 and '\0' not in value)
               return "'" + value.replace("'", "''") + "'"
-          stage = 'preflight'
+          stage = 'source-preflight'
           try:
               require(os.environ.get('RUNNER_NAME') == 'weave-live-mac-mini')
               require(run(['git','rev-parse','HEAD']).strip() == os.environ['WEAVE_CANDIDATE_COMMIT'])
+              stage = 'reviewed-context'
               context = load_context('dogfood', Path.cwd() / 'infra/weave-workspace', os.environ['WEAVE_ENV_FILE'])
               require(context.environment == 'dogfood' and context.isolated_namespace is None)
               fixture = Path.home() / '.weave/dogfood/functional-smoke-identities.json'
+              stage = 'session-lock'
               with _dogfood_session_lock(context):
+                  stage = 'private-plan'
                   ledger = private_read(ledger_for(fixture), 65536)
                   plan = operator_plan(ledger['plan'], context)
                   def container(service):
@@ -61,8 +59,10 @@ jobs:
                       labels = record['Config']['Labels']
                       require(labels.get('com.massimotter.weave.candidate-commit') == os.environ['WEAVE_CANDIDATE_COMMIT'])
                       return ids[0]
+                  stage = 'backend-identity'
                   container('backend')
-                  db = container('db')
+                  stage = 'database-identity'
+                  db = container('postgres')
                   name = context.env.get('WEAVE_BACKEND_DB_NAME','weave_backend')
                   require(re.fullmatch('[A-Za-z_][A-Za-z0-9_]{0,62}', name))
                   receipt = ledger.get('operatorEnvelope',{}).get('receipt',{})
