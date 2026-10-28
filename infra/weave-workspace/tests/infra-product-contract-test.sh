@@ -217,3 +217,6 @@ reject "${REPO_ROOT}/server/core/src/main/java/com/massimotter/weave/backend/ide
 reject "${REPO_ROOT}/server/app/src/main/java/com/massimotter/weave/backend/config/SecurityConfig.java" '/api/internal/keycloak/events'
 
 printf 'V01_INFRA_CONTROL_PLANE_BOOTSTRAP status=passed infrastructure product contract tests passed\n'
+
+# Exercise the real initializer command for selected and omitted domains.
+python3 "${ROOT_DIR}/tests/agent_runtime_key_selection_test.py"
