@@ -1,0 +1,90 @@
+name: Diagnose persistent member preparation conflict
+on:
+  push:
+    branches: [diagnostic/dual-ios-source-20261028]
+    paths: [.github/workflows/member-preparation-conflict-once.yml]
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/dual-ios-source-20261028'
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    concurrency:
+      group: weave-live-mac-mini-exclusive
+      cancel-in-progress: false
+    timeout-minutes: 5
+    env:
+      WEAVE_CANDIDATE_COMMIT: 190799c721343a2f21e1b68181f39cb8c87bea6a
+      WEAVE_ENV_FILE: ${{ vars.WEAVE_DOGFOOD_REVIEWED_ENV_FILE }}
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: 190799c721343a2f21e1b68181f39cb8c87bea6a
+          path: member-conflict-source
+          persist-credentials: false
+      - name: Classify only the existing two-slot plan and matching intent history
+        working-directory: member-conflict-source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, re, subprocess, sys
+          from pathlib import Path
+          sys.path.insert(0, str(Path.cwd() / 'tools'))
+          from dogfood_prepare import private_read, ledger_for, load_context, operator_plan
+          from compose_runtime import _dogfood_session_lock
+          def require(ok):
+              if not ok: raise ValueError('bounded-diagnostic-precondition')
+          def run(args, data=None):
+              r = subprocess.run(args, input=data, capture_output=True, text=True, timeout=20)
+              require(r.returncode == 0 and len(r.stdout) < 1024*1024)
+              return r.stdout
+          def quote(value):
+              require(isinstance(value, str) and len(value)<1000 and '\0' not in value)
+              return "'" + value.replace("'", "''") + "'"
+          stage = 'preflight'
+          try:
+              require(os.environ.get('RUNNER_NAME') == 'weave-live-mac-mini')
+              require(run(['git','rev-parse','HEAD']).strip() == os.environ['WEAVE_CANDIDATE_COMMIT'])
+              context = load_context('dogfood', Path.cwd() / 'infra/weave-workspace', os.environ['WEAVE_ENV_FILE'])
+              require(context.environment == 'dogfood' and context.isolated_namespace is None)
+              fixture = Path.home() / '.weave/dogfood/functional-smoke-identities.json'
+              with _dogfood_session_lock(context):
+                  ledger = private_read(ledger_for(fixture), 65536)
+                  plan = operator_plan(ledger['plan'], context)
+                  def container(service):
+                      ids = run(['docker','ps','--filter','label=com.docker.compose.project='+context.env['WEAVE_COMPOSE_PROJECT'],
+                                 '--filter','label=com.docker.compose.service='+service,'-q','--no-trunc']).splitlines()
+                      require(len(ids)==1 and re.fullmatch('[0-9a-f]{64}',ids[0]))
+                      record = json.loads(run(['docker','inspect',ids[0]]))[0]
+                      labels = record['Config']['Labels']
+                      require(labels.get('com.massimotter.weave.candidate-commit') == os.environ['WEAVE_CANDIDATE_COMMIT'])
+                      return ids[0]
+                  container('backend')
+                  db = container('db')
+                  name = context.env.get('WEAVE_BACKEND_DB_NAME','weave_backend')
+                  require(re.fullmatch('[A-Za-z_][A-Za-z0-9_]{0,62}', name))
+                  receipt = ledger.get('operatorEnvelope',{}).get('receipt',{})
+                  print(json.dumps({'stage':'ledger','fixturePresent':fixture.exists(),
+                      'hasGrantEvidence':bool(ledger.get('lastGrantsEnvelope')),
+                      'hasFixtureBinding':bool(ledger.get('fixtureSha256')),
+                      'hasRegistrationProgress':bool(ledger.get('registrationState')),
+                      'previousMembers':[{'slot':m.get('slot'),'hasIntent':bool(m.get('intentRef')),
+                          'hasInvitation':bool(m.get('invitationHandle')),'hasAccount':bool(m.get('accountRef')),
+                          'hasGrant':bool(m.get('grantVersion'))} for m in receipt.get('members',[])],
+                      'supportSafe':True},sort_keys=True))
+                  stage = 'intent-history'
+                  for member in plan['members']:
+                      actor = 'operator:dogfood-prepare:'+plan['planId']
+                      sql = "SELECT coalesce(json_agg(json_build_object('status',status,'roleMember',requested_role='member','providerInvitationPresent',provider_invitation_id IS NOT NULL,'appliedIdentityPresent',applied_subject IS NOT NULL,'issuerRecognized',invited_by_issuer IN ('urn:weave:dogfood-operator','urn:weave:dogfood-managed-fixture'),'actorMatches',invited_by_subject="+quote(actor)+",'correlationMatches',audit_correlation="+quote(member['invitationIdempotencyKey'])+",'expired',expires_at < now(),'tenantMatches',tenant_id="+quote(receipt.get('organizationId') or '')+")), '[]'::json) FROM weave_identity_provisioning_intents WHERE lower(invited_email)=lower("+quote(member['email'])+");"
+                      rows = json.loads(run(['docker','exec','-i','-e','PGOPTIONS=-c default_transaction_read_only=on',db,
+                          'sh','-c','exec psql -X -qAt -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$1"','sh',name],
+                          'BEGIN READ ONLY; SET LOCAL statement_timeout=5000; '+sql+' ROLLBACK;'))
+                      require(isinstance(rows,list) and len(rows)<=20)
+                      require(all(x.get('status') in {'PENDING','APPLIED','FAILED','EXPIRED','CANCELLED','REVOKED'} for x in rows))
+                      print(json.dumps({'stage':stage,'slot':member['slot'],'records':rows,'readOnly':True,'supportSafe':True},sort_keys=True))
+          except Exception:
+              print(json.dumps({'status':'blocked','stage':stage,'supportSafe':True}))
+              raise SystemExit(1)
+          PY
