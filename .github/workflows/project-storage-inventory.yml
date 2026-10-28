@@ -66,7 +66,7 @@ jobs:
               "native_files_data": ("files-native", "collaboration-sensitive"),
           }
           STAGES = {"derived-data", "derived-root", "derived-entries", "volumes", "docker-context", "container-list", "container-inspect", "volume-list", "volume-inspect", "reference-recheck"}
-          REASONS = {"unsafe-root", "entry-limit", "local-engine-unproven", "container-list-unavailable", "container-shape-rejected", "container-identities-incomplete", "volume-list-unavailable", "volume-shape-rejected", "volume-identities-incomplete", "inventory-changed", "command-or-json-unavailable", "unexpected-shape"}
+          REASONS = {"unsafe-root", "entry-limit", "time-limit", "local-engine-unproven", "container-list-unavailable", "container-shape-rejected", "container-identities-incomplete", "volume-list-unavailable", "volume-shape-rejected", "volume-identities-incomplete", "inventory-changed", "command-or-json-unavailable", "unexpected-shape"}
           
           
           class InventoryFailure(ValueError):
@@ -78,7 +78,8 @@ jobs:
               progress = {"status": "pending", "stage": name}
               try:
                   result = collector(progress)
-                  result.pop("stage", None)
+                  if result.get("status") == "complete":
+                      result.pop("stage", None)
                   return result
               except Exception as error:
                   progress["status"] = "unavailable"
@@ -226,13 +227,18 @@ jobs:
               progress["stage"] = "derived-entries"
               entries = []
               progress["entries"] = entries
+              limit_reached = False
               with os.scandir(root) as iterator:
                   children = []
                   for item in iterator:
+                      if len(children) == 256:
+                          limit_reached = True
+                          break
                       children.append(Path(item.path))
-                      if len(children) > 40:
-                          raise InventoryFailure("entry-limit")
               for path in sorted(children):
+                  if time.monotonic() >= DEADLINE:
+                      progress["reason"] = "time-limit"
+                      break
                   row = {"identityHash": digest(str(path)), "allocatedBytes": None, "projectAssociation": "unknown", "associationReason": "entry-unavailable",
                          "workspaceKind": "unknown", "currentCheckoutCommit": None, "openFileState": "not-checked",
                          "exclusiveProjectUseVerified": False}
@@ -250,9 +256,14 @@ jobs:
                   if row["projectAssociation"] == "verified-weave-workspace":
                       row["openFileState"] = open_file_state(path)
               progress["entryCount"] = len(entries)
+              progress["entryLimitReached"] = limit_reached
               progress["associatedEntryCount"] = sum(row["projectAssociation"] == "verified-weave-workspace" for row in entries)
               progress["sumOfKnownAssociatedAllocatedBytes"] = sum(row["allocatedBytes"] for row in entries if row["projectAssociation"] == "verified-weave-workspace" and row["allocatedBytes"] is not None)
-              progress["status"] = "complete"
+              if time.monotonic() >= DEADLINE:
+                  progress["reason"] = "time-limit"
+              elif limit_reached:
+                  progress["reason"] = "entry-limit"
+              progress["status"] = "partial" if "reason" in progress else "complete"
               return progress
           
           
@@ -304,12 +315,14 @@ jobs:
               references, isolated_containers = {}, []
               progress["isolatedContainers"] = isolated_containers
               progress["stage"] = "container-inspect"
-              projection = '{"id":{{json .Id}},"namespace":{{json (index .Config.Labels "com.massimotter.weave.namespace")}},"project":{{json (index .Config.Labels "com.docker.compose.project")}},"mounts":[{{range $i,$mount := .Mounts}}{{if $i}},{{end}}{"type":{{json $mount.Type}},"name":{{json $mount.Name}}}{{end}}]}'
+              projection = '{"id":{{json .Id}},"namespace":{{json (index .Config.Labels "com.massimotter.weave.namespace")}},"project":{{json (index .Config.Labels "com.docker.compose.project")}},"mounts":[{{range $i,$mount := .Mounts}}{{if $i}},{{end}}{"type":{{json $mount.Type}},"name":{{if eq $mount.Type "volume"}}{{json $mount.Name}}{{else}}null{{end}}}{{end}}]}'
               sorted_ids = sorted(identities)
               for offset in range(0, len(sorted_ids), 40):
                   batch = sorted_ids[offset:offset + 40]
                   records = objects(command(["docker", "container", "inspect", "--format", projection, *batch]))
-                  if records is None or len(records) != len(batch) or any(not isinstance(row, dict) for row in records) or {row.get("id") for row in records} != set(batch):
+                  if records is None:
+                      raise InventoryFailure("command-or-json-unavailable")
+                  if len(records) != len(batch) or any(not isinstance(row, dict) for row in records) or {row.get("id") for row in records} != set(batch):
                       raise InventoryFailure("container-identities-incomplete")
                   for row in records:
                       mounts = row.get("mounts")
@@ -341,7 +354,9 @@ jobs:
               for offset in range(0, len(sorted_names), 40):
                   batch = sorted_names[offset:offset + 40]
                   records = objects(command(["docker", "volume", "inspect", "--format", projection, *batch]))
-                  if records is None or len(records) != len(batch) or any(not isinstance(item, dict) for item in records) or {item.get("name") for item in records} != set(batch):
+                  if records is None:
+                      raise InventoryFailure("command-or-json-unavailable")
+                  if len(records) != len(batch) or any(not isinstance(item, dict) for item in records) or {item.get("name") for item in records} != set(batch):
                       raise InventoryFailure("volume-identities-incomplete")
                   for item in records:
                       namespace = item.get("namespace")
