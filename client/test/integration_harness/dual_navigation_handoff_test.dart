@@ -38,7 +38,9 @@ void main() {
                 .cast<Map<String, dynamic>>()
                 .singleWhere((package) => package['name'] == 'flutter');
             final font = File.fromUri(
-              packages.absolute.uri.resolve(flutter['rootUri'] as String).resolve(
+              Directory.fromUri(
+                packages.absolute.uri.resolve(flutter['rootUri'] as String),
+              ).uri.resolve(
                 '../../bin/cache/artifacts/material_fonts/Roboto-Regular.ttf',
               ),
             );
