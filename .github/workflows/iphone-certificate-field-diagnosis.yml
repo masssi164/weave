@@ -1,0 +1,63 @@
+name: Distinguish existing iPhone certificate identifiers
+on:
+  push:
+    branches: [diagnostic/dual-ui-failure-20261028]
+    paths: [.github/workflows/iphone-certificate-field-diagnosis.yml]
+permissions:
+  contents: read
+jobs:
+  certificate:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/dual-ui-failure-20261028'
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    concurrency:
+      group: weave-live-mac-mini-exclusive
+      cancel-in-progress: false
+    timeout-minutes: 3
+    steps:
+      - name: Compare public certificate identifiers without changing identity or device state
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, plistlib, re, subprocess, tempfile
+          from pathlib import Path
+          assert os.environ.get('RUNNER_NAME') == 'weave-live-mac-mini'
+          def run(arguments):
+              return subprocess.run(arguments, capture_output=True, timeout=20, check=True).stdout
+          identities = run(['security', 'find-identity', '-v', '-p', 'codesigning'])
+          available = {value.decode().upper() for value in re.findall(rb'\b([A-Fa-f0-9]{40})\b', identities)}
+          certificates = {}
+          allowed_bundles = {'KNDHGC2KV6.com.massimotter.weave',
+                             'KNDHGC2KV6.com.massimotter.weave.integration.browser.xctrunner'}
+          directories = [Path.home()/'Library/MobileDevice/Provisioning Profiles',
+                         Path.home()/'Library/Developer/Xcode/UserData/Provisioning Profiles']
+          matched_profiles = 0
+          for directory in directories:
+              if not directory.is_dir() or directory.is_symlink():
+                  continue
+              for path in directory.glob('*.mobileprovision'):
+                  if path.is_symlink() or not path.is_file():
+                      continue
+                  profile = plistlib.loads(run(['security', 'cms', '-D', '-i', str(path)]))
+                  if (profile.get('TeamIdentifier') != ['KNDHGC2KV6']
+                      or profile.get('Entitlements', {}).get('application-identifier') not in allowed_bundles):
+                      continue
+                  matched_profiles += 1
+                  for certificate in profile.get('DeveloperCertificates', []):
+                      digest = hashlib.sha1(certificate).hexdigest().upper()
+                      if digest in available:
+                          certificates[digest] = certificate
+          observations = []
+          for certificate in certificates.values():
+              with tempfile.NamedTemporaryFile(suffix='.der') as temporary:
+                  Path(temporary.name).write_bytes(certificate)
+                  subject = run(['openssl', 'x509', '-inform', 'DER', '-in', temporary.name,
+                                 '-noout', '-subject', '-nameopt', 'sep_multiline,sname,utf8']).decode()
+              teams = re.findall(r'^\s*OU\s*=\s*([A-Z0-9]{10})\s*$', subject, re.MULTILINE)
+              common_names = re.findall(r'^\s*CN\s*=\s*Apple Development: [^\r\n]+ \(([A-Z0-9]{10})\)\s*$', subject, re.MULTILINE)
+              observations.append({'actualTeamMatchesProvisioningTeam': teams == ['KNDHGC2KV6'],
+                                   'commonNameIdentifierMatchesDocumentedIdentity': common_names == ['6RUS2Z848X'],
+                                   'teamFieldUnambiguous': len(teams) == 1,
+                                   'commonNameFieldUnambiguous': len(common_names) == 1})
+          print(json.dumps({'readOnly': True, 'matchingProfileCount': matched_profiles,
+                            'compatibleCertificateCount': len(certificates), 'observations': observations,
+                            'identityChanged': False, 'deviceChanged': False, 'profilesChanged': False}, sort_keys=True))
+          PY
