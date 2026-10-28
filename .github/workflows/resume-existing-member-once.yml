@@ -1,0 +1,144 @@
+name: Resume existing unfinished test-member registration
+on:
+  push:
+    branches: [diagnostic/dual-ios-source-20261028]
+    paths: [.github/workflows/resume-existing-member-once.yml]
+permissions:
+  contents: read
+  actions: read
+  packages: read
+jobs:
+  resume:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/dual-ios-source-20261028'
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    concurrency:
+      group: weave-live-mac-mini-exclusive
+      cancel-in-progress: false
+    timeout-minutes: 20
+    env:
+      WEAVE_CANDIDATE_COMMIT: 190799c721343a2f21e1b68181f39cb8c87bea6a
+      WEAVE_ENV_FILE: ${{ vars.WEAVE_DOGFOOD_REVIEWED_ENV_FILE }}
+      PYTHONDONTWRITEBYTECODE: '1'
+    defaults:
+      run:
+        working-directory: weave
+        shell: bash
+    steps:
+      - name: Verify existing exact source and set owned artifact paths
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = weave-live-mac-mini
+          test "$(git rev-parse HEAD)" = "$WEAVE_CANDIDATE_COMMIT"
+          test "$(git rev-parse HEAD^{tree})" = 06379c5fb09b08c3b25b5377f953f1ea5d2c8960
+          test -z "$(git status --porcelain)"
+          printf 'WEAVE_BUILD_ARTIFACT_ROOT=%s/weave-member-resume-%s\n' "$RUNNER_TEMP" "$GITHUB_RUN_ID" >> "$GITHUB_ENV"
+          printf 'WEAVE_CANDIDATE_COMPOSITION=%s/weave-member-resume-%s.json\n' "$RUNNER_TEMP" "$GITHUB_RUN_ID" >> "$GITHUB_ENV"
+      - name: Authenticate only the run-scoped artifact consumer
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: python3 tools/runtime_registry_auth.py setup
+      - name: Consume the actual qualified ordinary simulator and runtime
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 tools/runner_capacity_preflight.py --path . --minimum-free-gib 20 --require-docker
+          python3 tools/artifact_consumers.py fetch-composition --qualified --candidate "$WEAVE_CANDIDATE_COMMIT" --run-id 40682567150 --run-attempt 2 --output "$WEAVE_CANDIDATE_COMPOSITION"
+          python3 tools/build_artifacts.py consume --composition "$WEAVE_CANDIDATE_COMPOSITION" --components runtime-linux-arm64,ios-simulator --directory "$WEAVE_BUILD_ARTIFACT_ROOT" >/dev/null
+      - name: Continue only the existing A registration and ordinary login
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, re, secrets, signal, subprocess, sys, tempfile, time
+          from pathlib import Path
+          from urllib.parse import urlsplit
+          sys.path.insert(0, str(Path.cwd()/'tools'))
+          from dogfood_prepare import (private_read, ledger_for, load_context, operator_plan,
+              await_mail_link, registration, build_actors, operator_backend)
+          from compose_runtime import _dogfood_session_lock, _service_container, verify_dogfood_identity
+          from dogfood_functional_smoke import Runner, restart, BUNDLE
+          from artifact_consumers import candidate_composition, verify_runtime_container
+          def require(ok):
+              if not ok: raise ValueError('existing-member-resume-precondition')
+          def command(args, data=None):
+              result=subprocess.run(args,input=data,capture_output=True,text=True,timeout=20)
+              require(result.returncode==0 and len(result.stdout)<1024*1024)
+              return result.stdout
+          def quote(value):
+              require(isinstance(value,str) and len(value)<1000 and '\0' not in value)
+              return "'"+value.replace("'","''")+"'"
+          report={'status':'blocked','stage':'preflight','supportSafe':True,'physicalDeviceChanged':False,
+                  'existingPasswordReset':False,'identityReplacement':False,'humanAcceptance':False}
+          devices=[]
+          def terminate(*_): raise RuntimeError('bounded-operation-terminated')
+          signal.signal(signal.SIGTERM,terminate)
+          try:
+              require(os.environ.get('RUNNER_NAME')=='weave-live-mac-mini')
+              candidate=os.environ['WEAVE_CANDIDATE_COMMIT']
+              require(command(['git','rev-parse','HEAD']).strip()==candidate)
+              context=load_context('dogfood',Path.cwd()/'infra/weave-workspace',os.environ['WEAVE_ENV_FILE'])
+              identity={key:candidate_composition(candidate)[key] for key in ('candidateCommit','sourceTree','specificationCommit')}
+              with _dogfood_session_lock(context), tempfile.TemporaryDirectory(prefix='weave-member-resume-') as temporary:
+                  directory=Path(temporary).resolve(strict=True); directory.chmod(0o700)
+                  runner=Runner(directory)
+                  try:
+                      fixture=Path.home()/'.weave/dogfood/functional-smoke-identities.json'
+                      require(not fixture.exists())
+                      ledger=private_read(ledger_for(fixture),65536)
+                      plan=operator_plan(ledger['plan'],context)
+                      require(ledger.get('registrationState',{}).get('A')=='email-verification-required')
+                      require(ledger.get('registrationState',{}).get('B')=='registration-complete')
+                      member=plan['members'][0]
+                      require(member['slot']=='A' and isinstance(ledger['passwords']['A'],str) and len(ledger['passwords']['A'])>=16)
+                      verify_dogfood_identity(context)
+                      backend=_service_container(context,'backend',deadline=time.monotonic()+30)
+                      operator_backend(context,identity,backend,runner)
+                      verify_runtime_container(backend,candidate)
+                      db=_service_container(context,'postgres',deadline=time.monotonic()+30)
+                      require(db['Config']['Labels']['com.massimotter.weave.candidate-commit']==candidate)
+                      database=context.env.get('WEAVE_KEYCLOAK_DB_NAME','weave_keycloak')
+                      require(re.fullmatch('[A-Za-z_][A-Za-z0-9_]{0,62}',database))
+                      sql="SELECT coalesce(json_agg(json_build_object('enabled',u.enabled,'verified',u.email_verified,'nameMatches',trim(concat(u.first_name,' ',u.last_name))="+quote(member['displayName'])+",'credentials',(select count(*) from credential c where c.user_id=u.id),'actions',(select array_agg(a.required_action) from user_required_action a where a.user_id=u.id))),'[]'::json) FROM user_entity u JOIN realm r ON r.id=u.realm_id WHERE r.name='weave' AND lower(u.email)=lower("+quote(member['email'])+");"
+                      report['stage']='existing-initial-credential-state'
+                      state=json.loads(command(['docker','exec','-i','-e','PGOPTIONS=-c default_transaction_read_only=on',db['Id'],'sh','-c','exec psql -X -qAt -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$1"','sh',database], 'BEGIN READ ONLY; SET LOCAL statement_timeout=5000; '+sql+' ROLLBACK;'))
+                      require(len(state)==1 and state[0]=={'enabled':True,'verified':True,'nameMatches':True,'credentials':0,'actions':['UPDATE_PASSWORD']})
+                      report['stage']='existing-verification-link'
+                      activation=await_mail_link(context,member['email'],plan['issuerUrl'],True,timeout=10)
+                      report['stage']='owned-simulator-preparation'
+                      actors=build_actors(runner,context,candidate,devices)
+                      actor=actors['A']
+                      report['stage']='normal-required-action'
+                      result=registration(runner,actor,{'schemaVersion':'weave.dogfood-test-registration/v1',
+                          'phase':'ordinary-registration','planId':plan['planId'],'nonce':secrets.token_hex(16),'slot':'A',
+                          'organizationOrigin':plan['organizationOrigin'],'issuerUrl':plan['issuerUrl'],
+                          'activationUrl':activation,'email':member['email'],'displayName':member['displayName'],
+                          'password':ledger['passwords']['A'],'appBundleIdentifier':BUNDLE})
+                      report['registrationResult']=result
+                      require(result in {'complete','sign-in'})
+                      report['stage']='ordinary-app-sign-in'
+                      restart(runner,actor)
+                      runner.ui(actor,{'organizationOrigin':plan['organizationOrigin']},'testOrdinaryOrganizationEntry')
+                      runner.ui(actor,{'email':member['email'],'password':ledger['passwords']['A'],
+                          'displayName':member['displayName'],'issuerHost':urlsplit(plan['issuerUrl']).hostname,
+                          'appBundleIdentifier':BUNDLE,'phase':'initial','nativeAuthCompletionPath':'',
+                          'ordinaryOrganizationOrigin':plan['organizationOrigin']},'testProductionBrowser')
+                      report.update(status='passed',stage='ordinary-login-complete')
+                  finally:
+                      signal.signal(signal.SIGTERM,signal.SIG_IGN)
+                      runner.deadline=time.monotonic()+120
+                      clean=True
+                      for device in devices:
+                          try: runner.run(['xcrun','simctl','delete',device],timeout=30)
+                          except Exception: clean=False
+                      report['ownedSimulatorsRemoved']=clean
+                      require(clean)
+          except Exception as error:
+              category=str(error)
+              report['status']='blocked'
+              report['reason']=category if re.fullmatch('[a-z][a-z0-9-]{1,100}',category) else 'operation-or-provider-state-unavailable'
+          print(json.dumps(report,sort_keys=True))
+          raise SystemExit(0 if report['status']=='passed' else 1)
+          PY
+      - name: Remove run-scoped registry authentication
+        if: always()
+        run: python3 tools/runtime_registry_auth.py cleanup
