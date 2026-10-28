@@ -1,0 +1,81 @@
+name: Actual operator policy context red-green
+on:
+  push:
+    branches: [diagnostic/dual-ios-source-20261028]
+    paths: [.github/workflows/operator-policy-context-red-green.yml]
+permissions:
+  contents: read
+jobs:
+  context:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/dual-ios-source-20261028'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: 00639b38dd995fa10caab68681273e012a64aa4a
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb
+      - name: Select only the actual PostgreSQL operator context regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 00639b38dd995fa10caab68681273e012a64aa4a
+          cat > "$RUNNER_TEMP/operator-context.gradle" <<'GRADLE'
+          gradle.projectsEvaluated {
+              def app = gradle.rootProject.project(':server:app')
+              app.tasks.register('operatorContextTest', Test) {
+                  dependsOn app.tasks.named('testClasses')
+                  testClassesDirs = app.sourceSets.test.output.classesDirs
+                  classpath = app.sourceSets.test.runtimeClasspath
+                  useJUnitPlatform { includeEngines 'junit-jupiter' }
+                  filter { includeTestsMatching '*DogfoodPreparationContextPostgresTest' }
+                  systemProperty 'weave.test.postgres', 'true'
+                  testLogging { exceptionFormat = 'full' }
+              }
+          }
+          GRADLE
+      - name: Reproduce missing domain declarations on the original operator composition
+        shell: bash
+        run: |
+          set -euo pipefail
+          config=server/app/src/main/java/com/massimotter/weave/backend/dogfood/DogfoodPreparationConfiguration.java
+          imports=server/app/src/main/resources/META-INF/spring/com.massimotter.weave.backend.dogfood.DogfoodPreparationConfiguration.imports
+          git show 4f4366bdc8098b974e6d8c325b9ab6aa5bbefa28:"$config" > "$config"
+          rm -- "$imports"
+          set +e
+          ./gradlew --no-daemon -Pdomains=all -I "$RUNNER_TEMP/operator-context.gradle" :server:app:operatorContextTest > "$RUNNER_TEMP/operator-context-red.log" 2>&1
+          result=$?
+          set -e
+          test "$result" -ne 0
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          paths=list(Path('server/app/build/test-results/operatorContextTest').glob('TEST-*DogfoodPreparationContextPostgresTest.xml'))
+          assert len(paths)==1
+          failures=ET.parse(paths[0]).getroot().findall('.//failure')
+          assert any(all(word in (failure.get('message','')+(failure.text or '')) for word in ('chat','files','calendar')) for failure in failures)
+          print('BASELINE_OPERATOR_POLICY missingInstalledDomains=reproduced')
+          PY
+          git restore --source=HEAD -- "$config" "$imports"
+      - name: Verify installed member grants and disabled-domain denial on the exact repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)"
+          ./gradlew --no-daemon -Pdomains=all -I "$RUNNER_TEMP/operator-context.gradle" :server:app:operatorContextTest
+      - name: Preserve focused JVM test diagnostics
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: operator-policy-context-00639b3
+          path: |
+            server/app/build/test-results/operatorContextTest/
+            server/app/build/reports/tests/operatorContextTest/
+          retention-days: 7
+          if-no-files-found: ignore
