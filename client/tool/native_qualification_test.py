@@ -1279,6 +1279,69 @@ print("receipt-reducer-passed")
         for private in ('private-password', 'private-account', 'private-token', 'private-alert', '1000'):
             self.assertNotIn(private, output.getvalue())
 
+    @unittest.skipUnless(shutil.which('swiftc'), 'Swift compiler unavailable for password prompt timing validation')
+    def test_password_prompt_settles_without_shortening_authentication_deadline(self):
+        source = (Path(__file__).parent / 'ios_browser_driver/BrowserDriver.swift').read_text()
+        helper = source.split('  enum PasswordPromptReadiness', 1)[1].split('  func testPasswordPromptWait', 1)[0]
+        checks = r'''
+let start = Date(timeIntervalSince1970: 100)
+var clock = start
+var seen = false
+func wait(_ state: @escaping () -> BrowserDriver.PasswordPromptReadiness,
+          seconds: Double = 10) -> BrowserDriver.PasswordPromptReadiness {
+  BrowserDriver.waitForPasswordPrompt(state: state, deadline: start.addingTimeInterval(seconds),
+    promptSeen: &seen, now: { clock }, pause: { clock.addTimeInterval(1) })
+}
+func require(_ condition: Bool, _ reason: String) {
+  if !condition { print(reason); exit(1) }
+}
+// Transient controls never become a tap merely because the settling interval elapsed.
+for pending: BrowserDriver.PasswordPromptReadiness in [.waiting, .ambiguous] {
+  clock = start; seen = false
+  let outcome = wait { clock < start.addingTimeInterval(7) ? pending : .ready }
+  require(outcome == .ready && clock == start.addingTimeInterval(7) && seen,
+          "late unique prompt must retain the remaining authentication budget")
+}
+// Real completion/disappearance after five seconds still wins over the optional sheet.
+clock = start; seen = false
+require(wait { clock < start.addingTimeInterval(7) ? .waiting : .absent } == .absent,
+        "late completion must not fail at the settling boundary")
+require(clock == start.addingTimeInterval(7) && seen, "completion must retain observed-prompt state")
+// A ready control still waits for the original five-second settling window.
+clock = start; seen = false
+require(wait { .ready } == .ready && clock == start.addingTimeInterval(5),
+        "ready prompt must settle without consuming the entire authentication budget")
+clock = start; seen = false
+require(wait { clock < start.addingTimeInterval(2) ? .ready : .absent } == .absent,
+        "early completion must suppress a transient ready prompt")
+require(clock == start.addingTimeInterval(2), "completion must not be delayed")
+// No deadline extension, resubmission, or fabricated readiness for persistent ambiguity.
+for pending: BrowserDriver.PasswordPromptReadiness in [.waiting, .ambiguous] {
+  clock = start; seen = false
+  require(wait { pending } == pending && clock == start.addingTimeInterval(10) && seen,
+          "unavailable prompt must stop at the original deadline")
+}
+clock = start; seen = false
+require(wait({ .ready }, seconds: 3) == .ready && clock == start.addingTimeInterval(3),
+        "settling must never extend a shorter authentication deadline")
+clock = start; seen = false
+require(wait { .absent } == .absent && clock == start && !seen,
+        "absent prompt must return immediately without enabling recovery after an observed prompt")
+print("password-prompt-budget-passed")
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            swift = Path(directory) / 'main.swift'
+            swift.write_text('import Foundation\nenum BrowserDriver {\n  enum PasswordPromptReadiness' + helper + '\n}\n' + checks)
+            executable = Path(directory) / 'prompt-budget'
+            compiled = subprocess.run(['swiftc', str(swift), '-o', str(executable)], capture_output=True, text=True, timeout=120)
+            self.assertEqual(compiled.returncode, 0, compiled.stderr)
+            result = subprocess.run([str(executable)], capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(result.stdout.strip(), 'password-prompt-budget-passed')
+        handler = source.split('func declinePasswordSavePrompt', 1)[1].split('func waitForNativeWorkspace', 1)[0]
+        self.assertIn('}, deadline: deadline, promptSeen: &promptSeen)', handler)
+        self.assertIn('guard Date() < deadline, readiness == .ready', handler)
+
     def test_password_prompt_decline_is_exact_alert_scoped_and_globally_unique(self):
         driver = (Path(__file__).parent / 'ios_browser_driver/BrowserDriver.swift').read_text()
         handler = driver.split('func declinePasswordSavePrompt', 1)[1].split('func waitForNativeWorkspace', 1)[0]

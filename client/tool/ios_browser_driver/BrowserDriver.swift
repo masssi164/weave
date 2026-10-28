@@ -349,13 +349,15 @@ final class BrowserDriver: XCTestCase {
     state: () -> PasswordPromptReadiness, deadline: Date, promptSeen: inout Bool,
     now: () -> Date = Date.init, pause: () -> Void = { Thread.sleep(forTimeInterval: 0.25) }
   ) -> PasswordPromptReadiness {
+    let settledAfter = min(deadline, now().addingTimeInterval(5))
     var latest = PasswordPromptReadiness.waiting
     while now() < deadline {
       latest = state()
       if latest != .absent { promptSeen = true }
       if latest == .absent { return latest }
-      // Even a ready optional sheet may disappear during genuine auth completion.
-      // Keep observing within the existing window; never select a transient control early.
+      // Settling delays a ready optional sheet; it is not a second auth timeout.
+      // Pending or ambiguous controls keep the original bounded completion budget.
+      if latest == .ready && now() >= settledAfter { return latest }
       pause()
     }
     latest = state()
@@ -495,7 +497,7 @@ final class BrowserDriver: XCTestCase {
       selectedDecline = decline
       selectedPrompt = surface == 0 ? appPrompts.element : systemPrompts.element
       return .ready
-    }, deadline: min(deadline, Date().addingTimeInterval(5)), promptSeen: &promptSeen)
+    }, deadline: deadline, promptSeen: &promptSeen)
     guard readiness != .absent else { return false }
     if Self.nativeWorkspaceObserved(path: completionPath) { return false }
     guard Date() < deadline, readiness == .ready, let decline = selectedDecline, let prompt = selectedPrompt else {
