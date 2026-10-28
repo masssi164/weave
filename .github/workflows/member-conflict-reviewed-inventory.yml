@@ -1,0 +1,46 @@
+name: Inspect managed-member conflict with reviewed environment
+on:
+  push:
+    branches: [diagnostic/iphone-handoff-190799-20261028]
+    paths: [.github/workflows/member-conflict-reviewed-inventory.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/iphone-handoff-190799-20261028'
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    timeout-minutes: 8
+    concurrency:
+      group: weave-live-mac-mini-exclusive
+      cancel-in-progress: false
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      WEAVE_CANDIDATE_COMMIT: 190799c721343a2f21e1b68181f39cb8c87bea6a
+      WEAVE_ENV_FILE: ${{ vars.WEAVE_DOGFOOD_REVIEWED_ENV_FILE }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: cb791d6610e081966feb19ba710b278539c0165b
+          path: member-conflict-diagnostic
+          persist-credentials: false
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: 190799c721343a2f21e1b68181f39cb8c87bea6a
+          path: member-conflict-source
+          persist-credentials: false
+      - name: Execute the same pinned read-only projection with the canonical reviewed environment
+        working-directory: member-conflict-source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${RUNNER_NAME:-}" = weave-live-mac-mini
+          test -f "$WEAVE_ENV_FILE"
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess, textwrap
+          diagnostic = Path('../member-conflict-diagnostic')
+          assert subprocess.check_output(['git','rev-parse','HEAD'],cwd=diagnostic,text=True).strip() == 'cb791d6610e081966feb19ba710b278539c0165b'
+          workflow = (diagnostic/'.github/workflows/member-conflict-inventory.yml').read_text()
+          script = workflow.split("python3 - <<'PY'\n",1)[1].rsplit('\n          PY',1)[0]
+          exec(compile(textwrap.dedent(script), '<bounded-member-inventory>', 'exec'))
+          PY
