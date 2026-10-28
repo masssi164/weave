@@ -449,6 +449,33 @@ def emit_actor_phase_stages(role: str, phase: str, flutter_output: str, browser_
     header = r'(?:flutter: )?(?:' + assertion + r'|══╡ ' + assertion + r' ╞═{1,200})'
     if not any(len(line) <= 256 and re.fullmatch(header, line) for line in lines):
         return
+    # Keep static upstream locations, not error messages or widget/account values.
+    # This distinguishes test-controller failures from product assertions without
+    # making operator-private transcripts part of uploaded evidence.
+    framework_sources = {
+        ('flutter_test', 'src/controller.dart'), ('flutter_test', 'src/binding.dart'),
+        ('flutter_test', 'src/test_async_utils.dart'), ('flutter_test', 'src/test_pointer.dart'),
+        ('flutter_test', 'src/widget_tester.dart'), ('flutter_test', 'src/finders.dart'),
+        ('flutter', 'src/gestures/binding.dart'), ('flutter', 'src/rendering/box.dart'),
+        ('flutter', 'src/rendering/object.dart'), ('flutter', 'src/widgets/framework.dart'),
+        ('flutter', 'src/widgets/navigator.dart'), ('integration_test', 'integration_test.dart'),
+    }
+    framework_frame = (r'(?:flutter: )?#(?:0|[1-9][0-9]{0,3})[ \t]+'
+                       r'[^\x00-\x20\x7f()][^\x00-\x1f\x7f()]{0,255}[ \t]+'
+                       r'\(package:([a-z_]{1,32})/([a-z_/]{1,96}\.dart):'
+                       r'([1-9][0-9]{0,5}):[1-9][0-9]{0,5}\)')
+    framework_locations = set()
+    for line in lines:
+        match = re.fullmatch(framework_frame, line) if len(line) <= 1024 else None
+        if match is None or (match[1], match[2]) not in framework_sources:
+            continue
+        location = (match[1], match[2], match[3])
+        if location not in framework_locations:
+            framework_locations.add(location)
+            print(f'IOS_FLUTTER_FRAMEWORK_DIAGNOSTIC journey={phase} actor={role} '
+                  f'package={location[0]} file={location[1]} line={location[2]} supportSafe=true', flush=True)
+        if len(framework_locations) >= 12:
+            break
     source = (r'(?:(?:file://)?/|package:[A-Za-z0-9_.-]{1,128}/)?'
               r'(?:[^\x00-\x20\x7f()?#\\:]{1,1024}/)?dual_ios_collaboration_test\.dart')
     location = source + r':([1-9][0-9]{0,5})(?::[1-9][0-9]{0,5})?'
