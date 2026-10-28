@@ -578,9 +578,18 @@ void main() {
       final moveUp = tester.getSemantics(
         find.byTooltip('Move Recent workspace activity up'),
       );
-      expect(toggle.getSemanticsData().hasAction(ui.SemanticsAction.tap), isTrue);
-      expect(moveDown.getSemanticsData().hasAction(ui.SemanticsAction.tap), isTrue);
-      expect(moveUp.getSemanticsData().hasAction(ui.SemanticsAction.tap), isTrue);
+      expect(
+        toggle.getSemanticsData().hasAction(ui.SemanticsAction.tap),
+        isTrue,
+      );
+      expect(
+        moveDown.getSemanticsData().hasAction(ui.SemanticsAction.tap),
+        isTrue,
+      );
+      expect(
+        moveUp.getSemanticsData().hasAction(ui.SemanticsAction.tap),
+        isTrue,
+      );
       expect({toggle.id, moveDown.id, moveUp.id}, hasLength(3));
       semantics.dispose();
 
