@@ -1,0 +1,52 @@
+name: Verify iPhone certificate team parsing
+on:
+  push:
+    branches: [diagnostic/cache-prune-preflight-20261028]
+    paths: [.github/workflows/iphone-certificate-team-check.yml]
+permissions:
+  contents: read
+jobs:
+  certificate:
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    concurrency:
+      group: weave-live-mac-mini-exclusive
+      cancel-in-progress: false
+    timeout-minutes: 3
+    steps:
+      - name: Read only certificate public team fields without logging profile contents
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,plistlib,re,subprocess,tempfile
+          if os.environ.get('RUNNER_NAME')!='weave-live-mac-mini':
+              raise SystemExit('Unexpected runner')
+          identities=subprocess.run(['security','find-identity','-v','-p','codesigning'],capture_output=True,timeout=20,check=True).stdout
+          available={value.decode().upper() for value in re.findall(rb'\b([A-Fa-f0-9]{40})\b',identities)}
+          certificates={}
+          for directory in (pathlib.Path.home()/'Library/MobileDevice/Provisioning Profiles',pathlib.Path.home()/'Library/Developer/Xcode/UserData/Provisioning Profiles'):
+              if not directory.is_dir() or directory.is_symlink():
+                  continue
+              for path in directory.glob('*.mobileprovision'):
+                  if path.is_symlink():
+                      continue
+                  profile=plistlib.loads(subprocess.run(['security','cms','-D','-i',str(path)],capture_output=True,timeout=20,check=True).stdout)
+                  if profile.get('TeamIdentifier')!=['KNDHGC2KV6']:
+                      continue
+                  for certificate in profile.get('DeveloperCertificates',[]):
+                      digest=hashlib.sha1(certificate).hexdigest().upper()
+                      if digest in available:
+                          certificates[digest]=certificate
+          observations=[]
+          for certificate in certificates.values():
+              with tempfile.NamedTemporaryFile(suffix='.der') as file:
+                  pathlib.Path(file.name).write_bytes(certificate)
+                  result=subprocess.run(['openssl','x509','-inform','DER','-in',file.name,'-noout','-subject','-nameopt','sep_multiline,sname,utf8'],capture_output=True,text=True,timeout=20)
+                  parsed=re.findall(r'^\s*OU\s*=\s*([A-Z0-9]{10})\s*$',result.stdout,re.MULTILINE)
+                  # Only public team identifiers; no names, key material or certificate bytes.
+                  observations.append({'opensslExitCode':result.returncode,'parsedTeamFields':parsed,
+                      'expectedCertificateTeamMatches':parsed==['6RUS2Z848X'],
+                      'profileTeamMatches':parsed==['KNDHGC2KV6'],
+                      'singleLineSubject':result.stdout.count('\n')<=1,
+                      'unsupportedNameOption':any(marker in result.stderr.lower() for marker in ('unknown option','invalid option','error setting'))})
+          print(json.dumps({'readOnly':True,'certificateCount':len(certificates),'observations':observations,
+                            'profilesChanged':False},sort_keys=True))
+          PY
