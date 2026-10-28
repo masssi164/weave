@@ -1,0 +1,90 @@
+name: Dispatch the qualified iPhone handoff once
+on:
+  push:
+    branches: [diagnostic/iphone-handoff-190799-20261028]
+    paths: [.github/workflows/dispatch-qualified-iphone-once.yml]
+permissions:
+  contents: read
+  actions: write
+concurrency:
+  group: weave-iphone-dispatch-190799c721343a2f21e1b68181f39cb8c87bea6a
+  cancel-in-progress: false
+jobs:
+  dispatch:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/iphone-handoff-190799-20261028'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Wait for the exact successful deployment and dispatch only the canonical handoff
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, time
+          from urllib.request import Request, build_opener, HTTPRedirectHandler
+          from urllib.parse import urlencode
+          REPO = 'masssi164/weave'
+          CANDIDATE = '190799c721343a2f21e1b68181f39cb8c87bea6a'
+          QUALIFICATION = 40682567150
+          ATTEMPT = 2
+          WORKFLOW = '.github/workflows/ios-dogfood.yml'
+          assert os.environ['GITHUB_REPOSITORY'] == REPO
+          assert os.environ['GITHUB_REF'] == 'refs/heads/diagnostic/iphone-handoff-190799-20261028'
+          assert os.environ['GITHUB_EVENT_NAME'] == 'push'
+          class NoRedirect(HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+          opener = build_opener(NoRedirect())
+          def api(path, payload=None):
+              request = Request('https://api.github.com/repos/' + REPO + path,
+                  data=None if payload is None else json.dumps(payload).encode(),
+                  headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
+                           'Accept': 'application/vnd.github+json',
+                           'Content-Type': 'application/json',
+                           'X-GitHub-Api-Version': '2026-03-10'})
+              with opener.open(request, timeout=30) as response:
+                  raw = response.read(2 * 1024 * 1024 + 1)
+                  assert len(raw) <= 2 * 1024 * 1024
+                  return response.status, json.loads(raw) if raw else None
+          def current_candidate():
+              _, ref = api('/git/ref/heads/dogfood')
+              assert ref['object']['sha'] == CANDIDATE, 'dogfood-candidate-changed'
+          deadline = time.monotonic() + 15 * 60
+          while True:
+              current_candidate()
+              _, run = api('/actions/runs/' + str(QUALIFICATION))
+              assert run['head_sha'] == CANDIDATE and run['head_branch'] == 'dogfood'
+              assert run['run_attempt'] == ATTEMPT and run['event'] == 'push'
+              assert run['path'] == '.github/workflows/live-stack-e2e.yml'
+              if run['status'] == 'completed':
+                  assert run['conclusion'] == 'success', 'qualification-or-deployment-failed'
+                  break
+              assert time.monotonic() < deadline, 'deployment-not-complete-within-dispatch-budget'
+              time.sleep(15)
+          _, jobs = api('/actions/runs/' + str(QUALIFICATION) + '/jobs?filter=latest&per_page=100')
+          for name in ('Full Compose E2E', 'Deploy dogfood with Compose'):
+              selected = [job for job in jobs['jobs'] if job['name'] == name]
+              assert len(selected) == 1 and selected[0]['status'] == 'completed'
+              assert selected[0]['conclusion'] == 'success', 'required-job-not-passed'
+          _, workflow = api('/actions/workflows/ios-dogfood.yml')
+          assert workflow['path'] == WORKFLOW and workflow['state'] == 'active'
+          query = urlencode({'branch': 'dogfood', 'head_sha': CANDIDATE,
+                             'event': 'workflow_dispatch', 'per_page': 100})
+          _, previous = api('/actions/runs?' + query)
+          existing = [run for run in previous['workflow_runs']
+                      if run['path'] == WORKFLOW and run['head_sha'] == CANDIDATE]
+          if existing:
+              print(json.dumps({'stage': 'already-dispatched', 'runId': existing[0]['id'],
+                                'status': existing[0]['status'], 'conclusion': existing[0]['conclusion']}))
+          else:
+              current_candidate()
+              status, result = api('/actions/workflows/ios-dogfood.yml/dispatches',
+                  {'ref': 'dogfood', 'inputs': {'candidate_sha': CANDIDATE, 'tester_slot': 'A'}})
+              assert status in (200, 204), 'dispatch-not-accepted'
+              print(json.dumps({'stage': 'canonical-handoff-dispatched', 'candidate': CANDIDATE,
+                                'qualificationRun': QUALIFICATION, 'qualificationAttempt': ATTEMPT,
+                                'runId': result.get('workflow_run_id') if isinstance(result, dict) else None,
+                                'physicalPreparationPassed': False, 'humanAcceptance': 'pending'}))
+          PY
