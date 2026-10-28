@@ -1,0 +1,65 @@
+name: Diagnose ordinary member browser login
+on:
+  push:
+    branches: [diagnostic/iphone-handoff-190799-20261028]
+    paths: [.github/workflows/ordinary-browser-auth-diagnostic.yml]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inspect:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/iphone-handoff-190799-20261028'
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    timeout-minutes: 20
+    concurrency:
+      group: weave-live-mac-mini-exclusive
+      cancel-in-progress: false
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      WEAVE_ENV_FILE: ${{ vars.WEAVE_DOGFOOD_REVIEWED_ENV_FILE }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: fae6e45c72fc3fe449204ea71fb81ee9aa38da48
+          path: ordinary-browser-diagnostic
+          persist-credentials: false
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: 190799c721343a2f21e1b68181f39cb8c87bea6a
+          path: ordinary-browser-source
+          persist-credentials: false
+      - name: Verify exact source and consume the successfully qualified composition
+        working-directory: ordinary-browser-source
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${RUNNER_NAME:-}" = weave-live-mac-mini
+          test "$(git rev-parse HEAD)" = 190799c721343a2f21e1b68181f39cb8c87bea6a
+          root="$RUNNER_TEMP/weave-ordinary-auth-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          test ! -e "$root"
+          mkdir -m 700 "$root"
+          printf 'WEAVE_CANDIDATE_COMPOSITION=%s/composition.json\nWEAVE_BUILD_ARTIFACT_ROOT=%s/components\n' "$root" "$root" >> "$GITHUB_ENV"
+          python3 tools/runner_capacity_preflight.py --path . --minimum-free-gib 20 --require-docker
+          python3 tools/artifact_consumers.py fetch-composition --qualified \
+            --candidate 190799c721343a2f21e1b68181f39cb8c87bea6a --run-id 40682567150 --run-attempt 2 --output "$root/composition.json"
+          python3 tools/build_artifacts.py consume --composition "$root/composition.json" \
+            --components runtime-linux-arm64,ios-simulator --directory "$root/components"
+      - name: Observe only original-driver authentication and remove the owned simulators
+        working-directory: ordinary-browser-source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import signal, subprocess
+          from pathlib import Path
+          diagnostic = Path('../ordinary-browser-diagnostic')
+          assert subprocess.check_output(['git','rev-parse','HEAD'],cwd=diagnostic,text=True).strip() == 'fae6e45c72fc3fe449204ea71fb81ee9aa38da48'
+          def interrupted(_number, _frame):
+              signal.signal(signal.SIGTERM, signal.SIG_IGN)
+              raise RuntimeError('bounded-diagnostic-interrupted')
+          signal.signal(signal.SIGTERM, interrupted)
+          script = diagnostic/'.github/diagnostics/ordinary-browser-auth.py'
+          exec(compile(script.read_text(),str(script),'exec'))
+          PY
