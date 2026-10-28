@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Publish hosted runtime candidates to GHCR and preserve digest-bound identities.
 
-These are private CI *candidate* images, never production releases.  The
+These are CI *candidate* images, never production releases. Actual visibility
+follows the pinned publication policy, including its owner-approved fallback;
 successful live Dogfood qualification remains a separate evidence boundary.
 """
 from __future__ import annotations
@@ -20,8 +21,8 @@ from artifact_evidence import runtime_shape
 IMAGE_ID = re.compile(r"sha256:[0-9a-f]{64}\Z")
 SOURCE = re.compile(r"[0-9a-f]{40}\Z")
 DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
-# The previous weave-ci-* packages cannot regain privacy once public. Keep one
-# mapping for publishers and consumers; live checks must still prove visibility.
+# Keep one mapping for publishers and consumers. Historical package names are
+# not privacy evidence; live checks record actual access under the pinned policy.
 NAMES = {
     "backend": "ghcr.io/masssi164/weave-private-ci-backend",
     "mcp": "ghcr.io/masssi164/weave-private-ci-mcp",
