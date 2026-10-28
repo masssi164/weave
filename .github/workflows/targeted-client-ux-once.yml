@@ -1,0 +1,40 @@
+name: Targeted actual client UX regression
+on:
+  push:
+    branches: [diagnostic/dual-ios-source-20261028]
+    paths: [.github/workflows/targeted-client-ux-once.yml]
+permissions:
+  contents: read
+jobs:
+  targeted:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: native-sign-in-geometry
+            ref: 9e78b7bd1624823f71a6c64aa92ad735e6e0ed1c
+            test: test/features/auth/sign_in_semantics_geometry_test.dart
+          - name: settings-accessible-actions
+            ref: 58776fdd5138db6c3bd60cfbb6be59eac67fc3f7
+            test: test/features/settings/settings_screen_test.dart
+    name: Focused widget (${{ matrix.name }})
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ matrix.ref }}
+          persist-credentials: false
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: '3.41.6'
+          channel: stable
+      - name: Run actual focused widget acceptance
+        working-directory: client
+        shell: bash
+        env:
+          TEST_FILE: ${{ matrix.test }}
+        run: |
+          set -euo pipefail
+          flutter pub get --enforce-lockfile
+          flutter test "$TEST_FILE" --reporter expanded
