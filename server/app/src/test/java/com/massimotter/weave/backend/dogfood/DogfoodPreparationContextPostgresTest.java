@@ -3,11 +3,16 @@ package com.massimotter.weave.backend.dogfood;
 import static com.massimotter.weave.backend.dogfood.DogfoodPreparationProtocolTest.*;
 import static org.assertj.core.api.Assertions.*;
 
+import com.massimotter.weave.backend.api.error.ApiErrorException;
+import com.massimotter.weave.backend.capability.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.capability.port.WorkspaceCapabilityDefinition;
+import com.massimotter.weave.backend.identity.OrganizationIdentityContextResolver;
 import com.massimotter.weave.backend.schema.SchemaAuthorityTestSupport;
 import com.massimotter.weave.backend.schema.ServingSchemaAuthorityGuard;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -23,7 +28,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 class DogfoodPreparationContextPostgresTest {
     @Container static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
 
-    @Test void exactMinimalCommandContextValidatesServingSchemaWithoutWebSchedulersOrProviderBootstraps(@TempDir Path directory) throws Exception {
+    @Test void installedMemberPolicyHonorsDisabledDomainsWithoutWebSchedulersOrProviderBootstraps(@TempDir Path directory) throws Exception {
         var r = request("invitations");
         var init = SchemaAuthorityTestSupport.withRuntimeRole(Map.of(
                 "WEAVE_PERSISTENCE_URL", POSTGRES.getJdbcUrl(), "WEAVE_PERSISTENCE_USERNAME", POSTGRES.getUsername(),
@@ -52,26 +57,53 @@ class DogfoodPreparationContextPostgresTest {
         values.put("weave.identity.invitations.keycloak.private-key-jwt-audience", ISSUER);
         values.put("weave.identity.invitations.keycloak.reference-hmac-secret-file", hmac.toString());
         values.put("weave.security.required-audience", "weave-app");
-        var environment = new StandardEnvironment();
-        environment.getPropertySources().replace(StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
-                new org.springframework.core.env.SystemEnvironmentPropertySource(StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
-                        Map.of("WEAVE_RELEASE_POSTURE", "dogfood", "WEAVE_CANDIDATE_COMMIT", r.candidateCommit())));
-        environment.getPropertySources().addFirst(new MapPropertySource("owned-isolated-test", values));
-        var app = DogfoodPreparationCli.application(r);
-        app.setEnvironment(environment);
-        try (var context = app.run()) {
-            assertThat(context.getBean(DogfoodPreparationService.class)).isNotNull();
-            assertThat(context.getBean(ServingSchemaAuthorityGuard.class)).isNotNull();
-            assertThat(context).isNotInstanceOf(org.springframework.web.context.WebApplicationContext.class);
-            assertThat(context.getBeansOfType(org.springframework.boot.ApplicationRunner.class)).isEmpty();
-            assertThat(context.getBeansOfType(org.springframework.scheduling.annotation.ScheduledAnnotationBeanPostProcessor.class)).isEmpty();
-            assertThat(context.getBeansOfType(com.massimotter.weave.backend.config.WeavePersistenceConfiguration.class)).isEmpty();
-            assertThat(context.getBeansOfType(com.massimotter.weave.backend.files.application.FilesProviderBindingBootstrap.class)).isEmpty();
-            assertThat(context.getBeansOfType(com.massimotter.weave.backend.spaces.application.DefaultSpaceBootstrapService.class)).isEmpty();
-            var source = context.getBean(javax.sql.DataSource.class);
-            try (var connection = source.getConnection(); var rows = connection.createStatement().executeQuery(
-                    "select count(*) from weave_identity_provisioning_intents")) {
-                assertThat(rows.next()).isTrue(); assertThat(rows.getLong(1)).isZero();
+        values.put("weave.workspace.chat.enabled", true);
+        values.put("weave.workspace.files.enabled", true);
+        for (boolean calendarEnabled : List.of(true, false)) {
+            values.put("weave.workspace.calendar.enabled", calendarEnabled);
+            var environment = new StandardEnvironment();
+            environment.getPropertySources().replace(StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+                    new org.springframework.core.env.SystemEnvironmentPropertySource(StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+                            Map.of("WEAVE_RELEASE_POSTURE", "dogfood", "WEAVE_CANDIDATE_COMMIT", r.candidateCommit())));
+            environment.getPropertySources().addFirst(new MapPropertySource("owned-isolated-test", values));
+            var app = DogfoodPreparationCli.application(r);
+            app.setEnvironment(environment);
+            try (var context = app.run()) {
+                assertThat(context.getBean(DogfoodPreparationService.class)).isNotNull();
+                assertThat(context.getBean(ServingSchemaAuthorityGuard.class)).isNotNull();
+                assertThat(context).isNotInstanceOf(org.springframework.web.context.WebApplicationContext.class);
+                assertThat(context.getBeansOfType(org.springframework.boot.ApplicationRunner.class)).isEmpty();
+                assertThat(context.getBeansOfType(org.springframework.scheduling.annotation.ScheduledAnnotationBeanPostProcessor.class)).isEmpty();
+                assertThat(context.getBeansOfType(com.massimotter.weave.backend.config.WeavePersistenceConfiguration.class)).isEmpty();
+                assertThat(context.getBeansOfType(com.massimotter.weave.backend.files.application.FilesProviderBindingBootstrap.class)).isEmpty();
+                assertThat(context.getBeansOfType(com.massimotter.weave.backend.spaces.application.DefaultSpaceBootstrapService.class)).isEmpty();
+                assertThat(context.getBeansWithAnnotation(org.springframework.web.bind.annotation.RestController.class)).isEmpty();
+                var capabilities = context.getBean(WorkspaceCapabilityService.class);
+                assertThat(capabilities.installedDefinitions()).extracting(WorkspaceCapabilityDefinition::domainId)
+                        .containsExactly("chat", "files", "calendar");
+                var member = context.getBean(OrganizationIdentityContextResolver.class)
+                        .resolveVerifiedMember(ISSUER, "fixture-member", List.of("member"), List.of());
+                for (String capability : List.of("chat.read", "chat.send", "files.read", "files.upload")) {
+                    capabilities.requireCapabilityForVerifiedMember(member, capability, "spaces", "prepare-human-test");
+                }
+                for (String capability : List.of("calendar.read", "calendar.manage_events")) {
+                    if (calendarEnabled) {
+                        capabilities.requireCapabilityForVerifiedMember(member, capability, "spaces", "prepare-human-test");
+                    } else {
+                        assertThatThrownBy(() -> capabilities.requireCapabilityForVerifiedMember(
+                                member, capability, "spaces", "prepare-human-test"))
+                                .isInstanceOfSatisfying(ApiErrorException.class,
+                                        error -> assertThat(error.code()).isEqualTo("capability-policy-blocked"));
+                    }
+                }
+                assertThatThrownBy(() -> capabilities.requireCapabilityForVerifiedMember(
+                        member, "admin.policy.edit", "spaces", "prepare-human-test"))
+                        .isInstanceOf(ApiErrorException.class);
+                var source = context.getBean(javax.sql.DataSource.class);
+                try (var connection = source.getConnection(); var rows = connection.createStatement().executeQuery(
+                        "select count(*) from weave_identity_provisioning_intents")) {
+                    assertThat(rows.next()).isTrue(); assertThat(rows.getLong(1)).isZero();
+                }
             }
         }
     }
