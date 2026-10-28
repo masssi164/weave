@@ -20,11 +20,13 @@ from artifact_evidence import runtime_shape
 IMAGE_ID = re.compile(r"sha256:[0-9a-f]{64}\Z")
 SOURCE = re.compile(r"[0-9a-f]{40}\Z")
 DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
+# The previous weave-ci-* packages cannot regain privacy once public. Keep one
+# mapping for publishers and consumers; live checks must still prove visibility.
 NAMES = {
-    "backend": "ghcr.io/masssi164/weave-ci-backend",
-    "mcp": "ghcr.io/masssi164/weave-ci-mcp",
-    "keycloak": "ghcr.io/masssi164/weave-ci-keycloak",
-    "runtimeState": "ghcr.io/masssi164/weave-ci-runtime-state",
+    "backend": "ghcr.io/masssi164/weave-private-ci-backend",
+    "mcp": "ghcr.io/masssi164/weave-private-ci-mcp",
+    "keycloak": "ghcr.io/masssi164/weave-private-ci-keycloak",
+    "runtimeState": "ghcr.io/masssi164/weave-private-ci-runtime-state",
 }
 
 
