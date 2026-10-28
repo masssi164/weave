@@ -69,7 +69,10 @@ void main() {
         expect(navigation, findsOneWidget);
         expect(navigation.hitTestable(), findsNothing);
         if (ignoreDuplicate) {
-          await navigateNativeDualDestination(tester, Icons.chat_bubble_outline);
+          await navigateNativeDualDestination(
+            tester,
+            Icons.chat_bubble_outline,
+          );
           expect(currentTaps, 1);
         } else {
           await expectLater(

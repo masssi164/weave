@@ -546,7 +546,8 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
     findsOneWidget,
     reason: 'The actual UI target must be hittable after scroll preparation.',
   );
-  await tester.tap(finder);
+  // Scrolling can add an inactive transition copy; tap the target just verified.
+  await tester.tap(finder.hitTestable());
   await tester.pump(const Duration(milliseconds: 250));
 }
 
