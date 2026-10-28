@@ -1,0 +1,57 @@
+name: Materialize tested diagnostic source objects
+on:
+  push:
+    branches: [diagnostic/dual-ui-failure-20261028]
+    paths: [.github/workflows/materialize-reviewed-patch.yml]
+permissions:
+  contents: read
+jobs:
+  source:
+    if: github.repository == 'masssi164/weave'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    permissions:
+      contents: write
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Apply the exact reviewed patch to its pinned source
+        run: |
+          set -euo pipefail
+          cp .github/diagnostics/framework-location.patch "$RUNNER_TEMP/change.patch"
+          git checkout --detach 20e1791ce32ea100c5d519a547bb2559876b847b
+          git apply --check "$RUNNER_TEMP/change.patch"
+          git apply "$RUNNER_TEMP/change.patch"
+          git diff --check
+          python3 client/tool/dual_ios_collaboration_test.py
+      - name: Upload only the two verified source blobs; do not modify branches
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          from urllib.request import Request, urlopen
+          expected = {
+              'client/tool/run_dual_ios_collaboration.py': '644513bc6f4802016be57a5d2f70fd431b1fa7f7',
+              'client/tool/dual_ios_collaboration_test.py': '902af6494d25280954f022e58f559513cbb680fb',
+          }
+          changed = subprocess.check_output(['git', 'diff', '--name-only'], text=True).splitlines()
+          assert set(changed) == set(expected)
+          assert os.environ['GITHUB_REPOSITORY'] == 'masssi164/weave'
+          for name, sha in expected.items():
+              assert subprocess.check_output(['git', 'hash-object', name], text=True).strip() == sha
+          for name, sha in expected.items():
+              payload = json.dumps({'content': Path(name).read_text(), 'encoding': 'utf-8'}).encode()
+              request = Request('https://api.github.com/repos/masssi164/weave/git/blobs', data=payload,
+                  headers={'Authorization': 'Bearer ' + os.environ['GITHUB_TOKEN'],
+                           'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json'}, method='POST')
+              with urlopen(request, timeout=30) as response:
+                  created = json.load(response)
+              assert created['sha'] == sha
+              print(json.dumps({'path': name, 'sha': sha, 'branchChanged': False}))
+          PY
