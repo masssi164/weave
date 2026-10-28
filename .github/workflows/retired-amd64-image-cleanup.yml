@@ -1,0 +1,82 @@
+name: Retire unused AMD64 Weave images
+on:
+  push:
+    branches: [diagnostic/cache-prune-preflight-20261028]
+    paths: [.github/workflows/retired-amd64-image-cleanup.yml]
+permissions:
+  contents: read
+jobs:
+  cleanup:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/cache-prune-preflight-20261028'
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    concurrency:
+      group: weave-live-mac-mini-exclusive
+      cancel-in-progress: false
+    timeout-minutes: 10
+    steps:
+      - name: Revalidate and remove only unreferenced local legacy build images
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os, re, shutil, subprocess, time
+          from pathlib import Path
+          def require(condition, reason):
+              if not condition:
+                  raise RuntimeError(reason)
+          def docker(*arguments):
+              result = subprocess.run(['docker', *arguments], capture_output=True, text=True, timeout=60)
+              require(result.returncode == 0, 'docker-operation-failed')
+              return result.stdout
+          require(os.environ.get('RUNNER_NAME') == 'weave-live-mac-mini', 'wrong-runner')
+          require(not any(os.environ.get(key) for key in ('DOCKER_HOST', 'DOCKER_CONTEXT', 'DOCKER_TLS', 'DOCKER_TLS_VERIFY', 'DOCKER_CERT_PATH')), 'docker-context-override')
+          context = docker('context', 'show').strip()
+          endpoint = json.loads(docker('context', 'inspect', context))[0]['Endpoints']['docker']['Host']
+          require(endpoint.startswith('unix:///') and Path(endpoint[7:]).is_socket(), 'local-daemon-required')
+          workspace = Path(os.environ['GITHUB_WORKSPACE'])
+          before = shutil.disk_usage(workspace).free
+          def containers():
+              return set(docker('ps', '-aq', '--no-trunc').split())
+          def used_images():
+              return {docker('inspect', '--format', '{{.Image}}', identifier).strip() for identifier in containers()}
+          protected_containers = containers()
+          protected_running = set(docker('ps', '-q', '--no-trunc').split())
+          protected_volumes = set(docker('volume', 'ls', '-q').split())
+          protected_networks = set(docker('network', 'ls', '-q').split())
+          tag_pattern = re.compile(r'weave-(?:keycloak-runtime|backend|mcp-server|runtime-state):[A-Za-z0-9_.-]+\Z')
+          used = used_images()
+          selected = {}
+          for identifier in sorted(set(docker('image', 'ls', '-aq', '--no-trunc').split())):
+              if identifier in used:
+                  continue
+              image = json.loads(docker('image', 'inspect', identifier))[0]
+              tags = image.get('RepoTags') or []
+              if (image.get('Architecture') == 'amd64' and tags and not image.get('RepoDigests')
+                      and image.get('Created', '')[:10] < '2026-10-27'
+                      and all(tag_pattern.fullmatch(tag) for tag in tags)):
+                  selected[identifier] = set(tags)
+          require(0 < len(selected) <= 60, 'selection-outside-observed-bound')
+          print(json.dumps({'stage': 'approved-selection', 'count': len(selected), 'freeBytesBefore': before}), flush=True)
+          removed = []
+          for identifier, tags in selected.items():
+              require(identifier not in used_images(), 'image-became-referenced')
+              current = json.loads(docker('image', 'inspect', identifier))[0]
+              require(set(current.get('RepoTags') or []) == tags and not current.get('RepoDigests')
+                      and current.get('Architecture') == 'amd64', 'image-identity-changed')
+              for tag in sorted(tags):
+                  require(docker('image', 'inspect', '--format', '{{.Id}}', tag).strip() == identifier, 'tag-moved')
+                  docker('image', 'rm', tag)
+              removed.append(identifier)
+          require(protected_containers.issubset(containers()), 'container-changed')
+          require(protected_running.issubset(set(docker('ps', '-q', '--no-trunc').split())), 'running-container-changed')
+          require(protected_volumes.issubset(set(docker('volume', 'ls', '-q').split())), 'volume-changed')
+          require(protected_networks.issubset(set(docker('network', 'ls', '-q').split())), 'network-changed')
+          remaining = set(docker('image', 'ls', '-aq', '--no-trunc').split())
+          require(not set(removed).intersection(remaining), 'legacy-image-remains')
+          time.sleep(10)
+          after = shutil.disk_usage(workspace).free
+          print(json.dumps({'status': 'completed', 'removedImageCount': len(removed),
+                            'freeBytesBefore': before, 'freeBytesAfter': after, 'freedHostBytes': after-before,
+                            'meets20GiB': after >= 20*1024**3, 'protectedRuntimeResourcesPreserved': True,
+                            'forceDeletion': False, 'volumeDeletion': False}, sort_keys=True))
+          PY
