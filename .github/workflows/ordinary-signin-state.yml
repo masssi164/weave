@@ -1,0 +1,120 @@
+name: Observe ordinary Sign In state
+on:
+  push:
+    branches: [diagnostic/iphone-handoff-190799-20261028]
+    paths: [.github/workflows/ordinary-signin-state.yml]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  driver:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/iphone-handoff-190799-20261028'
+    runs-on: macos-26
+    timeout-minutes: 15
+    outputs:
+      artifact_id: ${{ steps.artifact.outputs.artifact-id }}
+      artifact_digest: ${{ steps.artifact.outputs.artifact-digest }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: 310257c1b98bd0f1fa6134b5dba59142d2471957
+          path: diagnostic
+          persist-credentials: false
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: 190799c721343a2f21e1b68181f39cb8c87bea6a
+          path: source
+          persist-credentials: false
+      - name: Add only fixed-category observation at the existing failure boundary
+        working-directory: source
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 190799c721343a2f21e1b68181f39cb8c87bea6a
+          python3 ../diagnostic/.github/diagnostics/ordinary-signin-observation.py instrument
+          test "$(git diff --name-only)" = client/tool/ios_browser_driver/BrowserDriver.swift
+          git diff --check
+          sudo xcode-select --switch /Applications/Xcode_26.5.app/Contents/Developer
+          test "$(xcodebuild -version)" = "$(printf 'Xcode 26.5\nBuild version 17F42')"
+          xcodebuild build-for-testing -project client/tool/ios_browser_driver/BrowserDriver.xcodeproj -scheme BrowserDriver \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath "$RUNNER_TEMP/observer-driver" CODE_SIGNING_ALLOWED=NO
+          mkdir -p "$RUNNER_TEMP/observer-package"
+          PYTHONPATH=tools python3 - <<'PY'
+          import os
+          from pathlib import Path
+          from build_artifacts import package_payload
+          root=Path(os.environ['RUNNER_TEMP'])
+          package_payload(root/'observer-driver/Build/Products',root/'observer-package/driver.tar.gz')
+          PY
+      - id: artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: ordinary-signin-diagnostic-driver
+          path: ${{ runner.temp }}/observer-package/driver.tar.gz
+          retention-days: 3
+          if-no-files-found: error
+  observe:
+    needs: driver
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    timeout-minutes: 20
+    concurrency:
+      group: weave-live-mac-mini-exclusive
+      cancel-in-progress: false
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      WEAVE_ENV_FILE: ${{ vars.WEAVE_DOGFOOD_REVIEWED_ENV_FILE }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: 310257c1b98bd0f1fa6134b5dba59142d2471957
+          path: signin-observer-diagnostic
+          persist-credentials: false
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: 190799c721343a2f21e1b68181f39cb8c87bea6a
+          path: signin-observer-source
+          persist-credentials: false
+      - name: Consume the unchanged qualified app and separately verify the diagnostic driver
+        working-directory: signin-observer-source
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DIAGNOSTIC_ARTIFACT: ${{ needs.driver.outputs.artifact_id }}
+          DIAGNOSTIC_DIGEST: ${{ needs.driver.outputs.artifact_digest }}
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = weave-live-mac-mini
+          test "$(git rev-parse HEAD)" = 190799c721343a2f21e1b68181f39cb8c87bea6a
+          root="$RUNNER_TEMP/weave-signin-observer-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          test ! -e "$root"
+          mkdir -m 700 "$root"
+          echo "OBSERVER_ROOT=$root" >> "$GITHUB_ENV"
+          printf 'WEAVE_CANDIDATE_COMPOSITION=%s/composition.json\nWEAVE_BUILD_ARTIFACT_ROOT=%s/components\nWEAVE_DIAGNOSTIC_BROWSER_PRODUCTS=%s/driver\n' "$root" "$root" "$root" >> "$GITHUB_ENV"
+          python3 tools/runner_capacity_preflight.py --path . --minimum-free-gib 20 --require-docker
+          python3 tools/artifact_consumers.py fetch-composition --qualified \
+            --candidate 190799c721343a2f21e1b68181f39cb8c87bea6a --run-id 40682567150 --run-attempt 2 --output "$root/composition.json"
+          python3 tools/build_artifacts.py consume --composition "$root/composition.json" \
+            --components runtime-linux-arm64,ios-simulator --directory "$root/components" >/dev/null
+          OBSERVER_ROOT="$root" PYTHONPATH=tools python3 - <<'PY'
+          import json, os, zipfile
+          from pathlib import Path
+          from build_artifacts import GitHub,digest_file,extract_payload
+          github=GitHub('masssi164/weave',os.environ['GITHUB_TOKEN'])
+          artifact=int(os.environ['DIAGNOSTIC_ARTIFACT'])
+          metadata=github.json(github.prefix+f'/actions/artifacts/{artifact}')
+          assert metadata['name']=='ordinary-signin-diagnostic-driver' and not metadata['expired']
+          assert metadata['workflow_run']['id']==int(os.environ['GITHUB_RUN_ID'])
+          assert metadata['workflow_run']['head_sha']==os.environ['GITHUB_SHA']
+          root=Path(os.environ['OBSERVER_ROOT']); archive=root/'driver.zip'
+          github.download(artifact,archive)
+          assert digest_file(archive)==metadata['digest']=='sha256:'+os.environ['DIAGNOSTIC_DIGEST']
+          with zipfile.ZipFile(archive) as zipped:
+              entries=zipped.infolist()
+              assert len(entries)==1 and entries[0].filename=='driver.tar.gz' and entries[0].file_size<200*1024**2
+              payload=root/'driver.tar.gz'; payload.write_bytes(zipped.read(entries[0]))
+          extract_payload(payload,root/'driver')
+          print('DIAGNOSTIC_DRIVER_VERIFIED acceptanceEvidence=false applicationUnchanged=true')
+          PY
+      - name: Reproduce the original flow with observation only, then remove owned simulators
+        working-directory: signin-observer-source
+        run: |
+          set -euo pipefail
+          python3 ../signin-observer-diagnostic/.github/diagnostics/ordinary-signin-observation.py observe
