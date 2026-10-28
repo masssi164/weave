@@ -1,0 +1,27 @@
+name: Private registry repair focused tests
+
+on:
+  push:
+    branches: [diagnostic/verify-first-ghcr-publication-20261028]
+    paths: [.github/workflows/private-registry-focused-tests.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    if: github.repository == 'masssi164/weave'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: 0f6761c40bbc2b4db8b6786dd6d1563b3829897f
+          persist-credentials: false
+      - name: Verify exact repair source
+        run: test "$(git rev-parse HEAD)" = 0f6761c40bbc2b4db8b6786dd6d1563b3829897f
+      - name: Exercise registry, consumer and storage contracts without publication
+        env:
+          PYTHONPATH: tools
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 -m unittest runtime_image_registry_test artifact_consumers_test artifact_runtime_storage_test -v
