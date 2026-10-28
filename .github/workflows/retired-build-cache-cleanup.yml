@@ -1,0 +1,85 @@
+name: Retire local compilation caches
+on:
+  push:
+    branches: [diagnostic/cache-prune-preflight-20261028]
+    paths: [.github/workflows/retired-build-cache-cleanup.yml]
+permissions:
+  contents: read
+jobs:
+  cleanup:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/cache-prune-preflight-20261028'
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    concurrency:
+      group: weave-live-mac-mini-exclusive
+      cancel-in-progress: false
+    timeout-minutes: 8
+    steps:
+      - name: Remove regenerable compiler caches and newly unshared retired build layers
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, re, shutil, subprocess, time
+          from pathlib import Path
+          def require(value, reason):
+              if not value:
+                  raise RuntimeError(reason)
+          def command(arguments):
+              result = subprocess.run(arguments, capture_output=True, text=True, timeout=60)
+              require(result.returncode == 0, 'maintenance-command-failed')
+              return result.stdout
+          require(os.environ.get('RUNNER_NAME') == 'weave-live-mac-mini', 'wrong-runner')
+          home = Path.home().resolve()
+          workspace = Path(os.environ['GITHUB_WORKSPACE'])
+          before = shutil.disk_usage(workspace).free
+          report = {'freeBytesBefore': before, 'removedCaches': [], 'modelFilesDeleted': False,
+                    'gradleDependenciesPreserved': True, 'uvCachePreserved': True}
+          def idle():
+              processes = command(['ps','-axo','command='])
+              require(not any(word in processes for word in ('GradleDaemon','GradleWrapperMain','/xcodebuild ',
+                  '/flutter_tools.snapshot build','/cargo build','/cargo test','npm install','npm ci','pub get')),
+                  'build-or-package-process-active')
+          for relative in ('.cargo/registry', '.npm/_cacache', '.pub-cache'):
+              idle()
+              path = home/relative
+              require(path.resolve().is_relative_to(home)
+                      and not any(parent.is_symlink() for parent in (path,*path.parents)), 'unsafe-cache-path')
+              if not path.exists():
+                  continue
+              require(path.is_dir(), 'cache-not-directory')
+              size = int(command(['du','-sk',str(path)]).split()[0])*1024
+              require(size <= 1024**3, 'cache-exceeds-measured-bound')
+              shutil.rmtree(path)
+              report['removedCaches'].append({'category': relative, 'bytes': size})
+          require(not any(os.environ.get(key) for key in ('DOCKER_HOST','DOCKER_CONTEXT','DOCKER_TLS',
+                  'DOCKER_TLS_VERIFY','DOCKER_CERT_PATH','BUILDX_BUILDER','BUILDKIT_HOST')), 'docker-override')
+          context = command(['docker','context','show']).strip()
+          endpoint = json.loads(command(['docker','context','inspect',context]))[0]['Endpoints']['docker']['Host']
+          require(endpoint.startswith('unix:///') and Path(endpoint[7:]).is_socket(), 'local-daemon-required')
+          base = ['docker','--context',context,'buildx']
+          fmt = '{"id":{{json .ID}},"shared":{{json .Shared}},"reclaimable":{{json .Reclaimable}}}'
+          def records(extra=()):
+              return [json.loads(line) for line in command(base+['du','--format',fmt]+list(extra)).splitlines() if line.strip()]
+          initial = records()
+          selected = {row['id'] for row in initial if row['reclaimable'] and not row['shared']}
+          require(len(initial) <= 30 and all(re.fullmatch(r'[a-z0-9]{8,80}', key) for key in selected), 'cache-inventory-changed')
+          protected = {row['id'] for row in initial}-selected
+          def resources():
+              return {kind: set(command(['docker','--context',context,*args]).splitlines()) for kind,args in {
+                  'images':['image','ls','-aq','--no-trunc'], 'containers':['ps','-aq','--no-trunc'],
+                  'running':['ps','-q','--no-trunc'], 'volumes':['volume','ls','-q'], 'networks':['network','ls','-q']}.items()}
+          runtime = resources()
+          if selected:
+              filters = ['--filter','private=""','--filter','id~=^('+'|'.join(sorted(selected))+')$']
+              checked = records(filters)
+              require({row['id'] for row in checked} == selected and all(row['reclaimable'] and not row['shared'] for row in checked), 'cache-selection-changed')
+              command(base+['prune','--force',*filters])
+          require(protected.issubset({row['id'] for row in records()}), 'unselected-cache-changed')
+          after_runtime = resources()
+          require(all(ids.issubset(after_runtime[kind]) for kind,ids in runtime.items()), 'protected-runtime-changed')
+          time.sleep(10)
+          after = shutil.disk_usage(workspace).free
+          report.update(status='completed', privateCacheRecordsSelected=len(selected), freeBytesAfter=after,
+                        freedHostBytes=after-before, protectedRuntimeResourcesPreserved=True)
+          print(json.dumps(report, sort_keys=True), flush=True)
+          PY
