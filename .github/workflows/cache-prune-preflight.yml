@@ -1,0 +1,162 @@
+name: Temporary Weave cache filter preflight
+
+on:
+  push:
+    branches: [diagnostic/cache-prune-preflight-20261028]
+    paths: [.github/workflows/cache-prune-preflight.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/cache-prune-preflight-20261028'
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    timeout-minutes: 5
+    concurrency:
+      group: weave-live-mac-mini-exclusive
+      cancel-in-progress: false
+    steps:
+      - name: Verify selected builder and private cache filter without mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PYTHON'
+          """Bounded read-only evidence for a separate optional cache proposal."""
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import shutil
+          import subprocess
+          from urllib.parse import urlsplit
+
+          ID = re.compile(r"[a-z0-9]{8,80}\Z")
+          NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\Z")
+          VERSION = r"v[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}(?:[-+][A-Za-z0-9.-]{1,40})?"
+          TYPES = {"internal", "frontend", "source.local", "source.git.checkout", "exec.cachemount", "regular"}
+          KEYS = {"id", "reclaimable", "shared", "mutable", "type"}
+          PROJECTION = '{"id":{{json .ID}},"reclaimable":{{json .Reclaimable}},"shared":{{json .Shared}},"mutable":{{json .Mutable}},"type":{{json .Type}}}'
+          CONTEXT_PROJECTION = '{"name":{{json .Name}},"host":{{json .Endpoints.docker.Host}},"skipTLSVerify":{{json .Endpoints.docker.SkipTLSVerify}},"tlsMaterialEmpty":{{if .TLSMaterial}}false{{else}}true{{end}}}'
+          OVERRIDES = ("DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_TLS", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH", "BUILDX_BUILDER", "BUILDKIT_HOST")
+          FILTER = 'private=""'
+          REASONS = {"runner-context-rejected", "context-override-rejected", "command-unavailable", "version-shape-rejected", "local-endpoint-unproven", "builder-context-unproven", "cache-shape-rejected", "cache-state-rejected", "filter-witness-missing", "filter-result-mismatch", "builder-changed", "unexpected-shape"}
+          result = {"schemaVersion": "weave.cache-filter-preflight/v1", "status": "unavailable", "stage": "runner-context", "mode": "read-only", "deleteAuthority": "none", "supportSafe": True, "containsSecretValues": False}
+
+          class PreflightFailure(ValueError):
+              def __init__(self, reason):
+                  self.reason = reason if reason in REASONS else "unexpected-shape"
+
+          def require(condition, reason):
+              if not condition:
+                  raise PreflightFailure(reason)
+
+          def command(arguments):
+              # Neither raw subprocess output nor stderr is ever printed.
+              try:
+                  value = subprocess.run(arguments, capture_output=True, text=True, timeout=15)
+              except (OSError, subprocess.SubprocessError):
+                  raise PreflightFailure("command-unavailable") from None
+              require(value.returncode == 0 and len(value.stdout.encode()) <= 2 * 1024 * 1024, "command-unavailable")
+              return value.stdout
+
+          def context_name():
+              value = command(["docker", "context", "show"]).strip()
+              require(NAME.fullmatch(value) is not None, "builder-context-unproven")
+              return value
+
+          def local_endpoint(context):
+              try:
+                  value = json.loads(command(["docker", "context", "inspect", context, "--format", CONTEXT_PROJECTION]))
+              except ValueError:
+                  raise PreflightFailure("local-endpoint-unproven") from None
+              require(isinstance(value, dict) and set(value) == {"name", "host", "skipTLSVerify", "tlsMaterialEmpty"}, "local-endpoint-unproven")
+              require(value["name"] == context and value["skipTLSVerify"] is False and value["tlsMaterialEmpty"] is True, "local-endpoint-unproven")
+              host = value["host"]
+              require(isinstance(host, str) and len(host) <= 4096 and host.startswith("unix:///") and not any(ord(char) < 32 or ord(char) == 127 for char in host), "local-endpoint-unproven")
+              parsed = urlsplit(host)
+              require(parsed.scheme == "unix" and not parsed.netloc and not parsed.query and not parsed.fragment and not parsed.path.startswith("//") and "%" not in parsed.path, "local-endpoint-unproven")
+              socket = Path(parsed.path)
+              require(socket.is_absolute() and socket.is_socket(), "local-endpoint-unproven")
+              return host
+
+          def builder_identity(context, name=None):
+              arguments = ["docker", "--context", context, "buildx", "inspect"]
+              if name is not None:
+                  arguments.append(name)
+              fields = {}
+              for line in command(arguments + ["--timeout", "5s"]).splitlines():
+                  key, separator, value = line.partition(":")
+                  if separator:
+                      fields.setdefault(key.strip(), []).append(value.strip())
+              names = fields.get("Name", [])
+              require(len(names) == 2 and all(NAME.fullmatch(value) for value in names), "builder-context-unproven")
+              require(fields.get("Driver") == ["docker"] and fields.get("Endpoint") == [context] and fields.get("Status") == ["running"] and fields.get("Nodes") == [""], "builder-context-unproven")
+              versions = fields.get("BuildKit version", [])
+              require(len(versions) == 1 and re.fullmatch(VERSION, versions[0]) is not None, "version-shape-rejected")
+              require(name is None or names[0] == name, "builder-context-unproven")
+              return names[0], names[1], versions[0]
+
+          def cache_records(arguments):
+              lines = command(arguments).splitlines()
+              require(0 < len(lines) <= 300 and all(line.strip() for line in lines), "cache-shape-rejected")
+              records = {}
+              for line in lines:
+                  try:
+                      row = json.loads(line)
+                  except ValueError:
+                      raise PreflightFailure("cache-shape-rejected") from None
+                  require(isinstance(row, dict) and set(row) == KEYS, "cache-shape-rejected")
+                  require(isinstance(row["id"], str) and ID.fullmatch(row["id"]) is not None and row["id"] not in records, "cache-shape-rejected")
+                  require(all(type(row[key]) is bool for key in ("reclaimable", "shared", "mutable")), "cache-state-rejected")
+                  require(isinstance(row["type"], str) and row["type"] in TYPES, "cache-shape-rejected")
+                  records[row["id"]] = row
+              return records
+
+          def main():
+              require(os.environ.get("RUNNER_NAME") == "weave-live-mac-mini" and os.environ.get("GITHUB_REPOSITORY") == "masssi164/weave" and os.environ.get("GITHUB_REF") == "refs/heads/diagnostic/cache-prune-preflight-20261028", "runner-context-rejected")
+              workspace = Path(os.environ.get("GITHUB_WORKSPACE", ""))
+              require(workspace.is_absolute() and workspace.is_dir() and not workspace.is_symlink(), "runner-context-rejected")
+              result["workVolumeFreeBytes"] = shutil.disk_usage(workspace).free
+              result["minimumFreeBytes"] = 20 * 1024 ** 3
+              require(not any(os.environ.get(name) for name in OVERRIDES), "context-override-rejected")
+              result["stage"] = "versions"
+              version = re.fullmatch(r"github\.com/docker/buildx (" + VERSION + r") [0-9a-f]{7,64}\s*", command(["docker", "buildx", "version"]))
+              require(version is not None, "version-shape-rejected")
+              result["buildxVersion"] = version.group(1)
+              result["stage"] = "builder-identity"
+              context = context_name()
+              endpoint = local_endpoint(context)
+              identity = builder_identity(context)
+              result["buildkitVersion"] = identity[2]
+              result["builderStatus"] = "selected-context-single-running-local-docker-node"
+              target = {"context": context, "builder": identity[0], "node": identity[1], "endpoint": endpoint}
+              result["targetIdentitySha256"] = hashlib.sha256(json.dumps(target, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+              arguments = ["docker", "--context", context, "buildx", "--builder", identity[0], "du", "--format", PROJECTION, "--timeout", "5s"]
+              result["stage"] = "unfiltered-cache"
+              records = cache_records(arguments)
+              private = {key: row for key, row in records.items() if not row["shared"]}
+              result["counts"] = {"unfiltered": len(records), "privateExpected": len(private), "shared": len(records) - len(private), "inUse": sum(not row["reclaimable"] for row in records.values())}
+              result["unfilteredRecordIds"] = sorted(records)
+              require(0 < len(private) < len(records), "filter-witness-missing")
+              result["stage"] = "filtered-cache"
+              selected = cache_records(arguments + ["--filter", FILTER])
+              result["counts"]["privateSelected"] = len(selected)
+              result["selectedRecordIds"] = sorted(selected)
+              require(all(not row["shared"] and row["reclaimable"] for row in selected.values()), "cache-state-rejected")
+              require(selected == private, "filter-result-mismatch")
+              result["stage"] = "identity-recheck"
+              require(context_name() == context and local_endpoint(context) == endpoint and builder_identity(context) == identity and builder_identity(context, identity[0]) == identity, "builder-changed")
+              result["status"] = "complete"
+              result["filterStatus"] = "matches-exact-private-reclaimable-set"
+              result.pop("stage")
+
+          try:
+              main()
+          except Exception as error:
+              result["status"] = "unavailable"
+              result["reason"] = error.reason if isinstance(error, PreflightFailure) else "unexpected-shape"
+          print(json.dumps(result, sort_keys=True))
+          raise SystemExit(0 if result["status"] == "complete" else 1)
+          PYTHON
