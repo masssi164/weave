@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
-          ref: 310257c1b98bd0f1fa6134b5dba59142d2471957
+          ref: edada2e3f2a0addc41e39cacccd065b868b34995
           path: diagnostic
           persist-credentials: false
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
@@ -65,7 +65,7 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
-          ref: 310257c1b98bd0f1fa6134b5dba59142d2471957
+          ref: edada2e3f2a0addc41e39cacccd065b868b34995
           path: signin-observer-diagnostic
           persist-credentials: false
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
