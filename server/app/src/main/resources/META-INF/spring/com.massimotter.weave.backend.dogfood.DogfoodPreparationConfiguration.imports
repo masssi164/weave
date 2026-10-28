@@ -1,0 +1,4 @@
+# Reuse installed domain policy without importing HTTP/provider runtime graphs.
+optional:com.massimotter.weave.backend.chat.capability.ChatWorkspaceCapabilityConfiguration
+optional:com.massimotter.weave.backend.files.capability.FilesWorkspaceCapabilityConfiguration
+optional:com.massimotter.weave.backend.calendar.capability.CalendarWorkspaceCapabilityConfiguration
