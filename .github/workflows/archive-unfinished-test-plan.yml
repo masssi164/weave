@@ -1,0 +1,75 @@
+name: Archive only the unfinished legacy test-member plan
+on:
+  push:
+    branches: [diagnostic/iphone-handoff-190799-20261028]
+    paths: [.github/workflows/archive-unfinished-test-plan.yml]
+permissions:
+  contents: read
+jobs:
+  archive:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/iphone-handoff-190799-20261028'
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    timeout-minutes: 5
+    concurrency:
+      group: weave-live-mac-mini-exclusive
+      cancel-in-progress: false
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      WEAVE_CANDIDATE_COMMIT: 190799c721343a2f21e1b68181f39cb8c87bea6a
+      WEAVE_ENV_FILE: ${{ vars.WEAVE_DOGFOOD_REVIEWED_ENV_FILE }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: 190799c721343a2f21e1b68181f39cb8c87bea6a
+          path: member-conflict-source
+          persist-credentials: false
+      - name: Preserve the unhanded partial plan without touching any server account or application data
+        working-directory: member-conflict-source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os, subprocess, sys
+          from pathlib import Path
+          sys.path.insert(0, str(Path.cwd()/'tools'))
+          from dogfood_prepare import private_read, private_directory, ledger_for, load_context, operator_plan, validate_operator_envelope
+          report={'status':'blocked','serverAccountsChanged':False,'credentialsChanged':False,'tlsChanged':False,
+                  'fixtureDeleted':False,'archiveCreated':False,'supportSafe':True,'containsSecretValues':False}
+          try:
+              assert os.environ['RUNNER_NAME']=='weave-live-mac-mini'
+              assert os.environ['GITHUB_REPOSITORY']=='masssi164/weave'
+              assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()==os.environ['WEAVE_CANDIDATE_COMMIT']
+              context=load_context('dogfood',Path.cwd()/'infra/weave-workspace',os.environ['WEAVE_ENV_FILE'])
+              assert context.environment=='dogfood' and context.isolated_namespace is None
+              fixture=Path.home()/'.weave/dogfood/functional-smoke-identities.json'
+              assert not fixture.exists() and not fixture.is_symlink(), 'a-published-fixture-must-not-be-replaced'
+              path=ledger_for(fixture)
+              ledger=private_read(path,65536)
+              assert ledger['schemaVersion']=='weave.dogfood-operator-preparation-ledger/v1'
+              assert ledger['authorizationKind']=='dogfood-operator'
+              operator_plan(ledger['plan'],context)
+              assert ledger.get('registrationState')=={'A':'email-verification-required','B':'registration-complete'}
+              assert not any(key in ledger for key in ('lastGrantsEnvelope','fixtureSha256','ownerBinding','candidate'))
+              receipt=validate_operator_envelope(ledger['operatorEnvelope'])['receipt']
+              assert receipt['status']=='blocked' and receipt['operation']=='provision-members' and receipt['boundary']=='invitation-conflict'
+              assert [m['slot'] for m in receipt['members']]==['A','B']
+              assert [m['intentState'] for m in receipt['members']]==['PENDING','APPLIED']
+              assert all(m['intentRef'] and m['invitationHandle'] and not any(m.get(k) for k in ('accountRef','memberHandle','grantVersion')) for m in receipt['members'])
+              original=path.read_bytes()
+              archive_root=private_directory(path.parent/'unfinished-preparation-archive')
+              archive=archive_root/(hashlib.sha256(original).hexdigest()+'.json')
+              assert not archive.exists() and not archive.is_symlink()
+              assert private_read(path,65536)==ledger and path.read_bytes()==original
+              assert not fixture.exists() and not fixture.is_symlink()
+              # Atomic relocation retains all original plan/credential/reference bytes for recovery.
+              # The unchanged canonical deployment creates a new plan; no evidence is edited.
+              path.rename(archive)
+              assert archive.read_bytes()==original and private_read(archive,65536)==ledger and not path.exists()
+              report.update(status='passed',archiveCreated=True,originalBytesPreserved=True,
+                            publishedFixtureWasAbsent=True,previousGrantEvidenceWasAbsent=True,
+                            nextAction='canonical-managed-member-preparation')
+          except Exception as failure:
+              report['errorType']=type(failure).__name__
+          print(json.dumps(report,sort_keys=True))
+          raise SystemExit(0 if report['status']=='passed' else 1)
+          PY
