@@ -1,0 +1,178 @@
+name: One-time unused private BuildKit cache cleanup
+
+on:
+  push:
+    branches: [diagnostic/cache-prune-preflight-20261028]
+    paths: [.github/workflows/cache-prune-once.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/cache-prune-preflight-20261028'
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    timeout-minutes: 10
+    concurrency:
+      group: weave-live-mac-mini-exclusive
+      cancel-in-progress: false
+    steps:
+      - name: Clean the approved unused cache and measure actual host capacity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PYTHON'
+          """One authorized maintenance run; no image, container, volume or network deletion."""
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import shutil
+          import subprocess
+          import time
+          from urllib.parse import urlsplit
+
+          # Exact records observed by read-only preflight 40609212669.
+          APPROVED = set('''
+          04c2hm31quxs55ekvkp442efv 0dfgfjl3mihngdv98ztih1m22 18d0jx562bub5sob2xujlbwk2
+          1fffdxiv7bajee6xtupz6ygjt 1ha34fry5cyzm9pbrppt24xej 1nfmtvrdgzuwwpr2zpjgvpfvo
+          1p8z2l0pa4ak17damawkv0i5n 2aalbp5a7m6l6ptddgjkzk7nu 2dear1ydssoblh6z83bfpqd2d
+          302t0nyik5rdb2jjcf2zld0w1 4pt1purwe5vuf3mhovdrr4ng4 4qlwzb011eskjcsbbdtqlpyj6
+          4sbib7ik8tzfgcxhh6v42c0vg 4tryy292ok3z93djvm79bo46p 4ulglisibf5sefzx46q68al76
+          4w4m5iflp2xgrnpls7xnh4h3x 51k2p2lbnhwronfm9299cvl09 6zm62anar4h22xuyew7qzbagr
+          7bdam10519lyo19su3wlfc2p2 7wxm2obvf9odr6mcfh1y4bvw2 8976l6fjdxw5ozgan3g7y5uhm
+          9ijbpcu6lrgucaicy112j21dv apud4kfsb4xr4o05cdkki93hc az62quyvfu1jvdltwgcqtosrl
+          b57mab92f8r2ngg43nwocbbx9 bs52sj8n1jd5xbvc57t1i28zk e07x92aq709t1gbt8necctq9b
+          f15wyf4w9rkwxsirzobl42xld fjblb2fj9qphhn9bst0yj10pn fzqrxn762s2k5douarh37upx3
+          ii6or64n6b2pbr1reipsuo6oq inkqnltwcqc9h33scdwkr4xwl iq7sta3uvi444r27pi19yetz7
+          ivdovu2y36fm9xu027b4m5s6h kdu9ut5tvxqrcifgwnd4n0ct7 ke5ajgz4eghwwsqs2cj2oa3pd
+          kfwp6u51thfiafmb70gc0gviy l71uehtrkjhgmuo9aqn0vs3th lgwwxrnshfan9czcn7yfk8isw
+          li1z85t0cghfol9rftjt09t76 lir8o68ylimns15p10sj9xmb8 m1ekh61dm70i9uy9ye1i3w8gz
+          m9c9rqkwyg0j1z3jeg49ew2av mx5iwx768o5qfggpy666m4nyb oqi9gu2w4qaowbi5wnt2w35us
+          p5sic8yc5znye92rpl4idqxxz p7wngy0kx5yzzcsrswmco9xty p80uy605ev0qrygpxwk3h00f4
+          pa81q0llahalh2w6bci6eewbl piatrm94ns1rhpcocof0hcyo7 pqdqm2efppxw80yb2v87102wk
+          pvx44fsbce1f0w9ygxizg863h q75wz46isa7sjf7alefyjqgb8 q8zveh6depewv941wzht6p5b4
+          qud8pkp7l7g1arxnqp0j8ee25 quw4m35b9uj2xxgh9uvo5og0h qybwewf2s695fg8sdqctkewyq
+          s2295371k2gttix2cs03810fm s5hea44cp6mtqp80vlvk2g1iu s5v5aus2q9bx1q7sjel2a4n9n
+          s74sxoo79pymmj7q8qyrgj5ll su0oq0x4f69umiiv45j07f9y4 u2nxgs2jqsypbsxm7b4tao8lu
+          ugl2riv8tyhhrx3f0ybkcad0m xjz0j5smh1nlpl9i00k0rrieh xsy5rq9u3e9ehaym08o1ebqf3
+          yjiskh11cxj00pt5yd0e4ypap ysjnkznshmtgt7do6xjybl2j2 zdex6dr4x49lrxrb2mkapgzwq
+          zlbliqsz1fcm59d55gxnjk4p5
+          '''.split())
+          EXPECTED_TARGET = '195735404abefac848d39f40a1132ecccb3aff269b40b24dc3d13629b1ec1aa3'
+          MINIMUM = 20 * 1024 ** 3
+          NAME = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\Z')
+          CACHE_FORMAT = '{"id":{{json .ID}},"shared":{{json .Shared}},"reclaimable":{{json .Reclaimable}}}'
+          CONTEXT_FORMAT = '{"name":{{json .Name}},"host":{{json .Endpoints.docker.Host}}}'
+          report = {'status': 'blocked', 'stage': 'preflight', 'pruneExecuted': False,
+                    'scope': 'approved-unused-private-build-cache-only', 'minimumFreeBytes': MINIMUM}
+
+          def require(condition, reason):
+              if not condition:
+                  raise ValueError(reason)
+
+          def command(arguments, timeout=20):
+              result = subprocess.run(arguments, capture_output=True, text=True, timeout=timeout)
+              require(result.returncode == 0, 'docker-command-failed')
+              require(len(result.stdout) <= 2 * 1024 ** 2, 'unexpected-output-size')
+              return result.stdout
+
+          def target():
+              context = command(['docker', 'context', 'show']).strip()
+              require(NAME.fullmatch(context), 'invalid-context')
+              endpoint = json.loads(command(['docker', 'context', 'inspect', context, '--format', CONTEXT_FORMAT]))
+              require(endpoint.get('name') == context, 'context-mismatch')
+              host = endpoint.get('host', '')
+              parsed = urlsplit(host)
+              require(parsed.scheme == 'unix' and not parsed.netloc and not parsed.query
+                      and not parsed.fragment and Path(parsed.path).is_socket(), 'local-socket-required')
+              fields = {}
+              for line in command(['docker', '--context', context, 'buildx', 'inspect', '--timeout', '5s']).splitlines():
+                  key, separator, value = line.partition(':')
+                  if separator:
+                      fields.setdefault(key.strip(), []).append(value.strip())
+              names = fields.get('Name', [])
+              require(len(names) == 2 and all(NAME.fullmatch(name) for name in names), 'single-node-required')
+              require(fields.get('Driver') == ['docker'] and fields.get('Endpoint') == [context]
+                      and fields.get('Status') == ['running'], 'unexpected-builder')
+              identity = {'context': context, 'builder': names[0], 'node': names[1], 'endpoint': host}
+              digest = hashlib.sha256(json.dumps(identity, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+              require(digest == EXPECTED_TARGET, 'builder-changed-since-approved-preflight')
+              return context, names[0]
+
+          def records(base, filters=()):
+              output = command(base + ['du', '--format', CACHE_FORMAT, '--timeout', '5s'] + list(filters))
+              rows = [json.loads(line) for line in output.splitlines() if line.strip()]
+              require(len(rows) <= 300, 'unexpected-cache-count')
+              require(all(set(row) == {'id', 'shared', 'reclaimable'}
+                          and isinstance(row['id'], str) and re.fullmatch(r'[a-z0-9]{8,80}', row['id'])
+                          and type(row['shared']) is bool and type(row['reclaimable']) is bool for row in rows),
+                      'unexpected-cache-record')
+              require(len({row['id'] for row in rows}) == len(rows), 'duplicate-cache-record')
+              return {row['id']: row for row in rows}
+
+          def resources(context):
+              docker = ['docker', '--context', context]
+              queries = {'containers': ['ps', '-aq', '--no-trunc'], 'running': ['ps', '-q', '--no-trunc'],
+                         'images': ['image', 'ls', '-aq', '--no-trunc'], 'volumes': ['volume', 'ls', '-q'],
+                         'networks': ['network', 'ls', '-q']}
+              return {name: set(command(docker + args).splitlines()) for name, args in queries.items()}
+
+          def clean():
+              require(os.environ.get('GITHUB_REPOSITORY') == 'masssi164/weave'
+                      and os.environ.get('RUNNER_NAME') == 'weave-live-mac-mini'
+                      and os.environ.get('GITHUB_REF') == 'refs/heads/diagnostic/cache-prune-preflight-20261028',
+                      'unexpected-runner-or-branch')
+              require(not any(os.environ.get(key) for key in ('DOCKER_HOST', 'DOCKER_CONTEXT', 'DOCKER_TLS',
+                      'DOCKER_TLS_VERIFY', 'DOCKER_CERT_PATH', 'BUILDX_BUILDER', 'BUILDKIT_HOST')), 'context-override')
+              require(len(APPROVED) == 70, 'invalid-approved-inventory')
+              workspace = Path(os.environ['GITHUB_WORKSPACE'])
+              require(workspace.is_absolute() and workspace.is_dir() and not workspace.is_symlink(), 'invalid-workspace')
+              before = shutil.disk_usage(workspace).free
+              report['freeBytesBefore'] = before
+              context, builder = target()
+              base = ['docker', '--context', context, 'buildx', '--builder', builder]
+              initial = records(base)
+              eligible = {key for key, row in initial.items() if key in APPROVED and not row['shared'] and row['reclaimable']}
+              report['eligibleRecords'] = len(eligible)
+              untouched = set(initial) - eligible
+              protected = resources(context)
+              if before < MINIMUM and eligible:
+                  # Both filters must match. Newly created cache records are excluded by exact ID.
+                  filters = ['--filter', 'private=""', '--filter', 'id~=^(' + '|'.join(sorted(eligible)) + ')$']
+                  selected = records(base, filters)
+                  require(set(selected) == eligible and all(not row['shared'] and row['reclaimable']
+                          for row in selected.values()), 'cache-selection-changed')
+                  require(target() == (context, builder), 'builder-changed')
+                  report['stage'] = 'pruning-approved-cache'
+                  report['pruneExecuted'] = True
+                  # No --all or system/image/container/volume/network prune. Host free space
+                  # is measured separately; the builder's VM free space is not the host reserve.
+                  command(base + ['prune', '--force', '--timeout', '20s'] + filters, timeout=180)
+              report['stage'] = 'postflight'
+              remaining = records(base)
+              after_resources = resources(context)
+              require(untouched.issubset(remaining), 'unselected-cache-changed-during-maintenance')
+              require(all(ids.issubset(after_resources[name]) for name, ids in protected.items()),
+                      'protected-resource-changed-during-maintenance')
+              require(target() == (context, builder), 'builder-changed-after-maintenance')
+              after = shutil.disk_usage(workspace).free
+              for _ in range(6):
+                  if after >= MINIMUM or not report['pruneExecuted']:
+                      break
+                  time.sleep(5)
+                  after = shutil.disk_usage(workspace).free
+              report.update(status='completed', stage='complete', freeBytesAfter=after,
+                            freedHostBytes=after-before, removedCacheRecords=len(set(initial)-set(remaining)),
+                            protectedResourcesPreserved=True, meets20GiB=after>=MINIMUM)
+
+          try:
+              clean()
+          except ValueError as error:
+              report['reason'] = str(error) if type(error) is ValueError else 'invalid-docker-response'
+          except (OSError, subprocess.SubprocessError, KeyError, TypeError):
+              report['reason'] = 'maintenance-command-or-response-failed'
+          print(json.dumps(report, sort_keys=True), flush=True)
+          raise SystemExit(0 if report['status'] == 'completed' else 1)
+          PYTHON
