@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
-          ref: 0ead11a49a23bbf928bfcd292408105009b81a0a
+          ref: 61984a19b826f5542c9055834414d96f29100d7e
           persist-credentials: false
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
         with:
@@ -27,6 +27,7 @@ jobs:
           flutter pub get
           flutter gen-l10n
           dart run build_runner build --force-aot --delete-conflicting-outputs
-      - name: Reproduce actual navigation through the live test binding
+          flutter analyze --no-pub test/integration_harness/dual_navigation_handoff_test.dart
+      - name: Reproduce actual navigation through the integration test binding
         working-directory: client
-        run: flutter test --no-pub --reporter expanded test/integration_harness/dual_navigation_handoff_test.dart
+        run: flutter test --no-pub --reporter expanded --dart-define=INTEGRATION_TEST_SHOULD_REPORT_RESULTS_TO_NATIVE=false test/integration_harness/dual_navigation_handoff_test.dart
