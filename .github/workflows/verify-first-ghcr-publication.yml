@@ -14,14 +14,14 @@ jobs:
   verify:
     if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/verify-first-ghcr-publication-20261028'
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 25
+    timeout-minutes: 35
     env:
       PYTHONDONTWRITEBYTECODE: '1'
     steps:
       - name: Check out the exact reviewed Dev source
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
-          ref: d950298a54e0622ff54872f6cea1d9cdac5efdfd
+          ref: be8bac746fbb937882adcc713ce9b762067ff155
           persist-credentials: false
       - name: Prepare ephemeral read-only registry authentication
         env:
@@ -41,11 +41,10 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PYTHON'
-          #!/usr/bin/env python3
-          """Verify one completed Dev publication from a fresh hosted ARM64 consumer.
+          """Verify the private-package repair on a fresh hosted ARM64 consumer.
 
-          Registry and GitHub operations are reads. Existing consumer helpers pull into the
-          disposable runner and record its first local ledger; no service is started.
+          Registry and GitHub operations are reads. Existing consumer helpers pull into
+          the disposable runner; no service or deployment is started.
           """
           import json
           import os
@@ -55,6 +54,7 @@ jobs:
           import subprocess
           import sys
           import tempfile
+          import time
           from urllib.error import HTTPError, URLError
           from urllib.parse import urlencode
           from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener, parse_http_list
@@ -62,15 +62,15 @@ jobs:
 
           REPOSITORY = "masssi164/weave"
           BRANCH = "refs/heads/diagnostic/verify-first-ghcr-publication-20261028"
-          CANDIDATE = "d950298a54e0622ff54872f6cea1d9cdac5efdfd"
-          SOURCE_TREE = "2b18c21b8caaa85aec4c2c216a1ca9b41178ed4c"
+          CANDIDATE = "be8bac746fbb937882adcc713ce9b762067ff155"
+          SOURCE_TREE = "8a7e3b9bc5d87f233b9008d08f09b8b5206d4926"
           SPECIFICATION = "98e5f2f32a6b8a4e9bbc3eb3f28c5b1e5b84a527"
-          PRODUCER_RUN = 40607060359
+          PRODUCER_RUN = 40649886607
           PRODUCER_ATTEMPT = 1
-          COMPOSITION_NAME = "candidate-artifacts-d950298a54e0622ff54872f6cea1d9cdac5efdfd-40607060359-attempt-1"
+          COMPOSITION_NAME = f"candidate-artifacts-{CANDIDATE}-{PRODUCER_RUN}-attempt-{PRODUCER_ATTEMPT}"
           COMPONENT = "runtime-linux-arm64"
-          PACKAGES = {"backend": "weave-ci-backend", "mcp": "weave-ci-mcp",
-                      "keycloak": "weave-ci-keycloak", "runtimeState": "weave-ci-runtime-state"}
+          PACKAGES = {"backend": "weave-private-ci-backend", "mcp": "weave-private-ci-mcp",
+                      "keycloak": "weave-private-ci-keycloak", "runtimeState": "weave-private-ci-runtime-state"}
           MEDIA_TYPES = ", ".join(("application/vnd.oci.image.manifest.v1+json",
                                    "application/vnd.oci.image.index.v1+json",
                                    "application/vnd.docker.distribution.manifest.v2+json",
@@ -82,21 +82,17 @@ jobs:
                      "package-visibility-unproved", "anonymous-access-allowed", "anonymous-access-unproved",
                      "unexpected-verification-failure"}
 
-
           class VerificationFailure(Exception):
               def __init__(self, reason):
                   self.reason = reason if reason in REASONS else "unexpected-verification-failure"
-
 
           def require(condition, reason):
               if not condition:
                   raise VerificationFailure(reason)
 
-
           class NoRedirect(HTTPRedirectHandler):
               def redirect_request(self, req, fp, code, msg, headers, newurl):
                   return None
-
 
           def http_json(url, headers=None):
               """Return bounded responses privately; never log bodies, headers or tokens."""
@@ -116,13 +112,8 @@ jobs:
               except (OSError, URLError, ValueError):
                   return 0, "", None
 
-
           def verify_package_visibility(token, audit):
-              """The documented user-package list exposes accessible private metadata.
-
-          The single-package user endpoint is documented for public packages, so it is
-          not used as a substitute for proof of these private packages' visibility.
-          """
+              """Use the documented user-package list for accessible private metadata."""
               required = set(PACKAGES.values())
               found = set()
               headers = {"Authorization": "Bearer " + token, "Accept": "application/vnd.github+json",
@@ -147,13 +138,11 @@ jobs:
                       break
               raise VerificationFailure("package-visibility-unproved")
 
-
           def registry_denial(status, value):
               errors = value.get("errors") if isinstance(value, dict) else None
               return (status in {401, 403} and isinstance(errors, list) and bool(errors)
                       and all(isinstance(error, dict) and error.get("code") in {"UNAUTHORIZED", "DENIED"}
                               for error in errors))
-
 
           def anonymous_refusal(package, digest):
               """Complete the anonymous Bearer flow; an initial 401 is not privacy proof."""
@@ -175,8 +164,7 @@ jobs:
                   fields[key] = value[1:-1]
               require(fields == {"realm": "https://ghcr.io/token", "service": "ghcr.io",
                                  "scope": "repository:" + repository + ":pull"}, "anonymous-access-unproved")
-              # No job token, Docker config, credential helper, or Authorization header is
-              # involved in this token request. Only an anonymous token can be returned.
+              # No job token, Docker config, helper or Authorization is used here.
               query = urlencode({"service": "ghcr.io", "scope": fields["scope"]})
               status, _, value = http_json("https://ghcr.io/token?" + query)
               if registry_denial(status, value):
@@ -189,7 +177,6 @@ jobs:
               require(status != 200, "anonymous-access-allowed")
               require(registry_denial(status, value), "anonymous-access-unproved")
               return "denied-after-anonymous-token", status
-
 
           def verify(audit):
               require(os.environ.get("GITHUB_REPOSITORY") == REPOSITORY
@@ -205,26 +192,35 @@ jobs:
               from artifact_consumers import require_release_runtime, runtime_definition
               from artifact_runtime_storage import default_ledger
               from runtime_registry_auth import runner_temp
+              from runtime_image_registry import NAMES
 
               audit["stage"] = "source-identity"
               require(git(root, "rev-parse", "HEAD").decode().strip() == CANDIDATE
                       and candidate_identity(root, CANDIDATE) == {
                           "candidateCommit": CANDIDATE, "sourceTree": SOURCE_TREE,
                           "specificationCommit": SPECIFICATION}
-                      and not git(root, "diff", "--name-only", "HEAD", "--").strip(), "source-identity-rejected")
+                      and not git(root, "diff", "--name-only", "HEAD", "--").strip()
+                      and NAMES == {key: "ghcr.io/masssi164/" + value for key, value in PACKAGES.items()},
+                      "source-identity-rejected")
               token = os.environ.get("GITHUB_TOKEN", "")
               require(bool(token) and not any(character in token for character in "\r\n\0"),
                       "execution-context-rejected")
               github = GitHub(REPOSITORY, token)
               audit["stage"] = "producer"
-              run = github.json(github.prefix + f"/actions/runs/{PRODUCER_RUN}")
-              require(run.get("id") == PRODUCER_RUN and run.get("run_attempt") == PRODUCER_ATTEMPT
-                      and run.get("status") == "completed" and run.get("conclusion") == "success"
-                      and run.get("repository", {}).get("full_name") == REPOSITORY
-                      and run.get("head_repository", {}).get("full_name") == REPOSITORY
-                      and run.get("head_sha") == CANDIDATE and run.get("head_branch") == "dev"
-                      and run.get("event") == "push" and run.get("path") == ".github/workflows/build-artifacts.yml",
-                      "producer-not-qualified")
+              deadline = time.monotonic() + 900
+              while True:
+                  run = github.json(github.prefix + f"/actions/runs/{PRODUCER_RUN}")
+                  require(run.get("id") == PRODUCER_RUN and run.get("run_attempt") == PRODUCER_ATTEMPT
+                          and run.get("repository", {}).get("full_name") == REPOSITORY
+                          and run.get("head_repository", {}).get("full_name") == REPOSITORY
+                          and run.get("head_sha") == CANDIDATE and run.get("head_branch") == "dev"
+                          and run.get("event") == "push" and run.get("path") == ".github/workflows/build-artifacts.yml",
+                          "producer-not-qualified")
+                  if run.get("status") == "completed":
+                      require(run.get("conclusion") == "success", "producer-not-qualified")
+                      break
+                  require(time.monotonic() < deadline, "producer-not-qualified")
+                  time.sleep(30)
 
               with tempfile.TemporaryDirectory(prefix="weave-ghcr-proof-", dir=runner_temp()) as temporary:
                   directory = Path(temporary)
@@ -271,9 +267,6 @@ jobs:
                   ledger = default_ledger()
                   require(not ledger.exists() and not ledger.is_symlink(), "fresh-runner-required")
                   audit["stage"] = "authenticated-digest-pull"
-                  # The unchanged production consumer verifies actual image IDs, digests,
-                  # platform and labels. Capture all child diagnostics, including Docker's
-                  # inherited stderr, so no raw provider response enters the job log.
                   environment = {key: value for key, value in os.environ.items()
                                  if key not in {"GITHUB_TOKEN", "GH_TOKEN", "GHCR_TOKEN"}}
                   code = "import sys; sys.path.insert(0, sys.argv[1]); from artifact_consumers import load_runtime_images; load_runtime_images(sys.argv[2])"
@@ -302,7 +295,6 @@ jobs:
               audit["stage"] = "complete"
               audit["status"] = "passed"
 
-
           def main():
               audit = {"schemaVersion": "weave.first-ghcr-publication-verification/v1",
                        "status": "pending", "stage": "execution-preflight",
@@ -321,7 +313,6 @@ jobs:
                   audit.update(status="blocked", reason="unexpected-verification-failure")
               print(json.dumps(audit, sort_keys=True), flush=True)
               return 0 if audit["status"] == "passed" else 1
-
 
           if __name__ == "__main__":
               raise SystemExit(main())
