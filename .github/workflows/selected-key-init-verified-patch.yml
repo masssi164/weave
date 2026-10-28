@@ -1,0 +1,88 @@
+name: Verify and commit selected key initialization
+on:
+  push:
+    branches: [diagnostic/verify-first-ghcr-publication-20261028]
+    paths: [.github/workflows/selected-key-init-verified-patch.yml]
+permissions:
+  contents: write
+  packages: read
+jobs:
+  repair:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/verify-first-ghcr-publication-20261028'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: fix/1759-selected-runtime-key-initialization
+      - name: Apply the bounded source changes on the exact test-first head
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 7f7fd33c72d6d63fdeac1a3e61093e3efbe304c9
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('server/Dockerfile')
+          source = path.read_text(); marker = 'ARG WEAVE_RUNTIME_FLAVOR\n'
+          assert source.count(marker) == 1
+          path.write_text(source.replace(marker, marker + '''# Immutable projection of the same resolved selection used by image provenance.
+          RUN test -n "${WEAVE_DOMAINS}" \\
+              && printf '%s\\n' "${WEAVE_DOMAINS}" > /app/weave-domains \\
+              && chmod 0444 /app/weave-domains
+          '''))
+          path = Path('infra/weave-workspace/compose.yaml')
+          source = path.read_text()
+          marker = '        if test -s /run/secrets/agent-runtime/profile-signing/runtime-profile-signing-keys.json; then\n'
+          assert source.count(marker) == 1
+          prefix = '''        packaged_domains="$$(cat /app/weave-domains)"
+                  [[ "$${packaged_domains}" =~ ^[a-z][a-z0-9-]*(,[a-z][a-z0-9-]*)*$$ ]] || exit 2
+                  case ",$${packaged_domains}," in
+                    *,agent-runtime,*) ;;
+                    *) printf '%s\\n' 'Agent Runtime is not packaged; key initialization is not required.'; exit 0 ;;
+                  esac
+          '''
+          path.write_text(source.replace(marker, prefix + marker))
+          path = Path('infra/weave-workspace/tests/infra-product-contract-test.sh')
+          path.write_text(path.read_text() + '\n# Exercise the real initializer command for selected and omitted domains.\npython3 "${ROOT_DIR}/tests/agent_runtime_key_selection_test.py"\n')
+          PY
+      - name: Run the dependency-free regressions and whitespace checks
+        run: |
+          python3 -S infra/weave-workspace/tests/agent_runtime_key_selection_test.py -v
+          git diff --check
+      - name: Verify the corrected initializer with the real selected ARM64 image
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess, tempfile
+          from textwrap import dedent
+          image='ghcr.io/masssi164/weave-private-ci-backend@sha256:aecd360cb53a13eedac1597e227371f0faca803766bed1ec8dc89b2dd1ae4e7f'
+          source=pathlib.Path('infra/weave-workspace/compose.yaml').read_text()
+          service=source.split('\n  agent-runtime-keys-init:\n',1)[1].split('\n  schema-init:\n',1)[0]
+          script=dedent(service.split('    command:\n      - |\n',1)[1].split('    volumes:\n',1)[0]).replace('$$','$')
+          with tempfile.TemporaryDirectory() as temporary:
+              root=pathlib.Path(temporary); root.chmod(0o755)
+              auth=root/'auth'; auth.mkdir(mode=0o700)
+              subprocess.run(['docker','--config',str(auth),'login','ghcr.io','-u',os.environ['GITHUB_ACTOR'],'--password-stdin'],input=os.environ['GHCR_TOKEN'],text=True,check=True,capture_output=True)
+              subprocess.run(['docker','--config',str(auth),'pull','--platform','linux/arm64',image],check=True,capture_output=True)
+              common=['docker','run','--rm','--platform','linux/arm64','--network','none','--read-only','--cap-drop','ALL','--security-opt','no-new-privileges','--user','1000:1000','--tmpfs','/tmp:rw,nosuid,nodev,noexec,mode=1777,size=32m']
+              original=subprocess.run(common+['--entrypoint','java',image,'-jar','/app/app.jar','runtime-profile-signing-keys','--action=initialize','--root=/tmp/fixture','--operation-ref=diagnostic:isolated'],capture_output=True,text=True,timeout=45)
+              assert original.returncode==2 and original.stderr.strip()=='offline-operator-command-unavailable'
+              results=[]
+              for index,(domains,expected) in enumerate([('calendar,chat,files',0),('agent-runtime',2),('',2)]):
+                  selection=root/f'weave-domains-{index}'
+                  selection.write_text(domains+'\n'); selection.chmod(0o444)
+                  result=subprocess.run(common+['--mount',f'type=bind,source={selection},target=/app/weave-domains,readonly','--entrypoint','/bin/bash',image,'-euc',script],capture_output=True,text=True,timeout=45)
+                  assert result.returncode==expected, 'initializer-contract-failed'
+                  results.append({'domains':domains,'exitCode':result.returncode,'expected':expected})
+              print(json.dumps({'fixtureOnly':True,'originalFailure':'offline-operator-command-unavailable','correctedCommandResults':results}))
+          PY
+      - name: Commit the exact three source modifications to the existing fix branch
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 7f7fd33c72d6d63fdeac1a3e61093e3efbe304c9
+          git add -- server/Dockerfile infra/weave-workspace/compose.yaml infra/weave-workspace/tests/infra-product-contract-test.sh
+          test "$(git diff --cached --name-only | wc -l | tr -d ' ')" = 3
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix: initialize domain keys only when their runtime is packaged'
+          git push origin HEAD:refs/heads/fix/1759-selected-runtime-key-initialization
