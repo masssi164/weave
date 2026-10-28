@@ -13,7 +13,7 @@ jobs:
   dispatch:
     if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/iphone-handoff-190799-20261028'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Wait for the exact successful deployment and dispatch only the canonical handoff
         env:
@@ -28,7 +28,8 @@ jobs:
           REPO = 'masssi164/weave'
           CANDIDATE = '190799c721343a2f21e1b68181f39cb8c87bea6a'
           QUALIFICATION = 40682567150
-          ATTEMPT = 2
+          QUALIFIED_ATTEMPT = 2
+          DEPLOYMENT_ATTEMPT = 3
           WORKFLOW = '.github/workflows/ios-dogfood.yml'
           assert os.environ['GITHUB_REPOSITORY'] == REPO
           assert os.environ['GITHUB_REF'] == 'refs/heads/diagnostic/iphone-handoff-190799-20261028'
@@ -51,12 +52,12 @@ jobs:
           def current_candidate():
               _, ref = api('/git/ref/heads/dogfood')
               assert ref['object']['sha'] == CANDIDATE, 'dogfood-candidate-changed'
-          deadline = time.monotonic() + 15 * 60
+          deadline = time.monotonic() + 20 * 60
           while True:
               current_candidate()
               _, run = api('/actions/runs/' + str(QUALIFICATION))
               assert run['head_sha'] == CANDIDATE and run['head_branch'] == 'dogfood'
-              assert run['run_attempt'] == ATTEMPT and run['event'] == 'push'
+              assert run['run_attempt'] == DEPLOYMENT_ATTEMPT and run['event'] == 'push'
               assert run['path'] == '.github/workflows/live-stack-e2e.yml'
               if run['status'] == 'completed':
                   assert run['conclusion'] == 'success', 'qualification-or-deployment-failed'
@@ -84,7 +85,8 @@ jobs:
                   {'ref': 'dogfood', 'inputs': {'candidate_sha': CANDIDATE, 'tester_slot': 'A'}})
               assert status in (200, 204), 'dispatch-not-accepted'
               print(json.dumps({'stage': 'canonical-handoff-dispatched', 'candidate': CANDIDATE,
-                                'qualificationRun': QUALIFICATION, 'qualificationAttempt': ATTEMPT,
+                                'qualificationRun': QUALIFICATION, 'qualificationAttempt': QUALIFIED_ATTEMPT,
+                                'deploymentAttempt': DEPLOYMENT_ATTEMPT,
                                 'runId': result.get('workflow_run_id') if isinstance(result, dict) else None,
                                 'physicalPreparationPassed': False, 'humanAcceptance': 'pending'}))
           PY
