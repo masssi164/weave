@@ -1,0 +1,338 @@
+name: Verify first private GHCR publication
+
+on:
+  push:
+    branches: [diagnostic/verify-first-ghcr-publication-20261028]
+    paths: [.github/workflows/verify-first-ghcr-publication.yml]
+
+permissions:
+  contents: read
+  actions: read
+  packages: read
+
+jobs:
+  verify:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/verify-first-ghcr-publication-20261028'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 25
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Check out the exact reviewed Dev source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: d950298a54e0622ff54872f6cea1d9cdac5efdfd
+          persist-credentials: false
+      - name: Prepare ephemeral read-only registry authentication
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! python3 tools/runtime_registry_auth.py setup >/dev/null 2>&1; then
+            printf '%s\n' '{"status":"blocked","stage":"authentication","reason":"ephemeral-auth-setup-failed"}'
+            exit 1
+          fi
+      - name: Verify producer, immutable pull, private metadata and anonymous refusal
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          VERIFICATION_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PYTHON'
+          #!/usr/bin/env python3
+          """Verify one completed Dev publication from a fresh hosted ARM64 consumer.
+
+          Registry and GitHub operations are reads. Existing consumer helpers pull into the
+          disposable runner and record its first local ledger; no service is started.
+          """
+          import json
+          import os
+          from pathlib import Path
+          import platform
+          import re
+          import subprocess
+          import sys
+          import tempfile
+          from urllib.error import HTTPError, URLError
+          from urllib.parse import urlencode
+          from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener, parse_http_list
+          import zipfile
+
+          REPOSITORY = "masssi164/weave"
+          BRANCH = "refs/heads/diagnostic/verify-first-ghcr-publication-20261028"
+          CANDIDATE = "d950298a54e0622ff54872f6cea1d9cdac5efdfd"
+          SOURCE_TREE = "2b18c21b8caaa85aec4c2c216a1ca9b41178ed4c"
+          SPECIFICATION = "98e5f2f32a6b8a4e9bbc3eb3f28c5b1e5b84a527"
+          PRODUCER_RUN = 40607060359
+          PRODUCER_ATTEMPT = 1
+          COMPOSITION_NAME = "candidate-artifacts-d950298a54e0622ff54872f6cea1d9cdac5efdfd-40607060359-attempt-1"
+          COMPONENT = "runtime-linux-arm64"
+          PACKAGES = {"backend": "weave-ci-backend", "mcp": "weave-ci-mcp",
+                      "keycloak": "weave-ci-keycloak", "runtimeState": "weave-ci-runtime-state"}
+          MEDIA_TYPES = ", ".join(("application/vnd.oci.image.manifest.v1+json",
+                                   "application/vnd.oci.image.index.v1+json",
+                                   "application/vnd.docker.distribution.manifest.v2+json",
+                                   "application/vnd.docker.distribution.manifest.list.v2+json"))
+          DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
+          REASONS = {"execution-context-rejected", "source-identity-rejected", "producer-not-qualified",
+                     "composition-artifact-rejected", "composition-identity-rejected",
+                     "runtime-producer-rejected", "fresh-runner-required", "authenticated-pull-failed",
+                     "package-visibility-unproved", "anonymous-access-allowed", "anonymous-access-unproved",
+                     "unexpected-verification-failure"}
+
+
+          class VerificationFailure(Exception):
+              def __init__(self, reason):
+                  self.reason = reason if reason in REASONS else "unexpected-verification-failure"
+
+
+          def require(condition, reason):
+              if not condition:
+                  raise VerificationFailure(reason)
+
+
+          class NoRedirect(HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+
+
+          def http_json(url, headers=None):
+              """Return bounded responses privately; never log bodies, headers or tokens."""
+              opener = build_opener(NoRedirect(), ProxyHandler({}))
+              try:
+                  try:
+                      response = opener.open(Request(url, headers=headers or {}), timeout=25)
+                  except HTTPError as error:
+                      response = error
+                  with response:
+                      raw = response.read(1024 * 1024 + 1)
+                      status = response.code
+                      challenge = response.headers.get("WWW-Authenticate", "")
+                  if len(raw) > 1024 * 1024:
+                      return 0, "", None
+                  return status, challenge, json.loads(raw)
+              except (OSError, URLError, ValueError):
+                  return 0, "", None
+
+
+          def verify_package_visibility(token, audit):
+              """The documented user-package list exposes accessible private metadata.
+
+          The single-package user endpoint is documented for public packages, so it is
+          not used as a substitute for proof of these private packages' visibility.
+          """
+              required = set(PACKAGES.values())
+              found = set()
+              headers = {"Authorization": "Bearer " + token, "Accept": "application/vnd.github+json",
+                         "X-GitHub-Api-Version": "2022-11-28"}
+              for page in range(1, 11):
+                  query = urlencode({"package_type": "container", "visibility": "private",
+                                     "per_page": 100, "page": page})
+                  status, _, values = http_json("https://api.github.com/users/masssi164/packages?" + query, headers)
+                  audit["packageMetadataHttpStatus"] = status
+                  require(status == 200 and isinstance(values, list), "package-visibility-unproved")
+                  for item in values:
+                      if not isinstance(item, dict) or item.get("name") not in required:
+                          continue
+                      require(item.get("name") not in found and item.get("package_type") == "container"
+                              and item.get("visibility") == "private"
+                              and isinstance(item.get("owner"), dict)
+                              and item["owner"].get("login") == "masssi164", "package-visibility-unproved")
+                      found.add(item["name"])
+                  if found == required:
+                      return
+                  if len(values) < 100:
+                      break
+              raise VerificationFailure("package-visibility-unproved")
+
+
+          def registry_denial(status, value):
+              errors = value.get("errors") if isinstance(value, dict) else None
+              return (status in {401, 403} and isinstance(errors, list) and bool(errors)
+                      and all(isinstance(error, dict) and error.get("code") in {"UNAUTHORIZED", "DENIED"}
+                              for error in errors))
+
+
+          def anonymous_refusal(package, digest):
+              """Complete the anonymous Bearer flow; an initial 401 is not privacy proof."""
+              require(package in PACKAGES.values() and DIGEST.fullmatch(digest), "anonymous-access-unproved")
+              repository = "masssi164/" + package
+              manifest_url = "https://ghcr.io/v2/" + repository + "/manifests/" + digest
+              headers = {"Accept": MEDIA_TYPES}
+              status, challenge, _ = http_json(manifest_url, headers)
+              require(status != 200, "anonymous-access-allowed")
+              require(status == 401 and isinstance(challenge, str), "anonymous-access-unproved")
+              scheme, separator, parameters = challenge.partition(" ")
+              require(separator and scheme.lower() == "bearer", "anonymous-access-unproved")
+              fields = {}
+              for parameter in parse_http_list(parameters):
+                  key, equals, value = parameter.partition("=")
+                  key, value = key.strip(), value.strip()
+                  require(equals and key not in fields and len(value) >= 2
+                          and value.startswith('"') and value.endswith('"'), "anonymous-access-unproved")
+                  fields[key] = value[1:-1]
+              require(fields == {"realm": "https://ghcr.io/token", "service": "ghcr.io",
+                                 "scope": "repository:" + repository + ":pull"}, "anonymous-access-unproved")
+              # No job token, Docker config, credential helper, or Authorization header is
+              # involved in this token request. Only an anonymous token can be returned.
+              query = urlencode({"service": "ghcr.io", "scope": fields["scope"]})
+              status, _, value = http_json("https://ghcr.io/token?" + query)
+              if registry_denial(status, value):
+                  return "denied-at-anonymous-token", status
+              require(status == 200 and isinstance(value, dict), "anonymous-access-unproved")
+              token = value.get("token") or value.get("access_token")
+              require(isinstance(token, str) and bool(token) and len(token) <= 65536
+                      and not any(character in token for character in "\r\n\0"), "anonymous-access-unproved")
+              status, _, value = http_json(manifest_url, {**headers, "Authorization": "Bearer " + token})
+              require(status != 200, "anonymous-access-allowed")
+              require(registry_denial(status, value), "anonymous-access-unproved")
+              return "denied-after-anonymous-token", status
+
+
+          def verify(audit):
+              require(os.environ.get("GITHUB_REPOSITORY") == REPOSITORY
+                      and os.environ.get("GITHUB_REF") == BRANCH
+                      and os.environ.get("GITHUB_EVENT_NAME") == "push"
+                      and os.environ.get("VERIFICATION_RUNNER_ENVIRONMENT") == "github-hosted"
+                      and platform.system() == "Linux" and platform.machine() in {"aarch64", "arm64"},
+                      "execution-context-rejected")
+              root = Path(os.environ["GITHUB_WORKSPACE"])
+              require(root.is_absolute() and root.is_dir() and not root.is_symlink(), "execution-context-rejected")
+              sys.path.insert(0, str(root / "tools"))
+              from build_artifacts import GitHub, candidate_identity, consume, digest_file, git, validate_composition
+              from artifact_consumers import require_release_runtime, runtime_definition
+              from artifact_runtime_storage import default_ledger
+              from runtime_registry_auth import runner_temp
+
+              audit["stage"] = "source-identity"
+              require(git(root, "rev-parse", "HEAD").decode().strip() == CANDIDATE
+                      and candidate_identity(root, CANDIDATE) == {
+                          "candidateCommit": CANDIDATE, "sourceTree": SOURCE_TREE,
+                          "specificationCommit": SPECIFICATION}
+                      and not git(root, "diff", "--name-only", "HEAD", "--").strip(), "source-identity-rejected")
+              token = os.environ.get("GITHUB_TOKEN", "")
+              require(bool(token) and not any(character in token for character in "\r\n\0"),
+                      "execution-context-rejected")
+              github = GitHub(REPOSITORY, token)
+              audit["stage"] = "producer"
+              run = github.json(github.prefix + f"/actions/runs/{PRODUCER_RUN}")
+              require(run.get("id") == PRODUCER_RUN and run.get("run_attempt") == PRODUCER_ATTEMPT
+                      and run.get("status") == "completed" and run.get("conclusion") == "success"
+                      and run.get("repository", {}).get("full_name") == REPOSITORY
+                      and run.get("head_repository", {}).get("full_name") == REPOSITORY
+                      and run.get("head_sha") == CANDIDATE and run.get("head_branch") == "dev"
+                      and run.get("event") == "push" and run.get("path") == ".github/workflows/build-artifacts.yml",
+                      "producer-not-qualified")
+
+              with tempfile.TemporaryDirectory(prefix="weave-ghcr-proof-", dir=runner_temp()) as temporary:
+                  directory = Path(temporary)
+                  audit["stage"] = "composition"
+                  artifacts = list(github.pages(github.prefix + f"/actions/runs/{PRODUCER_RUN}/artifacts", "artifacts"))
+                  matching = [item for item in artifacts if item.get("name") == COMPOSITION_NAME]
+                  require(len(matching) == 1, "composition-artifact-rejected")
+                  artifact = matching[0]
+                  require(artifact.get("expired") is False and type(artifact.get("id")) is int
+                          and artifact["id"] > 0 and 0 < artifact.get("size_in_bytes", 0) <= 8 * 1024 * 1024
+                          and artifact.get("workflow_run", {}).get("id") == PRODUCER_RUN
+                          and artifact.get("workflow_run", {}).get("head_sha") == CANDIDATE
+                          and isinstance(artifact.get("digest"), str) and DIGEST.fullmatch(artifact["digest"]),
+                          "composition-artifact-rejected")
+                  archive = directory / "composition.zip"
+                  github.download(artifact["id"], archive)
+                  require(archive.stat().st_size <= 8 * 1024 * 1024
+                          and digest_file(archive) == artifact["digest"], "composition-artifact-rejected")
+                  with zipfile.ZipFile(archive) as bundle:
+                      entries = bundle.infolist()
+                      require(len(entries) == 1 and entries[0].filename == "candidate-artifacts.json"
+                              and not entries[0].is_dir() and entries[0].file_size <= 1024 * 1024
+                              and not entries[0].flag_bits & 1, "composition-artifact-rejected")
+                      composition = json.loads(bundle.read(entries[0]))
+                  validate_composition(root, composition, CANDIDATE)
+                  require_release_runtime(composition, CANDIDATE)
+                  entry = composition["components"].get(COMPONENT, {})
+                  require(entry.get("producerRunId") == PRODUCER_RUN
+                          and entry.get("producerRunAttempt") == PRODUCER_ATTEMPT
+                          and entry.get("sourceCommit") == CANDIDATE and entry.get("sourceTree") == SOURCE_TREE,
+                          "runtime-producer-rejected")
+                  audit["compositionDigest"] = composition["compositionDigest"]
+                  composition_file = directory / "candidate-artifacts.json"
+                  composition_file.write_text(json.dumps(composition))
+                  destination = directory / "components"
+                  os.environ["WEAVE_CANDIDATE_COMPOSITION"] = str(composition_file)
+                  os.environ["WEAVE_BUILD_ARTIFACT_ROOT"] = str(destination)
+                  audit["stage"] = "verified-component-consumption"
+                  consume(root, github, composition, destination, CANDIDATE, components=[COMPONENT])
+                  manifest, receipt, _ = runtime_definition(CANDIDATE)
+                  require(set(receipt["images"]) == set(PACKAGES), "composition-identity-rejected")
+                  audit["runtime"] = manifest["runtime"]
+                  audit["platform"] = manifest["target"]
+                  ledger = default_ledger()
+                  require(not ledger.exists() and not ledger.is_symlink(), "fresh-runner-required")
+                  audit["stage"] = "authenticated-digest-pull"
+                  # The unchanged production consumer verifies actual image IDs, digests,
+                  # platform and labels. Capture all child diagnostics, including Docker's
+                  # inherited stderr, so no raw provider response enters the job log.
+                  environment = {key: value for key, value in os.environ.items()
+                                 if key not in {"GITHUB_TOKEN", "GH_TOKEN", "GHCR_TOKEN"}}
+                  code = "import sys; sys.path.insert(0, sys.argv[1]); from artifact_consumers import load_runtime_images; load_runtime_images(sys.argv[2])"
+                  result = subprocess.run([sys.executable, "-c", code, str(root / "tools"), CANDIDATE],
+                                          cwd=root, env=environment, stdout=subprocess.DEVNULL,
+                                          stderr=subprocess.DEVNULL, timeout=900)
+                  require(result.returncode == 0, "authenticated-pull-failed")
+                  audit["authenticatedDigestPull"] = "passed"
+                  audit["repositoryJobTokenAccess"] = "passed"
+                  audit["stage"] = "anonymous-registry-access"
+                  for component, package in PACKAGES.items():
+                      reference = receipt["images"][component]["reference"]
+                      prefix = "ghcr.io/masssi164/" + package + "@"
+                      require(reference.startswith(prefix), "composition-identity-rejected")
+                      digest = reference[len(prefix):]
+                      result, status = anonymous_refusal(package, digest)
+                      audit["images"][component] = {"reference": reference,
+                                                    "authenticatedDigestPull": "passed",
+                                                    "visibility": "unproved",
+                                                    "anonymousAccess": result, "anonymousHttpStatus": status}
+                  audit["stage"] = "package-visibility"
+                  verify_package_visibility(token, audit)
+                  audit["packageVisibility"] = "private-confirmed"
+                  for image in audit["images"].values():
+                      image["visibility"] = "private"
+              audit["stage"] = "complete"
+              audit["status"] = "passed"
+
+
+          def main():
+              audit = {"schemaVersion": "weave.first-ghcr-publication-verification/v1",
+                       "status": "pending", "stage": "execution-preflight",
+                       "candidateCommit": CANDIDATE, "sourceTree": SOURCE_TREE,
+                       "specificationCommit": SPECIFICATION, "producerRunId": PRODUCER_RUN,
+                       "producerRunAttempt": PRODUCER_ATTEMPT, "expectedImageCount": 4,
+                       "authenticatedDigestPull": "unproved", "repositoryJobTokenAccess": "unproved",
+                       "packageVisibility": "unproved", "images": {},
+                       "settingsChanged": False, "liveQualification": "not-executed",
+                       "supportSafe": True, "containsSecretValues": False}
+              try:
+                  verify(audit)
+              except VerificationFailure as failure:
+                  audit.update(status="blocked", reason=failure.reason)
+              except Exception:
+                  audit.update(status="blocked", reason="unexpected-verification-failure")
+              print(json.dumps(audit, sort_keys=True), flush=True)
+              return 0 if audit["status"] == "passed" else 1
+
+
+          if __name__ == "__main__":
+              raise SystemExit(main())
+          PYTHON
+      - name: Remove ephemeral registry credentials on every outcome
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! python3 tools/runtime_registry_auth.py cleanup >/dev/null 2>&1; then
+            printf '%s\n' '{"status":"blocked","stage":"credential-cleanup","reason":"ephemeral-auth-cleanup-failed"}'
+            exit 1
+          fi
+          printf '%s\n' '{"status":"passed","stage":"credential-cleanup"}'
