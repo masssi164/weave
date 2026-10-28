@@ -1,0 +1,87 @@
+name: Diagnose existing iPhone signing profiles
+on:
+  push:
+    branches: [diagnostic/cache-prune-preflight-20261028]
+    paths: [.github/workflows/iphone-signing-diagnosis.yml]
+permissions:
+  contents: read
+jobs:
+  diagnosis:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/cache-prune-preflight-20261028'
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    concurrency:
+      group: weave-live-mac-mini-exclusive
+      cancel-in-progress: false
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: bb7b4a365511a3d0f7662100a87e7c87c741ff13
+          path: iphone-signing-source
+          persist-credentials: false
+      - name: Classify only fixed app and driver profile requirements
+        working-directory: iphone-signing-source
+        env:
+          WEAVE_IOS_DEVICE_ID: ${{ secrets.WEAVE_IOS_DEVICE_ID }}
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          python3 - <<'PY'
+          from datetime import datetime, timezone
+          import fnmatch, hashlib, json, os, pathlib, plistlib, re, subprocess, sys, tempfile
+          if os.environ.get('RUNNER_NAME') != 'weave-live-mac-mini':
+              raise SystemExit('Unexpected runner')
+          sys.path.insert(0,str(pathlib.Path('tools').resolve()))
+          from prepare_iphone_artifact import physical_udid
+          from sign_iphone_artifact import profile_compatible, verify_certificate_team, SigningError
+          def output(arguments):
+              return subprocess.check_output(arguments,stderr=subprocess.PIPE,timeout=30)
+          with tempfile.TemporaryDirectory(prefix='weave-signing-diagnosis-',dir=os.environ['RUNNER_TEMP']) as temporary:
+              device_file=pathlib.Path(temporary)/'device.json'
+              output(['xcrun','devicectl','device','info','details','--device',os.environ['WEAVE_IOS_DEVICE_ID'],'--timeout','20','--json-output',str(device_file)])
+              device=physical_udid(json.loads(device_file.read_text()))
+              identities={value.decode().upper() for value in re.findall(rb'\b([A-Fa-f0-9]{40})\b',output(['security','find-identity','-v','-p','codesigning']))}
+              profiles=[]
+              for directory in (pathlib.Path.home()/'Library/MobileDevice/Provisioning Profiles',pathlib.Path.home()/'Library/Developer/Xcode/UserData/Provisioning Profiles'):
+                  if not directory.is_dir() or directory.is_symlink():
+                      continue
+                  for path in directory.glob('*.mobileprovision'):
+                      if path.is_symlink() or not path.is_file():
+                          continue
+                      try:
+                          profiles.append(plistlib.loads(output(['security','cms','-D','-i',str(path)])))
+                      except (ValueError,subprocess.SubprocessError):
+                          pass
+              report={'readOnly':True,'deviceReachable':True,'availableSigningIdentityCount':len(identities),
+                      'decodedProfileCount':len(profiles),'bundles':{},'profilesChanged':False}
+              now=datetime.now(timezone.utc)
+              for bundle in ('com.massimotter.weave','com.massimotter.weave.integration.browser.xctrunner'):
+                  counts={key:0 for key in ('bundleMatch','expectedTeamMatch','developmentEntitlement','deviceIncluded','unexpired','availableCertificate','fullyCompatible','expectedCertificateTeam')}
+                  expiry_days=[]
+                  for profile in profiles:
+                      entitlement=profile.get('Entitlements',{})
+                      prefixes=profile.get('ApplicationIdentifierPrefix',[])
+                      if len(prefixes)!=1 or not fnmatch.fnmatchcase(prefixes[0]+'.'+bundle,entitlement.get('application-identifier','')):
+                          continue
+                      counts['bundleMatch']+=1
+                      team=(profile.get('TeamIdentifier')==['KNDHGC2KV6'] and entitlement.get('com.apple.developer.team-identifier')=='KNDHGC2KV6')
+                      counts['expectedTeamMatch']+=int(team)
+                      counts['developmentEntitlement']+=int(entitlement.get('get-task-allow') is True)
+                      counts['deviceIncluded']+=int(device in profile.get('ProvisionedDevices',[]))
+                      expiry=profile.get('ExpirationDate')
+                      if isinstance(expiry,datetime):
+                          expiry=expiry.replace(tzinfo=timezone.utc) if expiry.tzinfo is None else expiry
+                          counts['unexpired']+=int(expiry>now)
+                          expiry_days.append(round((expiry-now).total_seconds()/86400,2))
+                      available=identities.intersection({hashlib.sha1(cert).hexdigest().upper() for cert in profile.get('DeveloperCertificates',[]) if isinstance(cert,bytes)})
+                      counts['availableCertificate']+=int(bool(available))
+                      for identity in available:
+                          if profile_compatible(profile,bundle,'KNDHGC2KV6',identity,device):
+                              counts['fullyCompatible']+=1
+                              try:
+                                  verify_certificate_team(profile,identity,'6RUS2Z848X')
+                                  counts['expectedCertificateTeam']+=1
+                              except SigningError:
+                                  pass
+                  report['bundles'][bundle]={'counts':counts,'profileExpiryDaysFromNow':sorted(expiry_days)}
+              print(json.dumps(report,sort_keys=True))
+          PY
