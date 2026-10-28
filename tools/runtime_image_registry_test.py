@@ -64,6 +64,21 @@ class ImageRegistryTests(unittest.TestCase):
             self.assertTrue(entry["reference"].startswith(registry.NAMES[key] + "@sha256:"))
             self.assertNotIn(":candidate-", entry["reference"])
 
+    def test_rejects_previous_public_candidate_package_receipts(self):
+        previous_packages = {
+            "backend": "weave-ci-backend", "mcp": "weave-ci-mcp",
+            "keycloak": "weave-ci-keycloak", "runtimeState": "weave-ci-runtime-state",
+        }
+        self.assertEqual(set(registry.NAMES), set(previous_packages))
+        for component, package in previous_packages.items():
+            with self.subTest(component=component):
+                receipt = self.receipt()
+                self.validate(receipt)
+                receipt["images"][component]["reference"] = (
+                    f"ghcr.io/masssi164/{package}@sha256:" + "f" * 64)
+                with self.assertRaisesRegex(ArtifactError, "runtime-registry-reference-invalid"):
+                    self.validate(receipt)
+
     def test_rejects_mutable_or_cross_repository_receipts(self):
         receipt = self.receipt()
         self.validate(receipt)
