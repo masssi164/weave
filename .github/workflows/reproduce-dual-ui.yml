@@ -1,0 +1,116 @@
+name: Exploratory dual iOS navigation reproduction
+on:
+  push:
+    branches: [diagnostic/dual-ui-failure-20261028]
+    paths: [.github/workflows/reproduce-dual-ui.yml]
+permissions:
+  contents: read
+  actions: read
+  packages: read
+jobs:
+  reproduce:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/dual-ui-failure-20261028'
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    timeout-minutes: 90
+    concurrency:
+      group: weave-live-mac-mini-exclusive
+      cancel-in-progress: false
+    env:
+      EXPECTED_RUNNER_NAME: weave-live-mac-mini
+      DOCKER_DEFAULT_PLATFORM: linux/arm64
+      WEAVE_CANDIDATE_COMMIT: 722f9b69067c0e452e9c4a63d22829b29cef45d5
+      WEAVE_TEST_APP_RUN_ID: diag-${{ github.run_id }}-${{ github.run_attempt }}
+      WEAVE_TEST_APP_MODE: member-collaboration
+      WEAVE_TEST_APP_RELEASE_MCP: 'false'
+      WEAVE_TEST_APP_PUBLIC_DOMAIN: weave.localhost
+      WEAVE_SPEC_CORPUS_ROOT: ${{ github.workspace }}/weave-specs
+      WEAVE_TEST_APP_NATIVE_RUNNER: ${{ github.workspace }}/weave/client/tool/run_native_qualification.py
+      WEAVE_TEST_APP_OUTPUT_ROOT: ${{ github.workspace }}/weave/build/test-app
+    steps:
+      - name: Bound the existing runner and diagnostic scope
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "$EXPECTED_RUNNER_NAME"
+          echo 'EXPLORATORY_ONLY deployment=false physicalPreparation=false protectedQualification=false'
+          printf 'WEAVE_BUILD_ARTIFACT_ROOT=%s/weave-diagnostic-artifacts-%s-%s\n' "$RUNNER_TEMP" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
+          printf 'WEAVE_CANDIDATE_COMPOSITION=%s/weave-diagnostic-composition-%s-%s.json\n' "$RUNNER_TEMP" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
+      - name: Check out exact diagnostic source
+        id: source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ env.WEAVE_CANDIDATE_COMMIT }}
+          path: weave
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify bounded diagnostic parser regressions
+        working-directory: weave
+        run: python3 client/tool/dual_ios_collaboration_test.py
+      - name: Configure run-scoped registry authentication
+        working-directory: weave
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: python3 tools/runtime_registry_auth.py setup
+      - name: Verify unchanged capacity requirement
+        working-directory: weave
+        run: python3 tools/runner_capacity_preflight.py --path . --minimum-free-gib 20 --require-docker
+      - name: Resolve and consume existing trusted hosted artifacts without building
+        working-directory: weave
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 tools/build_artifacts.py resolve --candidate "$WEAVE_CANDIDATE_COMMIT" \
+            --release-selection --components runtime-linux-arm64,ios-simulator \
+            --scenario fixtures/member-client-baseline/v1.json \
+            --directory "$WEAVE_BUILD_ARTIFACT_ROOT" --output "$WEAVE_CANDIDATE_COMPOSITION"
+      - name: Check out exact accepted specification
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          repository: masssi164/weave-specs
+          ref: cf249847c7f48ccc51507c6d06f5576e7a332f06
+          path: weave-specs
+          ssh-key: ${{ secrets.WEAVE_SPECS_DEPLOY_KEY }}
+          persist-credentials: false
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb
+      - name: Verify exact clean checkout and retain existing TLS authority
+        working-directory: weave
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$WEAVE_CANDIDATE_COMMIT"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          native_ca_root="$HOME/.local/share/weave/native-acceptance-ca"
+          test -d "$native_ca_root" && test ! -L "$native_ca_root"
+          echo "WEAVE_TEST_APP_NATIVE_CA_ROOT=$native_ca_root" >> "$GITHUB_ENV"
+      - name: Reproduce with the unchanged real two-member scenario
+        working-directory: weave
+        run: ./gradlew --no-daemon specCorpusConformance testApp
+      - name: Finish exact run-owned teardown
+        if: always() && steps.source.outcome == 'success'
+        working-directory: weave
+        run: python3 gradle/scripts/finalize_test_app_ci.py
+      - name: Remove run-scoped credentials
+        if: always() && steps.source.outcome == 'success'
+        working-directory: weave
+        run: python3 tools/runtime_registry_auth.py cleanup
+      - name: Verify support-safe diagnostic evidence
+        if: always() && steps.source.outcome == 'success'
+        id: safe
+        working-directory: weave
+        run: |
+          set -euo pipefail
+          if [[ -d build/test-app ]]; then
+            while IFS= read -r -d '' directory; do
+              bash infra/weave-workspace/live-stack-failure-diagnostics.sh --verify "$directory"
+            done < <(find build/test-app -type d -name failure-diagnostics -print0)
+          fi
+      - name: Upload exploratory evidence only
+        if: always() && steps.safe.outcome == 'success'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: exploratory-dual-ios-${{ github.run_id }}
+          path: weave/build/test-app/**
+          if-no-files-found: warn
+          retention-days: 7
