@@ -1,0 +1,38 @@
+name: Mac memory pressure diagnosis
+on:
+  push:
+    branches: [diagnostic/cache-prune-preflight-20261028]
+    paths: [.github/workflows/mac-memory-pressure.yml]
+permissions:
+  contents: read
+jobs:
+  memory:
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    concurrency:
+      group: weave-live-mac-mini-exclusive
+      cancel-in-progress: false
+    timeout-minutes: 3
+    steps:
+      - name: Report aggregate memory and executable basenames without command arguments
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, shutil, subprocess
+          from pathlib import Path
+          if os.environ.get('RUNNER_NAME') != 'weave-live-mac-mini':
+              raise SystemExit('Wrong runner')
+          def output(*args):
+              return subprocess.check_output(args, text=True, timeout=20).strip()
+          processes = []
+          for line in output('ps', '-axo', 'pid=,rss=,comm=').splitlines():
+              fields = line.strip().split(None, 2)
+              if len(fields) == 3 and fields[0].isdigit() and fields[1].isdigit():
+                  processes.append({'pid': int(fields[0]), 'residentKiB': int(fields[1]),
+                                    'executable': Path(fields[2]).name})
+          processes.sort(key=lambda item: item['residentKiB'], reverse=True)
+          print(json.dumps({'readOnly': True, 'physicalMemoryBytes': int(output('sysctl','-n','hw.memsize')),
+                            'swapUsage': output('sysctl','-n','vm.swapusage'),
+                            'largestProcesses': processes[:12],
+                            'freeBytes': shutil.disk_usage(Path(os.environ['GITHUB_WORKSPACE'])).free}, sort_keys=True))
+          PY
