@@ -1,0 +1,31 @@
+name: Exact source snapshot for collaboration diagnosis
+on:
+  push:
+    branches: [diagnostic/dual-ios-source-20261028]
+    paths: [.github/workflows/dual-ios-source-snapshot.yml]
+permissions:
+  contents: read
+jobs:
+  source:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/dual-ios-source-20261028'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: 4f4366bdc8098b974e6d8c325b9ab6aa5bbefa28
+          persist-credentials: false
+      - name: Archive only the exact tracked public source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 4f4366bdc8098b974e6d8c325b9ab6aa5bbefa28
+          test "$(git rev-parse HEAD^{tree})" = 06379c5fb09b08c3b25b5377f953f1ea5d2c8960
+          git archive --format=tar --output=source.tar HEAD
+          shasum -a 256 source.tar
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: weave-source-4f4366bdc8098b974e6d8c325b9ab6aa5bbefa28
+          path: source.tar
+          retention-days: 1
+          if-no-files-found: error
