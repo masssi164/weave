@@ -1,0 +1,62 @@
+name: Read-only iPhone preparation prerequisites
+on:
+  push:
+    branches: [diagnostic/cache-prune-preflight-20261028]
+    paths: [.github/workflows/iphone-readonly-readiness.yml]
+permissions:
+  contents: read
+jobs:
+  readiness:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/cache-prune-preflight-20261028'
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    concurrency:
+      group: weave-live-mac-mini-exclusive
+      cancel-in-progress: false
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: bb7b4a365511a3d0f7662100a87e7c87c741ff13
+          path: iphone-readiness-source
+          persist-credentials: false
+      - name: Check only the designated device and existing compatible profiles
+        working-directory: iphone-readiness-source
+        env:
+          WEAVE_IOS_DEVICE_ID: ${{ secrets.WEAVE_IOS_DEVICE_ID }}
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess, sys, tempfile
+          if os.environ.get('RUNNER_NAME') != 'weave-live-mac-mini':
+              raise SystemExit('Unexpected runner')
+          sys.path.insert(0, str(pathlib.Path('tools').resolve()))
+          from prepare_iphone_artifact import physical_udid
+          from sign_iphone_artifact import select_identity, select_profile, verify_certificate_team, SigningError
+          report = {'readOnly': True, 'installed': False, 'signed': False, 'humanAcceptance': 'pending',
+                    'deviceConfigured': bool(os.environ.get('WEAVE_IOS_DEVICE_ID')), 'deviceReachable': False,
+                    'existingSigningProfiles': 'not-checked'}
+          if report['deviceConfigured']:
+              with tempfile.TemporaryDirectory(prefix='weave-iphone-readiness-', dir=os.environ['RUNNER_TEMP']) as temporary:
+                  output = pathlib.Path(temporary)/'device.json'
+                  result = subprocess.run(['xcrun','devicectl','device','info','details','--device',
+                      os.environ['WEAVE_IOS_DEVICE_ID'],'--timeout','30','--json-output',str(output)],
+                      capture_output=True,text=True,timeout=45)
+                  if result.returncode == 0 and output.is_file():
+                      try:
+                          udid = physical_udid(json.loads(output.read_text()))
+                          report['deviceReachable'] = True
+                          profiles = [pathlib.Path.home()/'Library/MobileDevice/Provisioning Profiles',
+                                      pathlib.Path.home()/'Library/Developer/Xcode/UserData/Provisioning Profiles']
+                          bundles = ['com.massimotter.weave','com.massimotter.weave.integration.browser.xctrunner']
+                          team = os.environ.get('WEAVE_IOS_EXPECTED_TEAM_ID','KNDHGC2KV6')
+                          identity = select_identity(profiles,bundles,team,udid)
+                          for bundle in bundles:
+                              _, profile = select_profile(profiles,bundle,team,identity,udid)
+                              verify_certificate_team(profile, identity, os.environ.get('WEAVE_IOS_EXPECTED_DEVELOPER_CERT_TEAM_ID','6RUS2Z848X'))
+                          report['existingSigningProfiles'] = 'compatible'
+                      except SigningError:
+                          report['existingSigningProfiles'] = 'missing-or-incompatible'
+                      except Exception:
+                          report['existingSigningProfiles'] = 'unproved'
+          print(json.dumps(report, sort_keys=True))
+          PY
