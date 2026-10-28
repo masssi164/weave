@@ -1341,6 +1341,11 @@ print("password-prompt-budget-passed")
         handler = source.split('func declinePasswordSavePrompt', 1)[1].split('func waitForNativeWorkspace', 1)[0]
         self.assertIn('}, deadline: deadline, promptSeen: &promptSeen)', handler)
         self.assertIn('guard Date() < deadline, readiness == .ready', handler)
+        self.assertIn('if workspaceObserved() { return .absent }', handler)
+        self.assertIn('if workspaceObserved() { return false }', handler)
+        wait = source.split('func waitForNativeWorkspace', 1)[1].split('func testNativeDocumentPicker', 1)[0]
+        self.assertIn('deadline: deadline, workspaceObserved: workspaceReady,', wait)
+        self.assertIn('ordinaryWorkspaceReady() || (fixture.ordinaryOrganizationOrigin == nil && Self.nativeWorkspaceObserved(path: fixture.nativeAuthCompletionPath))', wait)
 
     def test_password_prompt_decline_is_exact_alert_scoped_and_globally_unique(self):
         driver = (Path(__file__).parent / 'ios_browser_driver/BrowserDriver.swift').read_text()
@@ -1371,7 +1376,8 @@ print("password-prompt-budget-passed")
         self.assertIn('fixture.ordinaryOrganizationOrigin != nil, app.state == .runningForeground', wait)
         self.assertIn('Self.ordinaryWorkspaceObserved(app)', wait)
         self.assertIn('controls.element.isEnabled && controls.element.isHittable', wait)
-        self.assertIn('if ordinaryWorkspaceReady() ||', wait)
+        self.assertIn('if workspaceReady() {', wait)
+        self.assertIn('ordinaryWorkspaceReady() ||', wait)
         ordinary = (Path(__file__).parent / 'ios_browser_driver/OrdinaryProductSmoke.swift').read_text()
         workspace = ordinary.split('static func ordinaryWorkspaceObserved', 1)[1].split('struct OrdinaryScrollBudget', 1)[0]
         for identifier in ('nav-chat', 'nav-files', 'nav-calendar', 'nav-settings'):

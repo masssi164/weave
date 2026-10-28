@@ -466,13 +466,13 @@ final class BrowserDriver: XCTestCase {
 
   // nil means an observed prompt was ambiguous/inaccessible; false means absent.
   func declinePasswordSavePrompt(
-    app: XCUIApplication, system: XCUIApplication, deadline: Date, completionPath: String,
+    app: XCUIApplication, system: XCUIApplication, deadline: Date, workspaceObserved: () -> Bool,
     promptSeen: inout Bool
   ) -> Bool? {
     var selectedDecline: XCUIElement?
     var selectedPrompt: XCUIElement?
     let readiness = Self.waitForPasswordPrompt(state: {
-      if Self.nativeWorkspaceObserved(path: completionPath) { return .absent }
+      if workspaceObserved() { return .absent }
       let appRunning = app.state == .runningForeground || app.state == .runningBackground
       let systemRunning = system.state == .runningForeground || system.state == .runningBackground
       let appPrompts = app.alerts.matching(NSPredicate(format: "label IN %@", Self.passwordSaveTitles))
@@ -499,7 +499,7 @@ final class BrowserDriver: XCTestCase {
       return .ready
     }, deadline: deadline, promptSeen: &promptSeen)
     guard readiness != .absent else { return false }
-    if Self.nativeWorkspaceObserved(path: completionPath) { return false }
+    if workspaceObserved() { return false }
     guard Date() < deadline, readiness == .ready, let decline = selectedDecline, let prompt = selectedPrompt else {
       XCTFail("Password-save alert must settle to one accessible exact decline control")
       return nil
@@ -563,6 +563,9 @@ final class BrowserDriver: XCTestCase {
       }
       return usable && app.state == .runningForeground && Date() < deadline
     }
+    func workspaceReady() -> Bool {
+      ordinaryWorkspaceReady() || (fixture.ordinaryOrganizationOrigin == nil && Self.nativeWorkspaceObserved(path: fixture.nativeAuthCompletionPath))
+    }
     var ordinaryConsent = OrdinaryAdditionalConsentReadiness()
     var nextDiagnostic = Date.distantPast
     let recoveryAfter = Date().addingTimeInterval(5)
@@ -572,17 +575,17 @@ final class BrowserDriver: XCTestCase {
     while Date() < deadline {
       // Only the runner's observation of Flutter's real workspace assertion
       // releases this wait; a submit tap or disappearing browser never does.
-      if ordinaryWorkspaceReady() || (fixture.ordinaryOrganizationOrigin == nil && Self.nativeWorkspaceObserved(path: fixture.nativeAuthCompletionPath)) {
+      if workspaceReady() {
         print("NATIVE_IOS_BROWSER_STAGE phase=auth-completion-observed")
         return true
       }
       // A completed real workspace takes priority over an optional OS sheet,
       // which can outlive AppAuth and expose stale/non-hittable controls.
       guard declinePasswordSavePrompt(
-        app: app, system: system, deadline: deadline, completionPath: fixture.nativeAuthCompletionPath,
+        app: app, system: system, deadline: deadline, workspaceObserved: workspaceReady,
         promptSeen: &promptSeen
       ) != nil else { return false }
-      if ordinaryWorkspaceReady() || (fixture.ordinaryOrganizationOrigin == nil && Self.nativeWorkspaceObserved(path: fixture.nativeAuthCompletionPath)) { continue }
+      if workspaceReady() { continue }
       if fixture.ordinaryOrganizationOrigin != nil {
         let appAlerts = app.alerts
         let systemAlerts = system.alerts
