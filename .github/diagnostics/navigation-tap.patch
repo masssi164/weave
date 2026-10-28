@@ -1,0 +1,12 @@
+--- a/client/integration_test/dual_ios_collaboration_test.dart
++++ b/client/integration_test/dual_ios_collaboration_test.dart
+@@ -546,7 +546,8 @@
+     findsOneWidget,
+     reason: 'The actual UI target must be hittable after scroll preparation.',
+   );
+-  await tester.tap(finder);
++  // Scrolling can add an inactive transition copy; tap the target just verified.
++  await tester.tap(finder.hitTestable());
+   await tester.pump(const Duration(milliseconds: 250));
+ }
+ 
