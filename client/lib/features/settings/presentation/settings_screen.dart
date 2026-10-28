@@ -56,32 +56,38 @@ class SettingsScreen extends ConsumerWidget {
               children: [
                 const _ProfileSettingsLinkCard(),
                 const SizedBox(height: 16),
-                _SettingsNavigationCard(
-                  title: l10n.settingsThemeTitle,
-                  description: l10n.settingsThemeDescription,
-                  icon: Icons.tune,
-                  route: "${AppRoutes.settingsPreferences}?section=appearance",
-                ),
-                const SizedBox(height: 16),
-                _SettingsNavigationCard(
-                  title: l10n.settingsLanguageTitle,
-                  description: l10n.settingsLanguageDescription,
-                  icon: Icons.language,
-                  route: "${AppRoutes.settingsPreferences}?section=language",
-                ),
-                const SizedBox(height: 16),
-                _SettingsNavigationCard(
-                  title: l10n.settingsShellModulesTitle,
-                  description: l10n.settingsShellModulesDescription,
-                  icon: Icons.home_outlined,
-                  route: "${AppRoutes.settingsPreferences}?section=modules",
-                ),
-                const SizedBox(height: 16),
-                _SettingsNavigationCard(
-                  title: l10n.settingsHelpTitle,
-                  description: l10n.settingsHelpDescription,
-                  icon: Icons.help_outline,
-                  route: AppRoutes.settingsSupport,
+                Card(
+                  child: Column(
+                    children: [
+                      _SettingsNavigationTile(
+                        title: l10n.settingsThemeTitle,
+                        description: l10n.settingsThemeDescription,
+                        icon: Icons.tune,
+                        route: "${AppRoutes.settingsPreferences}?section=appearance",
+                      ),
+                      const Divider(height: 1),
+                      _SettingsNavigationTile(
+                        title: l10n.settingsLanguageTitle,
+                        description: l10n.settingsLanguageDescription,
+                        icon: Icons.language,
+                        route: "${AppRoutes.settingsPreferences}?section=language",
+                      ),
+                      const Divider(height: 1),
+                      _SettingsNavigationTile(
+                        title: l10n.settingsShellModulesTitle,
+                        description: l10n.settingsShellModulesDescription,
+                        icon: Icons.home_outlined,
+                        route: "${AppRoutes.settingsPreferences}?section=modules",
+                      ),
+                      const Divider(height: 1),
+                      _SettingsNavigationTile(
+                        title: l10n.settingsHelpTitle,
+                        description: l10n.settingsHelpDescription,
+                        icon: Icons.help_outline,
+                        route: AppRoutes.settingsSupport,
+                      ),
+                    ],
+                  ),
                 ),
                 if (canAdministerWorkspace) ...[
                   const SizedBox(height: 16),
@@ -132,28 +138,28 @@ class SettingsScreen extends ConsumerWidget {
   }
 }
 
-class _SettingsNavigationCard extends StatelessWidget {
-  const _SettingsNavigationCard({
+class _SettingsNavigationTile extends StatelessWidget {
+  const _SettingsNavigationTile({
     required this.title,
     required this.description,
     required this.icon,
     required this.route,
   });
+
   final String title;
   final String description;
   final IconData icon;
   final String route;
+
   @override
   Widget build(BuildContext context) => Semantics(
     identifier: route == AppRoutes.settingsSupport ? 'settings-help' : null,
-    child: Card(
-      child: AccessibleListTile(
-        leading: Icon(icon),
-        title: Text(title),
-        subtitle: Text(description),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => context.push(route),
-      ),
+    child: AccessibleListTile(
+      leading: Icon(icon),
+      title: Text(title),
+      subtitle: Text(description),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => context.push(route),
     ),
   );
 }
@@ -476,43 +482,42 @@ class _ShellModulePreferenceTile extends ConsumerWidget {
     final title = _title(l10n);
     final description = _description(l10n);
 
-    return MergeSemantics(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                title: Text(title),
-                subtitle: Text(description),
-                value: isVisible,
-                onChanged: (visible) => ref
+    // Each action has its own accessible target: switch, move up, move down.
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: Text(title),
+              subtitle: Text(description),
+              value: isVisible,
+              onChanged: (visible) => ref
+                  .read(shellModulePreferencesProvider.notifier)
+                  .setModuleVisibility(module: module, isVisible: visible),
+            ),
+          ),
+          IconButton(
+            tooltip: l10n.settingsShellMoveModuleUp(title),
+            onPressed: isFirst
+                ? null
+                : () => ref
                     .read(shellModulePreferencesProvider.notifier)
-                    .setModuleVisibility(module: module, isVisible: visible),
-              ),
-            ),
-            IconButton(
-              tooltip: l10n.settingsShellMoveModuleUp(title),
-              onPressed: isFirst
-                  ? null
-                  : () => ref
-                        .read(shellModulePreferencesProvider.notifier)
-                        .moveModule(module: module, delta: -1),
-              icon: const Icon(Icons.arrow_upward),
-            ),
-            IconButton(
-              tooltip: l10n.settingsShellMoveModuleDown(title),
-              onPressed: isLast
-                  ? null
-                  : () => ref
-                        .read(shellModulePreferencesProvider.notifier)
-                        .moveModule(module: module, delta: 1),
-              icon: const Icon(Icons.arrow_downward),
-            ),
-          ],
-        ),
+                    .moveModule(module: module, delta: -1),
+            icon: const Icon(Icons.arrow_upward),
+          ),
+          IconButton(
+            tooltip: l10n.settingsShellMoveModuleDown(title),
+            onPressed: isLast
+                ? null
+                : () => ref
+                    .read(shellModulePreferencesProvider.notifier)
+                    .moveModule(module: module, delta: 1),
+            icon: const Icon(Icons.arrow_downward),
+          ),
+        ],
       ),
     );
   }
