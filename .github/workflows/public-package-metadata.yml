@@ -1,0 +1,53 @@
+name: Observe exact runtime package metadata
+on:
+  push:
+    branches: [diagnostic/verify-first-ghcr-publication-20261028]
+    paths: [.github/workflows/public-package-metadata.yml]
+permissions:
+  contents: read
+  packages: read
+jobs:
+  metadata:
+    if: github.repository == 'masssi164/weave'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Verify the four fixed package identities and actual visibility
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from urllib.error import HTTPError
+          from urllib.request import HTTPRedirectHandler, Request, build_opener
+          class NoRedirect(HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+          report = {'candidateCommit': 'bb7b4a365511a3d0f7662100a87e7c87c741ff13',
+                    'policy': 'owner-approved-public-candidate-fallback', 'readOnly': True, 'packages': {},
+                    'settingsChanged': False, 'containsSecretValues': False}
+          opener = build_opener(NoRedirect())
+          passed = True
+          for suffix in ('backend','mcp','keycloak','runtime-state'):
+              name = 'weave-private-ci-' + suffix
+              url = 'https://api.github.com/users/masssi164/packages/container/' + name
+              request = Request(url, headers={'Authorization': 'Bearer ' + os.environ['GITHUB_TOKEN'],
+                  'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2026-03-10'})
+              try:
+                  response = opener.open(request, timeout=20)
+              except HTTPError as error:
+                  response = error
+              with response:
+                  raw = response.read(1024*1024+1)
+                  status = response.code
+              value = json.loads(raw) if len(raw) <= 1024*1024 else None
+              valid = (status == 200 and isinstance(value, dict) and value.get('name') == name
+                       and value.get('package_type') == 'container' and value.get('visibility') == 'public'
+                       and isinstance(value.get('owner'), dict) and value['owner'].get('login') == 'masssi164')
+              report['packages'][name] = {'httpStatus': status, 'identityVerified': valid,
+                  'visibility': 'public' if valid else 'unproved'}
+              passed = passed and valid
+          report['status'] = 'passed' if passed else 'blocked'
+          print(json.dumps(report, sort_keys=True))
+          raise SystemExit(0 if passed else 1)
+          PY
