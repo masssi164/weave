@@ -1,0 +1,160 @@
+name: Verify selected-domain key initializer repair
+on:
+  push:
+    branches: [diagnostic/verify-first-ghcr-publication-20261028]
+    paths: [.github/workflows/selected-key-init-repair.yml]
+permissions:
+  contents: write
+  packages: read
+jobs:
+  repair:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/verify-first-ghcr-publication-20261028'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: fix/1759-selected-runtime-key-initialization
+      - name: Apply the reviewed four-file repair to the exact Dev baseline
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = bb7b4a365511a3d0f7662100a87e7c87c741ff13
+          python3 - <<'PY'
+          from pathlib import Path
+          docker = Path('server/Dockerfile')
+          source = docker.read_text()
+          marker = 'ARG WEAVE_RUNTIME_FLAVOR\n'
+          assert source.count(marker) == 1
+          source = source.replace(marker, marker + '''# Immutable projection of the same resolved selection used by image provenance.
+          RUN test -n "${WEAVE_DOMAINS}" \\
+              && printf '%s\\n' "${WEAVE_DOMAINS}" > /app/weave-domains \\
+              && chmod 0444 /app/weave-domains
+          ''')
+          docker.write_text(source)
+          compose = Path('infra/weave-workspace/compose.yaml')
+          source = compose.read_text()
+          marker = '        if test -s /run/secrets/agent-runtime/profile-signing/runtime-profile-signing-keys.json; then\n'
+          assert source.count(marker) == 1
+          prefix = '''        packaged_domains="$$(cat /app/weave-domains)"
+                  [[ "$${packaged_domains}" =~ ^[a-z][a-z0-9-]*(,[a-z][a-z0-9-]*)*$$ ]] || exit 2
+                  case ",$${packaged_domains}," in
+                    *,agent-runtime,*) ;;
+                    *) printf '%s\\n' 'Agent Runtime is not packaged; key initialization is not required.'; exit 0 ;;
+                  esac
+          '''
+          compose.write_text(source.replace(marker, prefix + marker))
+          contract = Path('infra/weave-workspace/tests/infra-product-contract-test.sh')
+          contract.write_text(contract.read_text() + '\n# Exercise the real initializer command for selected and omitted domains.\npython3 "${ROOT_DIR}/tests/agent_runtime_key_selection_test.py"\n')
+          test = Path('infra/weave-workspace/tests/agent_runtime_key_selection_test.py')
+          assert not test.exists()
+          test.write_text('''"""A selected-domain image must not invoke an omitted domain's key operators."""
+          import os
+          from pathlib import Path
+          import subprocess
+          import tempfile
+          import unittest
+          import yaml
+
+          WORKSPACE = Path(__file__).resolve().parents[1]
+          REPOSITORY = WORKSPACE.parents[1]
+
+          class AgentRuntimeKeySelectionTest(unittest.TestCase):
+              def setUp(self):
+                  temporary = tempfile.TemporaryDirectory()
+                  self.addCleanup(temporary.cleanup)
+                  self.root = Path(temporary.name)
+                  self.selection = self.root / "weave-domains"
+                  self.calls = self.root / "java-calls"
+                  java = self.root / "java"
+                  java.write_text('#!/bin/sh\\nprintf "%s\\\\n" "$*" >> "$CALLS"\\nexit "${JAVA_STATUS:-0}"\\n')
+                  java.chmod(0o755)
+                  services = yaml.safe_load((WORKSPACE / "compose.yaml").read_text())["services"]
+                  initializer = services["agent-runtime-keys-init"]
+                  self.assertEqual(initializer["entrypoint"], ["/bin/bash", "-euc"])
+                  self.script = initializer["command"][0].replace("$$", "$").replace(
+                      "/app/weave-domains", str(self.selection))
+
+              def initialize(self, domains, java_status=0):
+                  if domains is not None:
+                      self.selection.write_text(domains + "\\n")
+                  return subprocess.run(["/bin/bash", "-euc", self.script], capture_output=True,
+                                        text=True, timeout=10, env={**os.environ,
+                                        "PATH": str(self.root) + os.pathsep + os.environ["PATH"],
+                                        "CALLS": str(self.calls), "JAVA_STATUS": str(java_status)})
+
+              def test_member_release_skips_absent_agent_operators(self):
+                  self.assertEqual(self.initialize("calendar,chat,files").returncode, 0)
+                  self.assertFalse(self.calls.exists())
+
+              def test_selected_agent_runtime_initializes_both_key_stores(self):
+                  self.assertEqual(self.initialize("agent-runtime,calendar,chat,files").returncode, 0)
+                  calls = self.calls.read_text().splitlines()
+                  self.assertEqual(len(calls), 2)
+                  self.assertIn("runtime-profile-signing-keys --action=initialize", calls[0])
+                  self.assertIn("runtime-state-wrapping-keys --action=initialize", calls[1])
+
+              def test_selection_uses_exact_domain_tokens(self):
+                  self.assertEqual(self.initialize("not-agent-runtime,files").returncode, 0)
+                  self.assertFalse(self.calls.exists())
+
+              def test_missing_or_malformed_selection_never_skips_silently(self):
+                  for value in (None, "", ",files", "files,", "files,,chat", "files chat", "files\\nchat"):
+                      with self.subTest(value=value):
+                          self.assertNotEqual(self.initialize(value).returncode, 0)
+                          self.assertFalse(self.calls.exists())
+
+              def test_selected_operator_failure_blocks_the_initializer(self):
+                  self.assertEqual(self.initialize("agent-runtime", java_status=19).returncode, 19)
+                  self.assertEqual(len(self.calls.read_text().splitlines()), 1)
+
+              def test_packaged_selection_uses_the_existing_image_provenance_input(self):
+                  dockerfile = (REPOSITORY / "server/Dockerfile").read_text()
+                  self.assertIn("printf '%s\\\\n' \\\"${WEAVE_DOMAINS}\\\" > /app/weave-domains", dockerfile)
+                  self.assertIn('chmod 0444 /app/weave-domains', dockerfile)
+                  self.assertIn('com.massimotter.weave.domains="${WEAVE_DOMAINS}"', dockerfile)
+                  self.assertNotIn("WEAVE_PACKAGED_DOMAINS", dockerfile)
+
+          if __name__ == "__main__":
+              unittest.main()
+          ''')
+          PY
+      - name: Run the six selected-domain shell regressions
+        run: |
+          python3 -m pip install --disable-pip-version-check 'PyYAML==6.0.3'
+          python3 infra/weave-workspace/tests/agent_runtime_key_selection_test.py -v
+          git diff --check
+      - name: Reproduce actual omission and verify the corrected shell on the hosted ARM64 image
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess, tempfile, yaml
+          image='ghcr.io/masssi164/weave-private-ci-backend@sha256:aecd360cb53a13eedac1597e227371f0faca803766bed1ec8dc89b2dd1ae4e7f'
+          services=yaml.safe_load(pathlib.Path('infra/weave-workspace/compose.yaml').read_text())['services']
+          script=services['agent-runtime-keys-init']['command'][0].replace('$$','$')
+          with tempfile.TemporaryDirectory() as temporary:
+              root=pathlib.Path(temporary); root.chmod(0o755)
+              auth=root/'auth'; auth.mkdir(mode=0o700)
+              subprocess.run(['docker','--config',str(auth),'login','ghcr.io','-u',os.environ['GITHUB_ACTOR'],'--password-stdin'],input=os.environ['GHCR_TOKEN'],text=True,check=True,capture_output=True)
+              subprocess.run(['docker','--config',str(auth),'pull','--platform','linux/arm64',image],check=True,capture_output=True)
+              common=['docker','run','--rm','--platform','linux/arm64','--network','none','--read-only','--cap-drop','ALL','--security-opt','no-new-privileges','--user','1000:1000','--tmpfs','/tmp:rw,nosuid,nodev,noexec,mode=1777,size=32m']
+              original=subprocess.run(common+['--entrypoint','java',image,'-jar','/app/app.jar','runtime-profile-signing-keys','--action=initialize','--root=/tmp/fixture','--operation-ref=diagnostic:isolated'],capture_output=True,text=True,timeout=45)
+              assert original.returncode==2 and original.stderr.strip()=='offline-operator-command-unavailable'
+              results=[]
+              for domains, expected in [('calendar,chat,files',0),('agent-runtime',2),('',2)]:
+                  selection=root/'weave-domains'; selection.write_text(domains+'\n'); selection.chmod(0o444)
+                  result=subprocess.run(common+['--mount',f'type=bind,source={selection},target=/app/weave-domains,readonly','--entrypoint','/bin/bash',image,'-euc',script],capture_output=True,text=True,timeout=45)
+                  assert result.returncode==expected, 'initializer-contract-failed'
+                  results.append({'domains':domains,'exitCode':result.returncode,'expected':expected})
+              print(json.dumps({'fixtureOnly':True,'originalFailure':'offline-operator-command-unavailable','correctedCommandResults':results}))
+          PY
+      - name: Commit only the four reviewed files to the existing fix branch
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = bb7b4a365511a3d0f7662100a87e7c87c741ff13
+          git add -- server/Dockerfile infra/weave-workspace/compose.yaml infra/weave-workspace/tests/infra-product-contract-test.sh infra/weave-workspace/tests/agent_runtime_key_selection_test.py
+          test "$(git diff --cached --name-only | wc -l | tr -d ' ')" = 4
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix: initialize domain keys only when their runtime is packaged'
+          git push origin HEAD:refs/heads/fix/1759-selected-runtime-key-initialization
