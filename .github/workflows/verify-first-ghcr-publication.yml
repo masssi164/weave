@@ -21,20 +21,49 @@ jobs:
           ref: bb7b4a365511a3d0f7662100a87e7c87c741ff13
           path: candidate
           persist-credentials: false
-      - name: Check out the tested read-only observation helper
+      - name: Check out the reviewed read-only observation helper
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
-          ref: da139af38973383d2c3710cc05101ef6565147bc
+          ref: 9d2d05efbbbf346c716db212ffb7b9ca7ac06b68
           path: diagnostic
           persist-credentials: false
+      - name: Verify metadata endpoint and rejection behavior without network access
+        env:
+          PYTHONPATH: diagnostic/tools
+        run: |
+          python3 - <<'PY'
+          import unittest
+          from unittest.mock import patch
+          import diagnostic_registry_visibility_20261028 as verification
+          class Metadata(unittest.TestCase):
+              package = 'weave-private-ci-backend'
+              def item(self):
+                  return {'name': self.package, 'package_type': 'container', 'visibility': 'public', 'owner': {'login': 'masssi164'}}
+              def test_exact_public_endpoint_without_credentials(self):
+                  with patch.object(verification, 'request_json', return_value=(200, '', b'', self.item())) as request:
+                      self.assertEqual(verification.package_visibility({self.package}), {self.package: 'public'})
+                      url, headers = request.call_args.args
+                      self.assertEqual(url, 'https://api.github.com/users/masssi164/packages/container/' + self.package)
+                      self.assertNotIn('Authorization', headers)
+              def test_http_failure_is_never_privacy_evidence(self):
+                  for status in (401,403,404,500):
+                      with self.subTest(status=status), patch.object(verification, 'request_json', return_value=(status,'',b'',{})), self.assertRaises(verification.VerificationFailure):
+                          verification.package_visibility({self.package})
+              def test_wrong_owner_name_type_or_visibility_is_rejected(self):
+                  for key, value in [('name','other'),('owner',{'login':'other'}),('package_type','npm'),('visibility','private')]:
+                      item = self.item(); item[key] = value
+                      with self.subTest(key=key), patch.object(verification,'request_json',return_value=(200,'',b'',item)), self.assertRaises(verification.VerificationFailure):
+                          verification.package_visibility({self.package})
+              def test_all_requested_packages_must_be_proven(self):
+                  with patch.object(verification,'request_json',return_value=(200,'',b'',self.item())), self.assertRaises(verification.VerificationFailure):
+                      verification.package_visibility({self.package, 'weave-private-ci-mcp'})
+          unittest.main()
+          PY
       - name: Prepare run-private registry authentication
         working-directory: candidate
         env:
           GHCR_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 tools/runtime_registry_auth.py setup
+        run: python3 tools/runtime_registry_auth.py setup
       - name: Verify exact producer and observe all four images under the accepted policy
         env:
           GITHUB_TOKEN: ${{ github.token }}
