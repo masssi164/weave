@@ -1,0 +1,132 @@
+name: Inspect persistent managed-member conflict
+on:
+  push:
+    branches: [diagnostic/iphone-handoff-190799-20261028]
+    paths: [.github/workflows/member-conflict-inventory.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    if: github.repository == 'masssi164/weave' && github.ref == 'refs/heads/diagnostic/iphone-handoff-190799-20261028'
+    runs-on: [self-hosted, macOS, ARM64, weave-live]
+    timeout-minutes: 8
+    concurrency:
+      group: weave-live-mac-mini-exclusive
+      cancel-in-progress: false
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      WEAVE_CANDIDATE_COMMIT: 190799c721343a2f21e1b68181f39cb8c87bea6a
+      WEAVE_ENV_FILE: ${{ vars.WEAVE_DOGFOOD_ENV_FILE }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: 190799c721343a2f21e1b68181f39cb8c87bea6a
+          path: member-conflict-source
+          persist-credentials: false
+      - name: Report only bounded state and binding comparisons for the two approved test members
+        working-directory: member-conflict-source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os, re, ssl, subprocess, sys
+          from pathlib import Path
+          from urllib.request import Request, build_opener, HTTPSHandler
+          from urllib.parse import quote, urlencode
+          sys.path.insert(0, str(Path.cwd() / 'tools'))
+          from dogfood_prepare import private_read, ledger_for, load_context, operator_plan
+          from dogfood_identity_readiness import _NoRedirect, _verify_identity_token, oauth_probe
+          from rendering.io import read_secret
+          report = {'readOnly': True, 'containsSecretValues': False, 'supportSafe': True, 'stage': 'preflight'}
+          def run(args, data=None):
+              value = subprocess.run(args, input=data, capture_output=True, text=True, timeout=25)
+              assert value.returncode == 0 and len(value.stdout) <= 1024*1024, 'bounded-command-failed'
+              return value.stdout
+          def literal(value):
+              assert isinstance(value, str) and len(value) <= 600 and '\0' not in value
+              return "'" + value.replace("'", "''") + "'"
+          def inspect():
+              assert os.environ['RUNNER_NAME'] == 'weave-live-mac-mini'
+              assert os.environ['GITHUB_REPOSITORY'] == 'masssi164/weave'
+              assert run(['git','rev-parse','HEAD']).strip() == os.environ['WEAVE_CANDIDATE_COMMIT']
+              context = load_context('dogfood', Path.cwd()/'infra/weave-workspace', os.environ['WEAVE_ENV_FILE'])
+              assert context.environment == 'dogfood' and context.isolated_namespace is None
+              assert context.env['WEAVE_COMPOSE_PROJECT'] == 'weave-dogfood'
+              fixture = Path.home()/'.weave/dogfood/functional-smoke-identities.json'
+              ledger = private_read(ledger_for(fixture), 65536)
+              plan = operator_plan(ledger['plan'], context)
+              receipt = ledger.get('operatorEnvelope', {}).get('receipt', {})
+              report['ledger'] = {'fixturePresent': fixture.exists(), 'registrationState': ledger['registrationState'],
+                  'lastOperation': receipt.get('operation'), 'lastStatus': receipt.get('status'),
+                  'lastBoundary': receipt.get('boundary'), 'priorGrantEvidence': 'lastGrantsEnvelope' in ledger,
+                  'members': [{k: m.get(k) for k in ('slot','intentState','grantStatus')} |
+                              {k+'Present': m.get(k) is not None for k in ('intentRef','invitationHandle','memberHandle','accountRef','grantVersion')}
+                              for m in receipt.get('members', [])]}
+              containers = json.loads(run(['docker','container','inspect','weave-dogfood-db','weave-dogfood-backend']))
+              assert len(containers) == 2
+              for container, service in zip(containers, ('db','backend')):
+                  labels = container['Config']['Labels']
+                  assert labels['com.docker.compose.project'] == context.env['WEAVE_COMPOSE_PROJECT']
+                  assert labels['com.docker.compose.service'] == service
+                  assert labels['com.massimotter.weave.namespace'] == context.env['WEAVE_RESOURCE_PREFIX']
+                  assert container['State']['Running']
+              report['stage'] = 'intent-history'
+              query = "SELECT coalesce(json_agg(t), '[]'::json) FROM (SELECT intent_id,tenant_id,organization_id,invited_email,invited_by_issuer,invited_by_subject,audit_correlation,status,requested_role,provider_invitation_id,applied_subject,created_at,expires_at FROM weave_identity_provisioning_intents WHERE lower(invited_email) IN (" + ','.join(literal(m['email'].lower()) for m in plan['members']) + ") LIMIT 20) t;"
+              raw = run(['docker','exec','-i',containers[0]['Id'],'psql','--no-psqlrc','-X','-A','-t','-q','--set=ON_ERROR_STOP=1',
+                         '-U',context.env['WEAVE_DB_ADMIN_USERNAME'],'-d',context.env['WEAVE_BACKEND_DB_NAME']],
+                        'BEGIN READ ONLY; SET LOCAL statement_timeout=5000; '+query+' ROLLBACK;')
+              histories = json.loads(raw.strip())
+              assert len(histories) < 20
+              report['stage'] = 'provider-readback'
+              base = context.env['WEAVE_AUTH_URL'].rstrip('/')
+              issuer = base+'/realms/weave'
+              tls = ssl.create_default_context(cafile=str(context.tls_root/'ca.pem'))
+              tls.verify_flags &= ~ssl.VERIFY_X509_STRICT
+              opener = build_opener(_NoRedirect(), HTTPSHandler(context=tls))
+              key = json.loads(read_secret(context, 'keycloak-weave-identity-admin-jwk.json'))
+              status, response = oauth_probe.private_key_jwt_token_response(base, 'weave','weave-identity-admin',key,issuer,opener=opener)
+              assert status == 200
+              token = response.get('access_token'); _verify_identity_token(token, issuer)
+              def get(path):
+                  request = Request(base+'/admin/realms/weave'+path, headers={'Authorization':'Bearer '+token})
+                  with opener.open(request, timeout=20) as response:
+                      raw = response.read(1024*1024+1)
+                      assert response.status == 200 and len(raw) <= 1024*1024
+                      return json.loads(raw)
+              organizations = get('/organizations?first=0&max=100&briefRepresentation=true')
+              assert isinstance(organizations,list) and len(organizations)<100
+              selected = [o for o in organizations if o.get('alias')==context.env['WEAVE_ORGANIZATION_ALIAS']]
+              assert len(selected)==1
+              organization = selected[0]['id']
+              prefix = '/organizations/'+quote(organization,safe='')
+              report['members'] = []
+              for member in plan['members']:
+                  slot = member['slot']; email=member['email']
+                  found = [h for h in histories if h['invited_email'].casefold()==email.casefold()]
+                  history = [h for h in found if h['organization_id']==organization and h['invited_by_issuer'] in
+                    ('urn:weave:dogfood-operator','urn:weave:dogfood-managed-fixture') and
+                    h['invited_by_subject']=='operator:dogfood-prepare:'+plan['planId'] and
+                    h['audit_correlation']==member['invitationIdempotencyKey']]
+                  invitations=get(prefix+'/invitations?'+urlencode({'email':email}))
+                  assert isinstance(invitations,list) and len(invitations)<100
+                  invitations=[i for i in invitations if i.get('email','').casefold()==email.casefold()]
+                  users=get('/users?'+urlencode({'email':email,'exact':'true','first':0,'max':3}))
+                  assert isinstance(users,list) and len(users)<3
+                  report['members'].append({'slot':slot,'emailHistoryCount':len(found),'operatorHistoryCount':len(history),
+                    'states':[{'status':h['status'],'managedIssuer':h['invited_by_issuer']=='urn:weave:dogfood-managed-fixture',
+                      'actorMatches':h['invited_by_subject']=='operator:dogfood-prepare:'+plan['planId'],
+                      'correlationMatches':h['audit_correlation']==member['invitationIdempotencyKey'],
+                      'organizationMatches':h['organization_id']==organization,'hasProviderInvitation':h['provider_invitation_id'] is not None,
+                      'hasAppliedSubject':h['applied_subject'] is not None} for h in found],
+                    'providerInvitationCount':len(invitations),'providerInvitationStates':[i.get('status','unknown') for i in invitations],
+                    'providerInvitationNameMatches':[(' '.join((i.get('firstName',''),i.get('lastName',''))).strip()==member['displayName']) for i in invitations],
+                    'realmUserCount':len(users),'usersEnabled':[u.get('enabled') is True for u in users],
+                    'usersActivated':[u.get('emailVerified') is True and u.get('requiredActions')==[] for u in users]})
+              report['stage']='complete'; report['status']='passed'
+          try:
+              inspect()
+          except Exception as failure:
+              report['status']='blocked'; report['errorType']=type(failure).__name__
+          print(json.dumps(report,sort_keys=True))
+          raise SystemExit(0 if report['status']=='passed' else 1)
+          PY
