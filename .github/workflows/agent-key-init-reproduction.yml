@@ -1,0 +1,70 @@
+name: Reproduce candidate key initialization
+on:
+  push:
+    branches: [diagnostic/verify-first-ghcr-publication-20261028]
+    paths: [.github/workflows/agent-key-init-reproduction.yml]
+permissions:
+  contents: read
+  packages: read
+jobs:
+  reproduce:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: 41c1a611131d7b859551be192d2d646da955a151
+          persist-credentials: false
+      - name: Gather public source relevant to the initializer and delivery regression
+        run: |
+          python3 - <<'PY'
+          import pathlib, zipfile
+          root = pathlib.Path('.')
+          with zipfile.ZipFile('key-init-source.zip','w',zipfile.ZIP_DEFLATED) as archive:
+              for name in ('infra','tools','gradle','server/app','server/domains/agent-runtime','client/tool'):
+                  for path in (root/name).rglob('*'):
+                      if path.is_file() and not path.is_symlink() and path.suffix in {'.py','.sh','.yaml','.yml','.json','.java','.gradle','.md','.properties','.xml'}:
+                          archive.write(path, str(path))
+              for name in ('AGENTS.md','.gitignore','server/Dockerfile','settings.gradle','build.gradle'):
+                  archive.write(name,name)
+          PY
+      - name: Exercise only disposable key initialization against the exact candidate image
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess, tempfile
+          image = 'ghcr.io/masssi164/weave-private-ci-backend@sha256:aecd360cb53a13eedac1597e227371f0faca803766bed1ec8dc89b2dd1ae4e7f'
+          with tempfile.TemporaryDirectory() as temporary:
+              root = pathlib.Path(temporary)
+              auth = root/'auth'; auth.mkdir(mode=0o700)
+              subprocess.run(['docker','--config',str(auth),'login','ghcr.io','-u',os.environ['GITHUB_ACTOR'],'--password-stdin'],input=os.environ['GHCR_TOKEN'],text=True,check=True,capture_output=True)
+              subprocess.run(['docker','--config',str(auth),'pull','--platform','linux/arm64',image],check=True,capture_output=True)
+              # A throwaway tmpfs owns generated fixture keys; no host/customer data is mounted.
+              results = []
+              for name in ('runtime-profile-signing-keys','runtime-state-wrapping-keys'):
+                  args = ['docker','run','--rm','--platform','linux/arm64','--network','none','--read-only',
+                          '--cap-drop','ALL','--security-opt','no-new-privileges','--user','1000:1000',
+                          '--tmpfs','/tmp:rw,nosuid,nodev,noexec,mode=1777,size=32m','--entrypoint','java',image,
+                          '-jar','/app/app.jar',name,'--action=initialize','--root=/tmp/fixture-keys',
+                          '--operation-ref=diagnostic:isolated-key-init']
+                  completed = subprocess.run(args,capture_output=True,text=True,timeout=45)
+                  # Report a classification, never generated key material or full provider output.
+                  text = completed.stdout + completed.stderr
+                  classifications = [marker for marker in ('Unknown command','unknown command','not available',
+                      'ClassNotFoundException','NoClassDefFoundError','AccessDeniedException','Permission denied',
+                      'IllegalArgumentException','UnsupportedOperationException','domain not enabled','domain-not-enabled') if marker in text]
+                  results.append({'command':name,'exitCode':completed.returncode,'diagnosticMarkers':classifications,
+                                  'outputBytes':len(text.encode())})
+              pathlib.Path('key-init-result.json').write_text(json.dumps({'candidate':'41c1a611131d7b859551be192d2d646da955a151','fixtureOnly':True,'results':results},indent=2))
+              print(pathlib.Path('key-init-result.json').read_text())
+          PY
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        if: always()
+        with:
+          name: key-init-reproduction-41c1a611
+          path: |
+            key-init-source.zip
+            key-init-result.json
+          retention-days: 3
