@@ -19,6 +19,10 @@ RUN groupadd --gid 10001 weave \
 
 ARG WEAVE_DOMAINS
 ARG WEAVE_RUNTIME_FLAVOR
+# Immutable projection of the same resolved selection used by image provenance.
+RUN test -n "${WEAVE_DOMAINS}" \
+    && printf '%s\n' "${WEAVE_DOMAINS}" > /app/weave-domains \
+    && chmod 0444 /app/weave-domains
 ARG WEAVE_IMAGE_CREATED=unbound
 ARG WEAVE_IMAGE_REVISION=unbound
 ARG WEAVE_IMAGE_VERSION=unbound
