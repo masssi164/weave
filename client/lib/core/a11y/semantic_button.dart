@@ -39,6 +39,8 @@ class AccessibleButton extends StatelessWidget {
         : FilledButton(onPressed: onPressed, style: style, child: child);
 
     return Semantics(
+      // Native hit testing must use the button, not a merged ancestor's bounds.
+      container: true,
       button: true,
       enabled: onPressed != null,
       label: semanticLabel,
