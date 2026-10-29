@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -568,6 +570,29 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Shell modules'), findsOneWidget);
+      final semantics = tester.ensureSemantics();
+      final toggle = tester.getSemantics(find.byType(SwitchListTile).first);
+      final moveDown = tester.getSemantics(
+        find.byTooltip('Move Workspace status summary down'),
+      );
+      final moveUp = tester.getSemantics(
+        find.byTooltip('Move Recent workspace activity up'),
+      );
+      expect(
+        toggle.getSemanticsData().hasAction(ui.SemanticsAction.tap),
+        isTrue,
+      );
+      expect(
+        moveDown.getSemanticsData().hasAction(ui.SemanticsAction.tap),
+        isTrue,
+      );
+      expect(
+        moveUp.getSemanticsData().hasAction(ui.SemanticsAction.tap),
+        isTrue,
+      );
+      expect({toggle.id, moveDown.id, moveUp.id}, hasLength(3));
+      semantics.dispose();
+
       final recentActivityToggle = find.text('Recent workspace activity');
       expect(recentActivityToggle, findsOneWidget);
 
