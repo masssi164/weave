@@ -1,0 +1,41 @@
+name: Identity foundation
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/identity-foundation.yml'
+      - 'infra/weave-workspace/requirements-identity.txt'
+      - 'infra/weave-workspace/scripts/shared_java_trust.py'
+      - 'infra/weave-workspace/keycloak/directory_identity.py'
+      - 'infra/weave-workspace/keycloak/stock-client-scopes-26.7.1.json'
+      - 'infra/weave-workspace/tests/shared_java_trust_test.py'
+      - 'infra/weave-workspace/tests/directory_identity_test.py'
+permissions:
+  contents: read
+concurrency:
+  group: identity-foundation-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  identity-foundation:
+    name: Shared trust and directory realm contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install bounded identity-tool dependencies
+        run: |
+          python3 -m venv "$RUNNER_TEMP/weave-identity-venv"
+          "$RUNNER_TEMP/weave-identity-venv/bin/python" -m pip install --disable-pip-version-check -r infra/weave-workspace/requirements-identity.txt
+      - name: Verify native realm configuration and real Java TLS behavior
+        run: |
+          set -euo pipefail
+          command -v java
+          command -v javac
+          command -v keytool
+          "$RUNNER_TEMP/weave-identity-venv/bin/python" infra/weave-workspace/tests/directory_identity_test.py
+          "$RUNNER_TEMP/weave-identity-venv/bin/python" infra/weave-workspace/tests/shared_java_trust_test.py

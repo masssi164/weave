@@ -1,0 +1,2 @@
+# Certificate-only PKCS12 generation; no separate service truststores.
+cryptography==50.0.2
