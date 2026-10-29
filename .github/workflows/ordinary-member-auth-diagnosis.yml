@@ -16,7 +16,7 @@ jobs:
       cancel-in-progress: false
     timeout-minutes: 20
     env:
-      WEAVE_CANDIDATE_COMMIT: 190799c721343a2f21e1b68181f39cb8c87bea6a
+      WEAVE_CANDIDATE_COMMIT: 7f7184fd1964d6a35f4d8254b33227b5fcd1e920
       WEAVE_ENV_FILE: ${{ vars.WEAVE_DOGFOOD_REVIEWED_ENV_FILE }}
       PYTHONDONTWRITEBYTECODE: '1'
     defaults:
@@ -29,7 +29,7 @@ jobs:
           set -euo pipefail
           test "$RUNNER_NAME" = weave-live-mac-mini
           test "$(git rev-parse HEAD)" = "$WEAVE_CANDIDATE_COMMIT"
-          test "$(git rev-parse HEAD^{tree})" = 06379c5fb09b08c3b25b5377f953f1ea5d2c8960
+          test "$(git rev-parse HEAD^{tree})" = e8f51e0653cd086af653e69b5ea61807cdf0c878
           test -z "$(git status --porcelain)"
           test -f "$HOME/.weave/dogfood/functional-smoke-identities.json"
           printf 'WEAVE_BUILD_ARTIFACT_ROOT=%s/weave-auth-diagnostic-%s\n' "$RUNNER_TEMP" "$GITHUB_RUN_ID" >> "$GITHUB_ENV"
@@ -44,97 +44,139 @@ jobs:
         run: |
           set -euo pipefail
           python3 tools/runner_capacity_preflight.py --path . --minimum-free-gib 20 --require-docker
-          python3 tools/artifact_consumers.py fetch-composition --qualified --candidate "$WEAVE_CANDIDATE_COMMIT" --run-id 40682567150 --run-attempt 2 --output "$WEAVE_CANDIDATE_COMPOSITION"
+          python3 tools/artifact_consumers.py fetch-composition --qualified --candidate "$WEAVE_CANDIDATE_COMMIT" --run-id 40875202112 --run-attempt 1 --output "$WEAVE_CANDIDATE_COMPOSITION"
           python3 tools/build_artifacts.py consume --composition "$WEAVE_CANDIDATE_COMPOSITION" --components runtime-linux-arm64,ios-simulator --directory "$WEAVE_BUILD_ARTIFACT_ROOT" >/dev/null
       - name: Classify actual ordinary-login failure without publishing private transcripts
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import json, os, re, signal, sys, tempfile, time
+          python3 - <<'PYDIAG'
+          """One bounded diagnostic using qualified binaries; never qualification evidence."""
+          import json
+          import os
+          import re
+          import signal
+          import sys
+          import tempfile
+          import time
           from pathlib import Path
           from urllib.parse import urlsplit
-          sys.path.insert(0,str(Path.cwd()/'tools'))
+
+          sys.path.insert(0, str(Path.cwd() / 'tools'))
           from dogfood_prepare import load_context, build_actors
           from compose_runtime import _dogfood_session_lock, verify_dogfood_identity
-          from dogfood_functional_smoke import (Runner, SmokeError, restart, BUNDLE, canonical_origin,
-              identities, approved_identity_binding, verify_discovered_routing)
+          from dogfood_functional_smoke import Runner, SmokeError, restart, BUNDLE, canonical_origin, identities, approved_identity_binding, verify_discovered_routing
           from prepare_member_scenario import verify_member_workspace
           from artifact_consumers import candidate_composition
+          from run_ios_simulator_product_acceptance import SAFE_BROWSER_STAGES
+
+          source_names = ('BrowserDriver.swift', 'OrdinaryProductSmoke.swift')
+          known_domains = set()
+          for filename in source_names:
+              source = (Path.cwd() / 'client/tool/ios_browser_driver' / filename).read_text()
+              known_domains.update(re.findall(r'NSError\(domain: "([a-z][a-z0-9-]{1,100})"', source))
+          command_prefixes = {
+              ('xcrun', 'simctl', 'create'): 'simulator-create',
+              ('xcrun', 'simctl', 'boot'): 'simulator-boot',
+              ('xcrun', 'simctl', 'bootstatus'): 'simulator-bootstatus',
+              ('xcrun', 'simctl', 'keychain'): 'simulator-trust',
+              ('xcrun', 'simctl', 'install'): 'simulator-install',
+              ('xcrun', 'simctl', 'launch'): 'simulator-launch',
+              ('xcrun', 'simctl', 'delete'): 'simulator-cleanup',
+          }
+          known_methods = {'testOrdinaryOrganizationEntry', 'testProductionBrowser', 'testOrdinaryRouting'}
+
           class DiagnosticRunner(Runner):
               def run(self, arguments, **options):
-                  try: return super().run(arguments, **options)
+                  try:
+                      return super().run(arguments, **options)
                   except Exception:
-                      path=self.directory/f'command-{self.sequence}.log'
-                      if path.is_file() and not path.is_symlink() and path.stat().st_size<=8*1024**2:
-                          raw=path.read_text(errors='replace')
-                          stages=re.findall(r'NATIVE_IOS_BROWSER_STAGE phase=([a-z-]{1,70})\b',raw)
-                          lines=sorted(set(int(x) for x in re.findall(r'BrowserDriver\.swift:(\d{1,5})\b',raw)))
-                          prompts=re.findall(r'NATIVE_IOS_PASSWORD_PROMPT_STATE appPrompts=(\d{1,3}) systemPrompts=(\d{1,3}) appDeclines=(\d{1,3}) systemDeclines=(\d{1,3}) readiness=(waiting|ready|ambiguous)\b',raw)
-                          categories=[]
-                          known={'Password-save alert must settle to one accessible exact decline control':'optional-prompt-not-ready',
-                              'Password-save alert did not dismiss after declining':'optional-prompt-not-dismissed',
-                              'Ordinary reconciliation consent failed its bounded checks':'additional-consent',
-                              'Invalid username or password.':'invalid-credentials',
-                              'The application did not reach its native workspace':'workspace-timeout'}
-                          for literal,category in known.items():
-                              if literal in raw: categories.append(category)
-                          print(json.dumps({'diagnostic':'ordinary-native-command','stages':stages[-30:],
-                              'sourceLines':lines[-12:],'promptStates':prompts[-10:],'categories':categories,
-                              'supportSafe':True},sort_keys=True),flush=True)
+                      path = self.directory / f'command-{self.sequence}.log'
+                      report = {'diagnostic': 'ordinary-native-command', 'sequence': self.sequence,
+                                'command': command_prefixes.get(tuple(arguments[:3]), 'other-native-command'),
+                                'supportSafe': True, 'containsSecretValues': False}
+                      if arguments[:2] == ['xcodebuild', 'test-without-building']:
+                          report['command'] = 'xctest'
+                          selector = next((x for x in arguments if x.startswith('-only-testing:')), '')
+                          method = selector.rsplit('/', 1)[-1]
+                          report['method'] = method if method in known_methods else 'other-test'
+                      if path.is_file() and not path.is_symlink() and path.stat().st_size <= 8 * 1024**2:
+                          raw = path.read_text(errors='replace')
+                          report['domains'] = sorted(name for name in known_domains if name in raw)
+                          report['sourceLocations'] = {
+                              name: sorted(set(int(x) for x in re.findall(re.escape(name) + r':(\d{1,5})\b', raw)))[:16]
+                              for name in source_names
+                          }
+                          report['browserStages'] = [stage for stage in re.findall(
+                              r'NATIVE_IOS_BROWSER_STAGE phase=([a-z-]{1,70})\b', raw) if stage in SAFE_BROWSER_STAGES][-24:]
+                          known_errors = {
+                              'Password-save alert must settle to one accessible exact decline control': 'optional-prompt-not-ready',
+                              'Password-save alert did not dismiss after declining': 'optional-prompt-not-dismissed',
+                              'The application did not reach its native workspace': 'workspace-timeout',
+                          }
+                          report['categories'] = [category for text, category in known_errors.items() if text in raw]
+                      print(json.dumps(report, sort_keys=True), flush=True)
                       raise
-          report={'status':'blocked','stage':'preflight','qualificationClaim':False,'physicalDeviceChanged':False,
-                  'credentialReset':False,'supportSafe':True,'containsSecretValues':False}
-          devices=[]
-          def terminate(*_): raise SmokeError('diagnostic-terminated')
-          signal.signal(signal.SIGTERM,terminate)
+
+          report = {'status': 'blocked', 'stage': 'preflight', 'qualificationClaim': False,
+                    'physicalDeviceChanged': False, 'credentialReset': False,
+                    'supportSafe': True, 'containsSecretValues': False}
+          devices = []
+          def terminate(*_):
+              raise SmokeError('diagnostic-terminated')
+          signal.signal(signal.SIGTERM, terminate)
           try:
-              assert os.environ.get('RUNNER_NAME')=='weave-live-mac-mini'
-              candidate=os.environ['WEAVE_CANDIDATE_COMMIT']
-              composition=candidate_composition(candidate)
-              identity={key:composition[key] for key in ('candidateCommit','sourceTree','specificationCommit')}
-              context=load_context('dogfood',Path.cwd()/'infra/weave-workspace',os.environ['WEAVE_ENV_FILE'])
+              assert os.environ.get('RUNNER_NAME') == 'weave-live-mac-mini'
+              candidate = os.environ['WEAVE_CANDIDATE_COMMIT']
+              composition = candidate_composition(candidate)
+              identity = {key: composition[key] for key in ('candidateCommit', 'sourceTree', 'specificationCommit')}
+              context = load_context('dogfood', Path.cwd() / 'infra/weave-workspace', os.environ['WEAVE_ENV_FILE'])
               with _dogfood_session_lock(context), tempfile.TemporaryDirectory(prefix='weave-auth-diagnostic-') as temporary:
-                  directory=Path(temporary).resolve(strict=True); directory.chmod(0o700)
-                  runner=DiagnosticRunner(directory)
+                  directory = Path(temporary).resolve(strict=True)
+                  directory.chmod(0o700)
+                  runner = DiagnosticRunner(directory)
                   try:
                       runner.configure_native_toolchain()
                       verify_dogfood_identity(context)
-                      fixture=Path.home()/'.weave/dogfood/functional-smoke-identities.json'
-                      origin=canonical_origin(context.env['WEAVE_PUBLIC_URL'])
-                      approved=identities(fixture,origin)
-                      binding=approved_identity_binding(context,fixture,approved)
-                      report['stage']='current-member-verification'
-                      verified=verify_member_workspace(context,identity,runner,directory,'A',fixture)
-                      assert verified['status']=='passed' and verified['memberAccessVerified']
-                      report['stage']='owned-simulator-preparation'
-                      actors=build_actors(runner,context,candidate,devices)
-                      actor=actors['A']; member=approved['members'][0]
-                      restart(runner,actor)
-                      report['stage']='ordinary-organization-entry'
-                      runner.ui(actor,{'organizationOrigin':origin},'testOrdinaryOrganizationEntry')
-                      report['stage']='ordinary-browser-login'
-                      runner.ui(actor,{**member,'issuerHost':urlsplit(context.env['WEAVE_AUTH_URL']).hostname,
-                          'appBundleIdentifier':BUNDLE,'phase':'initial','nativeAuthCompletionPath':'',
-                          'ordinaryOrganizationOrigin':origin},'testProductionBrowser')
-                      report['stage']='actual-workspace-identity'
-                      assert verify_discovered_routing(runner,actor,context,binding['members']['A'])=='retained-workspace'
-                      report.update(status='passed',stage='ordinary-authentication-and-identity',ordinaryAuthenticationObserved=True)
+                      fixture = Path.home() / '.weave/dogfood/functional-smoke-identities.json'
+                      origin = canonical_origin(context.env['WEAVE_PUBLIC_URL'])
+                      approved = identities(fixture, origin)
+                      binding = approved_identity_binding(context, fixture, approved)
+                      report['stage'] = 'current-member-verification'
+                      verified = verify_member_workspace(context, identity, runner, directory, 'A', fixture)
+                      assert verified['status'] == 'passed' and verified['memberAccessVerified']
+                      report['stage'] = 'owned-simulator-preparation'
+                      actors = build_actors(runner, context, candidate, devices)
+                      actor = actors['A']
+                      member = approved['members'][0]
+                      restart(runner, actor)
+                      report['stage'] = 'ordinary-organization-entry'
+                      runner.ui(actor, {'organizationOrigin': origin}, 'testOrdinaryOrganizationEntry')
+                      report['stage'] = 'ordinary-browser-login'
+                      runner.ui(actor, {**member, 'issuerHost': urlsplit(context.env['WEAVE_AUTH_URL']).hostname,
+                          'appBundleIdentifier': BUNDLE, 'phase': 'initial', 'nativeAuthCompletionPath': '',
+                          'ordinaryOrganizationOrigin': origin}, 'testProductionBrowser')
+                      report['stage'] = 'actual-workspace-identity'
+                      assert verify_discovered_routing(runner, actor, context, binding['members']['A']) == 'retained-workspace'
+                      report.update(status='passed', stage='ordinary-authentication-and-identity', ordinaryAuthenticationObserved=True)
                   finally:
-                      signal.signal(signal.SIGTERM,signal.SIG_IGN)
-                      runner.deadline=time.monotonic()+120
-                      cleaned=True
+                      signal.signal(signal.SIGTERM, signal.SIG_IGN)
+                      runner.deadline = time.monotonic() + 120
+                      cleaned = True
                       for device in devices:
-                          try: runner.run(['xcrun','simctl','delete',device],timeout=30)
-                          except Exception: cleaned=False
-                      report['ownedSimulatorCleanup']=cleaned
-                      if not cleaned: raise SmokeError('owned-diagnostic-cleanup-failed')
+                          try:
+                              runner.run(['xcrun', 'simctl', 'delete', device], timeout=30)
+                          except Exception:
+                              cleaned = False
+                      report['ownedSimulatorCleanup'] = cleaned
+                      if not cleaned:
+                          raise SmokeError('owned-diagnostic-cleanup-failed')
           except Exception as error:
-              category=str(error)
-              report['status']='blocked'
-              report['reason']=category if re.fullmatch('[a-z][a-z0-9-]{1,100}',category) else 'diagnostic-precondition-or-operation-failed'
-          print(json.dumps(report,sort_keys=True),flush=True)
-          raise SystemExit(0 if report['status']=='passed' else 1)
-          PY
+              report['status'] = 'blocked'
+              # Never copy arbitrary exception text into public logs.
+              report['reason'] = 'native-command-failed' if isinstance(error, SmokeError) else 'diagnostic-precondition-or-operation-failed'
+          print(json.dumps(report, sort_keys=True), flush=True)
+          raise SystemExit(0 if report['status'] == 'passed' else 1)
+          PYDIAG
       - name: Remove run-scoped registry credentials
         if: always()
         run: python3 tools/runtime_registry_auth.py cleanup
