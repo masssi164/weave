@@ -196,7 +196,40 @@ services:
     image: ${WEAVE_CADDY_IMAGE:-caddy:2.10.0-alpine}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-proxy
     depends_on:
-      openldap:
+      keycloak:
+        condition: service_healthy
+    ports:
+      - "${WEAVE_PROXY_HTTP_HOST_PORT:-44080}:80"
+      - "${WEAVE_PROXY_HTTPS_HOST_PORT:-44443}:443"
+    networks:
+      weave:
+        aliases:
+          - ${WEAVE_TENANT_DOMAIN:-weave.test}
+          - ${WEAVE_API_SUBDOMAIN:-api}.${WEAVE_TENANT_DOMAIN:-weave.test}
+          - ${WEAVE_AUTH_SUBDOMAIN:-auth}.${WEAVE_TENANT_DOMAIN:-weave.test}
+          - ${WEAVE_MATRIX_SUBDOMAIN:-matrix}.${WEAVE_TENANT_DOMAIN:-weave.test}
+          - ${WEAVE_FILES_SUBDOMAIN:-files}.${WEAVE_TENANT_DOMAIN:-weave.test}
+    volumes:
+      - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}/ca.pem:/certs/ca.pem:ro
+      - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}/cert.pem:/certs/cert.pem:ro
+      - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}/key.pem:/certs/key.pem:ro
+      - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}/mailpit-cert.pem:/certs/mailpit-cert.pem:ro
+      - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}/mailpit-key.pem:/certs/mailpit-key.pem:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    healthcheck:
+      test:
+        - CMD
+        - caddy
+        - validate
+        - --config
+        - /etc/caddy/Caddyfile
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  openldap:
     <<: *weave-service
     profiles: *identity-profiles
     image: ${WEAVE_OPENLDAP_IMAGE:?approved digest-pinned OpenLDAP image required}
@@ -220,7 +253,6 @@ services:
       - ${WEAVE_TLS_ROOT:?TLS root required}/ca.pem:/container/service/slapd/assets/certs/ca.pem:ro
       - ${WEAVE_TLS_ROOT:?TLS root required}/ldap-cert.pem:/container/service/slapd/assets/certs/cert.pem:ro
       - ${WEAVE_TLS_ROOT:?TLS root required}/ldap-key.pem:/container/service/slapd/assets/certs/key.pem:ro
-
 
   keycloak:
     <<: *weave-service
