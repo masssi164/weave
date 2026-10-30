@@ -1,6 +1,25 @@
 # Local bootstrap and app contract
 
-This guide contains the local/dev infrastructure path that used to make the top-level README intimidating: ports, TLS trust, generated env files, integration test inputs, and the native app/backend contract. It is not the canonical product bootstrap entrypoint; that boundary lives in `../../docs/bootstrap-foundation-contract.md` and deploys the Control Plane first, with infra selected only by an explicit environment. The canonical CLI bridge is `tools/weavectl bootstrap plan/apply`; when a local shell plan is explicitly executed with an approval ref, it dispatches this `install.sh` path instead of asking the operator to discover it manually.
+Root Gradle tasks invoke the existing Compose lifecycle. They prepare the pinned
+Python dependency automatically under the ignored `build/bootstrap-python`
+directory and reuse that environment on subsequent starts.
+
+Use `./gradlew bootstrap` for the default host-development dependencies, or
+`./gradlew bootstrap -Penv=dogfood` for the reviewed persistent LAN installation.
+`e2e` and `prod` retain their existing explicit environment and artifact requirements.
+Bootstrap does not build missing Dogfood runtime artifacts on the Mac.
+
+Before starting Java services, preparation derives one certificate-only
+`.generated/<environment>/trust/java-truststore.p12` (or the equivalent path under
+the reviewed generated root). It contains the selected JDK's public trust roots
+and the existing `WEAVE_TLS_ROOT/ca.pem`. Keycloak, Server and MCP mount that same
+file. The generated truststore and its publication lock are ignored by Git.
+An unchanged run preserves the truststore inode and modification time.
+
+Existing CA, gateway certificate and private keys are preserved by normal startup.
+Truststore generation never writes those inputs. A changed trust set requires
+explicit migration; it cannot silently rotate the deployment CA. iPhone trust
+continues to use the existing CA through the normal iOS trust setup.
 
 ## Hostnames
 

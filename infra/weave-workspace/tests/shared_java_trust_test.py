@@ -10,6 +10,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from types import SimpleNamespace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -20,7 +21,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from shared_java_trust import TrustError, fingerprint, publish_truststore, trust_entries
+from shared_java_trust import TrustError, fingerprint, prepare_shared_trust, publish_truststore, trust_entries
 
 
 def certificate(name, *, signer=None, ca=True, expired=False):
@@ -86,6 +87,27 @@ class SharedTrustTest(unittest.TestCase):
         self.assertEqual(self.publish()['status'], 'unchanged')
         self.assertEqual(before, [(p.read_bytes(), p.stat().st_mtime_ns)
                                  for p in (self.output, self.base, self.ca)])
+
+    @unittest.skipUnless(shutil.which('keytool'), 'JDK keytool required')
+    def test_bootstrap_uses_jdk_roots_and_preserves_existing_tls_and_store(self):
+        tls = self.root / 'tls'
+        tls.mkdir()
+        (tls / 'ca.pem').write_bytes(pem(self.local_ca[1]))
+        (tls / 'cert.pem').write_bytes(pem(certificate('localhost', signer=self.local_ca, ca=False)[1]))
+        (tls / 'key.pem').write_bytes(b'existing-private-key-not-read-by-trust-preparation')
+        before = {p: (p.read_bytes(), p.stat().st_ino, p.stat().st_mtime_ns)
+                  for p in tls.iterdir()}
+        output = self.root / 'generated/trust/java-truststore.p12'
+        context = SimpleNamespace(env={'WEAVE_JAVA_TRUSTSTORE': str(output)}, tls_root=tls)
+        result = prepare_shared_trust(context)
+        self.assertEqual(result['status'], 'created')
+        self.assertGreater(result['certificateCount'], 1)
+        self.assertIn(fingerprint(self.local_ca[1]), trust_entries(output))
+        published = (output.read_bytes(), output.stat().st_ino, output.stat().st_mtime_ns)
+        self.assertEqual(prepare_shared_trust(context)['status'], 'unchanged')
+        self.assertEqual(published, (output.read_bytes(), output.stat().st_ino, output.stat().st_mtime_ns))
+        self.assertEqual(before, {p: (p.read_bytes(), p.stat().st_ino, p.stat().st_mtime_ns)
+                                  for p in tls.iterdir()})
 
     def test_duplicate_ca_is_not_added_twice(self):
         self.base.write_bytes(pem(self.local_ca[1]) + pem(self.base_ca[1]))

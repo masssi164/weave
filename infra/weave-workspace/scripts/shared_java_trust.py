@@ -6,6 +6,9 @@ import argparse
 import fcntl
 import json
 import os
+import re
+import shutil
+import subprocess
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -127,6 +130,35 @@ def publish_truststore(jvm_roots: Path, deployment_ca: Path, destination: Path,
     return {'status': status, 'certificateCount': len(expected),
             'deploymentCaSha256': sorted({fingerprint(cert) for cert in additions}),
             'containsPrivateKeys': False}
+
+
+def prepare_shared_trust(context) -> dict[str, object]:
+    """Derive shared trust from the selected JDK and the existing deployment CA.
+
+    Only public certificates are read. Existing CA, leaf and private-key files
+    are never rewritten, and an unchanged truststore retains its inode/mtime.
+    """
+    destination = regular_path(Path(context.env['WEAVE_JAVA_TRUSTSTORE']))
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    java_home = os.environ.get('JAVA_HOME')
+    keytool = str(Path(java_home) / 'bin/keytool') if java_home else shutil.which('keytool')
+    if not keytool:
+        raise TrustError('jdk-keytool-required-for-bootstrap')
+    try:
+        result = subprocess.run(
+            [keytool, '-list', '-rfc', '-cacerts', '-storepass', 'changeit'],
+            check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        raise TrustError('jdk-public-roots-unavailable') from None
+    roots = re.findall(rb'-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----',
+                       result.stdout, re.DOTALL)
+    if not roots:
+        raise TrustError('jdk-public-roots-unavailable')
+    with tempfile.TemporaryDirectory(prefix='weave-java-roots-') as temporary:
+        baseline = Path(temporary) / 'jvm-roots.pem'
+        baseline.write_bytes(b'\n'.join(roots) + b'\n')
+        return publish_truststore(baseline, context.tls_root / 'ca.pem', destination,
+                                 enroll=True)
 
 
 def main() -> int:
