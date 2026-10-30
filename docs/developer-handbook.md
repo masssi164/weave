@@ -62,6 +62,7 @@ The root `./gradlew` is the monorepo build/delivery source of truth. GitHub Acti
 
 | Gradle task | Purpose |
 | --- | --- |
+| `bootstrap` | Start the existing lifecycle selected by `-Penv=dev\|dogfood\|e2e\|prod` (default `dev`), generating one ignored shared Java truststore from the selected JDK roots and existing deployment CA. |
 | `dogfoodPrepare` | Explicit reviewed local-trust and approved test-member preparation; preserves owner state and does not replace qualification, physical startup observation or human acceptance. |
 | `doctor` | Checks required tools and pinned dependency files with actionable failures. |
 | `acceptanceContract` | Gherkin mapping and acceptance contract guard. |

@@ -6,6 +6,49 @@ def requiredProperty = { String name ->
     value.toString()
 }
 
+def bootstrapPythonRoot = layout.buildDirectory.dir('bootstrap-python')
+def bootstrapPython = bootstrapPythonRoot.map { it.file('bin/python').asFile }
+def bootstrapRequirements = file('infra/weave-workspace/requirements-identity.txt')
+def bootstrapPythonSetup = tasks.register('bootstrapPythonSetup') {
+    group = 'build setup'
+    description = 'Prepare the pinned Python bootstrap dependency in an ignored local environment.'
+    inputs.file bootstrapRequirements
+    outputs.file bootstrapPythonRoot.map { it.file('requirements.ready') }
+    outputs.upToDateWhen { bootstrapPython.get().isFile() }
+    doLast {
+        if (!bootstrapPython.get().isFile()) {
+            project.exec { commandLine 'python3', '-m', 'venv', bootstrapPythonRoot.get().asFile }
+        }
+        project.exec {
+            commandLine bootstrapPython.get(), '-m', 'pip', 'install', '--disable-pip-version-check', '-q', '-r', bootstrapRequirements
+        }
+        bootstrapPythonRoot.get().file('requirements.ready').asFile.text = bootstrapRequirements.text
+    }
+}
+
+tasks.register('bootstrap', Exec) {
+    group = 'application'
+    description = 'Prepare shared Java trust and start the selected existing Compose lifecycle (default: dev).'
+    workingDir rootProject.projectDir
+    outputs.upToDateWhen { false }
+    doFirst {
+        def environment = providers.gradleProperty('env').getOrElse('dev')
+        switch (environment) {
+            case 'dev':
+                commandLine 'bash', 'gradle/tasks/dev-up.sh'
+                break
+            case 'dogfood':
+                commandLine 'python3', 'infra/weave-workspace/scripts/dogfood_lifecycle.py', 'up', '--root', 'infra/weave-workspace'
+                break
+            case ['e2e', 'prod']:
+                commandLine 'bash', 'infra/weave-workspace/compose.sh', environment, 'up'
+                break
+            default:
+                throw new GradleException('env must be dev, dogfood, e2e or prod.')
+        }
+    }
+}
+
 tasks.register('devUp', Exec) {
     group = 'application'
     description = 'Converge the dev provider stack and leave Server/MCP ports ready for host processes.'
@@ -75,6 +118,13 @@ tasks.register('testAppContract') {
     group = 'verification'
     description = 'Compile and test the framework-free testApp product-flow proof without starting a stack.'
     dependsOn ':weave-product-e2e:test'
+}
+
+['bootstrap', 'devUp', 'dogfoodUp', 'dogfoodPrepare', 'dogfoodReset', 'testApp'].each { name ->
+    tasks.named(name, Exec) {
+        dependsOn bootstrapPythonSetup
+        environment 'PATH', bootstrapPythonRoot.get().dir('bin').asFile.toString() + File.pathSeparator + System.getenv('PATH')
+    }
 }
 
 tasks.register('dogfoodCandidateCheck', Exec) {

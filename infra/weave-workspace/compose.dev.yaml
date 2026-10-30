@@ -13,7 +13,7 @@ services:
     secrets: !reset []
     volumes: !override
       - ./scripts/run-keycloak.sh:/opt/weave/run-keycloak.sh:ro
-      - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}/ca.pem:/opt/weave/trust/ca.pem:ro
+      - ${WEAVE_JAVA_TRUSTSTORE:?bootstrap-generated Java truststore required}:/opt/weave/trust/java-truststore.p12:ro
       - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/keycloak/import:/opt/keycloak/data/import:ro
 
   synapse:
