@@ -229,31 +229,6 @@ services:
       timeout: 5s
       retries: 12
 
-  openldap:
-    <<: *weave-service
-    profiles: *identity-profiles
-    image: ${WEAVE_OPENLDAP_IMAGE:?approved digest-pinned OpenLDAP image required}
-    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-openldap
-    labels:
-      <<: *weave-resource-labels
-      com.massimotter.weave.component: identity-directory
-      com.massimotter.weave.data-class: identity-sensitive
-      com.massimotter.weave.fresh-start-eligible: "false"
-    environment:
-      LDAP_DOMAIN: ${WEAVE_LDAP_DOMAIN:-weave.test}
-      LDAP_ORGANISATION: Weave
-      LDAP_TLS: "true"
-      LDAP_TLS_CRT_FILENAME: cert.pem
-      LDAP_TLS_KEY_FILENAME: key.pem
-      LDAP_TLS_CA_CRT_FILENAME: ca.pem
-      LDAP_TLS_VERIFY_CLIENT: never
-    volumes:
-      - ldap-data:/var/lib/ldap
-      - ldap-config:/etc/ldap/slapd.d
-      - ${WEAVE_TLS_ROOT:?TLS root required}/ca.pem:/container/service/slapd/assets/certs/ca.pem:ro
-      - ${WEAVE_TLS_ROOT:?TLS root required}/ldap-cert.pem:/container/service/slapd/assets/certs/cert.pem:ro
-      - ${WEAVE_TLS_ROOT:?TLS root required}/ldap-key.pem:/container/service/slapd/assets/certs/key.pem:ro
-
   keycloak:
     <<: *weave-service
     labels:
@@ -267,8 +242,6 @@ services:
     depends_on:
       postgres-reconcile:
         condition: service_completed_successfully
-      openldap:
-        condition: service_started
     entrypoint:
       - /bin/bash
       - /opt/weave/run-keycloak.sh
@@ -287,15 +260,9 @@ services:
       KC_HEALTH_ENABLED: "true"
       KC_HTTP_MANAGEMENT_PORT: "9000"
       KC_PROXY_HEADERS: xforwarded
-      KC_VAULT_DIR: /opt/keycloak/vault
       KC_TRUSTSTORE_PATHS: /opt/weave/trust/java-truststore.p12
     secrets:
       - keycloak-db-password
-      - source: ldap-bind-password
-        target: /opt/keycloak/vault/weave_ldapBindPassword
-        uid: "${WEAVE_RUNTIME_UID:-1000}"
-        gid: "0"
-        mode: 0400
     volumes:
       - ./scripts/run-keycloak.sh:/opt/weave/run-keycloak.sh:ro
       - ${WEAVE_JAVA_TRUSTSTORE:?bootstrap-generated Java truststore required}:/opt/weave/trust/java-truststore.p12:ro
@@ -1104,8 +1071,6 @@ services:
       start_period: 30s
 
 secrets:
-  ldap-bind-password:
-    file: ${WEAVE_SECRET_ROOT:?private secret root required}/ldap-bind-password
   postgres-admin-password:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/postgres-admin-password
   backend-db-password:
@@ -1150,16 +1115,6 @@ secrets:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/runtime-state-s3-secret-key
 
 volumes:
-  ldap-data:
-    name: ${WEAVE_LDAP_DATA_VOLUME:-weave_ldap_data}
-    labels:
-      <<: *weave-resource-labels
-      com.massimotter.weave.data-class: identity-sensitive
-  ldap-config:
-    name: ${WEAVE_LDAP_CONFIG_VOLUME:-weave_ldap_config}
-    labels:
-      <<: *weave-resource-labels
-      com.massimotter.weave.data-class: identity-sensitive
   caddy-data:
     external: true
     name: ${WEAVE_CADDY_DATA_VOLUME:-weave_caddy_data}
