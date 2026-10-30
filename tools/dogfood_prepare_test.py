@@ -163,7 +163,7 @@ class PrepareTest(unittest.TestCase):
         text = (prepare.ROOT / "gradle/tasks/architecture-lifecycle.gradle").read_text()
         task = text.split("tasks.register('dogfoodPrepare', Exec)", 1)[1].split("\n}\n", 1)[0]
         self.assertNotIn("dependsOn", task)
-        self.assertIn("'python3', 'tools/dogfood_prepare.py'", task)
+        self.assertIn("bootstrapPython.get(), 'tools/dogfood_prepare.py'", task)
         with patch.object(prepare.sys, "argv", ["dogfood_prepare.py"]), patch.object(Path, "home", return_value=self.directory), \
                 patch.dict(os.environ, {"WEAVE_ENV_FILE": "/unreviewed/foreign.env"}), \
                 patch.object(prepare, "load_context", return_value=self.context) as load, \

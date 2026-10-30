@@ -38,7 +38,7 @@ tasks.register('bootstrap', Exec) {
                 commandLine 'bash', 'gradle/tasks/dev-up.sh'
                 break
             case 'dogfood':
-                commandLine 'python3', 'infra/weave-workspace/scripts/dogfood_lifecycle.py', 'up', '--root', 'infra/weave-workspace'
+                commandLine bootstrapPython.get(), 'infra/weave-workspace/scripts/dogfood_lifecycle.py', 'up', '--root', 'infra/weave-workspace'
                 break
             case ['e2e', 'prod']:
                 commandLine 'bash', 'infra/weave-workspace/compose.sh', environment, 'up'
@@ -78,7 +78,7 @@ tasks.register('dogfoodUp', Exec) {
     group = 'application'
     description = 'Consume the verified hosted runtime and converge Dogfood while preserving session data.'
     workingDir rootProject.projectDir
-    commandLine 'python3', 'infra/weave-workspace/scripts/dogfood_lifecycle.py', 'up', '--root', 'infra/weave-workspace'
+    commandLine bootstrapPython.get(), 'infra/weave-workspace/scripts/dogfood_lifecycle.py', 'up', '--root', 'infra/weave-workspace'
     outputs.upToDateWhen { false }
 }
 
@@ -86,7 +86,7 @@ tasks.register('dogfoodPrepare', Exec) {
     group = 'application'
     description = 'Prepare reviewed Dogfood trust and managed ordinary members from the shared client scenario.'
     workingDir rootProject.projectDir
-    commandLine 'python3', 'tools/dogfood_prepare.py'
+    commandLine bootstrapPython.get(), 'tools/dogfood_prepare.py'
     outputs.upToDateWhen { false }
 }
 
@@ -102,7 +102,7 @@ tasks.register('dogfoodReset', Exec) {
     group = 'application'
     description = 'Delete only the dogfood project and its three session volumes, then recreate an empty stack.'
     workingDir rootProject.projectDir
-    commandLine 'python3', 'infra/weave-workspace/scripts/dogfood_lifecycle.py', 'reset', '--root', 'infra/weave-workspace'
+    commandLine bootstrapPython.get(), 'infra/weave-workspace/scripts/dogfood_lifecycle.py', 'reset', '--root', 'infra/weave-workspace'
     outputs.upToDateWhen { false }
 }
 
