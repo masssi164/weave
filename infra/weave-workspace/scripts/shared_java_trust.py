@@ -154,7 +154,7 @@ def prepare_shared_trust(context) -> dict[str, object]:
                        result.stdout, re.DOTALL)
     if not roots:
         raise TrustError('jdk-public-roots-unavailable')
-    with tempfile.TemporaryDirectory(prefix='weave-java-roots-') as temporary:
+    with tempfile.TemporaryDirectory(prefix='weave-java-roots-', dir=destination.parent) as temporary:
         baseline = Path(temporary) / 'jvm-roots.pem'
         baseline.write_bytes(b'\n'.join(roots) + b'\n')
         return publish_truststore(baseline, context.tls_root / 'ca.pem', destination,

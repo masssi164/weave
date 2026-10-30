@@ -11,6 +11,7 @@ import tempfile
 import threading
 import unittest
 from types import SimpleNamespace
+from unittest.mock import patch
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -99,7 +100,12 @@ class SharedTrustTest(unittest.TestCase):
                   for p in tls.iterdir()}
         output = self.root / 'generated/trust/java-truststore.p12'
         context = SimpleNamespace(env={'WEAVE_JAVA_TRUSTSTORE': str(output)}, tls_root=tls)
-        result = prepare_shared_trust(context)
+        # macOS normally routes TMPDIR through /var -> /private/var. Our own
+        # temporary baseline must not inherit a symlinked global temp path.
+        temporary_alias = self.root / 'system-temp-alias'
+        temporary_alias.symlink_to(self.root, target_is_directory=True)
+        with patch.object(tempfile, 'tempdir', str(temporary_alias)):
+            result = prepare_shared_trust(context)
         self.assertEqual(result['status'], 'created')
         self.assertGreater(result['certificateCount'], 1)
         self.assertIn(fingerprint(self.local_ca[1]), trust_entries(output))
