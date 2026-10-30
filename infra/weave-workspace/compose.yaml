@@ -196,7 +196,28 @@ services:
     image: ${WEAVE_CADDY_IMAGE:-caddy:2.10.0-alpine}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-proxy
     depends_on:
-      keycloak:
+      openldap:
+    <<: *weave-service
+    profiles: [ldap-foundation]
+    image: ${WEAVE_OPENLDAP_IMAGE:?pinned OpenLDAP image required}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-openldap
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: identity-directory
+      com.massimotter.weave.data-class: identity-sensitive
+      com.massimotter.weave.fresh-start-eligible: "false"
+    environment:
+      LDAP_BASE_DN: ${WEAVE_LDAP_BASE_DN:?directory suffix required}
+    volumes:
+      - ldap-data:/var/lib/ldap
+      - ldap-config:/etc/ldap/slapd.d
+      - ${WEAVE_TLS_ROOT:?TLS root required}/ca.pem:/run/ldap/tls/ca.pem:ro
+      - ${WEAVE_TLS_ROOT:?TLS root required}/ldap-cert.pem:/run/ldap/tls/cert.pem:ro
+      - ${WEAVE_TLS_ROOT:?TLS root required}/ldap-key.pem:/run/ldap/tls/key.pem:ro
+    secrets:
+      - ldap-directory-admin-password
+
+  keycloak:
         condition: service_healthy
     ports:
       - "${WEAVE_PROXY_HTTP_HOST_PORT:-44080}:80"
@@ -260,12 +281,18 @@ services:
       KC_HEALTH_ENABLED: "true"
       KC_HTTP_MANAGEMENT_PORT: "9000"
       KC_PROXY_HEADERS: xforwarded
-      KC_TRUSTSTORE_PATHS: /opt/weave/trust/ca.pem
+      KC_VAULT_DIR: /opt/keycloak/vault
+      KC_TRUSTSTORE_PATHS: /opt/weave/trust/java-truststore.p12
     secrets:
       - keycloak-db-password
+      - source: ldap-bind-password
+        target: /opt/keycloak/vault/weave_ldapBindPassword
+        uid: "${WEAVE_RUNTIME_UID:-1000}"
+        gid: "0"
+        mode: 0400
     volumes:
       - ./scripts/run-keycloak.sh:/opt/weave/run-keycloak.sh:ro
-      - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}/ca.pem:/opt/weave/trust/ca.pem:ro
+      - ${WEAVE_JAVA_TRUSTSTORE:?bootstrap-generated Java truststore required}:/opt/weave/trust/java-truststore.p12:ro
       - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/keycloak/import:/opt/keycloak/data/import:ro
       - keycloak-data:/opt/keycloak/data
     ports:
@@ -900,6 +927,7 @@ services:
     environment:
       WEAVE_CANDIDATE_COMMIT: ${WEAVE_CANDIDATE_COMMIT:?prepared deployment descriptor required}
       SPRING_PROFILES_ACTIVE: ${WEAVE_ENVIRONMENT:?environment required}
+      JAVA_TOOL_OPTIONS: -Djavax.net.ssl.trustStore=/run/weave/java-truststore.p12 -Djavax.net.ssl.trustStoreType=PKCS12
       spring.security.oauth2.resourceserver.jwt.issuer-uri: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave
       weave.security.required-audience: ${WEAVE_API_URL:?API URL required}
       weave.platform.public-base-url: ${WEAVE_PUBLIC_URL:?public URL required}
@@ -933,6 +961,7 @@ services:
       - source: identity-reference-hmac-key
         target: identity-reference-hmac-key
     volumes:
+      - ${WEAVE_JAVA_TRUSTSTORE:?bootstrap-generated Java truststore required}:/run/weave/java-truststore.p12:ro
       - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/agent-runtime-policy.json:/app/agent-runtime-policy.json:ro
       - ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/agent-runtime/workloads:/run/secrets/agent-runtime/workloads
       - ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/agent-runtime/profile-signing:/run/secrets/agent-runtime/profile-signing:ro
@@ -1043,12 +1072,14 @@ services:
         condition: service_completed_successfully
     environment:
       SPRING_PROFILES_ACTIVE: ${WEAVE_ENVIRONMENT:?environment required}
+      JAVA_TOOL_OPTIONS: -Djavax.net.ssl.trustStore=/run/weave/java-truststore.p12 -Djavax.net.ssl.trustStoreType=PKCS12
       spring.security.oauth2.resourceserver.jwt.issuer-uri: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave
       weave.mcp.resource-uri: ${WEAVE_API_ORIGIN:?API origin required}/mcp
       weave.mcp.resource-metadata-uri: ${WEAVE_API_ORIGIN:?API origin required}/.well-known/oauth-protected-resource/mcp
       weave.mcp.authorization-server: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave
       weave.mcp.backend-resource-uri: ${WEAVE_API_URL:?API URL required}
     volumes:
+      - ${WEAVE_JAVA_TRUSTSTORE:?bootstrap-generated Java truststore required}:/run/weave/java-truststore.p12:ro
       - type: bind
         source: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-weave-mcp-server-jwk.json
         target: /run/secrets/weave/mcp-private-jwk.json
@@ -1067,6 +1098,10 @@ services:
       start_period: 30s
 
 secrets:
+  ldap-directory-admin-password:
+    file: ${WEAVE_SECRET_ROOT:?private secret root required}/ldap-directory-admin-password
+  ldap-bind-password:
+    file: ${WEAVE_SECRET_ROOT:?private secret root required}/ldap-bind-password
   postgres-admin-password:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/postgres-admin-password
   backend-db-password:
@@ -1111,6 +1146,16 @@ secrets:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/runtime-state-s3-secret-key
 
 volumes:
+  ldap-data:
+    name: ${WEAVE_LDAP_DATA_VOLUME:-weave_ldap_data}
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.data-class: identity-sensitive
+  ldap-config:
+    name: ${WEAVE_LDAP_CONFIG_VOLUME:-weave_ldap_config}
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.data-class: identity-sensitive
   caddy-data:
     external: true
     name: ${WEAVE_CADDY_DATA_VOLUME:-weave_caddy_data}
