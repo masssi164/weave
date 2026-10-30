@@ -27,7 +27,7 @@ services:
       - --import-realm
     volumes: !override
       - ./scripts/run-keycloak.sh:/opt/weave/run-keycloak.sh:ro
-      - ${WEAVE_TLS_ROOT:?reviewed external TLS root required}/ca.pem:/opt/weave/trust/ca.pem:ro
+      - ${WEAVE_JAVA_TRUSTSTORE:?bootstrap-generated Java truststore required}:/opt/weave/trust/java-truststore.p12:ro
       - ${WEAVE_GENERATED_ROOT:-./.generated/dogfood}/keycloak/import:/opt/keycloak/data/import:ro
 
   agent-runtime-keys-init:
