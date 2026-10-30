@@ -198,8 +198,8 @@ services:
     depends_on:
       openldap:
     <<: *weave-service
-    profiles: [ldap-foundation]
-    image: ${WEAVE_OPENLDAP_IMAGE:?pinned OpenLDAP image required}
+    profiles: *identity-profiles
+    image: ${WEAVE_OPENLDAP_IMAGE:-osixia/openldap:1.5.0}
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-openldap
     labels:
       <<: *weave-resource-labels
@@ -207,7 +207,13 @@ services:
       com.massimotter.weave.data-class: identity-sensitive
       com.massimotter.weave.fresh-start-eligible: "false"
     environment:
-      LDAP_BASE_DN: ${WEAVE_LDAP_BASE_DN:?directory suffix required}
+      LDAP_DOMAIN: ${WEAVE_LDAP_DOMAIN:-weave.test}
+      LDAP_ORGANISATION: Weave
+      LDAP_TLS: "true"
+      LDAP_TLS_CRT_FILENAME: cert.pem
+      LDAP_TLS_KEY_FILENAME: key.pem
+      LDAP_TLS_CA_CRT_FILENAME: ca.pem
+      LDAP_TLS_VERIFY_CLIENT: never
     volumes:
       - ldap-data:/var/lib/ldap
       - ldap-config:/etc/ldap/slapd.d
@@ -263,6 +269,8 @@ services:
     depends_on:
       postgres-reconcile:
         condition: service_completed_successfully
+      openldap:
+        condition: service_started
     entrypoint:
       - /bin/bash
       - /opt/weave/run-keycloak.sh
