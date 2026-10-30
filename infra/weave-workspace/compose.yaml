@@ -260,12 +260,12 @@ services:
       KC_HEALTH_ENABLED: "true"
       KC_HTTP_MANAGEMENT_PORT: "9000"
       KC_PROXY_HEADERS: xforwarded
-      KC_TRUSTSTORE_PATHS: /opt/weave/trust/ca.pem
+      KC_TRUSTSTORE_PATHS: /opt/weave/trust/java-truststore.p12
     secrets:
       - keycloak-db-password
     volumes:
       - ./scripts/run-keycloak.sh:/opt/weave/run-keycloak.sh:ro
-      - ${WEAVE_TLS_ROOT:-./.generated/dev/tls}/ca.pem:/opt/weave/trust/ca.pem:ro
+      - ${WEAVE_JAVA_TRUSTSTORE:?bootstrap-generated Java truststore required}:/opt/weave/trust/java-truststore.p12:ro
       - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/keycloak/import:/opt/keycloak/data/import:ro
       - keycloak-data:/opt/keycloak/data
     ports:
@@ -900,6 +900,7 @@ services:
     environment:
       WEAVE_CANDIDATE_COMMIT: ${WEAVE_CANDIDATE_COMMIT:?prepared deployment descriptor required}
       SPRING_PROFILES_ACTIVE: ${WEAVE_ENVIRONMENT:?environment required}
+      JAVA_TOOL_OPTIONS: -Djavax.net.ssl.trustStore=/run/weave/java-truststore.p12 -Djavax.net.ssl.trustStoreType=PKCS12
       spring.security.oauth2.resourceserver.jwt.issuer-uri: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave
       weave.security.required-audience: ${WEAVE_API_URL:?API URL required}
       weave.platform.public-base-url: ${WEAVE_PUBLIC_URL:?public URL required}
@@ -933,6 +934,7 @@ services:
       - source: identity-reference-hmac-key
         target: identity-reference-hmac-key
     volumes:
+      - ${WEAVE_JAVA_TRUSTSTORE:?bootstrap-generated Java truststore required}:/run/weave/java-truststore.p12:ro
       - ${WEAVE_GENERATED_ROOT:-./.generated/dev}/agent-runtime-policy.json:/app/agent-runtime-policy.json:ro
       - ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/agent-runtime/workloads:/run/secrets/agent-runtime/workloads
       - ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/agent-runtime/profile-signing:/run/secrets/agent-runtime/profile-signing:ro
@@ -1043,12 +1045,14 @@ services:
         condition: service_completed_successfully
     environment:
       SPRING_PROFILES_ACTIVE: ${WEAVE_ENVIRONMENT:?environment required}
+      JAVA_TOOL_OPTIONS: -Djavax.net.ssl.trustStore=/run/weave/java-truststore.p12 -Djavax.net.ssl.trustStoreType=PKCS12
       spring.security.oauth2.resourceserver.jwt.issuer-uri: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave
       weave.mcp.resource-uri: ${WEAVE_API_ORIGIN:?API origin required}/mcp
       weave.mcp.resource-metadata-uri: ${WEAVE_API_ORIGIN:?API origin required}/.well-known/oauth-protected-resource/mcp
       weave.mcp.authorization-server: ${WEAVE_AUTH_URL:?auth URL required}/realms/weave
       weave.mcp.backend-resource-uri: ${WEAVE_API_URL:?API URL required}
     volumes:
+      - ${WEAVE_JAVA_TRUSTSTORE:?bootstrap-generated Java truststore required}:/run/weave/java-truststore.p12:ro
       - type: bind
         source: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/keycloak-weave-mcp-server-jwk.json
         target: /run/secrets/weave/mcp-private-jwk.json

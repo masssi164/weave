@@ -20,9 +20,9 @@ grep -Fq \
   '${WEAVE_TLS_ROOT:-./.generated/dev/tls}/mailpit-key.pem:/certs/mailpit-key.pem:ro' \
   <<<"${caddy_service}"
 grep -Fq \
-  '${WEAVE_TLS_ROOT:-./.generated/dev/tls}/ca.pem:/opt/weave/trust/ca.pem:ro' \
+  '${WEAVE_JAVA_TRUSTSTORE:?bootstrap-generated Java truststore required}:/opt/weave/trust/java-truststore.p12:ro' \
   "${ROOT_DIR}/compose.yaml"
-grep -Fq 'KC_TRUSTSTORE_PATHS: /opt/weave/trust/ca.pem' "${ROOT_DIR}/compose.yaml"
+grep -Fq 'KC_TRUSTSTORE_PATHS: /opt/weave/trust/java-truststore.p12' "${ROOT_DIR}/compose.yaml"
 grep -Fq 'tls /certs/cert.pem /certs/key.pem' \
   "${ROOT_DIR}/scripts/rendering/gateway.py"
 if grep -Fq 'tls /certs/mailpit-cert.pem /certs/mailpit-key.pem' \

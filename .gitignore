@@ -57,6 +57,10 @@ app.*.map.json
 # Local runtime persistence from server smoke/test runs
 server/data/
 
+# Bootstrap-generated certificate-only Java truststore and publication lock.
+**/java-truststore.p12
+**/java-truststore.p12.lock
+
 # Local assistant state
 .openclaw/
 memory/

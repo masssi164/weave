@@ -744,6 +744,21 @@ def prepare_runtime_paths(context: ComposeContext) -> None:
 
 def prepare(context: ComposeContext) -> None:
     prepare_runtime_paths(context)
+    # Import only at preparation time: inspection and teardown need no PKCS12
+    # generation dependency and must remain available after a failed bootstrap.
+    try:
+        from shared_java_trust import TrustError, prepare_shared_trust
+    except ImportError:
+        raise ContractError(
+            'Use ./gradlew bootstrap to prepare the pinned Python dependency, '
+            'or install infra/weave-workspace/requirements-identity.txt in your Python environment.'
+        ) from None
+    try:
+        trust = prepare_shared_trust(context)
+    except (TrustError, OSError) as error:
+        raise ContractError(str(error) if isinstance(error, TrustError)
+                            else 'shared-java-trust-unavailable') from None
+    print(f"WEAVE_JAVA_TRUST status={trust['status']} certificateOnly=true")
     model = normalized_config(context, emit=False)
     graph = validate_mount_contract(model)
     preflight_protected_sources(context, model, graph)

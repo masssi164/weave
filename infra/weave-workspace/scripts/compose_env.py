@@ -62,6 +62,7 @@ PROCESS_RUNTIME_COORDINATES = {
     "DOCKER_CONTEXT",
     "DOCKER_HOST",
     "HOME",
+    "JAVA_HOME",
     "LANG",
     "LC_ALL",
     "PATH",
@@ -386,6 +387,9 @@ def load_context(selector: str, root: Path, supplied_env_file: str | None = None
         )
     env, namespace = _isolated_overrides(environment, env)
     _validate_environment(environment, profile, env)
+    env["WEAVE_JAVA_TRUSTSTORE"] = str(
+        resolve_deployment_path(root, env["WEAVE_GENERATED_ROOT"]) / "trust/java-truststore.p12"
+    )
     return ComposeContext(environment, profile, root, repository_root, common, selected, env, namespace)
 
 
