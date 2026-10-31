@@ -129,7 +129,7 @@ class DogfoodResetSessionContractTest(unittest.TestCase):
             mocks["execute"].side_effect = start_empty_stack
             runtime.reset_dogfood(self.context)
             mocks["compose"].assert_called_once_with(
-                self.context, "down", "--volumes", "--remove-orphans")
+                self.context, "down", "--remove-orphans")
             mocks["execute"].assert_called_once()
         self.assertEqual(removed, [
             ("volume", self.context.env[key])

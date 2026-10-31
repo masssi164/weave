@@ -1,0 +1,3 @@
+dn: uid=keycloak,ou=services,dc=weave,dc=test
+objectClass: account
+uid: keycloak

@@ -1,0 +1,35 @@
+dn: dc=weave,dc=test
+objectClass: dcObject
+objectClass: organization
+dc: weave
+o: Weave
+
+dn: ou=people,dc=weave,dc=test
+objectClass: organizationalUnit
+ou: people
+
+dn: ou=groups,dc=weave,dc=test
+objectClass: organizationalUnit
+ou: groups
+
+dn: ou=services,dc=weave,dc=test
+objectClass: organizationalUnit
+ou: services
+
+dn: ou=policies,dc=weave,dc=test
+objectClass: organizationalUnit
+ou: policies
+
+dn: cn=default,ou=policies,dc=weave,dc=test
+objectClass: applicationProcess
+objectClass: pwdPolicy
+cn: default
+pwdAttribute: userPassword
+pwdMinLength: 8
+pwdCheckQuality: 1
+pwdLockout: TRUE
+pwdMaxFailure: 5
+pwdFailureCountInterval: 900
+pwdLockoutDuration: 900
+pwdAllowUserChange: FALSE
+pwdMustChange: FALSE

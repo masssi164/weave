@@ -165,10 +165,13 @@ class ArtifactConsumers(unittest.TestCase):
                 patch.dict(os.environ, {"WEAVE_RUNTIME_DOCKER_CONFIG": str(config)}), \
                 patch.object(consumers.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as command, \
                 patch.object(consumers.subprocess, "check_output", side_effect=inspect), \
-                patch.object(consumers, "record_verified_runtime") as storage:
+                patch.object(consumers, "record_verified_runtime") as storage, \
+                patch("ldap_runtime_artifact.consume", return_value="sha256:" + "f" * 64) as ldap:
             environment = consumers.load_runtime_images()
         storage.assert_called_once_with(manifest, {key: value["imageId"] for key, value in definition["images"].items()},
                                         registry_references={key: value["reference"] for key, value in definition["images"].items()})
+        ldap.assert_called_once_with(payload, manifest["sourceCommit"], manifest["target"], definition["specDigest"])
+        self.assertEqual(environment["WEAVE_LDAP_IMAGE"], "sha256:" + "f" * 64)
         self.assertEqual(environment["WEAVE_TEST_APP_SERVER_IMAGE"], definition["images"]["backend"]["imageId"])
         self.assertEqual(environment["WEAVE_IMAGE_SOURCE_COMMIT"], manifest["sourceCommit"])
         invocations = [call.args[0] for call in command.call_args_list]

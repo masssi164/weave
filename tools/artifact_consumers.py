@@ -221,6 +221,8 @@ def load_runtime_images(candidate: str = "HEAD") -> dict[str, str]:
             if key == "backend" and (labels.get("com.massimotter.weave.domains") != ",".join(manifest["runtime"]["domains"])
                     or labels.get("com.massimotter.weave.runtime-flavor") != manifest["runtime"]["flavor"]):
                 raise ArtifactError("pulled-runtime-selection-mismatch")
+    from ldap_runtime_artifact import consume as consume_ldap_runtime
+    ldap_image = consume_ldap_runtime(payload, manifest["sourceCommit"], manifest["target"], definition["specDigest"])
     try:
         record_verified_runtime(manifest, images, registry_references={
             key: entry["reference"] for key, entry in definition["images"].items()})
@@ -228,7 +230,7 @@ def load_runtime_images(candidate: str = "HEAD") -> dict[str, str]:
         raise ArtifactError(str(failure)) from None
     except (OSError, ValueError):
         raise ArtifactError("runtime-image-retention-unavailable") from None
-    return {"WEAVE_TEST_APP_SERVER_IMAGE": images["backend"], "WEAVE_TEST_APP_MCP_IMAGE": images["mcp"],
+    return {"WEAVE_LDAP_IMAGE": ldap_image, "WEAVE_TEST_APP_SERVER_IMAGE": images["backend"], "WEAVE_TEST_APP_MCP_IMAGE": images["mcp"],
             "WEAVE_TEST_APP_KEYCLOAK_IMAGE": images["keycloak"], "WEAVE_RUNTIME_STATE_IMAGE": images["runtimeState"],
             "WEAVE_BACKEND_IMAGE": images["backend"], "WEAVE_MCP_IMAGE": images["mcp"],
             "WEAVE_KEYCLOAK_IMAGE": images["keycloak"], "WEAVE_IMAGE_SOURCE_COMMIT": manifest["sourceCommit"],
