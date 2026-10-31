@@ -85,11 +85,16 @@ def publish_truststore(jvm_roots: Path, deployment_ca: Path, destination: Path,
         try:
             if not cert.extensions.get_extension_for_class(x509.BasicConstraints).value.ca:
                 raise TrustError('deployment-trust-requires-ca-not-leaf')
-            usage = cert.extensions.get_extension_for_class(x509.KeyUsage).value
-            if not usage.key_cert_sign:
-                raise TrustError('deployment-ca-cannot-sign-certificates')
         except x509.ExtensionNotFound:
             raise TrustError('deployment-ca-constraints-required') from None
+        # Existing trust anchors may omit KeyUsage. RFC 5280 section 6.1.4(n)
+        # requires certificate-signing permission when the extension is present.
+        try:
+            usage = cert.extensions.get_extension_for_class(x509.KeyUsage).value
+        except x509.ExtensionNotFound:
+            usage = None
+        if usage is not None and not usage.key_cert_sign:
+            raise TrustError('deployment-ca-cannot-sign-certificates')
         if not cert.not_valid_before_utc <= now < cert.not_valid_after_utc:
             raise TrustError('deployment-ca-not-currently-valid')
     # One alias per actual certificate. A deployment CA already present in the

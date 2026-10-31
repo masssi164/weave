@@ -1,5 +1,8 @@
 services:
   keycloak:
+    depends_on: !override
+      postgres-reconcile:
+        condition: service_completed_successfully
     command:
       - start
       - --optimized

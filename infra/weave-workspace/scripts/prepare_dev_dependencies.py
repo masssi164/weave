@@ -49,6 +49,10 @@ def main() -> int:
     # downstream Weaver registration policy is optional and therefore must not
     # block the native product development loop.
     context = load_context("dev", root, args.env_file)
+    repository = root.parents[1]
+    subprocess.run(["docker", "build", "--tag", "weave-ldap:dev-dependencies",
+                    "--file", str(root / "ldap/Dockerfile"), str(repository)], check=True)
+    os.environ["WEAVE_LDAP_IMAGE"] = _exact_image("weave-ldap:dev-dependencies")
     carrier_image = _exact_image(context.env["WEAVE_KEYCLOAK_IMAGE"])
     os.environ["WEAVE_KEYCLOAK_IMAGE"] = carrier_image
     context = load_context("dev", root, args.env_file)

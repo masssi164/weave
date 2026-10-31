@@ -25,19 +25,24 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 from shared_java_trust import TrustError, fingerprint, prepare_shared_trust, publish_truststore, trust_entries
 
 
-def certificate(name, *, signer=None, ca=True, expired=False):
+def certificate(name, *, signer=None, ca=True, expired=False, key_usage=True,
+                key_cert_sign=None, basic_constraints=True):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     subject = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, name)])
     now = datetime.now(timezone.utc)
-    cert = (x509.CertificateBuilder().subject_name(subject)
+    builder = (x509.CertificateBuilder().subject_name(subject)
             .issuer_name(signer[1].subject if signer else subject)
             .public_key(key.public_key()).serial_number(x509.random_serial_number())
             .not_valid_before(now - timedelta(days=2))
-            .not_valid_after(now + timedelta(days=-1 if expired else 30))
-            .add_extension(x509.BasicConstraints(ca=ca, path_length=None), critical=True)
-            .add_extension(x509.KeyUsage(digital_signature=True, content_commitment=False,
+            .not_valid_after(now + timedelta(days=-1 if expired else 30)))
+    if basic_constraints:
+        builder = builder.add_extension(x509.BasicConstraints(ca=ca, path_length=None), critical=True)
+    if key_usage:
+        builder = builder.add_extension(x509.KeyUsage(digital_signature=True, content_commitment=False,
                            key_encipherment=True, data_encipherment=False, key_agreement=False,
-                           key_cert_sign=ca, crl_sign=ca, encipher_only=None, decipher_only=None), critical=True)
+                           key_cert_sign=ca if key_cert_sign is None else key_cert_sign,
+                           crl_sign=ca, encipher_only=None, decipher_only=None), critical=True)
+    cert = (builder
             .add_extension(x509.SubjectAlternativeName([x509.DNSName(name)]), critical=False)
             .sign(signer[0] if signer else key, hashes.SHA256()))
     return key, cert
@@ -156,6 +161,18 @@ class SharedTrustTest(unittest.TestCase):
         with self.assertRaisesRegex(TrustError, 'not-currently-valid'):
             self.publish(enroll=True)
 
+    def test_ca_without_basic_constraints_is_rejected(self):
+        self.ca.write_bytes(pem(certificate('unconstrained', basic_constraints=False)[1]))
+        with self.assertRaisesRegex(TrustError, 'ca-constraints-required'):
+            self.publish(enroll=True)
+        self.assertFalse(self.output.exists())
+
+    def test_ca_with_key_usage_denying_certificate_signing_is_rejected(self):
+        self.ca.write_bytes(pem(certificate('no-certificate-signing', key_cert_sign=False)[1]))
+        with self.assertRaisesRegex(TrustError, 'cannot-sign-certificates'):
+            self.publish(enroll=True)
+        self.assertFalse(self.output.exists())
+
     def test_empty_ca_is_rejected(self):
         self.ca.write_bytes(b'')
         with self.assertRaises(TrustError):
@@ -183,6 +200,16 @@ class SharedTrustTest(unittest.TestCase):
     @unittest.skipUnless(shutil.which('java') and shutil.which('javac') and shutil.which('keytool'),
                          'JDK required for real truststore consumer and TLS tests')
     def test_real_java_uses_same_store_for_renewed_leaf_and_rejects_other_ca_and_hostname(self):
+        self._verify_real_java_tls(self.local_ca)
+
+    @unittest.skipUnless(shutil.which('java') and shutil.which('javac') and shutil.which('keytool'),
+                         'JDK required for real truststore consumer and TLS tests')
+    def test_real_java_preserves_existing_ca_without_key_usage(self):
+        self._verify_real_java_tls(certificate('existing-deployment-root', key_usage=False))
+
+    def _verify_real_java_tls(self, deployment_ca):
+        self.ca.write_bytes(pem(deployment_ca[1]))
+        ca_before = (self.ca.read_bytes(), self.ca.stat().st_ino, self.ca.stat().st_mtime_ns)
         self.publish(enroll=True)
         inspected = subprocess.run(['keytool', '-list', '-keystore', str(self.output),
                                     '-storetype', 'PKCS12', '-storepass', ''],
@@ -207,11 +234,11 @@ public class TrustClient {
         compiled = subprocess.run(['javac', str(source)], capture_output=True, timeout=15)
         self.assertEqual(compiled.returncode, 0, compiled.stderr)
         before = self.output.read_bytes()
-        for signer, name, accepted in ((self.local_ca, 'localhost', True),
-                                       (self.local_ca, 'localhost', True),
+        for signer, name, accepted in ((deployment_ca, 'localhost', True),
+                                       (deployment_ca, 'localhost', True),
                                        (self.base_ca, 'localhost', True),
                                        (self.other_ca, 'localhost', False),
-                                       (self.local_ca, 'wrong.example.test', False)):
+                                       (deployment_ca, 'wrong.example.test', False)):
             with self.subTest(signer=signer[1].subject, name=name, accepted=accepted):
                 key, leaf = certificate(name, signer=signer, ca=False)
                 cert_path, key_path = self.root / 'leaf.pem', self.root / 'leaf.key'
@@ -242,6 +269,12 @@ public class TrustClient {
                     self.assertFalse(server.is_alive())
                     self.assertEqual(result.returncode == 0, accepted, result.stderr.decode())
         self.assertEqual(self.output.read_bytes(), before)
+        published = (self.output.read_bytes(), self.output.stat().st_ino, self.output.stat().st_mtime_ns)
+        self.assertEqual(self.publish()['status'], 'unchanged')
+        self.assertEqual(published, (self.output.read_bytes(), self.output.stat().st_ino,
+                                     self.output.stat().st_mtime_ns))
+        self.assertEqual(ca_before, (self.ca.read_bytes(), self.ca.stat().st_ino,
+                                     self.ca.stat().st_mtime_ns))
 
 
 if __name__ == '__main__':

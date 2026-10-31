@@ -135,6 +135,7 @@ class Repository(unittest.TestCase):
         with patch.object(hosted.platform, "system", return_value="Linux"), \
                 patch.object(hosted.platform, "machine", return_value="aarch64"), \
                 patch.object(hosted, "run", side_effect=run), patch.object(hosted, "copy_bundle"), \
+                patch("ldap_runtime_artifact.produce") as ldap, \
                 patch.object(hosted, "backend_build_arguments", return_value=["--target", "runtime-without-chat"]), \
                 patch.object(hosted, "verify_backend_image") as verify, \
                 patch.object(hosted, "publish_runtime_images", return_value={"runtime": {"domains": ["files"], "flavor": "jvm"}}) as publish:
@@ -150,6 +151,9 @@ class Repository(unittest.TestCase):
             if command[:2] == ["docker", "build"] or any("build_keycloak_image.py" in part or "build_runtime_state_image.sh" in part for part in command):
                 self.assertEqual(command[command.index("--platform") + 1], "linux/arm64")
         verify.assert_called_once_with(self.root, "sha256:" + "1" * 64, ["files"])
+        self.assertEqual(ldap.call_args.args[:3],
+                         (payload, self.command("rev-parse", "HEAD"), "linux/arm64"))
+        self.assertIn("WEAVE_IMAGE_REVISION=" + self.command("rev-parse", "HEAD"), ldap.call_args.args[3])
 
     def test_hosted_runtime_refuses_cross_architecture_and_automatic_amd64(self):
         for component, machine, event in (("runtime-linux-arm64", "x86_64", "push"),

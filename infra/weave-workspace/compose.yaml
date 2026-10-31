@@ -229,6 +229,44 @@ services:
       timeout: 5s
       retries: 12
 
+  ldap:
+    <<: *weave-service
+    profiles: [dev, dogfood, e2e]
+    image: ${WEAVE_LDAP_IMAGE:-weave-ldap:local}
+    container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-ldap
+    user: "${WEAVE_RUNTIME_UID:-1000}:0"
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    environment:
+      WEAVE_ENVIRONMENT: ${WEAVE_ENVIRONMENT:?prepared environment required}
+      WEAVE_LDAP_DOMAIN: ${WEAVE_TENANT_DOMAIN:-weave.test}
+    secrets:
+      - ldap-bind-password
+      - ldap-member-a-password
+      - ldap-member-b-password
+    volumes:
+      - ldap-data:/var/lib/ldap
+      - ldap-config:/etc/ldap/slapd.d
+      - ${WEAVE_TLS_ROOT:?existing TLS root required}/ca.pem:/run/certs/ca.pem:ro
+      - ${WEAVE_TLS_ROOT:?existing TLS root required}/ldap-cert.pem:/run/certs/ldap-cert.pem:ro
+      - ${WEAVE_TLS_ROOT:?existing TLS root required}/ldap-key.pem:/run/certs/ldap-key.pem:ro
+    tmpfs:
+      - /run/ldap:uid=${WEAVE_RUNTIME_UID:-1000},gid=0,mode=0700
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: ldap
+      com.massimotter.weave.data-class: identity-sensitive
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - test -f /run/ldap/ready && ldapsearch -LLL -Q -Y EXTERNAL -H ldapi://%2Frun%2Fldap%2Fldapi -o nettimeout=3 -l 3 -b '' -s base '(objectClass=*)' 1.1 >/dev/null 2>&1
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+
   keycloak:
     <<: *weave-service
     labels:
@@ -240,6 +278,8 @@ services:
     container_name: ${WEAVE_RESOURCE_PREFIX:-weave}-keycloak
     user: "${WEAVE_RUNTIME_UID:-1000}:0"
     depends_on:
+      ldap:
+        condition: service_healthy
       postgres-reconcile:
         condition: service_completed_successfully
     entrypoint:
@@ -1071,6 +1111,12 @@ services:
       start_period: 30s
 
 secrets:
+  ldap-bind-password:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/ldap-bind-password
+  ldap-member-a-password:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/ldap-member-a-password
+  ldap-member-b-password:
+    file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/ldap-member-b-password
   postgres-admin-password:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/postgres-admin-password
   backend-db-password:
@@ -1115,6 +1161,18 @@ secrets:
     file: ${WEAVE_SECRET_ROOT:-./.generated/dev/secrets}/runtime-state-s3-secret-key
 
 volumes:
+  ldap-data:
+    name: ${WEAVE_LDAP_DATA_VOLUME:?prepared LDAP volume required}
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: ldap
+      com.massimotter.weave.data-class: identity-sensitive
+  ldap-config:
+    name: ${WEAVE_LDAP_CONFIG_VOLUME:?prepared LDAP config volume required}
+    labels:
+      <<: *weave-resource-labels
+      com.massimotter.weave.component: ldap
+      com.massimotter.weave.data-class: identity-sensitive
   caddy-data:
     external: true
     name: ${WEAVE_CADDY_DATA_VOLUME:-weave_caddy_data}

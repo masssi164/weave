@@ -1,0 +1,7 @@
+# Physical iPhone preparation only. Never load in automated collaboration/E2E.
+dn: uid=massimotter,ou=people,dc=weave,dc=test
+objectClass: inetOrgPerson
+uid: massimotter
+cn: Massimotter
+sn: Massimotter
+mail: massimotter@weave.test

@@ -269,7 +269,7 @@ def assert_dogfood_reset_is_exact(context) -> None:
         compose_runtime_module.preflight_dogfood_reset = original_preflight
         compose_runtime_module.execute = original_execute
 
-    assert compose_calls == [("down", "--volumes", "--remove-orphans")]
+    assert compose_calls == [("down", "--remove-orphans")]
     assert removed == [
         ("volume", context.env["WEAVE_DB_DATA_VOLUME"]),
         ("volume", context.env["WEAVE_NATIVE_FILES_DATA_VOLUME"]),
@@ -338,7 +338,35 @@ def assert_serving_candidate_rendered(context) -> None:
         receipt_environment.write_text("", encoding="utf-8")
         os.chmod(receipt_environment, 0o600)
         result = subprocess.run(command, env=environment, text=True, capture_output=True, check=True)
-        services = json.loads(result.stdout)["services"]
+        model = json.loads(result.stdout)
+        services = model["services"]
+        if context.environment == "dogfood":
+            # Use the actual merged Compose labels, including !override session labels.
+            from provision_personal_ldap import require_personal_resources
+            resources = {("volume", value["name"]): value["labels"]
+                         for value in model["volumes"].values() if "labels" in value}
+            resources.update({("network", value["name"]): value["labels"]
+                              for value in model["networks"].values()})
+            def inspect_labels(command, **kwargs):
+                observed = resources[(command[1], command[3])]
+                return subprocess.CompletedProcess(command, 0, stdout=json.dumps(observed))
+            with patch.object(subprocess, "run", side_effect=inspect_labels):
+                require_personal_resources(context)
+                for kind, name in resources:
+                    if name not in {context.env[key] for key in (
+                            "WEAVE_DOCKER_NETWORK", "WEAVE_DB_DATA_VOLUME",
+                            "WEAVE_NATIVE_FILES_DATA_VOLUME", "WEAVE_MAILPIT_DATA_VOLUME",
+                            "WEAVE_LDAP_DATA_VOLUME", "WEAVE_LDAP_CONFIG_VOLUME")}:
+                        continue
+                    original = resources[(kind, name)].copy()
+                    resources[(kind, name)]["com.massimotter.weave.managed"] = "false"
+                    try:
+                        require_personal_resources(context)
+                    except ContractError:
+                        pass
+                    else:
+                        raise AssertionError("foreign resource accepted for personal provisioning")
+                    resources[(kind, name)] = original
         candidate = context.env["WEAVE_CANDIDATE_COMMIT"]
         for name in ("backend", "schema-init", "schema-receipt-check"):
             assert services[name]["environment"]["WEAVE_CANDIDATE_COMMIT"] == candidate, (
@@ -507,6 +535,8 @@ def main() -> int:
             "WEAVE_DB_DATA_VOLUME",
             "WEAVE_NATIVE_FILES_DATA_VOLUME",
             "WEAVE_MAILPIT_DATA_VOLUME",
+            "WEAVE_LDAP_DATA_VOLUME",
+            "WEAVE_LDAP_CONFIG_VOLUME",
         )
         assert_dogfood_reset_is_exact(dogfood)
         assert _image_digest(prod) == "sha256:" + "a" * 64

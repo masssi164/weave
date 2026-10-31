@@ -1,0 +1,17 @@
+dn: cn=member,ou=groups,dc=weave,dc=test
+objectClass: groupOfNames
+cn: member
+member: uid=weave-test-a,ou=people,dc=weave,dc=test
+member: uid=weave-test-b,ou=people,dc=weave,dc=test
+
+# groupOfNames requires a member. This non-existent DN cannot authenticate.
+# Administrators are assigned explicitly by the directory operator/migration.
+dn: cn=workspace-admin,ou=groups,dc=weave,dc=test
+objectClass: groupOfNames
+cn: workspace-admin
+member: cn=unassigned,ou=services,dc=weave,dc=test
+
+dn: cn=platform-admin,ou=groups,dc=weave,dc=test
+objectClass: groupOfNames
+cn: platform-admin
+member: cn=unassigned,ou=services,dc=weave,dc=test

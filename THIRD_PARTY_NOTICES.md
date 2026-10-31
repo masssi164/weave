@@ -26,3 +26,12 @@ The Weave-authored modifications in this vendored tree and their patches under `
 Package-manager dependencies and generated or incorporated third-party material remain subject to their respective licences. The Weave licence does not replace them. Preserve all applicable licence texts and required attribution in distributed source and binary packages.
 
 When adding vendored or substantially copied material, identify its origin, preserve its notices, document the applicable licence, and verify the intended redistribution. Do not label third-party material as solely Weave-authored.
+
+## Managed OpenLDAP runtime
+
+The directory image uses Ubuntu's OpenLDAP 2.6.10 package from the pinned Ubuntu archive snapshot,
+without a downstream OpenLDAP source patch. OpenLDAP retains the OpenLDAP Public License 2.8
+(OLDAP-2.8); the package's complete copyright/licence inventory remains in
+`/usr/share/doc/slapd/copyright` inside the image. Ubuntu base/dependency packages retain their
+respective notices. Weave's LDIF and lifecycle code remain EUPL-1.2. Runtime bundles contain no
+directory data, credential input, password hash, CA key or operator configuration.

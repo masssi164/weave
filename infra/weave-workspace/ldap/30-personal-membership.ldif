@@ -1,0 +1,5 @@
+# Apply once when the personal entry is created; never restore a revoked grant.
+dn: cn=member,ou=groups,dc=weave,dc=test
+changetype: modify
+add: member
+member: uid=massimotter,ou=people,dc=weave,dc=test
