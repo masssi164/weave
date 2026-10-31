@@ -1,0 +1,15 @@
+dn: uid=weave-test-a,ou=people,dc=weave,dc=test
+objectClass: inetOrgPerson
+uid: weave-test-a
+cn: Weave Test A
+sn: A
+givenName: Weave Test
+mail: weave-test-a@weave.test
+
+dn: uid=weave-test-b,ou=people,dc=weave,dc=test
+objectClass: inetOrgPerson
+uid: weave-test-b
+cn: Weave Test B
+sn: B
+givenName: Weave Test
+mail: weave-test-b@weave.test

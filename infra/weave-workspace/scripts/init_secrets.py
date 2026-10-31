@@ -36,6 +36,7 @@ CORE_TEXT_SECRETS = (
     "keycloak-db-password",
     "control-db-password",
 )
+LDAP_TEXT_SECRETS = ("ldap-bind-password", "ldap-member-a-password", "ldap-member-b-password")
 MATRIX_TEXT_SECRETS = (
     "mas-db-password",
     "synapse-db-password",
@@ -58,6 +59,7 @@ S3_TEXT_SECRETS = (
 # generation uses the narrower provider-selected sets above.
 TEXT_SECRETS = (
     CORE_TEXT_SECRETS
+    + LDAP_TEXT_SECRETS
     + MATRIX_TEXT_SECRETS
     + NEXTCLOUD_TEXT_SECRETS
     + S3_TEXT_SECRETS
@@ -155,6 +157,11 @@ def _project_machine_public_jwks(context: ComposeContext) -> None:
         except (json.JSONDecodeError, RealmProjectionError) as error:
             raise ContractError(f"cannot derive {secret_ref} public JWKS") from error
         _write_public_projection(output_root / public_name, pretty_json(projection))
+
+
+def _random_ldap_secret() -> bytes:
+    # File Vault and LDAP bind use the exact bytes, with no file terminator.
+    return secrets.token_urlsafe(48).encode("ascii")
 
 
 def _random_secret() -> bytes:
@@ -542,6 +549,26 @@ def _generate_tls(context: ComposeContext) -> None:
             _atomic_write(target, source.read_bytes())
 
 
+def _ensure_ldap_tls(context: ComposeContext) -> None:
+    """Issue only the new LDAPS leaf; retain the existing CA and gateway bytes."""
+    cert, key = (context.tls_root / name for name in ("ldap-cert.pem", "ldap-key.pem"))
+    if cert.exists() != key.exists():
+        raise ContractError("partial LDAP leaf requires explicit recovery")
+    if not cert.exists():
+        with tempfile.TemporaryDirectory(prefix="weave-ldap-tls-") as temporary:
+            generated_key, generated_cert = _generate_leaf_certificate(
+                Path(temporary), context.tls_root / "ca-key.pem", context.tls_root / "ca.pem", "ldap", ["ldap"])
+            _atomic_write(key, generated_key.read_bytes())
+            _atomic_write(cert, generated_cert.read_bytes())
+    for path in (cert, key):
+        _assert_private_file(path)
+    if _certificate_public_key(cert) != _private_public_key(key):
+        raise ContractError("LDAP certificate and private key do not match")
+    subprocess.run([OPENSSL, "verify", "-purpose", "sslserver", "-verify_hostname", "ldap",
+                    "-CAfile", str(context.tls_root / "ca.pem"), str(cert)],
+                   check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 def _validate_existing(context: ComposeContext) -> None:
     retired_identity_admin_secret = context.secret_root / "keycloak-weave-identity-admin"
     if retired_identity_admin_secret.exists() or retired_identity_admin_secret.is_symlink():
@@ -581,6 +608,8 @@ def _validate_existing(context: ComposeContext) -> None:
         required.extend(TEST_ONLY_SECRETS)
     if context.environment == "prod":
         required.extend(SMTP_SECRETS)
+    if context.environment != "prod":
+        required.extend(LDAP_TEXT_SECRETS)
     for name in required:
         _assert_private_file(context.secret_root / name)
     for name in (HEX_SECRETS if matrix_selected else ()):
@@ -702,6 +731,8 @@ def initialize(context: ComposeContext) -> None:
                 raise ContractError(
                     "runtime-admin SecretRef directory ownership is invalid"
                 ) from error
+    for name in LDAP_TEXT_SECRETS:
+        _atomic_write(context.secret_root / name, _random_ldap_secret())
     for name in CORE_TEXT_SECRETS:
         _atomic_write(context.secret_root / name, _random_secret())
     if context.env["WEAVE_CHAT_PROVIDER"] == "matrix-synapse":
@@ -743,6 +774,7 @@ def initialize(context: ComposeContext) -> None:
                     "runtime-admin private JWK ownership is invalid"
                 ) from error
     _generate_tls(context)
+    _ensure_ldap_tls(context)
     _own_isolated_private_roots(context)
     _validate_existing(context)
     _project_machine_public_jwks(context)

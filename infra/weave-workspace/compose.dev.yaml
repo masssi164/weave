@@ -4,7 +4,9 @@ services:
       - host.docker.internal:host-gateway
 
   keycloak:
-    depends_on: !reset {}
+    depends_on: !override
+      ldap:
+        condition: service_healthy
     command:
       - start-dev
       - --import-realm

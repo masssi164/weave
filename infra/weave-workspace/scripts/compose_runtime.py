@@ -78,6 +78,8 @@ VOLUME_KEYS = (
     "WEAVE_CADDY_CONFIG_VOLUME",
     "WEAVE_DB_DATA_VOLUME",
     "WEAVE_KEYCLOAK_DATA_VOLUME",
+    "WEAVE_LDAP_DATA_VOLUME",
+    "WEAVE_LDAP_CONFIG_VOLUME",
     "WEAVE_MAILPIT_DATA_VOLUME",
     "WEAVE_NEXTCLOUD_DATA_VOLUME",
     "WEAVE_SYNAPSE_DATA_VOLUME",
@@ -86,6 +88,8 @@ VOLUME_KEYS = (
     "WEAVE_NATIVE_FILES_DATA_VOLUME",
 )
 RESOURCE_METADATA = {
+    "WEAVE_LDAP_DATA_VOLUME": ("ldap", "identity-sensitive"),
+    "WEAVE_LDAP_CONFIG_VOLUME": ("ldap", "identity-sensitive"),
     "WEAVE_CADDY_DATA_VOLUME": ("gateway", "tls-sensitive"),
     "WEAVE_CADDY_CONFIG_VOLUME": ("gateway", "configuration-sensitive"),
     "WEAVE_DB_DATA_VOLUME": ("postgres", "database-sensitive"),
@@ -107,6 +111,8 @@ def active_volume_keys(context: ComposeContext) -> tuple[str, ...]:
             "WEAVE_DB_DATA_VOLUME",
             "WEAVE_NATIVE_FILES_DATA_VOLUME",
             "WEAVE_MAILPIT_DATA_VOLUME",
+            "WEAVE_LDAP_DATA_VOLUME",
+            "WEAVE_LDAP_CONFIG_VOLUME",
         )
     keys = [
         "WEAVE_CADDY_DATA_VOLUME",
@@ -115,6 +121,8 @@ def active_volume_keys(context: ComposeContext) -> tuple[str, ...]:
         "WEAVE_KEYCLOAK_DATA_VOLUME",
         "WEAVE_NATIVE_FILES_DATA_VOLUME",
     ]
+    if context.environment == "e2e":
+        keys.extend(("WEAVE_LDAP_DATA_VOLUME", "WEAVE_LDAP_CONFIG_VOLUME"))
     profiles = set(context.active_profiles)
     if profiles.intersection({"dogfood", "e2e", "dev-tools"}):
         keys.append("WEAVE_MAILPIT_DATA_VOLUME")
@@ -264,7 +272,7 @@ def resource_metadata(context: ComposeContext, kind: str, name: str) -> tuple[st
     matches = [
         metadata
         for key, metadata in RESOURCE_METADATA.items()
-        if kind == "volume" and context.env[key] == name
+        if kind == "volume" and context.env.get(key) == name
     ]
     if len(matches) != 1:
         raise ContractError(f"no unique resource metadata for Docker {kind} {name}")
@@ -2112,7 +2120,9 @@ def reset_dogfood(context: ComposeContext) -> None:
             _private_json(marker, {"schemaVersion": "weave.dogfood-session-reset/v1",
                                    "environment": "dogfood", "supportSafe": True})
         _sync_session_directory(marker.parent)
-        compose(context, "down", "--volumes", "--remove-orphans")
+        # LDAP identities and their provisioning ledger survive session resets.
+        # Remove only the three explicit session volumes below.
+        compose(context, "down", "--remove-orphans")
         cleanup_retired_dogfood()
         for key in (
             "WEAVE_DB_DATA_VOLUME",

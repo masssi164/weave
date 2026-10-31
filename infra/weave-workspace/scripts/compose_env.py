@@ -40,6 +40,7 @@ PUBLIC_PROCESS_COORDINATES = {
     "WEAVE_SPEC_CORPUS_ROOT",
 }
 DEPLOYMENT_PROCESS_OVERRIDES = {
+    "WEAVE_LDAP_IMAGE",
     "WEAVE_BACKEND_IMAGE",
     "WEAVE_KEYCLOAK_IMAGE",
     "WEAVE_MCP_IMAGE",
@@ -237,6 +238,8 @@ def _isolated_overrides(environment: str, env: dict[str, str]) -> tuple[dict[str
             "WEAVE_CADDY_DATA_VOLUME": f"{volume_prefix}_caddy_data",
             "WEAVE_CADDY_CONFIG_VOLUME": f"{volume_prefix}_caddy_config",
             "WEAVE_DB_DATA_VOLUME": f"{volume_prefix}_db_data",
+            "WEAVE_LDAP_DATA_VOLUME": f"{volume_prefix}_ldap_data",
+            "WEAVE_LDAP_CONFIG_VOLUME": f"{volume_prefix}_ldap_config",
             "WEAVE_KEYCLOAK_DATA_VOLUME": f"{volume_prefix}_keycloak_data",
             "WEAVE_MAILPIT_DATA_VOLUME": f"{volume_prefix}_mailpit_data",
             "WEAVE_NEXTCLOUD_DATA_VOLUME": f"{volume_prefix}_nextcloud_data",
@@ -360,6 +363,9 @@ def load_context(selector: str, root: Path, supplied_env_file: str | None = None
             "WEAVE_CANDIDATE_MANIFEST_DIGEST": candidate_manifest_digest,
         }
     )
+    prefix = env["WEAVE_RESOURCE_PREFIX"].replace("-", "_")
+    env.setdefault("WEAVE_LDAP_DATA_VOLUME", prefix + "_ldap_data")
+    env.setdefault("WEAVE_LDAP_CONFIG_VOLUME", prefix + "_ldap_config")
     env.setdefault("WEAVE_RUNTIME_UID", str(os.getuid()))
     env.setdefault("WEAVE_RUNTIME_GID", str(os.getgid()))
     env.setdefault("WEAVE_MATRIX_HOST", urlsplit(env.get("WEAVE_MATRIX_URL", "")).hostname or "")

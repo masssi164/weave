@@ -259,6 +259,8 @@ def runtime(root: Path, payload: Path, source: str, domains: list[str], componen
         images[name] = run(root, ["docker", "image", "inspect", tag, "--format", "{{.Id}}"], capture=True)
         if name == "backend":
             verify_backend_image(root, images[name], domains)
+    from ldap_runtime_artifact import produce as produce_ldap_runtime
+    produce_ldap_runtime(payload, source, target, common)
     images["keycloak"] = run(root, ["python3", "infra/weave-workspace/scripts/build_keycloak_image.py",
                                     "--root", str(root), "--platform", target, "--candidate-commit", source,
                                     "--output", str(payload / "keycloak-build-evidence.json")], capture=True).splitlines()[-1]

@@ -175,6 +175,12 @@ jobs:
             --recreate-command "./gradlew --no-daemon dogfoodUp" \
             --output build/evidence/prepare-human-test/tls-persistence.json
 
+      - name: Provision the personal LDIF account for iPhone without signing in
+        working-directory: weave
+        env:
+          DOGFOOD_USER_SECRET: ${{ secrets.DOGFOOD_USER_SECRET }}
+        run: python3 tools/provision_personal_ldap.py --candidate "$DOGFOOD_COMMIT"
+
       - name: Sign the hosted artifact, install in place, and observe ordinary startup
         working-directory: weave
         run: |

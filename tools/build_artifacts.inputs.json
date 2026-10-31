@@ -121,7 +121,9 @@
         "server/domains/portability/build.gradle",
         "server/domains/agent-runtime/src/main/**",
         "server/domains/agent-runtime/build.gradle",
-        "tools/artifact_evidence.py"
+        "tools/artifact_evidence.py",
+        "infra/weave-workspace/ldap/**",
+        "tools/ldap_runtime_artifact.py"
       ],
       "runtimeFlavor": "jvm"
     },
@@ -240,7 +242,9 @@
         "server/domains/portability/build.gradle",
         "server/domains/agent-runtime/src/main/**",
         "server/domains/agent-runtime/build.gradle",
-        "tools/artifact_evidence.py"
+        "tools/artifact_evidence.py",
+        "infra/weave-workspace/ldap/**",
+        "tools/ldap_runtime_artifact.py"
       ],
       "runtimeFlavor": "jvm"
     },
